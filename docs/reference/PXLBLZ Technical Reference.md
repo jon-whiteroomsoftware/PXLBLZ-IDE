@@ -13,7 +13,8 @@ an authenticated Studio. Pattern editing, transpilation, execution, preview,
 and hardware artifact generation happen in the page. Durable personal content
 lives in Cloudflare D1 behind the Worker API. Live Controllers sit behind an
 optional Chrome-extension relay because an HTTPS page cannot open their LAN
-WebSockets directly.
+WebSockets directly. Agents, built in or connected over MCP, edit Shows through
+the open editor; the Worker coordinates them but never holds Show content.
 
 ---
 
@@ -29,9 +30,10 @@ WebSockets directly.
 | Editor | Monaco with a Pixelblaze language mode |
 | Parsing and rewriting | Acorn |
 | Personal persistence | Cloudflare Worker + D1 |
+| Agent coordination | Worker Durable Objects; OpenAI Responses API for the built-in agent |
 | Preview drawing | WebGL point renderer |
 | Tests | Vitest/jsdom plus Playwright suites and hardware harnesses |
-| Commit gate | Husky: lint and full Vitest suite |
+| Commit gate | Husky: lint, typecheck, and staged-path tests |
 
 ![System boundaries: the browser contains UI, shared state, and the pure engine; only durable content and explicit hardware intent cross its boundary](../images/system-map.svg)
 
@@ -68,10 +70,14 @@ mutation; `App.tsx` performs the route/store join after collections resolve.
 |---|---|
 | `/`, `/gallery`, `/gallery/<slug>` | Public Gallery |
 | `/p/<slug>` | Built-in Pattern detail |
+| `/s/<slug>` | Gallery Show detail |
 | `/studio`, `/studio/<kind>/<id>` | Studio entities |
 | `/studio-welcome` | Signed-out Studio gate |
 | `/docs`, `/docs/<id>` | Public documentation |
 | `/reference`, `/reference/<library>` | Public API Reference |
+
+The Worker also serves `/api/*` for personal content (§3) and the agent
+routes: OAuth discovery, `/oauth/*`, `/mcp`, and `/api/agent/*` (§26).
 
 Studio routes wait for `/api/me`. GitHub and Google identities attach to one
 stable user row; a verified matching email auto-links at sign-in. The API keeps
@@ -93,24 +99,25 @@ frame. Cards, Pattern detail, and Studio resolve one shared recommended
 presentation per Pattern. The `ZRanger1` section keeps its published popularity
 order; other sections are alphabetical.
 
-**Gallery live pool (#888).** Every card is poster-first. `GalleryLivePreview`
+**Gallery live pool.** Every card is poster-first. `GalleryLivePreview`
 owns a 2D poster canvas and mounts a WebGL canvas only while the card is
 `live` or `warm`. `galleryLiveSelection.ts` (pure) ranks viewport-intersecting
-cards by pointer distance to the card center — top-of-viewport proximity with
-no pointer, keyboard focus first — and applies rank-gap hysteresis: a holder
-keeps its slot while ranked below `poolSize + keepMargin`, and yields only to
-an entrant more than `keepMargin` ranks better, so the nearest card always
-gets a slot without boundary flicker. `galleryLiveCoordinator.ts` (DOM) keeps
+cards by pointer distance to the card center (top-of-viewport proximity with
+no pointer, keyboard focus first) and admits them in rank order until a budget
+of 8,000 pixel evaluations per frame (`GALLERY_LIVE_PIXEL_BUDGET`) is spent;
+the first-ranked card always gets in. That is about six Patterns at their
+Gallery counts, or one 2,000-pixel Show plus four. Rank-gap hysteresis keeps a
+holder live while it ranks within two places of the admitted set, so the
+boundary does not flicker. `galleryLiveCoordinator.ts` (DOM) keeps
 the registry, ignores touch pointer positions, re-ranks on pointer, scroll
 (capture), resize, and focus after a 100 ms trailing debounce, and grants one
 `warm` slot at a time so fresh cards render a single frame for their poster
 (stepping forward a few frames if the first is dark) without exceeding
-`poolSize + 1` contexts. A card leaving the pool paints one last frame,
+the admitted set plus one context. A card leaving the pool paints one last frame,
 copies it into the poster synchronously (the drawing buffer is not preserved
 across composites), and keeps a fast-replay snapshot of its runtime that the
 next grant restores, so it continues exactly where it stopped; a blank
-capture never replaces a lit poster. Pool size is 6 and the margin 2; the
-density preference (`galleryDensity.ts`, localStorage) sets 2, 3, or 4
+capture never replaces a lit poster. The density preference (`galleryDensity.ts`, localStorage) sets 2, 3, or 4
 columns, and 1D Patterns span two columns.
 
 **Gallery keyframes.** Cards run on `createFastReplayRuntime` (fast fidelity,
@@ -129,7 +136,7 @@ regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`);
 `keyframeOverrides.ts` pins a Pattern's poster time. A test asserts every
 public Gallery Pattern and Gallery Show has a current keyframe.
 
-**Gallery Shows (#894).** `galleryShows.ts` is the curated, ordered list
+**Gallery Shows.** `galleryShows.ts` is the curated, ordered list
 (Overture, Quadrille, Redline, Coronal) with byline and premise, the band
 geometry rules (height 0.4 x grid width, width from the stage's aspect, capped
 at 0.7 x grid width; caption at most 0.8 x preview width), and
@@ -143,38 +150,18 @@ runtime shape (prepared artifact, geometry, look, keyframe key, pixel cost), so
 thermometer driven from the runtime's elapsed time. `GalleryPage` inserts
 bands before the Pattern indexes `galleryShowInsertionIndexes` returns (hero
 first, the rest evenly spread), only in the unfiltered Gallery and the
-`shows` directory. The live pool admits by pixel budget
-(`GALLERY_LIVE_PIXEL_BUDGET`, 8,000 evaluations per frame); the first-ranked
-card always gets in. `/s/<slug>` renders `ShowDetailPage`: the stage at full
-size, caption, and the scene list. Show keyframes are scored across the whole
+`shows` directory. `/s/<slug>` renders `ShowDetailPage`: the stage at full
+size, caption, and its chapter list. Show keyframes are scored across the whole
 loop at one sample per second and stored as `show--<id>.json.gz`.
 
 **Analytics** flow through a typed seam; local development and tests send
 nothing. OAuth intent and callback outcome events use only the provider,
 outcome, and coarse failure code, never account or profile data.
 
-The [agent OAuth and MCP contract](contracts/agent-oauth-discovery.md)
-describes signed consent, resource-bound credentials, private authorization
-storage, and the canonical MCP tool endpoint. Validated clients attach through
-the shared account slot; commands remain private until the browser admits them.
-
-The [agent account rendezvous](contracts/agent-rendezvous.md) coordinates one
-agent connection per account through a private Durable Object and an authenticated
-browser channel. Admission gating remains separate from capability-checked local
-cleanup, so disabling access still permits retirement. It stores connection metadata only; editor admission and saves
-remain browser-owned. The volatile tab relay never persists Show contents or
-operation receipts. Revocation confirms editing end only after browser retirement
-acknowledgement; an earlier adopted save keeps its store-owned outcome.
-Each public MCP tool call reaches that owner once for trusted binding resolution,
-move-notice consumption and optional relay work. Its 240-per-minute agent counter
-is separate from browser liveness, so a throttled agent response retains a healthy
-browser receive/reply path and carries its fixed-window retry interval.
-An authorized Show may explicitly move the current external grant from another
-registered editor using an observed binding-generation compare. The serialized
-replacement creates fresh call/binding identities and an empty destination relay;
-receive remains the owner of browser executor state. Stale tool envelopes report
-the new destination without dispatch, and the next actual MCP tool response asks
-the client to refresh its connection and Show context.
+**Studio entry.** The Gallery's Studio entry opens stock Quadrille and asks
+for playback for that entry only; otherwise the Show editor opens paused.
+Welcome completion and a successful OAuth return use the same destination, and
+no last-Show preference is stored.
 
 ## 3. Personal content and persistence
 
@@ -232,9 +219,21 @@ Major Zustand stores, one line each:
 | `controllerStore` | Multi-Controller connections and push orchestration |
 | `controllerPanelStore` | Polled live state for the active Controller |
 | `controllerProfileStore` | Durable profile CRUD and live refresh |
+| `useAgentDrawerStore` | Agent drawer connection, activity, and composer state |
 
 Stores export initial state for test resets. Engine code does not depend on
 React store hooks; store-coupled lookups are injected.
+
+**Studio layout.** The top-bar place control owns the six Studio areas plus
+Docs and API Reference, and remembers the last open entity in each area.
+`StudioEntityDrawer` houses the entity list: pinned, it takes part in the
+three-pane layout; unpinned, it reserves a 22 px edge tab and opens as an
+overlay, so opening and closing never changes workspace width or scroll.
+`studioEntityDrawer.ts` owns the transition rules and
+`studioEntityDrawerStore.ts` persists the pin per place; narrow viewports force
+it unpinned without changing that preference. Panes keep explicit minimums and
+remembered per-entity divider widths. Shows replace the center and right panes
+with the timeline-over-Stage workspace (§21).
 
 **Monaco and validation.** `Editor.tsx` runs two timers: a short preview
 debounce publishing clean source, and a slower sync tick persisting source or
@@ -867,911 +866,621 @@ and its profile links exclude records in Trash.
 
 # Part 5 — Shows
 
-A Show is authored as timeline choreography and shipped as one ordinary
-self-contained Pixelblaze Pattern. The unified editor preserves human intent
-as Clips, Layers, Zones, Transitions, Groups, routing, and Property animation;
-the v2 record saves those entities directly. The compiler may lower them through
-internal Scene intervals before generating a scheduler and isolated Pattern members.
-
-## 19. Show domain model and persistence
-
-The opt-in native v2 workspace now exposes explicit Layer add, rename, stacking
-and complete authored reassignment/removal. Its thin controls use the existing
-pure Layer owner and captured prepared adoption/history/save path. See
-[Native v2 Layer management](contracts/show-v2-layer-management.md) for command
-ingress, unused Group bindings, held occupancy and stale-provider ownership.
-
-The same captured workspace now offers ordinary Clip opacity/View and Effect
-add/update/duplicate/reorder with explicit whole-Clip or selected-time scope.
-Mixed values produce independent dirty patches. See
-[Native v2 appearance management](contracts/show-v2-appearance-management.md)
-for exact identities, prepared admission and named integration restrictions.
-
-[Native v2 Property management](contracts/show-v2-property-management.md) specifies
-the additive Show/Group-definition panel, exact captured source/authoritative scalar
-eligibility, six typed track/key operations and retained-curve draft ownership.
-
-The same workspace's Stage preview isolates Zones and draws authored Zone
-guides through the Layout occurrence active at the presented time, so a later
-Layout's output is never hidden by an initial mask. See
-[Prepared v2 Stage preview](contracts/show-v2-prepared-stage.md) for the
-presentation windows, transfer blending and the presentation-only boundary.
-
-That surface is the production Show editor since the #1039 cutover, and it
-covers ordinary Clip creation, timing, deletion, sharing and Pattern
-replacement, Transition Insert/settings/Reset to Cut, Group creation and
-occurrence operations, Group definition-local Pattern replacement, Layout
-occurrence edits, Markers, global Insert Time and Show End. Every one of those
-adapters reaches its pure owner through one closed prepared-edit admission path
-that revalidates route, provider, revision and captured dependencies, publishes
-exactly one candidate with one history entry and one save, and writes nothing on
-refusal or no-op. The
-[audit scope map](evidence/issue-1038-audit/scope-map.md) records which
-behaviors are proved and which residuals are still carried.
-
-**Which record backs the open editor.** Since #1039, version 2 is the ordinary
-Show path: a fresh Show is authored as a
-`ShowRecordV2`, the Show list reads stored version-2 documents only,
-`.pxlshow` import accepts either version and stores a version-1 file as a
-converted version-2 record, and an unbound MCP
-connection is described the v2 catalogue. There is one editor and no route gate:
-since #1065 a stored version-2 document opens in the same `ShowEditor` every
-other Show opens in, ungated. What follows the Show's stored version is the
-*record* that editor reads, because nothing in the application converts a stored
-row: a version-2 document backs the editor with its v2 pilot record. Since
-#1042 Phase 1b a row still stored as version 1 is not read at all: the Worker
-answers the v1 list, a v1 create and every PATCH with 410 `show-v1-retired`,
-and the row's route shows "Show not found".
-A built-in Show opens on its native version-2 catalogue record as a session-only
-lesson draft that writes nothing (#1067). Until #1066 connects
-the remaining edits, a version-2 record in that editor has only the ordinary
-Clip move connected; every other command is fenced to an internal no-change
-result. A stored v2 row or native v2 built-in supplies the editor's v2 backing;
-an id with neither record is not opened.
-
-The rest of this section records what the rejected v2 editor route offered
-before #1065 unmounted it; #1067 removes those components. Its Show inspector
-carried the output-contract summary and Show properties, Stage map
-selection, Zone renaming and Show Trails, and its header carries View code and
-Download .epe; its Zone Map adds and removes Zones, and its Zone Layouts
-section adds, duplicates, renames and removes Zone Layout definitions and
-writes a definition's routing mode, operator parameters, member Zones and, for
-an Installation Show, its physical LED ranges. Those two owners were the
-editor's alone: the MCP command set edits content in Shows, not Show structure,
-so an agent still cannot create a Zone or re-route a definition. Dragging
-across the Stage to select an Installation Zone's LEDs remains a v1-only
-surface. See [the editor contract](contracts/show-editor-v2.md#edit-doors)
-and [the Zone owner contract](contracts/show-v2-zone-layout-owners.md).
-
-**Row storage.** Personal Show rows store one version-2 document in `record_json`;
-migration 0029 removed the twelve version-1 columns. `src/cloudflare/shows.ts`
-ignores a row whose `record_json` is NULL. #1105 converted local rows with the
-since-retired D1 tool. Production held no rows to convert, because its six v1
-rows were deleted on 2026-09-25 (#1105). See the
-[cutover rehearsal](evidence/issue-1039-cutover/rehearsal.md).
-
-`ShowRecordV2` holds Zones, routing Layouts, the output contract, and a
-composition of Clips, Layers, Groups, Markers, explicit Show End, and Property
-animation. `src/store/showStore.ts` owns `showV2Pilots`, `showV2Histories`, and
-`showV2Rows`; it queues provider `replaceShowV2` writes, applies optimistic
-replacements, and maintains in-memory undo/redo history. The store assigns each
-accepted replacement a monotonic single-client `updatedAt` ordering stamp and
-recovers a current failed write from the last durable record and history.
-Workspace reload retires personal working copies and their history before
-listing stored rows. These stamps order one client's recovery; they are not
-document revisions or a cross-client conflict protocol. Shows persist
-structured choreography and derive their generated Pattern artifact at compile
-and delivery boundaries.
-
-**Authored Show files.** `showFileBundle.ts` owns the versioned `.pxlshow`
-boundary. Version 1 is gzip-compressed JSON containing one complete
-`ShowRecord`, reachable user `PatternRecord`s, referenced non-stock
-`MapRecord`s, and export provenance. `showImportPlan.ts` parses that snapshot
-against the receiving library before any write: stock IDs must exist locally;
-same-ID dependencies with matching content are reused; absent dependencies keep
-their IDs; and divergent dependencies receive fresh IDs and Show-tied names.
-Application rewrites flat cells, composition instances, Group-definition
-instances, Stage maps, and output-contract maps together, then normalizes and
-validates the complete Show. The imported Show always receives a fresh ID and
-persists its original Show ID, app version, export time, and import time in
-`importMetadata`; D1 stores that provenance inside the version-2 document in
-`personal_shows.record_json` as `ShowRecordV2.importMetadata`.
-Since #1042 Phase 1b a version-1 file stores a version-2 record: the applied
-Show converts through `convertAppliedShowImportV1`
-(`src/engine/showImportV1Conversion.ts`), which resolves Pattern sources and the
-Stage dimension exactly against the Patterns and Maps the import creates and the
-workspace's own. Conversion runs before any
-write; a refusal shows its first issue in the import dialog and writes nothing.
+A Show is authored as timeline choreography and shipped as one ordinary,
+self-contained Pixelblaze Pattern. Four stages carry it from one to the other.
+The **record** saves what the person meant: Clips, Layers, Zones, Transitions,
+Groups, routing, and Property animation, each stored directly. The **editor**
+changes that record only through pure owners and one admission path, so every
+edit is one validated candidate, one Undo step, and one save. The **compiler**
+lowers the record through internal Scene intervals into isolated Pattern
+members, a scheduler, and a router. **Delivery** packages the generated source
+for a Controller, an `.epe`, or the Source code view, while a `.pxlshow` file
+carries the editable record itself.
 
 ![Show authoring model: direct timeline entities and routing pass through compiler-internal lowering, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
-Key ownership rules of the v2 record: the Show owns `showEndMs`, Show-wide
-Property targets, output contract, target Controller, and Stage map; a Zone
-owns semantic identity; a Pattern instance owns its source and controls; a
-Clip owns its global interval, Layer, Zone, appearance, Effects, and entry
-policy; a positive Transition owns its participants or whole-output
-contributors and window; a Property track owns its target, activation, and
-global keyframes; Layout occurrences reference routing definitions, which
-own Installation ranges or Portable logical geometry.
+The detailed obligations live in contracts. Start with
+[Show command semantics](contracts/show-command-semantics.md) for how edits are
+invoked, identified, and refused, and
+[Show state, history, and persistence](contracts/show-state-history-persistence.md)
+for adoption, Undo, saving, and recovery. The `show-v2-*` contracts beside them
+each own one edit family.
 
-**Output contract.** New records carry a versioned `installation` (exact
-count + map) or `portable-2d` (reference count/map + variable-resolution
-declaration) contract, capped at 2,000 pixels. D1 loading validates the
-contract strictly and reports rejected rows in `unreadableShows` without
-failing the collection. `showInstallationCoverage.ts` requires every index
-assigned exactly once at delivery (missing/overlap/out-of-range are distinct
-diagnostics). Its interval sweep scales with authored range count rather than
-allocating one counter per output pixel. `showPortableCompatibility.ts` requires
-logical geometry and 2D capability, admitting 1D `render` members through an explicit adaptation.
+## 19. The Show record
 
-**Built-in Shows.** `src/pixelblaze/stock/showsV2.ts` owns the native v2 catalogue
-and its metadata, with authoring vocabulary in `showsV2Authoring.ts`. Editing is
-session-scoped: the first mutation creates
-an in-memory draft with normal undo; Reset or reload restores the fixture; no
-built-in mutation touches D1. Reference Showcases group Pattern sources into
-slots for **Try with Pattern**; selections project through the same
-replacement path Learn lessons use and never mutate stock or personal
-records. Pattern replacement keeps control targets and instance-control
-Property tracks when the incoming Pattern exports the same public slider, and
-removes only controls the new Pattern cannot express. The lesson and Showcase
-picker checks its complete slot before applying a selection: when the swap
-would remove a control animation, a confirmation names the Pattern and affected
-controls; swaps that remove no animation apply immediately. Clip and Group
-inspector replacements use the same selective rule without prompting.
+`ShowRecordV2` (`src/engine/showCompositionV2.ts`) is the only Show record the
+application reads or writes. It holds identity, Zones, Zone Layout definitions,
+the output contract, the composition, optional Trails, and provenance.
+Ownership inside it is strict, and most editing rules follow from it:
 
-**Boundary events and easing.** `ShowRecordV2.composition.transitions` stores
-positive-duration visual Transitions; exact Clip adjacency projects a Cut without
-a stored Transition. Easing normalizes to one structured curve representation
-(linear; quadratic/cubic/sine/Back with direction; CSS cubic Bezier; Steps;
-Hold) shared by Transitions, property animation, and Effect parameters. Legacy
-ease names map to their exact prior behavior; invalid structures normalize to
-Linear with field-addressed validator issues.
+| Owner | Owns |
+|---|---|
+| Show | `showEndMs`, Show-wide Property targets, output contract, target Controller, Stage map |
+| Zone | Semantic identity; Layers reference a Zone |
+| Pattern instance | Pattern source reference and control values; several Clips may share one |
+| Clip | Global interval, Zone, Layer, held appearance keys, Effects, entry policy |
+| Transition | Positive-duration window and either Clip participants or whole-output contributors |
+| Property track | Target, activation interval, Show-global keyframes |
+| Layout occurrence | A routing definition over a time interval, optionally with a transfer into the next |
+| Group definition / occurrence | Relative choreography / its placement on one Zone, start, and base Layer |
+| Marker | A named time; never affects rendering |
 
-`showTransitionsV2.ts` owns Clip deletion and its attached Transition cleanup
-for editor and command callers. The removed Clip, its owned Property tracks,
-and Transitions naming it leave together; surviving Clips, Layout occurrences,
-Markers, and Show End keep their global times. A removed Transition's non-Clip
-Property ramps require an explicit projection plan, or the edit refuses without
-adopting a partial result.
+A Cut is not stored. Exactly adjacent Clips on one Layer project a Cut, and
+only positive-duration Transitions persist. Easing is one structured
+representation (Linear; Quadratic, Cubic, Sine, and Back with direction; CSS
+cubic Bézier; Steps; Hold) shared by Transitions, Property animation, and
+Effect parameters. Invalid easing normalizes to Linear with a field-addressed
+validator issue.
 
-Pointer gestures use `showTimelineGesturesV2.ts` to plan Clip moves and
-resizes. `showClipTemporalV2.ts` commits ordinary Clip timing and appearance;
-`showTransitionsV2.ts` handles connected moves, Transition edits, and
-Transition-attached edge resizes.
+**Output contract.** Every Show declares `installation` (an exact pixel count
+and output map) or `portable-2d` (a reference count and map plus a
+variable-resolution promise), capped at 2,000 pixels. The kind never changes
+after creation. `showInstallationCoverage.ts` requires every output index to be
+assigned exactly once before delivery, reporting missing, overlapping, and
+out-of-range indices separately; its interval sweep scales with the number of
+authored ranges, not pixels. `showPortableCompatibility.ts` requires logical
+geometry and 2D capability, admitting 1D `render` members through an explicit
+adaptation.
 
-Timeline authoring is framework-free: `showClipTemporalV2.ts` (split, trim,
-extend, and move as atomic record updates in global time, with typed
-refusals), `showClipsV2.ts` (duplicate, and the Clip edit entry that forwards
-temporal intents), `showV2ClipAppearancePlanning.ts` (inspector patches
-planned against v2 held appearance), `showClipIdentity.ts` (compact boundary
-identity like `15.0: CompassRose`), `showSpatialSelection.ts` (Installation
-spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
-(screen-space zone editing over the resolved output map, exact-count 2D
-only).
+**Storage.** Personal Shows are rows in D1 `personal_shows`, one
+`ShowRecordV2` document per row in `record_json`, read and written through
+`src/cloudflare/shows.ts` and the `/api/shows` routes. A row whose
+`record_json` is NULL is a retired version-1 row: it stays stored but is never
+listed or opened. D1 loading validates each contract strictly and reports
+rejects in `unreadableShows` without failing the collection. The editor derives
+generated source at compile and delivery time; no compiled artifact is stored.
 
-**Show command registry.** `src/engine/showCommandsV2/` exposes pure Show
-edits through a typed registry for structured callers. Commands use global
-milliseconds and edit the v2 record's direct owners.
-The [Show command semantics contract](contracts/show-command-semantics.md) owns
-invocation, refusal, identity, and batch obligations. The
-[Show state, history, and persistence contract](contracts/show-state-history-persistence.md)
-owns adoption and recovery; the
-[agent candidate application contract](contracts/agent-candidate-application.md)
-records the experimental external-editor boundary and its present limits. The shared
-production admission owner is `src/agent/editorAdmission.ts`; diagnostic
-callers retain a thin observation wrapper over the same session owner.
-The production candidate admission path runs `validateShowAuthoringV2` over
-v2 records. The retired `validateShowAuthoring` remains defined for v1
-compatibility but has no non-test production caller. V2 validation checks
-dependencies and control metadata, Portable 2D capability, Installation
-coverage, Zone Layout structure, and output pixel count.
-`docs/reference/evidence/issue-1039-validation-parity/audit.md` enumerates
-the v1 diagnostics against their v2 counterparts, including retired rules.
-Logical Clip removal shares one validated owner across ordinary manual deletion,
-connected confirmation and the diagnostic descriptor adapter.
-Logical Clip splitting likewise shares its existing manual owner with the
-canonical and diagnostic command; copied curves, numeric rounding and endpoint
-references follow the [split contract](contracts/show-command-semantics.md#logical-clip-splitting-951).
-Static Clip Aperture, opacity, and Content Transform commands use the v2 held
-appearance owner. Omitted fields retain their values at each appearance key;
-selected-time changes hold until the next key, while whole-Clip changes can
-overwrite held variation after confirmation. Clip moves, trims, splits, and
-copies preserve or restrict those keys under the v2 edit rules.
+**Built-in Shows.** `src/pixelblaze/stock/showsV2.ts` owns the catalogue as
+native records, with authoring helpers in `showsV2Authoring.ts`. A built-in
+Show opens as a session draft: the first edit creates an in-memory copy with
+ordinary Undo, Reset or reload restores the fixture, and nothing reaches D1.
+**Try with Pattern** slots in lessons and Showcases use the same Pattern
+replacement owner as the Clip and Group inspectors. Replacement keeps control
+values and control animation for every public slider the incoming Pattern also
+exports and removes the rest; the slot picker confirms first when that would
+remove animation.
 
-`showLayersV2.ts` owns stable Show-wide Layer reorder and removal. Removal
-requires every Clip, Group Layer binding, and Transition participant that
-references the Layer to be explicitly reassigned; it validates the complete
-candidate before adoption.
+**Show files.** `showFileBundle.ts` owns the gzip-compressed `.pxlshow`
+format: one complete Show, every reachable personal Pattern, each referenced
+custom Map, and export provenance. `showImportPlan.ts` plans the import
+against the receiving library before writing anything. Built-in references
+must exist locally, identical dependencies are reused, absent ones keep their
+ids, and divergent ones get fresh ids and Show-tied names. The imported Show
+always receives a fresh id and records its origin in `importMetadata`. Older
+version-1 files convert through `showImportV1Conversion.ts` before any write;
+a conversion refusal shows its first issue in the import dialog and writes
+nothing. See [conversion provenance](contracts/show-v2-conversion-provenance.md).
 
-`add_clip` and `move_clip` share one Layer address (`main` or a nonnegative
-front-to-back overlay index) and report their accepted projected placement.
-The [versioned Clip and Layer authoring schema](agent-clip-layer-authoring.md)
-is the single recursive descriptor source for `create_clips`, `create_layers`,
-and `update_clips`; production MCP, built-in functions, diagnostic MCP, runtime
-validation, and published resources all derive their nested schemas from it.
+**Record coverage.** `schemas/show-record.schema.json` is generated from the
+record type (`npm run schema:show-record`, with a drift test). A coverage
+snapshot classifies every record path by how commands reach it: addressed
+directly, reached only through a parent rewrite, allowlisted with a written
+reason, or unreachable. A new record field fails the suite by name until the
+snapshot is regenerated and its classification reviewed.
 
-Adding a command requires a descriptor in its family module plus a golden
-accepted case and refusal partition. The faithfulness sweep fails entries
-whose goldens write outside declared `touches` or leave a declared pattern
-unexercised.
+## 20. Editing: owners, admission, and history
 
-Animation commands live in `showCommandsV2/animation.ts`. `add_property_track`
-accepts v2 persisted targets plus Clip-relative shortcuts for opacity, view,
-Transform, Aperture, numeric Effect parameters, Pattern controls, and time scale.
-Its strict key array accepts two or more Show-global keys and retains normalized
-structured easing in the receipt. `edit_property_keyframes` resolves existing
-key IDs against one preimage and delegates one add/update/remove set to
-`editShowPropertyV2`, which sorts and validates the final track once. This
-permits time swaps and delete/add replacement while preserving the two-key
-floor, target identity, activation, and dependency validation.
+Every change to a Show, whether from a pointer drag, an inspector field, or an
+agent command, runs through a pure owner in `src/engine/` that takes a record
+and returns a complete candidate or a typed refusal. The owners are the only
+place editing rules live:
 
-The explicit internal authoring-validation policy accepts delivery-incomplete
-candidates while preserving typed structural and dependency checks. The diagnostic
-bridge selects that policy; standalone/default MCP sessions remain delivery-oriented.
-Browser capture projects flat Shows privately using exact loaded Pattern metadata. The finite policy,
-immutable missing-reference baseline, metadata requirements and consumer proof
-are defined in [Agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
+| Concern | Owner |
+|---|---|
+| Clip timing: move, trim, extend, split, re-place | `showClipTemporalV2.ts` (gesture planning in `showTimelineGesturesV2.ts`) |
+| Clip creation, duplication, deletion, Pattern replacement | `showClipsV2.ts`, `showTransitionsV2.ts` (deletion with attached Transitions) |
+| Held appearance and Effects | `showV2ClipAppearancePlanning.ts` and the appearance owners |
+| Transitions and connected moves | `showTransitionsV2.ts` |
+| Layers | `showLayersV2.ts` |
+| Groups | `showGroupCreationV2.ts`, `showGroupEditsV2.ts`, `showGroupModel.ts` |
+| Property animation | `editShowPropertyV2` |
+| Markers | `showMarkersV2.ts` |
+| Show End and Layout occurrences | `showLayoutIntervalsV2.ts` |
+| Insert Time | `showTimelineV2.ts` |
 
-The internal completed-candidate store path can wait
-for explicit drag/dirty ownership before admission. A fixed monotonic five-second
-deadline and lifecycle cleanup are owned by `showInputWait.ts`, and final adoption and saves
-remain in the Show store. Its [contract and consumer proof](contracts/agent-candidate-application.md#internal-bounded-active-input-wait)
-qualify diagnostic waiting/Cancel. Existing shared text and numeric fields under
-editable ShowEditor register dirty drafts and slider lifetimes, including portals
-and session rebinding before bridge exposure. Clip resize, Clip move/duplicate
-(native and shift-pointer), Marker creation/movement, Show End, placement-pad and
-native Effect reorder register actual gesture lifetimes through authored
-settlement. The optional Property Beat movement callback is component-qualified
-but has no current ShowEditor caller. The physical-zone selector registers its
-live rectangle and retained changed selection; clean drafts follow authoritative
-index updates. External Layer-scoped context remains unqualified.
+A few owner rules explain most of what an editor or agent sees:
 
-**Coverage gate.** `schemas/show-record.schema.json` is generated from the
-ShowRecord type (`npm run schema:show-record`; a drift test keeps it exact).
-Reading the report: **leaf-declared** paths have a
-command whose declared touches address that exact leaf; **subtree-only**
-paths are reached solely through shallower declarations — rewrites that
-carry the leaf along without any command addressing it by name (the legacy
-`/cells` compatibility mirror, the Group subtrees, placement and Effect
-internals rebuilt wholesale); the **allowlist** excludes identity and
-derived fields with a written reason each; and **unreachable** paths stand
-as reviewed gaps until a command covers them. The snapshot pins every path's tier, so
-any new ShowRecord field — whatever tier it would land in, including one a
-blanket allowlist rule would swallow — fails the suite by name until the
-snapshot is regenerated and the diff reviewed.
+- **Connected Clips move together.** A Transition joins its participants, so a
+  time move carries the connected sequence and a resized edge ripples the Clips
+  after it. Moving a Transition participant to another Zone or Layer refuses
+  unless the caller grants detaching the Transition. A person's drag grants
+  it, so the Transition detaches in the same commit; agent commands never do.
+- **Deletion is complete.** Removing a Clip removes its owned Property tracks
+  and every Transition naming it; everything else keeps its global time. A
+  removed Transition that carried Property ramps needs an explicit projection
+  plan, or the edit refuses whole.
+- **Removal requires reassignment.** Removing a Layer refuses while any Clip,
+  Group binding, or Transition still references it.
+- **Show End and Insert Time respect content.** Shortening Show End refuses
+  while a Clip, active track, or Layout transfer extends past the new end.
+  Insert Time lengthens a crossing Clip rather than splitting it and refuses
+  strictly inside a Transition or Layout transfer.
+- **Groups share runtimes.** Linked Group occurrences share Pattern instances by
+  default. Duplicate and Make Unique never allocate a runtime; only
+  Make Pattern Independent does. `showGroupModel.ts` prefixes each
+  occurrence's materialized members so private state never leaks between them.
 
-## 20. Timeline editor and Stage preview
+**Admission.** A candidate becomes the Show only through the prepared-edit
+admission path (`src/store/showV2PreparedEditAdmission.ts`). It revalidates the
+route, provider, revision, and captured dependencies, then publishes exactly
+one candidate with one history entry and one save. A refusal or a no-op writes
+nothing. `src/store/showStore.ts` holds each open Show's working record, its
+in-memory Undo/Redo history, and the stored row. Saves queue per Show and apply
+optimistically; when the current save fails, the store restores the last
+durable record and its history, so a failed save rolls the edit back instead
+of leaving an unsaved Show on screen. Undo history lasts for the session.
+Monotonic `updatedAt` stamps order one client's recovery; they are not a
+cross-client conflict protocol.
 
-**Paused Stage resizing.** Canvas resizing and repainting happen in the same
-synchronous effect, including during a drag. The repaint reads the retained
-frame with `advanceTo(runtime.getElapsedMs())`; this does not tick the Pattern,
-advance Show time, or reconstruct the runtime. Do not substitute
-`renderCurrentFrame()`: it executes Pattern code even at zero elapsed delta.
-Delaying the repaint would expose the drawing buffer cleared by resizing.
-Show Light size and Diffusion updates also repaint retained pixels while paused.
-Browser preview sliders opt into a shared Space playback action and release
-pointer focus on completion. Keyboard adjustment retains focus and its native
-range keys; Space is claimed once before enclosing playback handlers see it.
+**Validation.** `validateShowAuthoringV2` checks dependencies and control
+metadata, Portable 2D capability, Installation coverage, Zone Layout
+structure, and output pixel count. Agent candidates use an internal
+authoring-validation policy that accepts delivery-incomplete work while
+keeping structural and dependency checks; see
+[agent candidate application](contracts/agent-candidate-application.md#internal-authoring-validation).
 
-`ShowEditor` renders one proportional grid: ruler, Zone/Layer stacks, Clips,
-per-Layer Transition junctions, disclosed property lanes, Markers, Show End,
-playhead. This section names the seams; the interaction details live in the
-modules and their tests.
+**The command registry.** `src/engine/showCommandsV2/` exposes the same owners
+to structured callers as a typed catalogue: stable snake_case names,
+descriptions, the record paths each command may write, and fully typed input
+schemas. Commands address everything by identity, use Show-global integer
+milliseconds with half-open intervals, and answer an already-satisfied
+request with `unchanged` rather than a refusal. The built-in agent and external
+MCP clients use this catalogue, and the
+[Agent Authoring Reference](agent-clip-layer-authoring.md) and its MCP
+resources are generated from the same field definitions. Adding a command
+requires a descriptor in its family module, a golden accepted case, and a
+refusal partition; a faithfulness sweep fails any command whose goldens write
+outside its declared paths.
 
-**Editor state ownership.** What the editor is looking at lives in store
-slices, not component state: `showEditorViewStore` holds the timeline
-selection and the visible time range (null meaning fitted), and
-`showClipHoverStore` holds the clip under the pointer — a separate store so
-pointer-frequency writes never re-render selection or viewport subscribers.
-Components write these slices on events and read them for rendering; the
-pure selection and viewport algebra stays in the engine. Both reset when the
-editor mounts or switches Shows, and non-component code (tests, tooling,
-commands) can read them without a component handle. Playhead position was
-already store-owned (`showTransportStore`).
+## 21. Timeline editor and Stage
 
-**Viewport and snapping.** `showTimelineViewport.ts` owns zoom, pan, Navigator
-geometry, and magnetic playhead snapping; `snapShowTimelineTime` layers an
-always-on quantize grid (whole seconds refining along the ruler's 1/2/5 tick
-family to a 200 ms floor; 100 ms with Shift) under boundary magnets, and
-`showTimelineRulerTicks` emits ticks from the same formula so landings and
-tick lines never disagree. `showEditorSessionStore` persists Snap, Marker
-preferences, and per-Show Zone disclosure outside the record.
+`ShowEditor` renders one proportional grid: ruler, Zone and Layer stacks,
+Clips, Transition junctions, disclosed Property lanes, Markers, Show End, and
+the playhead. `ShowStagePreview` owns the Stage canvas and its runtime.
+Both are thin: they render store state and hand events to the owners above.
 
-**Zone rail and Zone Map.** The Zones control discloses the rail; collapsed
-Zones become 28 px time-accurate miniatures that remain drop targets.
-`CollapsedZoneNameOverlay` stamps the Zone name only when the rail cannot. The
-Zone Map popover is the single authoring surface for Zones themselves;
-Zone Layout definitions open in the Entity Detail panel, and
-`projectShowLayoutIntervals` is the only source of interval geometry. Rail
-popovers render outside the timeline grid (which owns marquee and isolation
-pointer handlers) and stop click propagation so selections made inside them
-survive.
+**Editor state.** View state lives in store slices so tools and tests can read
+it without a component handle. `showEditorViewStore` holds selection and the
+visible time range; `showClipHoverStore` holds the hovered Clip in a separate
+store so pointer-rate writes never re-render selection subscribers;
+`showTransportStore` holds the playhead; `showEditorSessionStore` persists
+Snap, Marker preferences, and per-Show Zone disclosure outside the record.
 
-**Keyboard ownership.** `studioControlOwnsKeyboardEvent` (app-wide) leaves
-Space with text surfaces only; inside the Show editor
-`showControlOwnsKeyboardEvent` treats any focused button as owning the key
-unless marked `data-studio-space-preview`, so chrome releases Space to
-playback while popover buttons keep native activation — a settled decision,
-not an inconsistency. Tab traversal walks Clips and Groups in time order,
-exempting toolbar and marked rail chrome. The Show handler adds A (rewind),
-1/2/3 (speed), and unmodified arrows (five-second seeks); all seeks are
-deterministic reconstructions. `showEscapeLayers.ts` gives Escape one
-registry-owned listener that peels exactly one surface per press, highest
-rank first (Detail panel → Group-isolation exit → selection → popovers), with
-palette-owned exceptions.
+**Viewport and snapping.** `showTimelineViewport.ts` owns zoom, pan, the
+Navigator, and snapping. Snapping layers an always-on quantize grid under
+boundary magnets. The grid refines along the ruler's 1/2/5 tick family to a
+200 ms floor (100 ms with Shift), and the ruler draws its ticks from the same
+formula, so a landing never disagrees with a tick line.
 
-**Selection and Entity Detail.** Selection is UI-local with one open owner.
-`ShowEntityDetailPanel` portals the inspector to `document.body` as a modeless
-overlay; `showEntityDetailPlacement.ts` prefers side placement with viewport
-clamping. `showClipInspectorModel.ts` normalizes flat cells and composition
-placements into one owner model with a capability matrix; update adapters
-translate patches back to the owning record shape. `ShowClipEntityDetail`
-renders the Pattern chooser, Animation speed (commit-on-release because a
-time-scale change rebuilds the compiled preview), Brightness, placement-owned
-Opacity for Main and overlay Clips, the placement surface, controls, Effect
-stack, and the inline Add Effect takeover with its
-family/compatibility filters. The public control catalogue derives from the
-visible composition, so the first render matches post-edit state.
+**Keyboard and Escape.** `showControlOwnsKeyboardEvent` treats a focused
+button as owning Space unless it is marked `data-studio-space-preview`, so
+editor chrome releases Space to playback while popover buttons keep native
+activation. Tab walks Clips and Groups in time order. `showEscapeLayers.ts`
+registers one Escape listener that closes exactly one surface per press:
+detail panel, then Group isolation, then selection, then popovers.
 
-**Groups.** `groupDefinitions`/`groupOccurrences` persist linked reuse without
-a second timeline model: a definition owns instances, relative placements,
-internal Transitions, and tracks; an occurrence owns interval, Zone, start,
-base Layer, and X/Y offset. `showGroupModel.ts` owns validation over the
-materialized result and occurrence-prefixed materialization at compile/preview
-boundaries so private state never leaks between occurrences; the v2 edit owners
-are `showGroupEditsV2.ts` (Duplicate via `duplicateShowGroupOccurrenceV2`,
-Make Unique via `makeShowGroupUniqueV2`, Ungroup via `ungroupShowGroupOccurrenceV2`)
-and `showGroupCreationV2.ts` (`createShowGroupFromSelectionV2`). Double-click enters modeless isolation;
-stale isolation closes itself.
+**Detail panel.** Selection has one open owner. `ShowEntityDetailPanel` portals
+a modeless panel to `document.body`, placed beside the selection and clamped to
+the viewport. `showClipInspectorModel.ts` projects each Clip into one editable
+model with a capability matrix, and update adapters translate its patches back
+to the owners. Animation speed commits on release because a time-scale change
+rebuilds the compiled preview.
 
-**Layer Transitions.** Only positive-duration records persist; Cuts are
-derived where placements abut (`projectShowTransitionJunctionsV2` in
-`showTransitionsV2.ts`).
-`showTransitionsV2.ts` owns the editing algebra: creating or
-growing a Transition shifts the connected successors; same-Layer moves carry
-the connected sequence; cross-Layer moves require explicit detachment of
-participant Transitions. A converted v1 whole-output boundary can require
-a separate window-reclaim repair or refuse when that repair cannot preserve
-the record.
+**Numbers and colors.** Every numeric field uses `BoundedNumberField`: one
+draft, a grip, a transient slider, and one commit per gesture. Presentation
+modules translate between stored real units and what the person sees:
+`percentageValue.ts` for opt-in percentages, `domainNumberPresentation.ts` for
+multipliers and ratios, `anglePresentation.ts` for turns (only direction
+normalizes, so multi-turn animation survives editing), and
+`linearNumberPresentation.ts` for seconds. Stored records, compiler inputs,
+and generated code always carry real units. `ColorField` owns the canonical
+`#RRGGBB` form.
 
-**Markers, Show End, Insert Time.** The Show End handle uses a timeline-local
-overlay outside the horizontal scroller, preserving its full hit target while
-remaining clipped by the vertical timeline pane (#63).
-`showMarkersV2.ts` owns shared
-Marker edits; the Marker commands in `showCommandsV2/markers.ts` forward to it. The
-[command contract](contracts/show-command-semantics.md) defines that boundary.
-`showLayoutIntervalsV2.ts` owns Show End changes and `showTimelineV2.ts` owns
-Insert Time. Extending Show End lengthens the final Layout occurrence.
-Shortening it removes Layout occurrences that start at or after the new end and
-trims the one containing it; it refuses while a Clip contribution, active
-property track or Layout transfer would extend past the new end. Insert Time
-lengthens the containing Layout occurrence and shifts later content. A crossing
-Clip is lengthened, not split, and a held appearance key keeps its appearance
-through the inserted time; crossing property animation holds likewise. Insert
-Time refuses strictly inside visual Transitions and Layout transfers. Markers
-never affect rendering.
+**Placement.** `showClipTransform.ts` owns the canonical Transform
+(normalized position, rotation in turns about the center, scale). A fully
+neutral Transform compiles byte-identically to none. `showClipViewport.ts`
+owns the Aperture: shape catalogue, edge policy (hard, soft, or dither), feather,
+rotation, and invert. Shape parameters are never animatable, so their constants
+always fold. `spatialShapeGauge.ts` is the single metric source for shapes,
+checked sample-for-sample against the preview. `showClipPlacementPad.ts`
+normalizes pointer coordinates through the rendered bounds, so resizing the
+pad never changes a stored result.
 
-**Property lanes.** `showPropertyLaneProjection.ts` projects authored tracks
-into truthful sparkline geometry, disclosed only when a value actually
-varies. `showPropertyLaneFamilies.ts` sorts properties into five families
-(time, appearance, transform, control, effect) that fix lane color, glyph,
-and hover noun; `showPropertyLaneLabels.ts` resolves names per Zone with
-abbreviation only on real collisions. Labels follow the Zone gutter when open,
-sit sticky on the lane when closed, and retire once the playhead or viewport
-passes their span.
+**Stage.** The Stage runs the same compiled source the Controller would
+receive. `showPreparedStageV2.ts` validates the record and its dependencies,
+lowers it with `prepareShowV2ForCompile`, and compiles through the shared
+artifact cache; see [prepared Stage](contracts/show-v2-prepared-stage.md). The
+Stage renders in Fast or Precise fidelity, takes its clock from Show transport
+rather than Pattern speed, and does not apply delivery gates, so a Show that
+cannot ship still previews. Installation Shows preview at their saved count
+and ranges; Portable Shows at their saved reference, never at a connected
+Controller's. Zone outlines and selected-Clip bounds are session-only SVG
+guides that never touch compiled pixels, and they wait for a seek to finish so
+they describe the painted frame.
 
-**Value-field contracts.** Four framework-free presentation boundaries back
-every numeric field; `BoundedNumberField` (with `DraftFieldActions` and
-`fineAdjust.ts`) owns the shared draft, grip, transient slider, and
-one-commit-per-gesture behavior:
+One constraint surprises people. While paused, resizing the Stage must
+repaint in the same synchronous effect using
+`advanceTo(runtime.getElapsedMs())`, which redraws the retained frame without
+ticking the Pattern. `renderCurrentFrame()` is wrong here because it runs
+Pattern code even at zero elapsed time, and deferring the repaint exposes the
+buffer the resize cleared.
 
-- `percentageValue.ts` — straight percentages; semantic opt-in (a `0..1`
-  range is not sufficient evidence), storage stays in real units.
-- `domainNumberPresentation.ts` — multipliers (piecewise power mapping with
-  `1x` neutral) and ratios (small-integer display, logarithmic travel);
-  placement Width/Height layer grid-aware detents via
-  `resolvePlacementScalePresentation` (#682).
-- `anglePresentation.ts` — direction/phase/rotation/cycles over turn storage
-  (#612); only direction normalizes on parse, so multi-turn animation paths
-  survive editing; sliders window onto the stored range rather than spanning
-  it.
-- `linearNumberPresentation.ts` / `TimeField` — decimal seconds with a
-  detented `0..30s` ruler whose bounds never clamp exact entry.
+**Workspace.** `ShowWorkspace` stacks the timeline over the Stage strip, with
+sizing rules in `showWorkspaceLayout.ts`. The strip holds the Stage and the
+Preview, Zones, Stage, and Source code sections; `ShowSourceOutlet` lets
+`ShowEditor` keep ownership of compilation and delivery state while rendering
+the Source code section there. The divider remembers the timeline height
+across reloads.
 
-`ShowToolkitParameterDescriptor.presentation` selects presentations for
-toolkit parameters; other call sites opt in explicitly. Stored records,
-compiler inputs, and generated source always carry real units.
+## 22. Show compiler
 
-**Placement, Viewport, and the pad.** `showClipTransform.ts` owns the
-canonical Transform (normalized position, turns rotation about `(0.5, 0.5)`,
-scale) with neutral compaction — an entirely neutral Transform compiles
-byte-identically to an absent one. `showClipViewport.ts` owns the optional
-clipping rectangle with its aperture silhouette catalogue, edge policy
-(hard/soft/dither, soft default), authored feather, rotation, and invert;
-shape parameters are never animatable, so their constants always fold.
-`spatialShapeGauge.ts` is the single emitted-metric source for silhouettes,
-cross-checked sample-for-sample against the float64 preview metric.
-`showClipPlacementPad.ts` is the framework-free gesture boundary — pointer
-coordinates normalize through the rendered SVG bounds, so resizing the surface
-cannot change stored results. Coverage-directed Viewport evaluation replaces
-the post-capture multiply when skipped renderer calls cannot change observable
-state. The original two-layer path (#590/#679) selects one Pattern per pixel
-under a Hard aperture and evaluates both only inside a Soft band. The N-frame
-path (#834) selects one of any number of static, axis-aligned, pairwise-disjoint
-rectangular Hard frames, including keyed or repeated pure Pattern members, and
-may also evaluate one shared lower ground. Emission, specialization metadata,
-and renderer-pressure accounting consume the same coverage plan, so selected
-stacks report their actual one-frame-plus-optional-ground evaluation bound.
-Hard rectangle predicates include both endpoints, so numeric bounds must remain
-strictly separated after 16.16 constant quantization; stock half-frame tiling
-assigns the seam at that Controller coordinate quantum. Every ineligible case
-keeps the ordinary stack and records a named reason in
-`specializations.viewportCoverage`.
+The compiler has two halves. **Preparation**
+(`showCompositionLoweringV2.ts`, `prepareShowV2ForCompile`) validates the
+record and lowers it into a compiler recipe. Lowering cuts the timeline into
+internal Scenes, the stretches during which the set of active Clips does not
+change, and turns each Zone's Layers into an ordered routed stack (Main at the
+back, overlays front to back). Preparation refusals are typed; see
+[compile preparation](contracts/show-v2-compile-preparation.md).
+**Compilation** (`showCompiler.ts`) turns the recipe into one flat Pixelblaze
+Pattern. `Inside the Show compiler` tells this story for readers; this section
+names the owners and the guarantees.
 
-**Effects and Transition authoring.** `showEffectAuthoring.ts` adapts the
-registry vocabulary to typed authoring actions (Mirror patches the placement
-flag rather than joining the ordered stack). `colorValue.ts` and `ColorField`
-own the canonical `#RRGGBB` contract with ephemeral Stage preview and one
-persisted edit. `showTransitionAuthoring.ts` maps the catalogue onto the
-persisted compatibility kinds; palette hover previews through the ephemeral
-preview-override seam plus a deterministic seek to the boundary midpoint, and
-Apply alone persists. The Effect palette deliberately never recompiles the
-Stage on hover.
+![The Show pipeline: saved choreography lowers through routing, scheduling, and specialization into one Pixelblaze Pattern](../images/show-pipeline.svg)
 
-**Stage.** `ShowStagePreview` renders the prepared artifact in Fast and Precise
-preview modes, reports measured FPS, and omits Pattern-level speed,
-controls, and watch variables — Show transport is the canonical clock. Stage
-preview does not apply artifact gates; v2 Stage preparation in
-`showPreparedStageV2.ts` validates the record and dependencies, lowers it with
-`prepareShowV2ForCompile`, and compiles through the shared artifact cache.
-The Show editor captures that prepared v2 Stage for preview; delivery additionally
-checks output-contract and resource blockers. The legacy
-`compileShowForPreview` in `showPreviewArtifact.ts` has no non-test caller
-outside its own v1 artifact wrapper. Installation preview uses the
-contract's saved count and ranges; Portable preview uses the saved reference,
-never a connected Controller. Zone outlines and timing guides are session-only
-SVG diagnostics that never mutate compiled pixels. `showStageDiagnostics.ts`
-resolves the current Zone Layout through the canonical interval projection and
-returns stable frames without rebuilding the renderer. Guides wait for seek
-rebuilding to finish so they describe the painted frame. Selected Clip bounds
-use authored transforms and appear only within the Clip's half-open time range,
-including materialized Group members. Guides remain sampled axis-aligned Zone
-bounds on 2D stages; aperture clipping, animated transforms, exact nonrectangular
-boundaries, and blended routing transitions are outside this diagnostic model.
-`ShowWorkspace` owns the over/under composition and delegates sizing to
-`showWorkspaceLayout.ts`. A fresh split fits short timeline content with 12 px
-slack, capped at half the available workspace so the preview starts with at
-least half the height when compact chrome fits. The timeline minimum reserves
-transport chrome and a small scrollable area; lane and animation-row heights do
-not constrain manual sizing. The preview strip retains its minimum height.
-Stage aspect and controls width constrain canvas fitting within the strip, not
-vertical divider movement. Controls retain 200 px beside the 30 px preview rail;
-a width-limited canvas can leave spare vertical space without distorting the Stage.
+**Module seams.**
 
-The horizontal divider moves by 10 px, or 50 px with Shift, and remembers one
-Show timeline height after explicit pointer or keyboard movement. Window resizing
-preserves the intended proportion, including before the first drag. Remembered
-pixel heights refresh on observed resize so reload restores the same split;
-temporary height clamps never replace the intended proportion. Lane changes can
-revise the initial content-based target until a split is remembered. Measurements
-undo scroll translation so scrolling cannot change the target or chrome minimum.
-Pointer gestures end on release, cancellation, capture loss, or window blur;
-batched moves accumulate from the gesture's last clamped height.
+- `showMemberLowering.ts` turns each Pattern into an isolated member: bundle,
+  strip the manifest, inline, hoist, alpha-rename, analyze. It never sees
+  scheduler state. Continued Clips reuse a member; Restart gives a fresh one.
+- `showMemberBindingPolicy.ts` answers, once per member, who writes that
+  instance's per-frame values.
+- `showRoutedScenePlan.ts` plans Scenes and the timeline as data.
+- `showRoutingRepresentation.ts` owns routing shapes, coverage diagnostics,
+  representation pricing, table decode, and the Stage-space operators;
+  `showPhysicalRoutingSpecialization.ts` owns the ordered short-circuit plan.
 
-`ShowEditor` owns a pointer-transparent bottom-edge fade while its scroll viewport
-has content remaining below. Scroll and resize observations update the cue; it
-disappears at the bottom. The divider stays neutral, with amber hover/focus feedback.
-The marker tail below the final row remains 17 px, without a second separator.
+A one-Zone Installation with no routing switch keeps a compact static
+recipe. Everything else compiles to a scheduler that selects placements,
+applies boundary ramps, advances each unique member once per frame, and routes
+each pixel through the active layout. The composition's `executionModel` is
+`continuous` or `deterministic-loop`; the latter resets member state at the
+Show End wrap.
 
-Show controls follow Preview, Zones, Stage, Source code. Expanded Zones use compact
-24 px rows with dividing rules and unboxed coverage text; the All action lives
-in the heading only while a Zone is soloed (#63). Preview and Stage fields
-share a 68 px label column with a 6 px gap before their values.
-The Lesson pill opens a portaled Reading card; its hover/pinned state is local
-to the current Show. The card's switch and the Live strip's hide button share
-the existing per-Show session visibility. The strip renders reference narration
-or the current chapter Marker when the Show has more than one chapter Marker.
-Otherwise it names the most recently started Clip on the first Zone's bottom
-Layer, with the counter ordered by Clip start; blank time retains that Clip.
-The strip also renders the existing Pattern slot selectors inline or
-in the shared toolbar popover. Floating surfaces use the Show Escape registry
-and contribute no layout height; slot projection and swap confirmation retain
-their existing ownership.
+**Resources.** `showVmResourceLedger.ts` models the Pixelblaze virtual
+machine: a 10,240-word array pool (each array's four-word header included) and
+a separate 256-global limit, grouped by owner. Exceeding either, or the
+2,000-pixel ceiling, blocks delivery. Five simultaneous renderers per pixel
+also block, because four is the validated release fixture. Source size is only
+advisory: `showCompilePressure.ts` scales its gauge to the observed
+68,384-byte bytecode activation ceiling and colors at 80% and 100%, but source
+and bytecode diverge too much for bytes to decide fit, so the Controller's own
+compiler is authoritative. Blocked output stays previewable.
 
-`ShowStagePreview` reports aspect changes and retains its canvas while the
-strip sections expand independently. Controls use one column capped at 480 px,
-with slider tracks capped at 200 px and the existing rail scrolling treatment.
-`ShowSourceOutlet` lets `ShowEditor` retain ownership of compilation and delivery
-state while rendering the Source code section into the desktop strip. Timeline
-measurements exclude the retired source footer at every width; the lower strip
-and its Source code outlet remain mounted across viewport breakpoints. `ShowArtifactInventoryBody` supplies
-the same inventory content to both presentations.
+**Source inventory.** The Source code section explains the delivered source as
+an exact byte ledger. The compiler attaches one owner to every contiguous range
+of the final compacted artifact, so each Pattern's row, the generated
+categories, and the provenance header reconcile to the bytes offered to the
+Controller, including any profile transform. Three counts are kept distinct:
+*uses* (separately configured Pattern instances), *copies* (compiled machines
+in the delivered code), and *placements* (Clips on the timeline). **Pattern
+copies running** is the maximum that can run at once, and **Busiest LED** is
+the worst per-pixel count of Pattern color calculations. Effects are accounted
+separately and never raise that count.
 
-**Layout.** The top-bar place control owns the six Studio areas plus Docs and
-API Reference, and remembers the last open entity in each Studio area. The
-entity list is housed by `StudioEntityDrawer`: pinned it participates in the
-three-pane flex layout; unpinned it reserves one 22 px edge tab and opens as an
-absolutely positioned overlay, so open and close cannot alter workspace width
-or scroll. `studioEntityDrawer.ts` owns the pure transition rules and
-`studioEntityDrawerStore.ts` persists pin preference per Studio place. Narrow
-viewports force the effective state unpinned without changing those stored
-preferences. Owned surfaces carry one explicit drawer-owner identity across
-portals; focused fields, menus, dialogs, and tree drags suppress outside and
-mouse-out close. The edge and panel share pointer ownership, so leaving during
-the opening slide starts the same 600 ms close delay and entering the panel
-cancels it. The overlay transitions CSS `translate` for 225 ms with matching
-ease-in-out curves in both directions; reduced motion removes the transition.
-Studio drawer containers clip translated drawer travel within the workspace,
-without becoming scroll containers themselves. Hidden announcements have explicit
-inset anchors so reversed flex layout cannot extend the document's scroll range.
-This also applies when the capability-driven Show Agent drawer is present;
-content scrolling belongs to the panes.
+**Render-target arena.** Every artifact reserves exactly three
+compiler-owned arrays at the output extent (6,012 words at 2,000 pixels).
+`showRenderTargetArena.ts` binds typed roles over them (`stage-rgb`,
+`sample-xy`, `scalar-field`, `previous-rgb`), and
+`showRenderTargetPlanner.ts` decides who gets them. Candidates declare
+lifetime, invalidation, exactness, and cost; required policies come first,
+exact before approximate, and a candidate with no saving is declined.
+Non-overlapping lifetimes reuse planes, and the planner never allocates
+beyond the three. Snapshot Crossfade, Trails, Freeze and Strobe captures,
+Freeze at entry, Rolling Refresh, Pattern-output reuse, coherent noise, and
+static Vignette all draw on it, each with a named fallback when it does not
+qualify.
 
-Panes retain explicit minimums and remembered per-entity
-divider widths. Shows replace the desktop center/right split with the
-timeline-over-Stage workspace; Pattern and other Studio layouts retain their
-existing right panes. At 390 px the wordmark becomes its mark, Controller pills
-and secondary controls become icon-only, and the bar remains one row. The Stage remains in the lower strip at narrow widths, with one preview runtime. Rail
-typography follows `ui/ideMicrotype.ts`. The authenticated responsive and
-persistence smokes cover these surfaces; deep Show editing lives in the
-dedicated suite.
+**Specializations.** The compiler carries a family of individually
+reversible optimizations, each recorded in the compile summary with a
+counterfactual switch. They include stack and wrapper interning, the
+table-driven scheduler and Show score, shared Transition and Effect kernels,
+lifetime-colored Restart machines, frame-invariant hoisting, generated-wrapper
+inlining, small-loop unrolling, and boundary-latched route decode. Selection is
+automatic only where the result is provably equivalent and smaller or measured
+faster. Three guarantees constrain future work:
 
-## 21. Show compiler
+- Boundary-latched decode recomputes routing only at index 0 and at Zone
+  boundaries, which is exact only because firmware renders pixels in ascending
+  order. A consumer that renders out of order would see stale routes.
+- Routed Transition bodies run in separate generated helper functions. This is
+  a firmware-safety boundary proven on hardware, and new Transition families
+  must keep it unless hardware qualification proves otherwise.
+- Lossy rewrites (integer `pow` lowering, approximate transcendentals, spatial
+  hold-and-lerp) are off by default and never used at the Exact stop.
 
-`showCompiler.ts` turns a normalized Show recipe into one flat Pixelblaze
-Pattern. Member sources are alpha-renamed and isolated; compatible continued
-clips reuse a member; Restart adds fresh identity. The narrative of the
-optimization program, with measured results and rejected candidates, is
-`docs/guides/Inside the Show compiler.md` and
-`docs/reference/Show Rendering Optimization Results.md`; this section owns the
-contracts.
+Acorn proofs gate the aggressive paths: render purity for output reuse,
+guaranteed output for clear elision, and provable allocation sizes for the
+member census. An unprovable size blocks with a remedy rather than a guess.
+Measured results and rejected candidates are in
+[Show Rendering Optimization Results](Show%20Rendering%20Optimization%20Results.md).
 
-**Lowering shape.** A one-zone Installation with no routing switch keeps the
-compact static-routing recipe. Multi-zone and routing-switch Shows lower every
-compiler-internal Scene into a routed Scene sequence: each Scene maps every
-Zone to a member;
-the scheduler selects placements, applies boundary ramps, advances each unique
-member once per frame, and routes each pixel through the active domain. One
-positive routed Scene compiles as a single hold segment with no Transition; an
-empty routed Scene sequence remains invalid.
-`showCompositionLowering.ts` unions Main and overlay boundaries into ordered
-routed stacks (Main back, overlays front-to-back) and preserves
-Continue/Restart identity across gaps. The saved v2 composition owns
-`executionModel` (`continuous` or `deterministic-loop`); the latter resets
-member state at the Show End wrap.
+## 23. Transitions, Effects, and routing
 
-Module seams (#570): `showRoutingRepresentation.ts` (logical layout shapes,
-coverage diagnostics, representation pricing, packed-table decode, the
-Stage-space operators), `showPhysicalRoutingSpecialization.ts` (ordered
-short-circuit plan), `showMemberLowering.ts` (bundle → manifest strip →
-inlining → hoisting → alpha-rename → analysis, never seeing scheduler state),
-`showRoutedScenePlan.ts` (scene/timeline planning as data), and
-`showMemberBindingPolicy.ts` (one frozen per-member policy object answering
-"who writes this instance's per-frame values" — the module that retired the
-scattered flag mutations behind two shipped wave-3 defects).
-
-**Cost and resource accounting.** The compile summary reports code size,
-render/transition/clock/evaluation policies, routing representation, and
-machine-readable cost on five axes: Pattern evaluations (literal formulas —
-`N`, `N + E`, `2N`), scalar/array memory, artifact bytes, coverage, and
-warnings. `showVmResourceLedger.ts` models the 10,240-word array pool (plus
-the separate 256-global limit) and groups words by owner; a bytecode-axis
-estimate (#716) reprices the two constructs the source proxy mispredicts. The
-delivered-source gauge in `showCompilePressure.ts` uses the observed
-68,384-byte bytecode activation ceiling as an advisory source scale. It changes
-color at 80% and 100%, but source bytes never block delivery: source and
-compiled bytecode diverge too much for that proxy to decide fit. The Controller
-compiler is authoritative. The pressure gate still blocks at five simultaneous
-renderers per pixel (the unvalidated side of the four-renderer release fixture).
-Blocked output stays previewable.
-
-**Source inventory.** The inventory explains the delivered source as a byte
-ledger, not as advice. The Source code section starts with the thermometer;
-its renamed heading preserves the existing Source collapse preference. Each
-Pattern occupies two single lines: name and right-aligned total, then short
-use, code-copy, and placement counts. Names and count lines truncate rather
-than wrap. Hover/focus help preserves the full name, counts, and additive
-cost equation from one compiled copy, additional copies, and source generated
-for Show settings and placements to the Pattern total. A compact shaded Output
-summary groups source, VM words, and running Pattern copies, with the source
-total emphasized to distinguish the result from its itemized costs. The itemized
-list uses compact spacing without divider strokes; summary labels and values
-share its outer text edges. Resource rows align
-the label and right-aligned value at the top, with short muted detail below;
-the busiest-LED explanation lives in hover/focus help instead of a footer. Equal measured copies may use `N x size`;
-unequal copies use their exact aggregate and never imply a uniform marginal
-cost.
-
-The compiler attaches one exact owner to every contiguous range of the final
-compacted UTF-8 artifact. It snapshots each lowered Pattern block before member
-adapters, snapshots, or slot resets are appended, applies the artifact's final
-symbol-compaction map to that snapshot, and locates the resulting exact range
-in delivered code. Only that range is `compiled-pattern`; generated adapters
-remain `member-generated` even when they call the same compacted Pattern
-symbols, and separator whitespace stays generated rather than inflating the
-Pattern base. Whole-artifact call rewrites operate on executable syntax, not
-comments, so exact Pattern provenance remains locatable. The ordered
-per-machine base ledger plus generated bytes reconciles to
-each Pattern row. Pattern rows and shared generated categories reconcile to
-`artifactBytes`; members explicitly marked as compiler-owned blanks belong to
-routing rather than appearing as creator-authored Patterns. Creator ids are
-never classified by their spelling. The provenance and delivery header is a
-separate prefix that raises `artifactBytes` to delivered source. With a selected
-Controller, active profile transforms remain one further exact byte delta, so
-the final total matches the source offered to the Controller compiler.
-
-Structural counts do not describe concurrency. The UI labels Pattern instances
-as separately configured uses, physical compiled machines as copies in the
-delivered code, and authored references as timeline placements. Persisted
-segments sharing `logicalClipId ?? id` count as one visible timeline Clip. A
-separate **Pattern copies running** axis reports the maximum number of compiled
-copies that can run simultaneously. Its **Busiest LED** line translates per-pixel
-evaluation depth into Pattern color calculations: the normal count and, when
-different, the maximum while visuals overlap. Effects modify a Pattern result
-and are accounted separately; they do not increment this evaluation count.
-The creator-facing counts exclude explicitly compiler-owned blank members; the
-internal renderer fields still include them for compile-pressure safety. A
-Soft Split contributes its two-zone peak only during intervals where that
-layout is active. When a routing switch interrupts an in-progress layout
-transfer, the superseded destination drops out while the retained source and
-new destination remain eligible. These labels
-preserve the distinction between
-`steadyStateRenderersPerController` / `worstInstantRenderersPerController` and
-the `creatorPatternPressure` copy/calculation fields. Hover-open inventory uses
-a short pointer-leave grace period so the portaled panel remains reachable;
-selecting the source meter pins it and reveals the explicit close control.
-
-**Render-target arena and planner.** Every production artifact reserves three
-RGB planes at the output extent (6,012 words at 2,000 pixels) — exactly three
-compiler-owned arrays, with `showRenderTargetArena.ts` binding typed roles
-(`stage-rgb`, `sample-xy`, `scalar-field`, `previous-rgb`) over them.
-`showRenderTargetPlanner.ts` separates cache selection from emission:
-candidates carry lifetimes, invalidators, exactness, and cost estimates;
-policy is deterministic and conservative (required first, exact before
-approximate, no positive saving → declined); non-overlapping lifetimes reuse
-planes; `additionalArrayWords` is always zero. Consumers of the arena include
-snapshot/live Crossfade, Trails (`previous-rgb`, with a suspension policy
-under required Transition snapshots), Freeze/Strobe presentation captures,
-authored Freeze-at-entry and Rolling Refresh evaluation policies,
-compatible Pattern-output reuse, the coherent-noise scalar field, and static
-Vignette. Each has a narrow proven envelope and an explicit named fallback;
-each qualification (issue508–542 npm scripts) is archived under
-`docs/plans/archive/`.
-
-**Specializations.** The compiler carries a family of proven, individually
-reversible source/bytecode/FPS optimizations, each with a compile-summary
-record and a counterfactual option: stack and wrapper interning, body-identity
-branch grouping, the table-driven scheduler and Show score, shared Motion
-transition kernels, lifetime-colored Restart Pattern machines, shared
-generated Effect kernels, tiny-helper inlining and frame-invariant hoisting,
-generated trivial-wrapper inlining (pass-through renderCapture, emit, and
-clear wrappers folded into their per-pixel call sites,
-`showGeneratedWrapperInlining.ts`, #929),
-member loop rewrites (`i = i + 1` to `i++` and unrolling of small
-fixed-bound render loops, `showMemberLoopUnrolling.ts`, #931),
-member integer-pow lowering (`pow(b, k)` for literal 2 <= k <= 4 to a
-multiply chain with a bounded, pure base; display-exact rather than
-checksum-exact, so it ships behind `memberPowLowering`, off by default and
-never at the Exact stop — `showMemberPowLowering.ts`, #933),
-member approximate transcendentals (`exp` of a provably non-positive
-argument to a reciprocal quintic, non-integer `pow` on a proven [0, 1] base
-to a compile-time least-squares quadratic, the Shader library's `tanh`
-helper to the rational form; lossy, priced by the drift tool, behind
-`memberTranscendentalApproximation`, off by default, never at the Exact or
-Display-exact stops — `showMemberTranscendentalApproximation.ts`, #934),
-boundary-latched decode in the shared physical cut-scene dispatcher of
-index-routed Shows (route, local-index base, zone dimensions, placement plan
-and its configuration recomputed only at index 0 and at zone boundaries;
-exact under the firmware's ascending render order, #560, which this pass
-makes load-bearing — a consumer that renders pixels out of order sees
-stale routes; `boundaryLatchedDecode: false` for vintages, #936),
-`showGeneratedWrapperInlining.ts`, #929), the authored spatial hold-and-lerp
-(`spatialHold: { stride, mode: 'lerp' }`, off by default, compile-option
-only; the final dispatcher renders one stride ahead at every anchor and
-blends between anchors, declined with a reason when the dispatcher consumes
-the firmware's coordinates or the Show carries a terminal-index cache —
-snapshot Crossfade, Freeze, Refresh, Trails — `showSpatialHold.ts`, #937),
-coefficient hoisting, prologue-rebinding elimination, per-member HSV
-conversion, generated frame-constant hoisting (per-pixel route constants
-refreshed once per frame in `beforeRender`, `showGeneratedFrameConstantHoisting.ts`,
-#928), and steady-state direct color sinks (whose Precise/hardware
-divergence is a measured ~0.1 LSB at rounding boundaries). Selection is
-automatic only where the result is provably compatible and smaller or
-measured faster; failed hardware gates (the exact coordinate-field emitter)
-remain diagnostic profiles. Routed transition bodies execute in separate
-generated helper functions — a firmware-safety boundary proven by the #520
-acceptance fixture, which future transition families must retain unless
-hardware qualification proves otherwise.
-
-**Member analysis.** Acorn proofs gate the aggressive paths: render-purity
-for output reuse, guaranteed-output for clear elision, provable allocation
-sizes for the member census (an unprovable size blocks with a remedy rather
-than guessing).
-
-## 22. Transition and adaptation policies
+Each visual policy has a known runtime cost, and the compiler reports it in
+these terms (`N` is the output pixel count, `E` the pixels inside a band):
 
 | Policy | Runtime cost shape |
 |---|---|
 | Cut / Restart | One active member |
 | Parameter ramp | One continued member, per-frame updates |
-| Snapshot/live Crossfade | One `2N` capture frame, then replay + one live renderer |
+| Snapshot/live Crossfade | One `2N` capture frame, then replay plus one live renderer |
 | Live/live Crossfade | Two renderers during the window |
 | Fade through color | One renderer per phase (`N`) |
-| Hard or stable-dither Wipe/Dissolve/Shape | One renderer per pixel (`N`) |
+| Hard or stable-dither Wipe, Dissolve, Shape | One renderer per pixel (`N`) |
 | True feather blend | Two renderers only inside the band (`N + E`) |
 | Routing transfer | Both clocks advance; one layout selected per pixel |
 | Soft Split | One renderer outside the feather, two inside |
 
-Easing is deterministic arithmetic shared by preview helpers and generated
-code: Linear; Quadratic/Cubic/Sine in/out/in-out; CSS-compatible Cubic Bezier
-(X control points in `[0,1]` so X inverts; the fixed-iteration solver is
-emitted only when a Bezier is present and runs per frame, never per pixel);
-Steps; Hold; Back with bounded overshoot.
+`showVisualToolkit.ts` is the framework-free catalogue of Transition and Effect
+families: families own ids and cost policy, variants own parameter
+descriptors, and presets are named parameter bundles.
+`showVisualToolkitFixtures.ts` provides headless evidence for every variant
+the compiler lowers, and `showVisualToolkitFreeze.ts` seals registry,
+fixtures, and recipes behind a version and fingerprint; an intentional change
+increments the version. Easing is deterministic arithmetic shared by preview
+and generated code; the Bézier solver is emitted only when a Bézier is present
+and runs per frame, never per pixel.
 
-`showVisualToolkit.ts` is the framework-independent catalogue: families own
-ids and cost policy, variants own parameter descriptors, presets are named
-parameter bundles. `showVisualToolkitFixtures.ts` provides deterministic
-headless evidence for every variant the compiler lowers, and
-`showVisualToolkitFreeze.ts` seals registry, fixtures, and recipes behind a
-version and fingerprint (version 1: `f81bca37`, 59 variants, 104 fixtures);
-an intentional change increments the version. Hardware FPS stays dated
-external evidence, never an inferred field.
+**Effect order.** A Clip's Effects run in two stages around one renderer
+call. Coordinate operations come first, then the Pattern is evaluated once,
+then output operations, with the border mask last. The full runtime order is:
+Stage sample and Zone-local normalization, Show-wide sample remap, mirror,
+inverse affine Transform, distortions, Clip or Wrap addressing, one renderer
+call, output Effects, border mask. Neutral static Effects emit nothing, and a
+distortion at Amount 0 is an exact identity. Content keys carry alpha and let
+a keyed top layer skip covered pixels below it, which is where the `N + U`
+cost comes from.
 
-The families in brief — each variant's exact parameters and equations live in
-the registry and its fixtures:
+**Sample remap and adaptation.** Show-wide repeat scale is one value per frame,
+with scale 1 an exact identity branch. Time offset, stepped clock, shutter,
+and mirror or phase are part of member compatibility. Time scale zero holds
+Pattern time at zero; negative time is unsupported because stateful Patterns
+cannot run backwards.
 
-- **Wipe** — directional (direction in turns; shared projection equation),
-  plus Split, Barn Doors, Blinds, Clock, Checker, Grid variants; legacy wipes
-  keep their index-domain equation. Non-linear variants require a 2D Stage
-  Map.
-- **Dissolve** — Pixel and Block (stable hash cells, optional seed), Coherent
-  Noise (stable 2D value-noise field, no time input), Soft Threshold (adds
-  Softness through the shared edge contract).
-- **Shape reveal** — grow-incoming / shrink-outgoing over an SDF catalogue
-  (circle, box, diamond, ring, ellipse, rounded box, cross, heart, star,
-  crescent, polygon, and the signature cats — the last two provisional
-  pending stronger high-resolution silhouettes). Shared center, scale,
-  feather, edge policy, and easing.
-- **Motion** — Cover, Reveal, Push, Content Grow/Shrink, Zoom In/Out with
-  rotation (Spin is a preset, not a primitive); inverse-affine sampling with
-  Clip or Wrap addressing; hard (`N`) or full blend (`2N`) only.
-- **Property transitions** — Animation speed, brightness, exported sliders on
-  clips; split position and repeat scale on scenes; boundary-owned start,
-  duration, easing. Missing or renamed controls are compile errors, not
-  dropped automation.
+**Routing.** Installation layouts keep arbitrary inclusive LED ranges; the
+first match wins and uncovered pixels render black with a warning. Portable
+layouts use the `ShowLogicalRouting` operators (Full Stage, Grid, Stripes,
+Checker, Rings, Pinwheel, Wave, Moving Split, Soft Split). The preview router
+and generated code share the same region-local equations, using
+`v - floor(v)` so browser and device agree at cell boundaries. Moving Split
+renormalizes the selected side and updates the member's virtual `pixelCount`;
+Soft Split evaluates both sides only inside its feather. A routing transfer
+compares one eased threshold against stable Stage position and never blends
+renderers.
 
-**Show Effects.** The clip-owned stack has two evaluation stages: coordinate
-operations (translate/rotate/scale/shear composing in authored order, Wrap
-applied once after the matrix) run before the renderer; output operations
-(brightness, opacity, hue, saturation, contrast, invert, threshold, luma/
-chroma key, posterize, Vignette, color map) run after capture, with the border
-mask last. The literal runtime order is: Stage sample and zone-local
-normalization → Show-wide sample remap → mirror → inverse affine → distortions
-→ Clip/Wrap addressing → one renderer call → output Effects → border mask.
-Neutral static Effects emit nothing. Frame-invariant Effect coefficients hoist
-per frame (#558); static Hue's two per-pixel trig calls are reported, not
-hidden. Distortions (Ripple, Swirl, Bulge/Pinch, Pixelate, Kaleidoscope)
-remap coordinates and evaluate the Pattern once, with Amount 0 an exact
-identity. Content keys carry alpha and enable top-down composition with
-data-dependent `N + U` cost; exact opacity endpoints skip evaluation or blend
-arithmetic where proofs allow.
-
-**Sample remapping.** Synchronized tiling stores one `repeatScale`, evaluated
-once per frame; scale 1 is an exact identity branch; the transform adds zero
-member renderers. No 3D remap exists until Z semantics are designed. Discrete
-adaptations (time offset, stepped clock with its boundary-zero priming
-`beforeRender` (#663), light shutter, mirror/phase) remain part of member
-compatibility. Time scale zero holds Pattern time at zero; negative time is
-unsupported because stateful Patterns are not reversible.
-
-## 23. Routing representation
-
-Physical layouts preserve arbitrary inclusive range lists; first match wins;
-uncovered pixels render black with a warning. Portable routing uses the
-canonical `ShowLogicalRouting` union (Full Stage, Grid, Stripes, Checker,
-Rings, Pinwheel, Wave, Moving Split, Soft Split); the pure router and
-generated source share the same normalized region-local coordinate equations,
-using `v - floor(v)` so browser and device agree at cell boundaries. Rings
-and Pinwheel are normalized-radial by design; `showLogicalAspectAdvisory()`
-surfaces the compressed-axis warning rather than injecting aspect correction.
-
-Moving Split renormalizes the selected side and updates the member's virtual
-`pixelCount`; Soft Split evaluates both routed stacks only inside its feather,
-with Transition snapshots captured independently for each routed side. Routing
-transfers compare one eased threshold against stable Stage position and run only
-the selected layout's route — no renderer blending.
-
-The representation planner proves exact ownership before specializing:
-complete partitions compile to an ordered upper-bound short-circuit; cyclic
-reassignments of one topology compile to formulas; irregular layouts may use
-a packed per-pixel table under four measured gates — RAM (4,096-word cap
-against the arena residual), 16.16 representability, bytecode cost through
-the shared `showDataTableEmission.ts` pricing, and a 13-comparison expected
-branch depth (both directions measured; see
-`test/perf-harness/issue573-*.json`). The summary names the selected
-representation and its costs.
+The representation planner proves exact ownership before specializing.
+Complete partitions compile to an ordered short-circuit, cyclic reassignments
+of one topology to formulas, and irregular layouts may use a packed per-pixel
+table. The table must pass four measured gates: a 4,096-word memory cap within
+the arena residual, 16.16 representability, bytecode cost, and a 13-comparison
+expected branch depth. The compile summary names the chosen representation and
+its cost.
 
 ## 24. Deterministic seek replay
 
-A cold seek builds a fresh Fast runtime with the Show-owned seed, renders time
-zero, and advances at 60 fixed steps per second; a warm seek restores the nearest
-compatible checkpoint before advancing the residual interval. Checkpointing
-limits the residual interval's step count; the generated artifact capability
-separately removes per-pixel work from those intermediate steps when renderer
-state is proven target-local. Every step still advances `beforeRender` and
-normalizes any compiler-listed renderer scratch after the step; this keeps
-checkpoint and final runtime snapshots identical when a member is inactive at
-the target. The target always receives a complete renderer traversal. Unproved
-artifacts run every renderer on every step. Replay advances 250 ms of Show time
-per cooperative chunk and yields; newer seeks supersede older work, and only
-the completed reconstruction becomes the live runtime.
+Seeking never approximates. A cold seek builds a fresh Fast runtime with the
+Show's seed, renders time zero, and advances at 60 fixed steps per second to
+the target; a warm seek restores the nearest compatible checkpoint and advances
+only the remainder. Every step runs `beforeRender`. Where the artifact proves
+renderer state is target-local, intermediate steps skip per-pixel work, and
+compiler-listed renderer scratch is normalized after each step so checkpoint
+and final snapshots stay identical. The target frame always gets a complete
+renderer pass; unproved artifacts render every step. See
+[checkpoint bindings](contracts/show-replay-checkpoint-bindings.md).
 
-The paused Stage pre-warms the same checkpoint store with the same deterministic
-replay contract. Its runtime remains private, its chunks run at idle priority,
-and transport activity cancels it before the seek or live playback proceeds.
-The implementation uses cooperative main-thread replay rather than a worker.
-Determinism covers the seed, cadence, initial values, and scheduled automation;
-wall-clock, network, and sensor history are outside the guarantee.
+Replay advances 250 ms of Show time per cooperative chunk and yields. A newer
+seek supersedes older work, and only a completed reconstruction becomes the
+live runtime. While paused, the Stage pre-warms the same checkpoint store at
+idle priority, and any transport action cancels it. Determinism covers the
+seed, cadence, initial values, and scheduled automation; wall-clock time,
+network, and sensor history are outside it. Trails is the one visible
+exception: a seek clears its prior-frame history at the destination rather
+than reconstructing it.
 
-## 25. Show delivery and export
+## 25. Delivery and export
 
-Shows have two intentionally different outbound artifacts. A `.pxlshow` is an
-editable authoring snapshot for another PXLBLZ library; it preserves structured
-choreography and embeds reachable personal dependencies. An `.epe` is the
-compiled hardware artifact described below. It contains generated Pixelblaze
-source and compatibility facts, not an editable Show model.
+A Show leaves PXLBLZ in two deliberately different forms. A `.pxlshow` file
+(§19) is the editable record for another PXLBLZ library. Everything else (Run,
+Save, **Download .epe**, and **View code**) uses the compiled artifact, which
+contains generated Pixelblaze source and compatibility facts but no editable
+model. Delivery refuses coverage failures, Portable incompatibility, and
+resource blockers; see
+[native artifact qualification](contracts/show-v2-native-artifact-qualification.md).
 
 `showEpeExportV2.ts` packages the exact generated source with a program id, a
-preview JPEG, a readable Show-global Clip and Layout schedule, Transition facts,
-provenance, and retained member license comments. `showEpeExport.ts` supplies
-shared metadata and formatting helpers. Version-1 banners may carry optional
-`pxlblz:map`, `pxlblz:compat`, and `pxlblz:show-output` comment
-records; `pxlblz:show-output` is the authoritative artifact-level contract
-(Installation: pixels + map identity + fingerprint; Portable: 2D classes +
-variable resolution). Unknown versions or malformed optional lines omit only
-the optional record.
+preview JPEG, a readable Show-global schedule of Clips and Layouts, Transition
+facts, provenance, and retained member license comments. Its banner may carry
+`pxlblz:map`, `pxlblz:compat`, and `pxlblz:show-output` records;
+`pxlblz:show-output` is the authoritative artifact contract (Installation:
+pixel count, map identity, and fingerprint; Portable: 2D classes and variable
+resolution). A malformed optional record is omitted, never guessed. See
+[`.epe` export](contracts/show-v2-epe-export.md).
 
-The Show editor sends stamped source through the shared `pushPattern`
-transport under identity `show:<show-id>`, inheriting the drain policy for
-large replacements (§17). `ShowEditor` prepares an identity-bearing delivery
-snapshot from the settled Show compilation and active Controller context before
-enabling Run or Save. A Show, Pattern, Library, map, profile, or Controller
-change invalidates that snapshot; Run and Save remain disabled while the next
-snapshot builds, and any confirmation bound to the previous snapshot closes.
-The click path consumes the ready snapshot and never recompiles the Show. A
-confirmation revalidates that exact committed snapshot immediately before
-delivery and again after asynchronous Save-preview generation; a dependency
-change retires the action without submitting stale source and publishes an
-artifact-scoped failure instead of silently consuming the confirmation.
-During rebuilding, the Controller identity and action labels remain fixed while
-the disabled Run and Save icons become same-size spinners. The snapshot's stable
-Controller identity and live connection epoch travel through profile draining,
-preview generation, and device compilation; `pushPattern` revalidates the active
-target, identity, and epoch immediately before every queued Controller mutation.
-A status-object or metadata refresh inside that connection remains valid. Once
-delivery begins, a disconnect, reconnect, or different Controller aborts through
-the visible action-failure surface before any write.
-The extension provider numbers each websocket generation when it opens, before
-device-identity recovery. A superseded open waits for the current connection and
-never publishes its recovered identity, regardless of which recovery finishes
-first. The Controller store also advances `liveEpoch` when a provider generation
-changes as well as when the entry enters `live`; therefore a replacement socket
-cannot reuse the prepared Show's session epoch.
-Compilation and preparation failures remain delivery blockers with their
-diagnostic reason. `showControllerArtifact.ts` is the only
+**Sending to a Controller.** The editor prepares one delivery snapshot from the
+settled compilation and the active Controller before it enables Run or Save,
+and the click consumes that snapshot without recompiling. Any change to the
+Show, a dependency, the profile, or the Controller invalidates it: Run and Save
+show spinners while the next one builds, and a pending confirmation bound to
+the old snapshot closes. The snapshot carries the Controller identity and live
+connection epoch through profile draining, preview generation, and device
+compilation, and `pushPattern` checks both again before every queued Controller
+write, so a disconnect, reconnect, or different Controller aborts before
+anything is written. Sends use the shared Pattern transport under identity
+`show:<show-id>` (§17). `showControllerArtifact.ts` is the only
 device-derivation seam: it compares generated capabilities with the installed
-map and firmware, appends a renderer adapter when required (restamped with
-`renderer-adapter` provenance), blocks known-unsupported firmware and
-Installation mismatches, and treats Portable differences as advisories.
-Delivery never mutates the Controller's shared map or pixel count.
+map and firmware, appends a renderer adapter when required, blocks known
+unsupported firmware and Installation mismatches, and treats Portable
+differences as advisories. Delivery never changes the Controller's map or
+pixel count.
 
 ---
 
-# Part 6 — Supporting systems and limits
+# Part 6 — Agent service
 
-## 26. Export and in-app documentation
+An agent edits a Show the same way a person does: through the command catalogue
+(§20), in a private working copy, admitted by the open editor. Two kinds of
+agent use that path. The **Pixelblaze agent** is built in: the Worker calls the
+model and relays each tool call to the browser. An **external agent** is any
+MCP client the person authorizes with OAuth, such as Claude Code or Codex; its
+tool calls arrive at the Worker's `/mcp` endpoint and take the same relay.
+Either way the browser is the only place a Show is read, changed, validated, or
+saved. The server coordinates who is connected and how much the built-in agent
+may spend, and stores no Show content, candidate, or transcript.
 
-Pattern Copy/Download emits stamped `bundle(...).code`. `.epe` import reads
+The user-facing behavior is in Part 5 of the Feature Guide. The obligations are
+in four contracts:
+[OAuth and MCP discovery](contracts/agent-oauth-discovery.md),
+[account rendezvous](contracts/agent-rendezvous.md),
+[candidate application](contracts/agent-candidate-application.md), and
+[built-in service](contracts/agent-builtin-service.md).
+
+## 26. Components and connections
+
+Three Durable Objects hold all server-side agent state, and no D1 table is
+involved:
+
+| Durable Object | Instance | Holds |
+|---|---|---|
+| `AgentAccount` | One per account | The account's connection slot (rendezvous), rate windows, and an in-memory relay |
+| `AgentOAuthAuthority` | One per OAuth origin | Authorization continuations, consent nonces, registered clients, grants, and tokens |
+| `AgentAllowance` | One global instance | Built-in operations, per-day dispatches, and message counters |
+
+The Worker's agent routes are the OAuth and MCP family
+(`src/worker/agent/agentOAuthRoutes.ts`: `/.well-known/oauth-*` discovery,
+`/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/mcp`) and two
+authenticated browser routes: `POST /api/agent/channel`, the editor's channel
+to its account's `AgentAccount`, and `POST /api/agent/builtin`, one built-in
+turn. In the browser, `src/agent/drawerController.ts` drives the Agent drawer,
+`editorSession.ts` and `browserSession.ts` own the window's registration and
+receive loop, `editorAdmission.ts` admits finished work into the Show, and
+`builtinClient.ts` talks to the built-in route.
+
+**One slot per account.** An account has one active agent connection,
+shared by the built-in and external choices. An editor window registers with
+its account's `AgentAccount`; connecting binds the slot to that window. Moving
+the agent to another window (**Reconnect** or **Bring agent here**) is a
+compare-and-replace on the exact binding generation that gives the destination
+a fresh binding, call identity, and empty relay; a tool envelope addressed to
+the old binding reports the new destination without running, and the client's
+next response asks it to refresh its context. **Forget this agent** retires
+browser work first, then ends the binding, then revokes the grant.
+
+**Timers.** Setup keeps the connection window open for 2 minutes, and a
+pending incoming call must be answered within 30 seconds. An editor
+registration lives 5 minutes without renewal, and contact counts as lost
+after 45 seconds of silence. OAuth access tokens last 5 minutes and refresh
+tokens a day; a registered client expires after 90 days. Each account
+allows 240 agent tool calls per minute, counted separately from the browser's
+own channel traffic, so a throttled agent never starves the editor's replies.
+The constants live in `src/engine/agentRendezvous.ts`,
+`AgentAccount.ts`, and `AgentOAuthAuthority.ts`.
+
+**Enablement.** Nothing is available unless `AGENT_SERVICE_ENABLED` is `1`.
+`/api/me` reports `agentCapabilities`: `external` requires the OAuth
+configuration (`AGENT_OAUTH_ORIGIN`, `AGENT_OAUTH_CLIENTS`) and the
+`AGENT_OAUTH_AUTHORITY` and `AGENT_ACCOUNTS` bindings; `builtin` requires
+`AGENT_ACCOUNTS`, `AGENT_ALLOWANCE`, and `OPENAI_API_KEY`. The drawer offers
+only what `/api/me` reports, and a route whose configuration is missing
+answers 503 `unavailable`.
+
+## 27. How an agent edit runs
+
+Every tool call follows the same round trip. The Worker validates the caller
+(a bearer token for MCP, the signed session for built-in), asks the account's
+`AgentAccount` to resolve the binding, and places the call on the relay. The
+bound editor's receive loop fetches it, runs it against the private executor
+(`src/engine/agentPrivateExecutor.ts`), and posts the reply. Relay payloads are
+volatile; the Worker keeps only identities, deadlines, and counters.
+
+An operation has three phases.
+
+1. **`begin_edit`** captures the open Show and its context once, under an
+   immutable request identity, and opens a private candidate for that binding.
+   Its one-line `intent` is shown in the drawer's Activity.
+2. **Commands** change the candidate. Each runs the same owner the editor
+   uses and returns its result or refusal at once. Nothing reaches the Show
+   or its history yet.
+3. **`commit_edit`** asks the editor to admit the candidate. Admission checks,
+   in order: the session and revision; that the Show is still open and not
+   being deleted; that the captured record, dependencies, provider, and route
+   are unchanged; that the candidate is a v2 record for this Show; the JSON
+   Schema; the domain rules; Pattern, Library, and control availability; that
+   something actually changed; and that the Stage can be prepared. A passing
+   candidate is adopted as one Undo step through the ordinary save queue
+   (§20), so it can still roll back if the save fails. `cancel_edit` discards
+   the candidate.
+
+If the person is in the middle of an edit (a drag, or a field with an unsaved
+draft), admission waits for them to finish, up to 5 seconds
+(`showInputWait.ts`), and the drawer shows **Waiting for you to finish**.
+After that the operation ends as an interaction timeout. A manual edit that
+lands first makes the candidate a revision conflict rather than overwriting
+the person's work.
+
+`get_outcome` reports what happened. Applied outcomes are saving, saved,
+rolled back, superseded, and stock draft (a built-in Show's session draft).
+Non-application outcomes include asked, refused, nothing applied, commit
+refused, incomplete, and the service outcomes. Losing contact is separate from
+the outcome: a browser that goes quiet makes the outcome unknown, never failed.
+The browser keeps settlement receipts so a restored connection can report
+what actually happened.
+
+## 28. The built-in agent
+
+For the built-in agent the Worker runs the conversation. `builtinTurn.ts`
+calls the OpenAI Responses API (`builtinProvider.ts`) with the server's key,
+model `gpt-5.6-luna` at high reasoning on the priority service tier, with
+provider-side storage off and one tool call at a time. It relays each tool call
+(`begin_edit`, commands, `commit_edit`) to the browser exactly as an MCP call
+would travel, for at most six model rounds per message.
+
+**Allowance.** `AgentAllowance` enforces three limits from
+`AGENT_SERVICE_BOUNDS` and `AGENT_DAILY_MESSAGE_LIMIT` in
+`src/engine/agentAllowance.ts`:
+
+- **30 messages per account per UTC day.** A message is charged once, when
+  its first provider call is admitted, atomically with the budget reservation.
+  Later rounds of the same message are free.
+- **A shared daily budget** across all accounts ($10). Each call reserves its
+  worst-case cost before dispatch and settles the actual usage afterwards.
+- **Four message starts per minute** per account.
+
+`/api/me` and every built-in response carry the authoritative remaining count,
+reset time, and state. The drawer refreshes on focus and at reset rather than
+polling, and treats missing, malformed, or stale status as blocked. When a
+limit blocks, the composer names which one: the personal message limit, the
+shared budget, or the service being unavailable.
+
+**Diagnostic harness.** `src/agent-harness/` is a separate, never-bundled
+toolkit for evaluating agent editing offline: a dictation bridge, an MCP
+server, a scripted corpus, and evaluation tools transferred from an earlier
+prototype. It speaks the production v2 catalogue through one transport adapter
+and runs the production route's own checks. Its paid model calls go through a
+durable budget ledger that refuses any request it cannot price in advance. `npm run agent:smoke` and `npm run agent:corpus -- --fake` exercise it
+without paid calls, and `npm run test:e2e:agent-baseline` drives the live
+editor through a scripted bridge (an explicit diagnostic, not a push gate;
+report in [agent-editing-baseline.md](agent-editing-baseline.md)). The harness
+`README.md` has its commands and budget rules, and `PROVENANCE.md` records what
+changed in the transfer.
+
+---
+
+# Part 7 — Supporting systems and limits
+
+## 29. Export and in-app documentation
+
+Pattern **Copy code** copies the stamped `bundle(...).code`; **Download .epe**
+wraps the same stamped code in an `.epe` with a preview JPEG. `.epe` import reads
 `sources.main`, parses PXLBLZ map metadata, and surfaces an import notice
 rather than guessing ambiguous map references.
 
@@ -1783,7 +1492,7 @@ at `/reference/<library>` builds from the built-in cheatsheet and parsed
 library comments; entering from Studio appends already-loaded cloud
 libraries.
 
-## 27. Testing and evidence
+## 30. Testing and evidence
 
 Most coverage belongs around pure engine logic; component tests are light
 smoke over delegation. The repository also carries fixed-point and library
@@ -1795,146 +1504,14 @@ suites, and explicit live-hardware probes with archived result reports
 runs lint, test meta-checks, and staged-path-selected tests. Required full
 Vitest and Playwright suites run at a committed tip on the private WRSP mini;
 pre-push consumes matching exact-tip evidence after review approval and the
-exported-artifact oracle instead of rerunning those suites on the laptop.
+exported-artifact oracle instead of rerunning those suites locally.
 Performance and hardware tiers stay explicit because their reliability and
 environments differ. Development builds expose a hidden Show Stage telemetry
 probe; production builds omit it.
 
-An ordinary editable Show route exposes the production Agent drawer after the
-signed-in session resolves its effective agent capabilities. External MCP is
-available to every signed-in account while the service is enabled; the built-in
-choice is also available to every signed-in account when its Worker bindings are
-configured. Authenticated built-in requests use Luna Fast mode through the Worker
-service, shared account slot, per-account 30-message UTC-day allowance, shared
-financial allowance, and browser private executor. The first admitted provider
-dispatch consumes one personal message atomically with the financial reservation;
-later rounds and qualified local Retry consume none. `/api/me` and command
-responses carry the authoritative remaining count, reset instant, state and
-revision. The drawer refreshes at focus and reset without server polling, and
-fails closed on missing, malformed or stale status. The pure drawer model
-projects owned admission/save
-receipts and successful registry attribution; existing history and persistence
-owners remain authoritative. Invalid complete candidates retain bounded,
-catalog-controlled validation detail on the same browser receipt; the existing
-activity reason line shows its first safe message without treating private
-command changes as applied. Each built-in operation owns one activity row from
-submission through settlement, with its reply attached to that row. Success prose
-requires a saved or draft outcome; intentional no-edit completions retain their
-clarification or refusal reply. Hidden prose does not suppress recorded changes. The
-component projects request text and one left-aligned muted response: gently animated
-Thinking while active, Saving during adoption, a visible draft qualifier, or the
-settled outcome. Only a saved command with recorded changes has a terminal icon.
-Reduced-motion preferences disable the Thinking animation. The activity scroll owner
-follows every stream and request-phase update; it changes only the drawer log's
-`scrollTop`, so it does not move document scroll or focus. Connection transitions retain
-the same reducer-owned stream while swapping the chooser, identity, and built-in
-composer. The composer adds only the 9px right-aligned allowance line and the
-distinct personal/shared/unavailable explanation when blocked. Setup Back and
-connected Change agent preserve activity and draft, and switching stays disabled
-through active, saving and unknown outcomes. Activity has no Dismiss action;
-qualified Retry remains available, executed commands use the darker muted gray,
-and agent communication keeps the existing lighter gray. Server-first idle
-preserves expired-arm and missed-call notices, while explicit Cancel or Not now
-clears its state before idle is projected.
-Response and continuation validation share the SDK reasoning-item schema,
-including optional reasoning content. The loopback diagnostic bridge remains DEV-only.
-See the [built-in service contract](contracts/agent-builtin-service.md) for
-configuration, bounded dispatch, allowance accounting, Retry, and recovery.
+The agent diagnostic harness and its baseline suites are described in §28.
 
-`src/agent-harness/` is a diagnostic area, not product code: the local agent
-dictation bridge, Show grammar and MCP server, dictation corpus with its
-scripted fake agent, and evaluation tools transferred from the private V3
-repository for the #945 baseline (provenance in its `PROVENANCE.md`). It
-imports the live engine but is not imported by `src/main.tsx`. Since the
-Scene-retirement cutover (#1039) it speaks the version-2 record only: its
-registry is the production v2 catalogue exposed through one transport adapter,
-with no v1 name registered and no translation layer, and its tier-0 evaluation
-runs the production route's own checks in the route's own order rather than
-keeping a second opinion about validity. The browser
-bundle excludes diagnostic provider and MCP SDKs; the production Worker uses
-its own provider/schema and authenticated agent modules. Its `npm run agent:*` commands run
-through a Vite module runner (`src/agent-harness/run.ts`) because the stock
-catalogue's `import.meta.glob` sources have no plain-Node form; its suites run
-in the ordinary Vitest `node` project, and known V3-versus-V2 oracle drift is
-isolated in `*.diagnostic.ts` files under `npm run agent:diagnostics`. Seven
-harness defects found by the transfer's review (partial commit on turn-limit
-exhaustion, retired stock ids, junction Zone scope, nested-id rewrites, and
-three telemetry window/bucket errors) were corrected in V2 afterwards, and
-the review of those corrections led to six repairs (per-operation identity
-enforcement, a shared telemetry envelope, a staged `finish_turn`, canonical
-stock ids in the critique, argument validation before the Zone filter, and a
-frame-weighted dark fraction), and the review of those repairs to three more
-(a removed-id ledger owned per identity domain with identity-retaining moves,
-finishes taking effect in order within a tool round, and distance-ranked
-nearest candidates on a Zone miss), and the third review to one redesign
-(element identity as provenance carried by the working copy's objects in
-`grammar/identity.ts`, so a move that parks an element under a temporary key
-never makes its id writable). Subsequent reviews repaired ancestor-write and
-nested-transit holes, then made a move that overwrites a collection key
-tombstone the old subtree before admitting the transported identities. A
-third blocking review of that redesign exposed a destination-array shift
-between a move's identity precheck and write. Jon approved a narrower final
-diagnostic contract: every `apply_patch` member must preserve declared Show
-structure, arbitrary scratch/parking containers and final-only-valid sequences
-are refused, and a move resolves and checks its actual destination after source
-detachment immediately before writing;
-`PROVENANCE.md` records each
-before/after so none is read as V3 semantics. The
-[agent candidate application contract](contracts/agent-candidate-application.md)
-owns the editor boundary it targets. The browser baseline
-(`npm run test:e2e:agent-baseline`, report in
-[`agent-editing-baseline.md`](agent-editing-baseline.md)) drives that boundary
-on the live editor route through the real overlay and a scripted bridge, with
-request ids correlated across the overlay, the bridge phase clock, the
-dev-only read-only observation seam in `src/dev/agentObservation.ts`, and
-the personal-content writes; it is an explicit diagnostic, not a push gate.
-The DEV editable-Show bridge requires exact URL `agent=1`. Its adapter registers
-immutable requests before inference and admits through whole-Show revision and
-current authoring/source validation, with session/source restoration invalidation
-and typed save outcomes. The overlay retains the original bridge and clears its
-transcript on departure, query removal or close. Broad model context does not
-qualify for internal Layer-independent resize admission. The diagnostic overlay
-consumes bounded active-input waiting, displays Cancel, and keeps one submission
-busy through saving. Browser sequence FA uses actual duration drafts and focus;
-GA uses actual Clip resize and Show End gestures; DA uses placement previews and
-native Effect drag/drop; SA uses retained physical-zone drafts, with a direct
-diagnostic adapter case for clean-source index replacement. W retains
-synthetic-token protocol checks. Shared fields, authored timeline gestures,
-placement, Effect reorder and physical-zone drafts register live input. Property
-Beat movement has component evidence only; final panel placement and hosted
-service qualification remain separate work.
-
-The harness's paid model calls (`agent:corpus --live`, live `agent:bridge`)
-are owned by its paid-call guard (`src/agent-harness/experiment/paidCallGuard.ts`,
-rules in `paidCallBudget.ts`): every dispatch attempt, retries included,
-first reserves its worst case in a durable ledger outside the worktree,
-priced from an explicitly accepted provider-enforced input-token ceiling
-(`providerLimits.ts`) and an accepted price with explicit long-context and
-cache-write terms (`pricing.ts`) at the worst multipliers that can apply at
-the ceiling, under the #945 ceilings of $20 aggregate, $2 per run, four
-calls per case or turn and 4000 output tokens per call. Every request pins
-`service_tier: 'default'` and `truncation: 'disabled'`; any other shape is
-refused. A model without both acceptances is refused before any network
-call. Settlements price the usage categories the installed SDK documents and
-record their basis on the entry (`reported-categories`, or `upper-estimate`
-when the cache-write category was missing and the upper rate was charged);
-neither is an invoice figure. Usage above the ceiling, or a response served
-under another service tier, halts the ledger persistently until a human
-reconciles it. Only `gpt-5.6-luna` is accepted (provider pages read
-2026-09-05; $0.5322 reserved per call). `npm run agent:budget [-- init]`
-inspects or creates the ledger. Both live entry points use the same protected-file
-credential loader only after the ledger opens; it reads `OPENAI_API_KEY` only
-from the file explicitly named by `AGENT_HARNESS_ENV_FILE` and never replaces a
-process-supplied key. Details and the pre-run checklist are in the harness
-`README.md`.
-
-The #945 held-out release corpus is a separate, finite v1 seal under
-`src/agent-harness/held-out/v1/`. Its input and expected-outcome artifacts have manifest-recorded
-SHA-256 hashes, and the manifest has its own sha256sum-compatible seal. The verifier reports only
-version, count, category totals, release gate and manifest hash. No ordinary corpus command loads
-the held-out directory; issue #958 owns its first execution and scoring.
-
-## 28. Known limits and accepted divergences
+## 31. Known limits and accepted divergences
 
 - Pattern execution runs on the main thread; a valid infinite loop can freeze
   the tab.
@@ -1947,8 +1524,12 @@ the held-out directory; issue #958 owns its first execution and scoring.
 - Device playlist management stays in the Pixelblaze UI.
 - One Show compiles for one Controller; synchronized multi-Controller
   playback is outside the system.
+- Agents can place, time, and select Zone Layouts but cannot create Zones or
+  change a Layout definition's routing; those remain editor-only.
+- Show seeking reconstructs Pattern state exactly, but Trails restarts its
+  history at the seek destination.
 
-## 29. Evidence and further reading
+## 32. Evidence and further reading
 
 - Feature Guide — `docs/reference/PXLBLZ Feature Guide.md`
 - Pixelblaze Ecosystem Primer — `docs/reference/Pixelblaze Ecosystem Primer.md`
@@ -1957,14 +1538,9 @@ the held-out directory; issue #958 owns its first execution and scoring.
 - Show compiler overview — `docs/guides/Inside the Show compiler.md`
 - Show optimization evidence — `docs/reference/Show Rendering Optimization Results.md`
 - Domain glossary — `CONTEXT.md`
+- Engineering contracts — `docs/reference/contracts/`
+- Agent Authoring Reference — `docs/reference/agent-clip-layer-authoring.md`
 - Archived measurements and decisions — `docs/plans/archive/issue-*.md`
   (routing representation #400/#409/#410, coordinate remapping #406, seek
   replay #421, headless freeze #459, distortion review #456, arena and
   specialization results #512–#573, composition freeze #492)
-
-
-Gallery Studio entry (#63) routes to stock Quadrille and requests playback for
-that entry only. The Show editor defaults to paused for ordinary opening; its
-`autoPlay` prop accepts the transient entry request. Welcome completion and a
-successful OAuth return to the generic app entry use the same destination.
-No last-Show preference is persisted; explicit entity routes remain authoritative.
