@@ -3,9 +3,9 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
 
-// Return values of the retired v1 authoring owners, frozen before their deletion (#1042 4-4b).
+// Return values of the retired v1 authoring and composition owners, frozen before their deletion.
 // v2 tests use them as the preserved expected value or input of a v1-then-convert comparison.
-// The owners were deleted in #1042 4-4b2, so the fixture can no longer be regenerated.
+// Both fixtures can no longer be regenerated: their v1 owners were deleted in #1042 4-4b2 and 4-5c2a.
 let entries: Record<string, unknown> | undefined
 
 function frozenEntries(): Record<string, unknown> {

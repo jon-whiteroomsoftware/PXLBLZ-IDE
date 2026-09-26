@@ -37,7 +37,7 @@ import { frozenV1Output } from '../test/v1AuthoringOracles'
  *
  * v1 is therefore the oracle here, and it is a byte oracle: each admitted case
  * below builds the same choreography as a v1 record through v1's own owners
- * (`addShowZone`, `splitShowAtTime`, `placeShowClip`, `addShowScene`), compiles
+ * (`addShowZone`, `placeShowClip`, `addShowScene`), compiles
  * it with the v1 compiler, and requires the v2 artifact to match its generated
  * source and Effects source exactly. The fresh-Show case additionally replays
  * the reopened `.epe` in Fast and Precise and compares frames and each member's

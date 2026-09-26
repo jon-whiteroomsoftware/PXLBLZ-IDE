@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   createDefaultShow,
   extendShowCell,
-  splitShowAtTime,
-  updateShowCellRestartOnEntry,
 } from './showModel'
 import {
   addShowOverlayLayer,
@@ -269,34 +267,6 @@ describe('Show composition v1 Main schedule (#488)', () => {
     })
     expect(rejected).toBe(composition)
     expect(rejected.patternInstances).not.toContainEqual(instance)
-  })
-
-  it('projects flat Shows losslessly into explicit instances and full-duration Main placements', () => {
-    const flat = extendShowCell(createDefaultShow('composition-legacy', 'Legacy', 1), 'cell-1', 2)
-    const projected = projectFlatShowToCompositionV1(flat, lookup(flat))
-
-    expect(projected.version).toBe(1)
-    expect(projected.patternInstances).toHaveLength(1)
-    expect(projected.scenes).toHaveLength(2)
-    expect(projected.scenes[0].zones[0].main[0]).toMatchObject({
-      startMs: 0,
-      durationMs: flat.scenes[0].durationMs,
-    })
-    expect(projected.scenes[0].zones[0].main[0].instanceId)
-      .toBe(projected.scenes[1].zones[0].main[0].instanceId)
-
-    const split = splitShowAtTime(flat, 10_000)
-    const splitProjected = projectFlatShowToCompositionV1(split, lookup(split))
-    expect(new Set(splitProjected.scenes.flatMap((scene) => (
-      scene.zones.flatMap((zone) => zone.main.map((placement) => placement.instanceId))
-    ))).size).toBe(1)
-
-    const right = split.cells.find((cell) => cell.sceneId === split.scenes[1].id)!
-    const restarted = updateShowCellRestartOnEntry(split, right.id, true)
-    const restartedProjection = projectFlatShowToCompositionV1(restarted, lookup(restarted))
-    expect(new Set(restartedProjection.scenes.flatMap((scene) => (
-      scene.zones.flatMap((zone) => zone.main.map((placement) => placement.instanceId))
-    ))).size).toBe(2)
   })
 
   it('preserves each projected placement’s source flat cell identity', () => {

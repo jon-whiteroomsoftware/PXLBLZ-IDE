@@ -36,7 +36,6 @@ import {
 } from './showDissolve'
 import { normalizeShowMotionTransition } from './showMotionTransition'
 import { lowerShowCompositionForCompile } from './showCompositionLowering'
-import { splitShowCompositionScene } from './showCompositionSplit'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -46,7 +45,6 @@ import {
   showEffectNumericValue,
   showEffectsAreIdentity,
 } from './showEffects'
-import { multiSegmentLogicalPlacementIds } from './showClipInvariant'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import { createInstallationShowOutputContract } from './showOutputContract'
 import type { ShowLogicalRouting } from './showLogicalRouting'
@@ -484,179 +482,6 @@ export function addShowScene(show: ShowRecord): ShowRecord {
     ],
     updatedAt: Date.now(),
   })
-}
-
-/**
- * Split the scene hold containing `atMs`. The operation is atomic: invalid
- * boundaries and transition windows return the original record unchanged.
- */
-export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
-  if (!showSplitCapability(show, atMs).enabled) return show
-  const target = showSplitTarget(show, atMs)
-  if (!target) return show
-  show = normalizeShowTransitionState(show)
-  const { sceneIndex, leftDurationMs } = target
-  const sourceScene = show.scenes[sceneIndex]
-  const rightDurationMs = sourceScene.durationMs - leftDurationMs
-
-  const newSceneId = nextEntityId('scene-', show.scenes)
-  const destinationScene: ShowScene = {
-    ...sourceScene,
-    id: newSceneId,
-    name: uniqueSceneName(`${sourceScene.name} part 2`, show.scenes),
-    durationMs: rightDurationMs,
-  }
-  const scenes = [
-    ...show.scenes.slice(0, sceneIndex),
-    { ...sourceScene, durationMs: leftDurationMs },
-    destinationScene,
-    ...show.scenes.slice(sceneIndex + 1),
-  ]
-
-  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
-  const usedCellIds = new Set(show.cells.map((cell) => cell.id))
-  const cells = show.cells.flatMap((cell) => {
-    const startIndex = sceneIndexById.get(cell.sceneId)
-    if (startIndex == null) return [cell]
-    const span = Math.max(1, cell.sceneSpan)
-    const endIndex = startIndex + span - 1
-    if (sceneIndex < startIndex || sceneIndex > endIndex) return [cell]
-
-    const destinationId = nextStringId('cell-', usedCellIds)
-    usedCellIds.add(destinationId)
-    const leftSpan = sceneIndex - startIndex + 1
-    const rightSpan = endIndex - sceneIndex + 1
-    return [
-      { ...cell, sceneSpan: leftSpan },
-      cloneCellForSplit(cell, destinationId, newSceneId, rightSpan),
-    ]
-  })
-
-  const transitions: ShowBoundaryTransition[] = [
-    ...(show.transitions ?? []).flatMap((transition) => (
-      transition.afterSceneId === sourceScene.id
-        ? [{
-            ...transition,
-            id: `${transition.kind === 'routing' ? 'routing' : 'transition'}-${newSceneId}`,
-            afterSceneId: newSceneId,
-          }]
-        : [transition]
-    )),
-    {
-      id: `transition-${sourceScene.id}`,
-      afterSceneId: sourceScene.id,
-      kind: 'cut',
-      durationMs: 0,
-      easing: { curve: 'linear' },
-    },
-  ]
-  const composition = show.composition
-    ? splitShowCompositionScene(show.composition, {
-        sourceSceneId: sourceScene.id,
-        destinationSceneId: newSceneId,
-        splitMs: leftDurationMs,
-        sourceDurationMs: sourceScene.durationMs,
-      })
-    : undefined
-  return normalizeShowTransitionState({
-    ...show,
-    scenes,
-    cells,
-    transitions,
-    ...(composition ? { composition } : {}),
-    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
-  })
-}
-
-export type ShowSplitCapability =
-  | { enabled: true; code: 'ready'; reason: string }
-  | { enabled: false; code: 'scene-edge-margin' | 'no-scene' | 'logical-clip' | 'nonlinear-property-animation'; reason: string }
-
-export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCapability {
-  if (!Number.isFinite(atMs)) {
-    return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Clip.' }
-  }
-
-  let cursorMs = 0
-  for (const scene of show.scenes) {
-    const holdEndMs = cursorMs + Math.max(0, scene.durationMs)
-    if (cursorMs <= atMs && atMs <= holdEndMs) {
-      const leftDurationMs = Math.round(atMs - cursorMs)
-      const rightDurationMs = scene.durationMs - leftDurationMs
-      if (leftDurationMs < 1000 || rightDurationMs < 1000) {
-        return {
-          enabled: false,
-          code: 'scene-edge-margin',
-          reason: 'Leave at least 1.0 s on both sides of the playhead.',
-        }
-      }
-      if (multiSegmentLogicalClipCrosses(show, scene.id, leftDurationMs)) {
-        return {
-          enabled: false,
-          code: 'logical-clip',
-          reason: 'This multi-part Clip cannot be split here.',
-        }
-      }
-      if (nonlinearPropertySegmentCrosses(show, scene.id, leftDurationMs)) {
-        return {
-          enabled: false,
-          code: 'nonlinear-property-animation',
-          reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting.',
-        }
-      }
-      return { enabled: true, code: 'ready', reason: 'Split at the playhead.' }
-    }
-    cursorMs = holdEndMs + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
-  }
-
-  return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Clip.' }
-}
-
-function multiSegmentLogicalClipCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {
-  if (!show.composition) return false
-  const logicalPlacementIds = multiSegmentLogicalPlacementIds(show.composition)
-  const scene = show.composition.scenes.find((candidate) => candidate.sceneId === sceneId)
-  return Boolean(scene?.zones.some((zone) => [
-    ...zone.main,
-    ...zone.overlays.flatMap((layer) => layer.placements),
-  ].some((placement) => (
-    logicalPlacementIds.has(placement.id)
-    && placement.startMs < localTimeMs
-    && placement.startMs + placement.durationMs > localTimeMs
-  ))))
-}
-
-function nonlinearPropertySegmentCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {
-  const scene = show.composition?.scenes.find((candidate) => candidate.sceneId === sceneId)
-  return (scene?.propertyTracks ?? []).some((track) => {
-    const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
-    return keyframes.slice(0, -1).some((left, index) => {
-      const right = keyframes[index + 1]
-      if (left.timeMs >= localTimeMs || right.timeMs <= localTimeMs) return false
-      if (Math.abs(right.value - left.value) <= 0.000001) return false
-      return normalizePersistedShowEasing(left.easing).curve !== 'linear'
-    })
-  })
-}
-
-function showSplitTarget(
-  show: ShowRecord,
-  atMs: number,
-): { sceneIndex: number; leftDurationMs: number } | null {
-  if (!Number.isFinite(atMs)) return null
-  let cursorMs = 0
-  for (const [sceneIndex, scene] of show.scenes.entries()) {
-    const holdEndMs = cursorMs + Math.max(0, scene.durationMs)
-    if (cursorMs < atMs && atMs < holdEndMs) {
-      const leftDurationMs = Math.round(atMs - cursorMs)
-      const rightDurationMs = scene.durationMs - leftDurationMs
-      return leftDurationMs >= 1000 && rightDurationMs >= 1000
-        ? { sceneIndex, leftDurationMs }
-        : null
-    }
-    cursorMs = holdEndMs + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
-  }
-  return null
 }
 
 export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
@@ -2934,26 +2759,6 @@ function copyCellForScene(
         : {}),
     },
     ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
-    restartOnEntry: false,
-  }
-}
-
-function cloneCellForSplit(source: ShowCell, id: string, sceneId: string, sceneSpan: number): ShowCell {
-  return {
-    ...source,
-    id,
-    sceneId,
-    sceneSpan,
-    pattern: { ...source.pattern },
-    adaptations: {
-      ...source.adaptations,
-      ...(source.adaptations.lightShutter
-        ? { lightShutter: { ...source.adaptations.lightShutter } }
-        : {}),
-      ...(source.adaptations.steppedClock
-        ? { steppedClock: { ...source.adaptations.steppedClock } }
-        : {}),
-    },
     restartOnEntry: false,
   }
 }

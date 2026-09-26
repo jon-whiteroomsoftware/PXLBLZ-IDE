@@ -17,7 +17,6 @@ import { checkBaselines, firstDifferentRuntimeFrame, runtimeComparability } from
 const FORBIDDEN_MODULES = [
   'src/engine/showBoundaryTransitionTimeRepair.ts',
   'src/engine/showClipDeletionBoundaryEligibility.ts',
-  'src/engine/showCompositionSplit.ts',
   'src/engine/showClipInvariant.ts',
   'src/engine/showLayoutIntervals.ts',
   'src/engine/showCompositionProjection.ts',

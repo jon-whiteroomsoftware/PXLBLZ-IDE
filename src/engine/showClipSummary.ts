@@ -2,19 +2,16 @@ import { steppedClockRateHz } from './steppedClock'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
 import { normalizeShowClipTransform } from './showClipTransform'
 import { compactShowClipViewport, normalizeShowClipViewport } from './showClipViewport'
-import { materializeShowGroupOccurrences } from './showGroupModel'
 import { formatPercentageValue } from './percentageValue'
 import { formatDomainNumber } from './domainNumberPresentation'
 import { anglePresentationKind, formatAngleValue } from './anglePresentation'
 import type {
   ShowCell,
   ShowClipEffect,
-  ShowCompositionV1,
   ShowPropertyAnimationTarget,
   ShowPropertyTransitions,
   ShowRecord,
 } from './personalContentRecords'
-import type { ShowUnifiedTimelineClipProjection } from './showUnifiedTimelineProjection'
 
 export type ShowClipSummaryKind = 'playback' | 'controls' | 'view' | 'effects' | 'animation'
 
@@ -148,55 +145,6 @@ export function projectGlobalShowClipSummary(
   if (!cell) return []
 
   return projectClipSummary(cell, controlLabels, animationItems(show, cell, controlLabels), EMPTY_OVERLAYS)
-}
-
-/** Adapt the authored unified Clip substrate to the retained summary language. */
-export function projectCompositionShowClipSummary(
-  composition: ShowCompositionV1,
-  clip: Pick<ShowUnifiedTimelineClipProjection, 'id' | 'instanceId' | 'segmentIds'>,
-  controlLabels: Record<string, string> = {},
-): ShowClipSummarySection[] {
-  const materialized = materializeShowGroupOccurrences(composition)
-  const segmentIds = new Set(clip.segmentIds ?? [clip.id])
-  const ownedPlacements = materialized.scenes.flatMap((scene) => (
-    scene.zones.flatMap((zone) => [
-      ...zone.main,
-      ...zone.overlays.flatMap((layer) => layer.placements),
-    ]).flatMap((placement) => (
-      segmentIds.has(placement.id) ? [{ sceneId: scene.sceneId, placement }] : []
-    ))
-  ))
-  const placement = ownedPlacements[0]?.placement
-  const sceneIds = new Set(ownedPlacements.map((owner) => owner.sceneId))
-  const instance = materialized.patternInstances.find((candidate) => candidate.id === clip.instanceId)
-  if (!placement || !instance) return []
-  const opacity = 'opacity' in placement && typeof placement.opacity === 'number'
-    ? placement.opacity
-    : undefined
-
-  return projectClipSummary({
-    adaptations: {
-      mirror: placement.view.mirror,
-      phase: placement.view.phase,
-      brightness: placement.view.brightness,
-      timeScale: instance.time.timeScale,
-      ...(instance.time.lightShutter ? { lightShutter: instance.time.lightShutter } : {}),
-      ...(instance.time.steppedClock ? { steppedClock: instance.time.steppedClock } : {}),
-      ...(instance.time.timeOffsetMs !== 0 ? { timeOffsetMs: instance.time.timeOffsetMs } : {}),
-    },
-    ...(instance.controlTargets ? { controlTargets: instance.controlTargets } : {}),
-    ...(opacity !== undefined ? { opacity } : {}),
-    ...(placement.transform ? { transform: placement.transform } : {}),
-    ...(placement.viewport ? { viewport: placement.viewport } : {}),
-    ...(placement.effects ? { effects: placement.effects } : {}),
-  }, controlLabels, [], compositionAnimationOverlays(
-    materialized,
-    clip,
-    segmentIds,
-    sceneIds,
-    placement.effects,
-    controlLabels,
-  ))
 }
 
 /**
@@ -343,25 +291,6 @@ type CompositionAnimationFact = {
   | { kind: 'effects'; itemId: string }
 )
 
-function compositionAnimationOverlays(
-  composition: ShowCompositionV1,
-  clip: Pick<ShowUnifiedTimelineClipProjection, 'instanceId'>,
-  segmentIds: ReadonlySet<string>,
-  sceneIds: ReadonlySet<string>,
-  effects: readonly ShowClipEffect[] | undefined,
-  controlLabels: Record<string, string>,
-): ShowClipAnimationOverlays {
-  return animationOverlaysFromTracks(
-    composition.scenes.flatMap((scene) => (
-      sceneIds.has(scene.sceneId) ? scene.propertyTracks ?? [] : []
-    )),
-    clip.instanceId,
-    effects,
-    controlLabels,
-    (target) => animationTargetBelongsToClip(target, clip.instanceId, segmentIds),
-  )
-}
-
 /**
  * Collapse a Clip's Property tracks into the #666 range overlays. This is the
  * one place a track's absolute bounds become a summary fact; both editor
@@ -421,17 +350,6 @@ function formatAnimatedRange(format: (value: number) => string, min: number, max
   const unit = high.match(/\D*$/)?.[0] ?? ''
   const trimmed = unit && low.endsWith(unit) ? low.slice(0, low.length - unit.length) : low
   return `${trimmed}–${high}`
-}
-
-function animationTargetBelongsToClip(
-  target: ShowPropertyAnimationTarget,
-  instanceId: string,
-  segmentIds: ReadonlySet<string>,
-): boolean {
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
-    return target.instanceId === instanceId
-  }
-  return segmentIds.has(target.placementId)
 }
 
 function compositionAnimationItem(
