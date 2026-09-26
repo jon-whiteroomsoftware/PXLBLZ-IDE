@@ -1,4 +1,4 @@
-// The prepared v2 Show command registry: one typed data table over the pure v2
+// The v2 Show command registry: one typed data table over the pure v2
 // engine owners. Every entry carries a stable snake_case name, a description, the
 // ShowRecordV2 JSON-pointer patterns it may write, a fully typed input schema and
 // an apply that calls an owner. Nothing here imports React or a store, and no
@@ -18,8 +18,7 @@
 //  9. One read representation: the v2 record.
 // 10. A singular command is the bulk schema fragment of one.
 //
-// This catalogue is prepared, not activated. Production MCP keeps the v1
-// registry until the coordinated cutover in #1039.
+// This is the live catalogue served by production MCP and the built-in agent.
 import type { ShowRecordV2 } from '../showCompositionV2'
 import type { ShowPatternRef } from '../personalContentRecords'
 import type { ResolvedShowPatternReplacementV2 } from '../showClipsV2'

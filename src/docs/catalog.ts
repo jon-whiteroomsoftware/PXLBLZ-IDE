@@ -28,6 +28,8 @@ import transitionCostClassesUrl from '../../docs/images/transition-cost-classes.
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
 import showVisualToolkitOverviewUrl from '../../docs/screenshots/show-visual-toolkit-overview.png?url'
 import showVisualToolkitEntityDetailUrl from '../../docs/screenshots/show-visual-toolkit-entity-detail.png?url'
+import agentDrawerStartUrl from '../../docs/screenshots/agent-drawer-start.png?url'
+import agentDrawerMcpSetupUrl from '../../docs/screenshots/agent-drawer-mcp-setup.png?url'
 
 export type DocId =
   | 'ecosystem-primer'
@@ -72,6 +74,8 @@ const sharedAssets = {
   '../images/whole-frame-model.svg': wholeFrameModelUrl,
   '../screenshots/show-visual-toolkit-overview.png': showVisualToolkitOverviewUrl,
   '../screenshots/show-visual-toolkit-entity-detail.png': showVisualToolkitEntityDetailUrl,
+  '../screenshots/agent-drawer-start.png': agentDrawerStartUrl,
+  '../screenshots/agent-drawer-mcp-setup.png': agentDrawerMcpSetupUrl,
 }
 
 export const USER_DOCS: UserDoc[] = [
@@ -91,7 +95,7 @@ export const USER_DOCS: UserDoc[] = [
     title: 'PXLBLZ Feature Guide',
     menuLabel: 'Feature Guide',
     menuKicker: 'Using PXLBLZ',
-    summary: 'Gallery, Studio authoring, preview, maps, Controllers, and Shows.',
+    summary: 'Gallery, Studio authoring, preview, maps, Controllers, Shows, and agent editing.',
     source: featureGuide,
     assets: sharedAssets,
   },
