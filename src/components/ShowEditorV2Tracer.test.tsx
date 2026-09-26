@@ -8216,6 +8216,7 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     await selectClipAt(editor.showId, 'CometLoom', 1, 7_000.3)
     const before = editor.state()
     const split = timelineCommand('Split at playhead')
+    fireEvent.pointerEnter(split)
     expect(split).toHaveAttribute('aria-disabled', 'true')
     expect(split).toHaveAttribute('title', 'Move the playhead inside the Clip to split it.')
 

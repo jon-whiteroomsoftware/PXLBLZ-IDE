@@ -27,7 +27,7 @@ it('throttles playhead-only dry-runs to the first change and the trailing edge, 
   try {
     const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
     const view = projectShowEditorTimelineV2(record)
-    const initial = { geometry, view, targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), suspended: false }
+    const initial = { geometry, view, targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: true, suspended: false }
     const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
     expect(dryRun).toHaveBeenCalledTimes(1)
     expect(hook.result.current).toEqual({ enabled: false, reason: `refused at ${clip.startMs + 100}` })
@@ -60,7 +60,7 @@ it('keeps the geometry capability without checking advancing positions while sus
     .mockImplementation((_capture, intent) => ({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: `refused at ${intent.kind === 'split' ? intent.atMs : -1}` }))
   try {
     const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
-    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), suspended: true }
+    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: true, suspended: true }
     const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
     for (let step = 1; step <= 10; step += 1) {
       hook.rerender({ ...initial, positionMs: clip.startMs + 100 + step * 10 })
@@ -79,7 +79,7 @@ it('drops a stale refusal and trailing run on suspension, then checks the curren
     .mockImplementation((_capture, intent) => ({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: `refused at ${intent.kind === 'split' ? intent.atMs : -1}` }))
   try {
     const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
-    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), suspended: false }
+    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: true, suspended: false }
     const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
     expect(dryRun).toHaveBeenCalledTimes(1)
     expect(hook.result.current).toEqual({ enabled: false, reason: `refused at ${clip.startMs + 100}` })
@@ -94,6 +94,64 @@ it('drops a stale refusal and trailing run on suspension, then checks the curren
     expect(dryRun).toHaveBeenCalledTimes(2)
     expect(dryRun.mock.calls[1][1]).toMatchObject({ kind: 'split', atMs: clip.startMs + 130 })
     expect(hook.result.current).toEqual({ enabled: false, reason: `refused at ${clip.startMs + 130}` })
+  } finally {
+    dryRun.mockRestore()
+  }
+})
+
+it('keeps geometry without checking ten unarmed playhead positions (#1155)', () => {
+  const { record, clip, capture } = fixture()
+  const dryRun = vi.spyOn(admission, 'checkShowV2ClipTemporal')
+  try {
+    const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
+    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: false, suspended: false }
+    const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
+    for (let step = 1; step <= 10; step += 1) {
+      hook.rerender({ ...initial, positionMs: clip.startMs + 100 + step * 10 })
+    }
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(dryRun).toHaveBeenCalledTimes(0)
+    expect(hook.result.current).toEqual(geometry)
+  } finally {
+    dryRun.mockRestore()
+  }
+})
+
+it('checks the current position immediately when Split becomes armed (#1155)', () => {
+  const { record, clip, capture } = fixture()
+  const dryRun = vi.spyOn(admission, 'checkShowV2ClipTemporal')
+    .mockImplementation((_capture, intent) => ({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: `refused at ${intent.kind === 'split' ? intent.atMs : -1}` }))
+  try {
+    const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
+    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: false, suspended: false }
+    const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
+    hook.rerender({ ...initial, positionMs: clip.startMs + 130 })
+    expect(dryRun).toHaveBeenCalledTimes(0)
+
+    hook.rerender({ ...initial, positionMs: clip.startMs + 130, armed: true })
+    expect(dryRun).toHaveBeenCalledTimes(1)
+    expect(dryRun.mock.calls[0][1]).toMatchObject({ kind: 'split', atMs: clip.startMs + 130 })
+    expect(hook.result.current).toEqual({ enabled: false, reason: `refused at ${clip.startMs + 130}` })
+  } finally {
+    dryRun.mockRestore()
+  }
+})
+
+it('cancels a trailing check and restores geometry when Split is disarmed (#1155)', () => {
+  const { record, clip, capture } = fixture()
+  const dryRun = vi.spyOn(admission, 'checkShowV2ClipTemporal')
+    .mockImplementation((_capture, intent) => ({ status: 'refused', source: 'admission', code: 'unsupported-pilot-record', message: `refused at ${intent.kind === 'split' ? intent.atMs : -1}` }))
+  try {
+    const geometry = { enabled: true, reason: 'Split the selected Clip at the playhead.' }
+    const initial = { geometry, view: projectShowEditorTimelineV2(record), targetClipId: clip.id, positionMs: clip.startMs + 100, capture: capture(record), armed: true, suspended: false }
+    const hook = renderHook((props: typeof initial) => useShowV2SplitDryRun(props), { initialProps: initial })
+    expect(dryRun).toHaveBeenCalledTimes(1)
+    hook.rerender({ ...initial, positionMs: clip.startMs + 110 })
+    hook.rerender({ ...initial, positionMs: clip.startMs + 120, armed: false })
+    expect(hook.result.current).toEqual(geometry)
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(dryRun).toHaveBeenCalledTimes(1)
+    expect(hook.result.current).toEqual(geometry)
   } finally {
     dryRun.mockRestore()
   }

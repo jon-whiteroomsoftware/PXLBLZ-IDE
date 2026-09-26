@@ -5825,10 +5825,10 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       const commands = screen.getByRole('group', { name: 'Timeline commands' })
 
       fireEvent.change(playhead, { target: { value: '500' } })
+      fireEvent.focus(split)
       expect(candidate).toHaveBeenCalled()
       expect(split).toHaveAttribute('aria-disabled', 'true')
       expect(split).toHaveAttribute('title', 'Typed candidate boundary')
-      fireEvent.focus(split)
       expect(within(commands).getByRole('status', { name: 'Split unavailable' }).textContent).toBe('Typed candidate boundary')
     } finally {
       candidate.mockRestore()

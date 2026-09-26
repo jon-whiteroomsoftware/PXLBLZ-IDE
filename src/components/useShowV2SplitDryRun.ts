@@ -33,12 +33,12 @@ function dryRunSplit(input: DryRunInput): ShowEditorTimelineCommandCapabilityV2 
 
 /**
  * The effective Split capability: the geometry capability, narrowed by a
- * dry-run of the owner and prepared-edit checks. A changed record or target
- * recomputes at once while playhead-only changes are throttled. The dry-run is
- * suspended while the preview plays; a Split click pauses first, and the click
- * path's own planner refusal still reports on the Clip. Between active
- * recomputes the control shows the last answer, and click admission refuses
- * anything that went stale in that window.
+ * dry-run of the owner and prepared-edit checks only while the Split control
+ * is hovered or focused, never during playback. A changed record or target
+ * recomputes at once while playhead-only changes are throttled. The click path
+ * still plans and admits on its own, and a refused click reports on the Clip.
+ * Between active recomputes the control shows the last answer, and click
+ * admission refuses anything that went stale in that window.
  */
 export function useShowV2SplitDryRun(input: {
   geometry: ShowEditorTimelineCommandCapabilityV2
@@ -46,11 +46,12 @@ export function useShowV2SplitDryRun(input: {
   targetClipId: string | null
   positionMs: number
   capture: ShowV2PilotPreparedCapture | null
+  armed: boolean
   suspended: boolean
 }): ShowEditorTimelineCommandCapabilityV2 {
   const { geometry, view, targetClipId, capture } = input
   const atMs = Math.round(input.positionMs)
-  const active = !input.suspended && geometry.enabled && !!targetClipId && !!capture
+  const active = input.armed && !input.suspended && geometry.enabled && !!targetClipId && !!capture
   const [refusal, setRefusal] = useState<ShowEditorTimelineCommandCapabilityV2 | null>(null)
   const throttle = useRef<{
     record: ShowV2PilotPreparedCapture['record'] | null
