@@ -75,8 +75,9 @@ their own current UTC days.
 limit, remaining messages, next UTC reset instant and allowance revision. The
 drawer refreshes from command responses, window focus and a timer at the
 server-provided reset. If the browser reaches that instant before the server's
-UTC day advances, the drawer keeps the last valid reset target and makes four
-bounded retries at 1, 2, 4 and 8 seconds. A later reset target or a successful
+UTC day advances, the drawer keeps the last valid reset target and retries at
+1, 2, 4, 8, 16 and 32 seconds, then every 60 seconds until the server reports
+a later reset target. A later reset target or a successful
 focus refresh replaces that retry series. It does not derive entitlement from
 browser storage or poll the server continuously. Missing, malformed, failed or
 stale status cannot enable new inference. The personal daily limit, insufficient

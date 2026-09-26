@@ -16,7 +16,7 @@ interface Operation { request?: ShowEditRequest; changes: AgentChange[] }
 interface ArmIntent { generation: number; accepted: boolean; acceptedUntil: number | null; observedUntil: number | null }
 const ALLOWANCE_RESET_GRACE_MS = 50
 const ALLOWANCE_RESET_RETRY_MIN_MS = 1000
-const ALLOWANCE_RESET_RETRY_LIMIT = 4
+const ALLOWANCE_RESET_RETRY_MAX_MS = 60_000
 const MAX_INTERIM_ISSUES = 3
 const MAX_INTERIM_ISSUE_CHARS = 160
 
@@ -70,9 +70,8 @@ export function createProductionDrawerController(api: Admission, showId: string,
     if (!tracksAllowance || allowanceResetAt === null) return
     const untilReset = allowanceResetAt - Date.now() + ALLOWANCE_RESET_GRACE_MS
     const retry = untilReset <= 0
-    if (retry && allowanceResetRetries >= ALLOWANCE_RESET_RETRY_LIMIT) return
     const delay = retry
-      ? ALLOWANCE_RESET_RETRY_MIN_MS * (2 ** allowanceResetRetries)
+      ? Math.min(ALLOWANCE_RESET_RETRY_MIN_MS * 2 ** Math.min(allowanceResetRetries, 6), ALLOWANCE_RESET_RETRY_MAX_MS)
       : Math.min(untilReset, 2_147_483_647)
     allowanceTimer = window.setTimeout(() => {
       allowanceTimer = undefined
@@ -172,7 +171,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
         armSettledWaiters.clear()
       }
       if (next.kind !== 'contact-lost') armMayBeActive = false
-      if (next.kind !== 'idle' || !suppressArmSnapshots) suppressArmSnapshots = false
+      if (next.kind !== 'idle' && next.kind !== 'contact-lost') suppressArmSnapshots = false
       if (next.kind === 'bound' || next.kind === 'pending') { armAttempt++; armIntent = undefined }
     }
     connection = next
@@ -188,7 +187,7 @@ export function createProductionDrawerController(api: Admission, showId: string,
   const action = async (run: () => Promise<Result>) => {
     try {
       const result = await run()
-      if (!disposed && !['bound', 'armed', 'disarmed', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome', 'occupied'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
+      if (!disposed && !['bound', 'armed', 'disarmed', 'not_armed_here', 'declined', 'disconnected', 'forgotten', 'idle', 'status', 'retiring', 'outcome', 'occupied'].includes(result.code)) emit({ type: 'system', text: agentRefusalMessage(result.code) })
     } catch { emit({ type: 'drop' }) }
   }
   const abandonArm = (force: boolean) => {

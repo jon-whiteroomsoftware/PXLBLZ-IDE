@@ -109,7 +109,36 @@ it('backs off after an early reset refresh until the server advances the UTC day
   expect(f.builtin).toHaveBeenCalledTimes(2)
   expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 })
 })
-it('bounds failed reset retries and lets focus recovery replace their timer', async () => {
+it('keeps retrying a past reset with a capped delay until the server advances it', async () => {
+  vi.useFakeTimers()
+  const now = new Date('2026-09-14T00:00:02.000Z').getTime()
+  const resetAt = now - 2000
+  vi.setSystemTime(now)
+  const f = fixture(undefined, { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt })
+  const callTimes: number[] = []
+  f.builtin.mockImplementation(async () => {
+    callTimes.push(Date.now())
+    throw new Error('offline')
+  })
+
+  await vi.advanceTimersByTimeAsync(600_000)
+  expect(callTimes.map((at, index) => at - (callTimes[index - 1] ?? now))).toEqual([
+    1000, 2000, 4000, 8000, 16_000, 32_000,
+    60_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000, 60_000,
+  ])
+  expect(useAgentDrawerStore.getState().state.allowance.code).toBe('unavailable')
+
+  f.builtin.mockImplementation(async () => {
+    callTimes.push(Date.now())
+    return { code: 'status', allowance: { ...availableAllowance(30, 8), resetAt: now + 86_400_000 } }
+  })
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(callTimes[callTimes.length - 1] - callTimes[callTimes.length - 2]).toBe(60_000)
+  expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 })
+  await vi.advanceTimersByTimeAsync(600_000)
+  expect(f.builtin).toHaveBeenCalledTimes(15)
+})
+it('lets focus recovery replace the capped retry timer', async () => {
   vi.useFakeTimers()
   const now = new Date('2026-09-14T00:00:02.000Z').getTime()
   const resetAt = now - 2000
@@ -117,17 +146,14 @@ it('bounds failed reset retries and lets focus recovery replace their timer', as
   const f = fixture(undefined, { ...availableAllowance(0, 7), code: 'daily_message_limit', resetAt })
   f.builtin.mockRejectedValue(new Error('offline'))
 
-  await vi.advanceTimersByTimeAsync(120_000)
-  expect(f.builtin).toHaveBeenCalledTimes(4)
+  await vi.advanceTimersByTimeAsync(70_000)
+  expect(f.builtin).toHaveBeenCalledTimes(6)
   expect(useAgentDrawerStore.getState().state.allowance.code).toBe('unavailable')
-  await vi.advanceTimersByTimeAsync(120_000)
-  expect(f.builtin).toHaveBeenCalledTimes(4)
-
   f.builtin.mockResolvedValueOnce({ code: 'status', allowance: { ...availableAllowance(30, 8), resetAt: now + 86_400_000 } })
   window.dispatchEvent(new Event('focus'))
   await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.allowance).toMatchObject({ code: 'available', remaining: 30, revision: 8 }))
   await vi.advanceTimersByTimeAsync(60_000)
-  expect(f.builtin).toHaveBeenCalledTimes(5)
+  expect(f.builtin).toHaveBeenCalledTimes(7)
 })
 it.each([
   ['No agent connected', { kind: 'armed', expiresAt: Date.now() + 120_000 }],
@@ -211,6 +237,30 @@ it('orders Back behind an in-flight arm and rejects its stale snapshots before a
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'External agent' } })
   expect(useAgentDrawerStore.getState().state.connection).toMatchObject({ kind: 'external', name: 'External agent' })
 })
+it('keeps a cancelled setup closed across contact loss and a recovered stale armed snapshot (#1026)', async () => {
+  const f = fixture()
+  const firstUntil = Date.now() + 120_000
+  const secondUntil = firstUntil + 1000
+  vi.mocked(f.channel.arm)
+    .mockResolvedValueOnce({ code: 'armed', connection: { kind: 'armed', expiresAt: firstUntil } })
+    .mockResolvedValueOnce({ code: 'armed', connection: { kind: 'armed', expiresAt: secondUntil } })
+
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.dispatch({ type: 'connectOwn', now: 0 })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.armingUntil).toBe(firstUntil))
+  f.controller.backToChooser()
+  f.emit({ type: 'connection', connection: { kind: 'contact-lost', previous: { kind: 'armed', expiresAt: firstUntil } } })
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt: firstUntil } })
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ setupOpen: false, armingUntil: null, setupNotice: null })
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ setupOpen: false, armingUntil: null, setupNotice: null })
+
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.dispatch({ type: 'connectOwn', now: 1 })
+  await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.armingUntil).toBe(secondUntil))
+  expect(useAgentDrawerStore.getState().state.setupNotice).toBeNull()
+})
 it('does not optimistically bind or arm on refused account actions', async () => {
   const f = fixture()
   f.controller.dispatch({ type: 'chooseBuiltin' })
@@ -221,6 +271,26 @@ it('does not optimistically bind or arm on refused account actions', async () =>
   await vi.waitFor(() => expect(f.channel.arm).toHaveBeenCalledOnce())
   expect(useAgentDrawerStore.getState().state.armingUntil).toBeNull()
   expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' })
+})
+it('treats not_armed_here from setup cancellation as clean, with no transcript notice (#1026)', async () => {
+  const f = fixture()
+  const expiresAt = Date.now() + 120_000
+  vi.mocked(f.channel.arm).mockResolvedValueOnce({ code: 'occupied' })
+  vi.mocked(f.channel.cancelArm).mockResolvedValueOnce({ code: 'not_armed_here' })
+
+  f.controller.dispatch({ type: 'chooseExternal' })
+  f.controller.dispatch({ type: 'connectOwn', now: 0 })
+  f.emit({ type: 'connection', connection: { kind: 'armed', expiresAt } })
+  await vi.waitFor(() => expect(useAgentDrawerStore.getState().state.setupNotice).toMatchObject({ title: 'Connected in another editor' }))
+  const systemLinesBeforeBack = useAgentDrawerStore.getState().state.stream.filter(line => line.kind === 'system')
+  f.controller.backToChooser()
+  await vi.waitFor(() => expect(f.channel.cancelArm).toHaveBeenCalledOnce())
+  f.emit({ type: 'connection', connection: { kind: 'idle' } })
+  await Promise.resolve()
+  await Promise.resolve()
+
+  expect(useAgentDrawerStore.getState().state).toMatchObject({ setupOpen: false, armingUntil: null, setupNotice: null })
+  expect(useAgentDrawerStore.getState().state.stream.filter(line => line.kind === 'system')).toEqual(systemLinesBeforeBack)
 })
 it('passes the exact observed external binding to movement and waits for receive to establish ownership', async () => {
   const f = fixture()

@@ -148,9 +148,11 @@ and a late result from an older intent cannot settle a newer one.
 
 The drawer's setup Back action invalidates its arm generation, sequences disarm
 after any already-sent arm, and returns to the chooser immediately. Armed
-snapshots remain suppressed through the first later non-armed observation. A
-new Ready attempt waits for that observation before arming, so delayed snapshots
-from the cancelled generation cannot reopen setup or fabricate expiry. Change
+snapshots remain suppressed through the first later non-armed observation;
+contact loss is not such an observation, so a recovered snapshot from the
+cancelled generation stays suppressed. A new Ready attempt waits for that
+observation before arming, so delayed snapshots from the cancelled generation
+cannot reopen setup or fabricate expiry. Change
 agent ends the exact local binding, then returns to that chooser without revoking
 external OAuth authorization. Both preserve the drawer transcript and built-in
 draft. Change agent is disabled while an editor operation is active, saving, or
