@@ -919,11 +919,10 @@ connection is described the v2 catalogue. There is one editor and no route gate:
 since #1065 a stored version-2 document opens in the same `ShowEditor` every
 other Show opens in, ungated. What follows the Show's stored version is the
 *record* that editor reads, because nothing in the application converts a stored
-row: a version-2 document backs the editor with its converted pilot record. Since
+row: a version-2 document backs the editor with its v2 pilot record. Since
 #1042 Phase 1b a row still stored as version 1 is not read at all: the Worker
 answers the v1 list, a v1 create and every PATCH with 410 `show-v1-retired`,
-the row's route shows "Show not found", and it waits for the operator conversion
-below (#1105).
+and the row's route shows "Show not found".
 A built-in Show opens on its native version-2 catalogue record as a session-only
 lesson draft that writes nothing (#1067). Until #1066 connects
 the remaining edits, a version-2 record in that editor has only the ordinary
@@ -945,38 +944,22 @@ across the Stage to select an Installation Zone's LEDs remains a v1-only
 surface. See [the editor contract](contracts/show-editor-v2.md#edit-doors)
 and [the Zone owner contract](contracts/show-v2-zone-layout-owners.md).
 
-**Row conversion.** Personal rows move to v2 through an explicit operator pass,
-never through a read. `scripts/show-v2-migrate.ts` drives the landed owner over
-a local D1 store: `inventory` lists rows with their version and recorded
-outcome, `convert` snapshots each original, converts and validates it in
-memory, writes v2 under a compare-and-set over the original columns, then reads
-the row back and reopens and compiles it, and `rollback` restores exactly the
-identities it is given. Already-v2 rows are idempotent no-ops, an interrupted
-pass resumes from the recorded per-row outcomes, a row whose original changed
-since its outcome is rechecked, and a failed row keeps its snapshot and is
-reported by name. Conversion resolves Pattern sources only from trusted
-metadata the caller supplies, so a flat v1 row whose source is gone refuses
-rather than converting against a guess. There is no remote backend; the remote
-pass is blocked on a recorded Cloudflare migration authorization failure. See
-[state, history and persistence](contracts/show-state-history-persistence.md)
-for the contract and the
-[cutover rehearsal](evidence/issue-1039-cutover/rehearsal.md) for the local
-pass, its interruption and resume, its idempotent repeat and its rollback.
+**Row storage.** Personal Show rows store one version-2 document in `record_json`;
+migration 0029 removed the twelve version-1 columns. `src/cloudflare/shows.ts`
+ignores a row whose `record_json` is NULL. #1105 converted local rows with the
+since-retired D1 tool; see the
+[cutover rehearsal](evidence/issue-1039-cutover/rehearsal.md).
 
-`ShowRecord.composition` (`ShowCompositionV1`) holds the editor's Clips,
-Layers, Groups, Markers, explicit Show End, and Property animation; the
-record's Scenes, Zones, boundary Transitions, and routing layouts remain the
-compiler substrate. `showModel.ts` owns creation, normalization, projection,
-split, and mutation. Until #1042 Phase 2 deletes it, the retained v1 half of
-`showStore` persists through a provider whose remote `listShows`, `createShow`
-and `updateShow` now throw `show-v1-retired`; it keeps per-Show
-write queues, optimistic updates, and in-memory undo/redo snapshot stacks.
-The store assigns every accepted replacement a monotonic single-client
-`updatedAt` ordering stamp and applies one supersession-aware recovery policy
-to ordinary edits, undo, and redo. Hydration preserves newer queued local
-replacements, and deletion follows prior writes in the same queue. These stamps
-order one client's recovery; they are not document revisions or a cross-client
-conflict protocol. Shows therefore do not use the Pattern source-departure rule: they persist
+`ShowRecordV2` holds Zones, routing Layouts, the output contract, and a
+composition of Clips, Layers, Groups, Markers, explicit Show End, and Property
+animation. `src/store/showStore.ts` owns `showV2Pilots`, `showV2Histories`, and
+`showV2Rows`; it queues provider `replaceShowV2` writes, applies optimistic
+replacements, and maintains in-memory undo/redo history. The store assigns each
+accepted replacement a monotonic single-client `updatedAt` ordering stamp and
+recovers a current failed write from the last durable record and history.
+Workspace reload retires personal working copies and their history before
+listing stored rows. These stamps order one client's recovery; they are not
+document revisions or a cross-client conflict protocol. Shows persist
 structured choreography and derive their generated Pattern artifact at compile
 and delivery boundaries.
 
@@ -991,12 +974,13 @@ Application rewrites flat cells, composition instances, Group-definition
 instances, Stage maps, and output-contract maps together, then normalizes and
 validates the complete Show. The imported Show always receives a fresh ID and
 persists its original Show ID, app version, export time, and import time in
-`importMetadata`; D1 stores that sidecar in `personal_shows.import_metadata_json`.
+`importMetadata`; D1 stores that provenance inside the version-2 document in
+`personal_shows.record_json` as `ShowRecordV2.importMetadata`.
 Since #1042 Phase 1b a version-1 file stores a version-2 record: the applied
 Show converts through `convertAppliedShowImportV1`
 (`src/engine/showImportV1Conversion.ts`), which resolves Pattern sources and the
-Stage dimension exactly as the operator migration does, against the Patterns and
-Maps the import creates and the workspace's own. Conversion runs before any
+Stage dimension exactly against the Patterns and Maps the import creates and the
+workspace's own. Conversion runs before any
 write; a refusal shows its first issue in the import dialog and writes nothing.
 
 ![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)

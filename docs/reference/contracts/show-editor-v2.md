@@ -1,6 +1,6 @@
 # Show editor on v2
 
-The one `ShowEditor` edits a v2 record when the routed Show has v2 backing. “V2 backing” means the editor reads a `ShowRecordV2` pilot, projects it into the existing timeline and inspector surfaces, and submits its edits through v2 admission. The route passes the same record version to the agent binding; a stored v1 row still uses the v1 record and its v1 owners until operator conversion. See `src/App.tsx:888-951`, `src/components/ShowEditor.tsx:1211-1220`, and `src/agent/editorAdmission.ts:110-123`.
+The one `ShowEditor` edits a `ShowRecordV2` pilot, projects it into the timeline and inspector surfaces, and submits its edits through v2 admission. The route passes that record version to the agent binding; a personal row without `record_json` is never listed or opened. See `src/App.tsx`, `src/components/ShowEditor.tsx`, and `src/agent/editorAdmission.ts`.
 
 The [Scene-retirement specification](../../plans/scene-retirement-specification.md) owns the domain contract. This document records the editor wiring at `9f44d558`. The [state, history and persistence contract](show-state-history-persistence.md) owns save semantics.
 
@@ -43,19 +43,19 @@ The pinned parity corpus correlates v1 and converted v2 views through conversion
 
 ## The v2 workspace
 
-The workspace receives the v2 timeline, time columns, Transition, Layout, Zone Map and Property-lane projections plus the v2 gesture callbacks. A stored v1 row is not opened (see below); nothing reads the removed v1 projection.
+The workspace receives the v2 timeline, time columns, Transition, Layout, Zone Map and Property-lane projections plus the v2 gesture callbacks. A row without `record_json` is not opened (see below); nothing reads the removed v1 projection.
 
 ## Which record backs the open editor
 
-`ShowEditor` is the routed editor. Since #1039, v2 is the production path for fresh Shows, stored v2 rows and `.pxlshow` imports of either version. A stored v2 row or native v2 built-in supplies its backing. Since #1042 Phase 1b a stored v1 row is neither converted on read nor opened: the Worker refuses the v1 list and v1 writes with 410 `show-v1-retired`, and the row waits in D1 for the operator conversion (`npm run show:v2-migrate`, #1105). See `src/App.tsx` (`v2EditorShowId`, `activeShow`) and `src/worker/routes/shows/showV1Retired.ts`.
+`ShowEditor` is the routed editor. Since #1039, v2 is the production path for fresh Shows, stored v2 rows and `.pxlshow` imports of either version. A stored v2 row or native v2 built-in supplies its backing. Personal Show rows store v2 documents in `record_json`; migration 0029 removed the legacy v1 columns. The Worker refuses the v1 list and writes with 410 `show-v1-retired`, and a NULL-record row is never listed or opened. See `src/App.tsx` and `src/worker/routes/shows/showV1Retired.ts`.
 
 | Routed Show | Editor backing |
 | --- | --- |
-| Stored v2 row | Its v2 pilot, loaded through `openShowV2Pilot` (`src/App.tsx:894-905`; `src/store/showStore.ts:1127-1152`). |
-| Built-in Show | Its native v2 catalogue record, cloned into a session-only lesson draft. `loadShows` retains that draft and its history across a workspace reload (`src/store/showStore.ts:785-800`; `src/store/showStore.ts:1097-1115`). |
-| Unconverted stored v1 row | None. The row is not listed or opened; its route shows the ordinary "Show not found" message until the operator conversion in specification §10 rewrites it (#1105). The v1 editor branches that remain in `ShowEditor` are unreachable from the UI and are deleted in #1042 Phase 2. |
+| Stored v2 row | Its v2 pilot, loaded through `openShowV2Pilot` in `src/App.tsx` and `src/store/showStore.ts`. |
+| Built-in Show | Its native v2 catalogue record, cloned into a session-only lesson draft. `loadShows` retains that draft and its history across a workspace reload (`src/store/showStore.ts`). |
+| Row without `record_json` | None. The row is not listed or opened; its route shows the ordinary "Show not found" message. |
 
-The route supplies `recordVersion={activeShowV2Pilot ? 2 : 1}`; version 1 remains only for a built-in Show with no native v2 record. The agent admission binding declares that version, reads the corresponding record, and reports it through `read_show`; its commands therefore follow the editor backing. See `src/App.tsx:945-951`, `src/agent/editorAdmission.ts:100-123`, and `src/agent/editorAdmission.ts:267-272`.
+The route opens a v2 pilot for a stored or native built-in Show. The agent admission binding declares record version 2, reads that record, and reports it through `read_show`; its commands therefore follow the editor backing. See `src/App.tsx` and `src/agent/editorAdmission.ts`.
 
 An id with no stored v2 row and no native v2 built-in is not opened. There is no preview parameter.
 

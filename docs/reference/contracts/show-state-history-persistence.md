@@ -208,12 +208,9 @@ store revisions; existing manual replacement callers retain their original API.
   #1042 S2a.
 - Personal deletion: `removeShow` adds provider `deleteShow` to that same
   per-Show queue before clearing all local state for the identity.
-- Reload: `loadShows` retires personal version-2 working copies, lists
-  version-2 rows, and obtains provider `listShows`, normalizing each record and
-  keeping a queued local replacement whose ordering stamp is at least the
-  snapshot's. The remote provider refuses `listShows` with `ShowV1RetiredError`
-  since #1042 Phase 1b, which hydration reads as no version-1 rows; the
-  version-1 list half runs only against test providers.
+- Reload: `loadShows` retires personal version-2 working copies and history,
+  obtains provider `listShowDocumentsV2`, and populates `showV2Rows`. A listing
+  whose provider or workspace changed while it was read is discarded.
 - Lesson draft write/reset (v2): a built-in lesson opens from its native v2 copy
   (`stockShowV2ById`) as a session-only in-memory draft. Lesson-draft
   membership is explicit store state, never inferred from the id, so a personal
@@ -233,32 +230,27 @@ store revisions; existing manual replacement callers retain their original API.
 - Notice reset: `dismissShowV2SaveFailure` removes only the recovery notice. It
   changes no record, history, queued operation, or durable baseline.
 
-## The version-2 route, and what a still-version-1 row does
+## The version-2 route and storage
 
 Since #1039, v2 is the production Show path: fresh-Show creation, the Show
 list, the store's version-2 listing and `.pxlshow` import use it. A stored
 version-2 document or native v2 built-in opens on the v2 backing in the one
-editor. A row
-storage still holds as version 1 is not opened at all since #1042 Phase 1b: the
-Worker refuses the version-1 list and version-1 writes with 410
-`show-v1-retired`, and the row's route shows the ordinary missing-Show message.
-Section 10 forbids migrating a row on read, so nothing in the application
-rewrites it; `npm run show:v2-migrate` is the only writer that converts one
-(#1105). So for any one Show the editor, its history, its save queue and its
-command catalogue are one version, and no mixed window exists.
+editor. Personal Show rows store a version-2 document in `record_json`;
+migration 0029 removed the twelve version-1 columns. The Worker answers the
+version-1 list and writes with 410 `show-v1-retired`. A row whose
+`record_json` is NULL is never listed or opened. No stored row converts on read.
 
 An id with no stored v2 row and no native v2 built-in is not opened. There is
 no preview parameter.
 
-Sparse patch remains version 1. So does `shows`: a version-2 row never enters
-that collection. The store lists those rows separately as `showV2Rows` -
-identity, name and stamp only - which `loadShows` fills from
-`listShowDocumentsV2`, discarding a listing whose workspace or provider changed
-while it was read, and answering a failed listing with no rows rather than a
-failed workspace load. `listShowDocumentsV2` reads `/api/shows?show-version=2`,
-which answers with stored version-2 records only; a row without `record_json`
-is never listed (#1042). The provider still filters the answer to actual
-version-2 records. The Show list renames, duplicates and trashes those rows.
+The store lists stored Shows as `showV2Rows` - identity, name and stamp only -
+which `loadShows` fills from `listShowDocumentsV2`, discarding a listing whose
+workspace or provider changed while it was read, and answering a failed
+listing with no rows rather than a failed workspace load.
+`listShowDocumentsV2` reads `/api/shows?show-version=2`, which answers with
+stored version-2 records only; a row without `record_json` is never listed.
+The provider still filters the answer to actual version-2 records. The Show
+list renames, duplicates and trashes those rows.
 
 `createNewShowV2(input)` authors a fresh Show natively as version 2 through
 [`createShowV2WithOutputContract`](../../../src/engine/showCreationV2.ts) -
@@ -320,49 +312,18 @@ preview refusals remain refusals, and no placeholder runtime is created.
 The remote provider addresses the explicit v2 collection with
 `show-version=2`; D1 stores the complete closed record in `record_json`. The
 version-1 reads and writes (`GET` and `POST /api/shows` without the parameter,
-and every `PATCH`) answer 410 `show-v1-retired` since #1042 Phase 1b. Worker admission uses the same
-domain validator after a Cloudflare-compatible structural-schema interpreter,
-because Workers prohibit AJV's runtime code generation. Migration records keep
-the source row and hash before compare-and-swap replacement, reopen written
-bytes through production decoding, resume from outcomes, and restore every
-source column during rollback. One immutable backup generation owns each Show
-rehearsal. A later legacy source hash refuses conversion until that backup is
-explicitly resolved; rollback likewise refuses to overwrite a changed legacy
-row whose hash no longer matches its backup. The restore write also compares
-the complete observed persisted row with null-safe column predicates. Conversion
-uses the exact inventoried row that supplied the source hash and backup. Therefore
-a sparse content or nullable-field edit between validation and replacement is
-preserved and reported as a refusal even when its writer leaves `updated_at` and
-`record_json` unchanged.
+and every `PATCH`) answer 410 `show-v1-retired` since #1042 Phase 1b. Worker
+admission uses the same domain validator after a Cloudflare-compatible
+structural-schema interpreter, because Workers prohibit AJV's runtime code
+generation.
 
-Conversion resolves Pattern sources only from trusted metadata its caller
-supplies. A flat version-1 row - Clips in `cells` with no composition sidecar -
-refuses without the exact source per cell, so the migration caller passes the
-lookup it resolves from the stock catalogue and that user's own Patterns. An
-unresolvable reference contributes nothing and that row refuses by name; no row
-converts against a guessed source (#1039).
-
-Readback is storage evidence, not usability evidence. Each unsettled row is
-additionally reopened and compiled as it was read back: the portable `.pxlshow`
-bytes are rebuilt, serialized and re-parsed, required to be version 2 and to
-match the stored record, resolved through the ordinary version-2 import planner,
-then prepared and compiled. A qualified row carries its compiled artifact's hash
-and size, which is what distinguishes a row that compiled from one whose compile
-step was skipped. A qualification refusal is a reported outcome rather than a
-thrown pass: the row keeps its recovery snapshot, is named in the report, and is
-restored by explicit identity (#1039).
-
-`scripts/show-v2-migrate.ts` is the operator entry point for that runbook -
-`inventory`, `convert` and `rollback` over a local D1 store, with `--stop-after`
-for rehearsing an interrupted pass and its resume. Its committed report carries
-identities, source hashes, versions, statuses and bounded refusal details only;
-no Show name, Pattern source, Library source or record content, by construction.
-`rollback` restores exactly the identities it is given and has no
-restore-everything default. There is deliberately no remote backend: the remote
-pass is blocked on a recorded Cloudflare migration authorization failure, and an
-unexercised `--remote` path would be a claim the command cannot support. The
-[cutover rehearsal](../evidence/issue-1039-cutover/rehearsal.md) records the
-local pass, its interruption and resume, its idempotent repeat and its rollback.
+A version-1 `.pxlshow` import resolves dependencies and calls
+`convertAppliedShowImportV1` before any write. The converter resolves Pattern
+sources and the Stage map exactly against imported and workspace records; it
+refuses an unresolved source instead of guessing. The #1039 rehearsal and
+#1105 local conversion used the since-retired D1 tool; see the
+[cutover rehearsal](../evidence/issue-1039-cutover/rehearsal.md) for the
+recorded conversion and recovery evidence.
 
 Version-2 bundle import reserves destination and bundled Library namespaces
 before allocating conflict copies. A matching Library is reusable only when its

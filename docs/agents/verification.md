@@ -870,7 +870,7 @@ Two deliverables are configured under `artifacts.deliverables` in
 | Deliverable | Test | Exporter | Importer |
 | --- | --- | --- | --- |
 | `show-pxlshow` | `src/engine/showFileBundle.oracle.test.ts` | `buildShowFileBundle` then `serializeShowFileBundle`, the Show editor's "Export Show file" pair | `parseShowFileBundle`, `planShowImport`, `applyShowImportPlan`, the Pattern list's `.pxlshow` file input |
-| `show-epe` | `src/engine/showEpeExport.oracle.test.ts` | `compileShowForArtifact` then `buildShowEpeExport`, the Show editor's `.epe` download | `parseEpe`, then `extractPatternAuthors` and `resolveArtifactPreferredMap`, the Pattern list's `.epe` file input |
+| `show-epe` | `src/engine/showEpeExport.oracle.test.ts` | `compileShowForArtifact` then `buildShowEpeExportV2`, the Show editor's `.epe` download | `parseEpe`, then `extractPatternAuthors` and `resolveArtifactPreferredMap`, the Pattern list's `.epe` file input |
 
 Every assertion runs against the file reopened from disk: gzip magic and
 byte-for-byte preservation of the embedded user Pattern and custom Map in the
@@ -1128,9 +1128,8 @@ Pure Show composition edits use
 `src/test/showAuthoringContract.ts` as their common test boundary. An accepted
 edit must leave both its Show and composition deeply unchanged, return a
 distinct composition, pass `validateShowComposition`, and supply
-operation-specific unified-timeline projection and durable-reference
-assertions. A refused edit must return the original composition by reference
-and leave both inputs deeply unchanged.
+operation-specific durable-reference assertions. A refused edit must return the
+original composition by reference and leave both inputs deeply unchanged.
 
 `src/store/showStore.test.ts` exercises this helper. The
 v2 Transition and v2 property-animation suites named as `testFiles` in
