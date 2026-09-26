@@ -308,9 +308,11 @@ describe('Luma family motion contract (#819)', () => {
     handle.controls.sliderLoopInterval(enc(0.6))
     handle.controls.sliderSpacing(enc(0.3))
     advance(0)
-    // Default Spacing 0.3 is a pitch of 0.12; row 64 (y = 0.5) is unshifted,
-    // so its cell centres sit at x = 0.5 + (k + 0.5) * pitch.
+    // Default Spacing 0.3 is a pitch of 0.12 and rows sit sqrt(3)/2 of that
+    // apart; row 64 (y = 0.5) is unshifted, so its cell centres sit at
+    // x = 0.5 + (k + 0.5) * pitch, half a row pitch below y = 0.5.
     const pitch = 0.03 + 0.3 * 0.3
+    const rowCentre = 0.5 + (pitch * Math.sqrt(3) / 2) / 2
     const centres = [-4, -3, -2, -1, 0, 1, 2, 3].map((k) => 0.5 + (k + 0.5) * pitch)
     const sample = (x: number, y: number) => {
       handle.render2D(enc(0), enc(x), enc(y))
@@ -319,7 +321,7 @@ describe('Luma family motion contract (#819)', () => {
     const peakStep = centres.map(() => ({ step: -1, value: -1 }))
     for (let step = 0; step < 60; step++) {
       centres.forEach((x, cell) => {
-        const value = sample(x, 0.5 + pitch / 2)
+        const value = sample(x, rowCentre)
         if (value > peakStep[cell].value) peakStep[cell] = { step, value }
       })
       advance(100)
@@ -340,11 +342,75 @@ describe('Luma family motion contract (#819)', () => {
     advance(0)
     advance(33)
     const pitch = 0.03 + 0.3 * 0.3
-    const y = 0.5 + pitch / 2
+    const y = 0.5 + (pitch * Math.sqrt(3) / 2) / 2
     for (let k = -3; k <= 3; k++) {
       handle.render2D(enc(0), enc(0.5 + k * pitch), enc(y))
       expect(shim.capturedPixel()[0], `boundary ${k}`).toBeLessThan(0.02)
     }
+  })
+
+  it('LumaCells packs its cells hexagonally: six equidistant nearest neighbours', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaCells')
+    handle.controls.sliderWidth(enc(1))
+    handle.controls.sliderFeather(enc(0))
+    handle.controls.sliderSpacing(enc(0.1))
+    advance(0)
+    advance(33)
+    // Threshold a dense render into blobs, one per cell, and read the lattice
+    // off their centroids rather than restating the cell geometry.
+    const size = 200
+    const lo = 0.2
+    const step = 0.6 / size
+    const lit = new Uint8Array(size * size)
+    for (let row = 0; row < size; row++) {
+      for (let col = 0; col < size; col++) {
+        handle.render2D(enc(0), enc(lo + (col + 0.5) * step), enc(lo + (row + 0.5) * step))
+        lit[row * size + col] = shim.capturedPixel()[0] > 0.5 ? 1 : 0
+      }
+    }
+    const seen = new Uint8Array(size * size)
+    const centroids: [number, number][] = []
+    for (let start = 0; start < lit.length; start++) {
+      if (!lit[start] || seen[start]) continue
+      const stack = [start]
+      seen[start] = 1
+      let sumX = 0
+      let sumY = 0
+      let count = 0
+      let touchesEdge = false
+      while (stack.length) {
+        const at = stack.pop()!
+        const row = Math.floor(at / size)
+        const col = at % size
+        sumX += col
+        sumY += row
+        count++
+        if (row === 0 || col === 0 || row === size - 1 || col === size - 1) touchesEdge = true
+        const neighbours = [
+          col > 0 ? at - 1 : -1, col < size - 1 ? at + 1 : -1,
+          row > 0 ? at - size : -1, row < size - 1 ? at + size : -1,
+        ]
+        for (const next of neighbours) {
+          if (next >= 0 && lit[next] && !seen[next]) {
+            seen[next] = 1
+            stack.push(next)
+          }
+        }
+      }
+      if (!touchesEdge) centroids.push([lo + (sumX / count + 0.5) * step, lo + (sumY / count + 0.5) * step])
+    }
+    expect(centroids.length).toBeGreaterThan(40)
+    // In a hexagonal packing the sixth-nearest neighbour is as close as the
+    // nearest; a square-pitched row offset leaves four of the six 12% farther.
+    const ratios = centroids
+      .filter(([x, y]) => x > 0.35 && x < 0.65 && y > 0.35 && y < 0.65)
+      .map(([x, y]) => {
+        const distances = centroids.map(([ox, oy]) => Math.hypot(ox - x, oy - y)).filter((d) => d > 0).sort((a, b) => a - b)
+        return distances[5] / distances[0]
+      })
+      .sort((a, b) => a - b)
+    expect(ratios.length).toBeGreaterThan(8)
+    expect(ratios[Math.floor(ratios.length / 2)]).toBeLessThan(1.05)
   })
 
   it('LumaPinwheel quantizes Spacing to whole spokes', () => {

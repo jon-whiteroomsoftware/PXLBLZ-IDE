@@ -21,8 +21,9 @@
 // Notes:
 // The Luma family core - one crest waveform over a phase geometry - with a
 // scattered phase: each cell's geometry is a fixed per-cell offset rather than
-// a distance, so the cells pulse in a stable pseudo-random order. Alternate
-// rows shift half a cell so the lattice packs like cells, not a grid. Each
+// a distance, so the cells pulse in a stable pseudo-random order. Rows sit
+// sqrt(3)/2 of a cell apart and alternate rows shift half a cell, so the
+// lattice is hexagonal: every cell has six equidistant neighbours. Each
 // cell's body fades to black before its edge, so a dark lane separates
 // neighbours and a Spacing sweep moves cell boundaries through darkness
 // rather than flipping lit pixels between cells.
@@ -47,6 +48,7 @@ var phase = 0
 var clockMs = 0
 var lastLoopMs = 3000
 var pitch = 0.12
+var rowPitch = 0.104
 
 export function beforeRender(delta) {
   var loopMs = 10000 * loopInterval
@@ -59,6 +61,7 @@ export function beforeRender(delta) {
   clockMs = mod(clockMs + dir * delta + loopMs, loopMs)
   phase = clockMs / loopMs
   pitch = 0.03 + spacing * 0.3
+  rowPitch = pitch * 0.8660254
 }
 
 function crest(p) {
@@ -78,7 +81,7 @@ function finish(v) {
 export function render2D(index, x, y) {
   // Offsets keep lattice coordinates positive: fw 3.67 frac truncates toward
   // zero, so negative cells would hash differently from their mirror images.
-  var gy = (y - 0.5) / pitch + 64
+  var gy = (y - 0.5) / rowPitch + 64
   var row = floor(gy)
   var gx = (x - 0.5) / pitch + 64 + (row % 2) * 0.5
   var col = floor(gx)
@@ -88,8 +91,9 @@ export function render2D(index, x, y) {
   h = h - floor(h)
   h = h * (h + 3.17) * 5.3
   h = h - floor(h)
-  // Full inside 0.3 of a cell from its centre, black from 0.5 outward.
-  var body = (0.5 - hypot(gx - col - 0.5, gy - row - 0.5)) * 5
+  // Full inside 0.233 of a cell from its centre, black from half a row pitch
+  // outward, so every lit pixel lies inside its own cell's row.
+  var body = (0.433 - hypot(gx - col - 0.5, (gy - row - 0.5) * 0.8660254)) * 5
   if (body > 1) body = 1
   if (body < 0) body = 0
   hsv(0, 0, finish(crest(h - phase) * body))
