@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 
 const migrationPath = path.resolve('migrations/0001_personal_storage.sql')
 const identityMigrationPath = path.resolve('migrations/0002_identity_model.sql')
@@ -36,6 +37,94 @@ const removeControllerProfileZonesMigrationPath = path.resolve(
   'migrations/0026_remove_controller_profile_zones.sql',
 )
 const showImportMetadataMigrationPath = path.resolve('migrations/0027_show_import_metadata.sql')
+const dropLegacyShowColumnsMigrationPath = path.resolve('migrations/0029_drop_legacy_show_columns.sql')
+
+function preDropShowsDatabase() {
+  const sqlite = new DatabaseSync(':memory:')
+  const migrationDirectory = path.resolve('migrations')
+  const migrations = fs.readdirSync(migrationDirectory)
+    .filter((name) => /^\d+.*\.sql$/.test(name) && Number.parseInt(name, 10) < 29)
+    .sort()
+
+  for (const name of migrations) {
+    sqlite.exec(fs.readFileSync(path.join(migrationDirectory, name), 'utf8'))
+  }
+  return sqlite
+}
+
+function insertPreDropShow(sqlite: DatabaseSync, recordJson: string | null) {
+  sqlite.prepare('INSERT INTO users (id, created_at, updated_at) VALUES (?, ?, ?)')
+    .run('user-1', 1, 2)
+  sqlite.prepare(`
+    INSERT INTO personal_shows
+      (user_id, id, name, scenes_json, zones_json, cells_json, created_at, updated_at, record_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run('user-1', 'show-1', 'Show', '[]', '[]', '[]', 1, 2, recordJson)
+}
+
+function personalShowColumns(sqlite: DatabaseSync) {
+  return sqlite.prepare('PRAGMA table_info(personal_shows)').all()
+    .map((column) => String(column.name))
+    .sort()
+}
+
+describe('0029 legacy Show column drop (#1042)', () => {
+  const migrationSql = fs.readFileSync(dropLegacyShowColumnsMigrationPath, 'utf8')
+
+  it('refuses while a row has no version-2 record', () => {
+    const sqlite = preDropShowsDatabase()
+    try {
+      insertPreDropShow(sqlite, null)
+
+      expect(() => sqlite.exec(migrationSql)).toThrow(/CHECK constraint/)
+      expect(personalShowColumns(sqlite)).toContain('cells_json')
+      expect(sqlite.prepare('SELECT cells_json FROM personal_shows WHERE id = ?').get('show-1'))
+        .toEqual({ cells_json: '[]' })
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('drops the legacy columns when every row has a record', () => {
+    const sqlite = preDropShowsDatabase()
+    try {
+      const recordJson = '{"version":2}'
+      insertPreDropShow(sqlite, recordJson)
+
+      sqlite.exec(migrationSql)
+
+      expect(personalShowColumns(sqlite)).toEqual([
+        'created_at', 'id', 'name', 'record_json', 'updated_at', 'user_id',
+      ])
+      expect(sqlite.prepare('SELECT record_json FROM personal_shows WHERE id = ?').get('show-1'))
+        .toEqual({ record_json: recordJson })
+      expect(sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'migration_0029_guard'").get())
+        .toBeUndefined()
+      expect(sqlite.prepare("SELECT value FROM app_metadata WHERE key = 'schema_version'").get())
+        .toEqual({ value: '29' })
+    } finally {
+      sqlite.close()
+    }
+  })
+
+  it('is rerunnable after a refused attempt', () => {
+    const sqlite = preDropShowsDatabase()
+    try {
+      insertPreDropShow(sqlite, null)
+      expect(() => sqlite.exec(migrationSql)).toThrow(/CHECK constraint/)
+
+      sqlite.prepare('UPDATE personal_shows SET record_json = ? WHERE id = ?')
+        .run('{"version":2}', 'show-1')
+      sqlite.exec(migrationSql)
+
+      expect(personalShowColumns(sqlite)).toEqual([
+        'created_at', 'id', 'name', 'record_json', 'updated_at', 'user_id',
+      ])
+    } finally {
+      sqlite.close()
+    }
+  })
+})
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
