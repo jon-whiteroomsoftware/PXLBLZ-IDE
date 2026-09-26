@@ -4102,7 +4102,8 @@ function ShowTimelineCommands({
   const groupPlan = { ...commandsV2.group, code: 'ready' as const }
   const splitReasonId = `show-split-reason-${showId}`
   const [splitReasonOpen, setSplitReasonOpen] = useState(false)
-  const [splitArmed, setSplitArmed] = useState(false)
+  const [splitHovered, setSplitHovered] = useState(false)
+  const [splitFocused, setSplitFocused] = useState(false)
   const groupReasonId = `show-group-reason-${showId}`
   const cloneReasonId = `show-clone-reason-${showId}`
   const [groupReasonOpen, setGroupReasonOpen] = useState(false)
@@ -4118,7 +4119,7 @@ function ShowTimelineCommands({
     targetClipId: splitTargetV2,
     positionMs,
     capture: captureV2ClipEdit?.()?.capture ?? null,
-    armed: splitArmed,
+    armed: splitHovered || splitFocused,
     suspended: isRunning,
   })
   const splitCapability = { ...splitDryRun, code: 'ready' as const }
@@ -4149,14 +4150,14 @@ function ShowTimelineCommands({
           className={`px-1.5 text-[10px] ${showTimelineToolbarControlClass({
             enabled: splitEnabled,
           })}`}
-          onPointerEnter={() => setSplitArmed(true)}
-          onPointerLeave={() => setSplitArmed(false)}
+          onPointerEnter={() => setSplitHovered(true)}
+          onPointerLeave={() => setSplitHovered(false)}
           onFocus={() => {
-            setSplitArmed(true)
+            setSplitFocused(true)
             setSplitReasonOpen(true)
           }}
           onBlur={() => {
-            setSplitArmed(false)
+            setSplitFocused(false)
             setSplitReasonOpen(false)
           }}
           onClick={() => {

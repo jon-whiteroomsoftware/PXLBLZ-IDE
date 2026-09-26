@@ -5830,6 +5830,35 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
       expect(split).toHaveAttribute('aria-disabled', 'true')
       expect(split).toHaveAttribute('title', 'Typed candidate boundary')
       expect(within(commands).getByRole('status', { name: 'Split unavailable' }).textContent).toBe('Typed candidate boundary')
+      fireEvent.pointerEnter(split)
+      fireEvent.pointerLeave(split)
+      expect(split).toHaveAttribute('aria-disabled', 'true')
+      expect(within(commands).getByRole('status', { name: 'Split unavailable' }).textContent).toBe('Typed candidate boundary')
+      fireEvent.blur(split)
+      expect(split).not.toHaveAttribute('aria-disabled', 'true')
+    } finally {
+      candidate.mockRestore()
+    }
+  })
+
+  it('keeps the Split admission refusal while hovered after focus ends (#1155)', () => {
+    const show = createDefaultShow('show-1155-hover', 'Split dry-run', 1000)
+    const editor = openV2EditorForRecord(convertForTest(show))
+
+    render(<ShowEditor showId={editor.showId} />)
+    const candidate = vi.spyOn(preparedStage, 'prepareShowStageFromCapturedInputsV2')
+      .mockReturnValue({ status: 'refused', message: 'Typed candidate boundary' })
+    try {
+      const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+      const split = screen.getByRole('button', { name: 'Split at playhead' })
+
+      fireEvent.change(playhead, { target: { value: '500' } })
+      fireEvent.pointerEnter(split)
+      fireEvent.focus(split)
+      fireEvent.blur(split)
+      expect(split).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.pointerLeave(split)
+      expect(split).not.toHaveAttribute('aria-disabled', 'true')
     } finally {
       candidate.mockRestore()
     }
