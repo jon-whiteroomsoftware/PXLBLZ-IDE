@@ -153,8 +153,8 @@ describe('authenticated Playwright persisted account cursor IO', () => {
     expect(allocatePersistedAccountSequence(directory, 1)).toBe(0)
     expect(allocatePersistedAccountSequence(directory, 0)).toBe(1)
     expect(readCursor(directory, 1).nextSequence).toBe(1)
-    expect(authenticatedPlaywrightAccountIndex(0, accountSlotForSequence(1))).toBe(1)
-    expect(authenticatedPlaywrightAccountIndex(1, accountSlotForSequence(0))).toBe(authenticatedPlaywrightAccountsPerWorker)
+    expect(authenticatedPlaywrightAccountIndex(0, accountSlotForSequence(1), 4)).toBe(1)
+    expect(authenticatedPlaywrightAccountIndex(1, accountSlotForSequence(0), 4)).toBe(authenticatedPlaywrightAccountsPerWorker)
   })
 
   it('refuses a corrupt cursor file instead of reusing accounts', () => {

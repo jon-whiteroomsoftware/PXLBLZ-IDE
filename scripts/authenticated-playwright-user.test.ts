@@ -12,10 +12,10 @@ afterEach(() => {
 
 describe('authenticated Playwright synthetic identities', () => {
   it('assigns sequential tests in each worker distinct accounts from disjoint bounded pools', () => {
-    expect(authenticatedPlaywrightAccountIndex(0, 0)).toBe(0)
-    expect(authenticatedPlaywrightAccountIndex(0, 1)).toBe(1)
-    expect(authenticatedPlaywrightAccountIndex(1, 0)).toBe(64)
-    expect(() => authenticatedPlaywrightAccountIndex(0, 64)).toThrow(/exhausted/)
+    expect(authenticatedPlaywrightAccountIndex(0, 0, 4)).toBe(0)
+    expect(authenticatedPlaywrightAccountIndex(0, 1, 4)).toBe(1)
+    expect(authenticatedPlaywrightAccountIndex(1, 0, 4)).toBe(64)
+    expect(() => authenticatedPlaywrightAccountIndex(0, 64, 4)).toThrow(/exhausted/)
     expect(authenticatedPlaywrightUser(0)).toMatchObject({
       userId: 'github:playwright-worker-000',
       primaryHandle: 'playwright-worker-000',
