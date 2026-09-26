@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1155",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Played Quadrille (Fast renderer) from 0 in headed Chromium at 1600x1000 @2x against the issue runtime serving this commit; captured mid-playback with the Preview fps field at 60.0. Three 10 s windows measured 600, 601 and 601 rAF frames with 0 long animation frames (8.2 fps before the fix).",
+  "captures": [".wrsp/ui-proof/1155-quadrille-playing-60fps.png"],
+  "capturedAtCommit": "a4c309ba22b1c4b4be75d214aa62d4fd6389e018"
+}
