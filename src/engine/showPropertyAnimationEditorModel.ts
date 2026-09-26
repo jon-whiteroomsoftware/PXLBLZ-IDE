@@ -3,30 +3,19 @@ import {
   showClipEffectParameters,
 } from './showEffectAuthoring'
 import type {
-  ShowCompositionV1,
   ShowPropertyAnimationKeyframe,
   ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
-  ShowRecord,
 } from './personalContentRecords'
 import type { AutomatablePatternControl } from './showPatternControls'
 import type { ControlSecondsPresentation } from '@/pixelblaze/controlDescriptions'
 import type { ShowClipInspectorValue } from './showClipInspectorModel'
-import { projectShowTimeline } from './showModel'
 import {
   evaluateShowPropertyTrack,
-  normalizeShowPropertyTracks,
   propertyTargetKey,
-  validateShowPropertyTracks,
   type ShowPropertyAnimationValidationCode,
   type ShowPropertyAnimationValidationIssue,
 } from './showPropertyAnimation'
-import { materializeShowGroupOccurrences, validateShowGroups } from './showGroupModel'
-
-export interface ShowGroupClipOwner {
-  occurrenceId: string
-  placementId: string
-}
 
 export type ShowPropertyAnimationValuePresentation = 'number' | 'percentage' | 'multiplier' | 'degrees' | 'turns' | 'phase'
 
@@ -233,30 +222,6 @@ export function buildShowPropertyAnimationOptions(
   ]
 }
 
-export function projectShowPropertyAnimationEditorContext(
-  show: ShowRecord,
-  value: ShowClipInspectorValue,
-  groupOwner?: ShowGroupClipOwner,
-): ShowPropertyAnimationEditorContext | null {
-  const composition = show.composition
-  if (!composition || !value.placementId || !value.instanceId) return null
-  if (groupOwner) return projectGroupContext(show, composition, value, groupOwner)
-  if (value.owner.kind !== 'scene-main' && value.owner.kind !== 'scene-overlay') return null
-  const sceneId = value.owner.sceneId
-  const scene = composition.scenes.find((candidate) => candidate.sceneId === sceneId)
-  const sceneRange = projectShowTimeline(show).scenes.find((candidate) => candidate.sceneId === sceneId)
-  const sourceScene = show.scenes.find((candidate) => candidate.id === sceneId)
-  if (!scene || !sceneRange || !sourceScene) return null
-  return {
-    storageOwner: { kind: 'scene', sceneId },
-    tracks: (scene.propertyTracks ?? []).filter((track) => trackBelongsToValue(track, value)),
-    trackIssues: trackIssuesForScene(show, composition, sceneId),
-    storageDurationMs: sourceScene.durationMs,
-    showTimeOffsetMs: sceneRange.startMs,
-    instanceUseCount: ordinaryInstanceUseCount(composition, value.instanceId),
-  }
-}
-
 export function showPropertyAnimationGlobalSeconds(
   context: Pick<ShowPropertyAnimationEditorContext, 'showTimeOffsetMs'>,
   storageTimeMs: number,
@@ -309,201 +274,6 @@ export function projectShowPropertyAnimationOverview(
       removable: true,
     }
   })
-}
-
-export function applyShowGroupPropertyAnimationChange(
-  show: Pick<ShowRecord, 'scenes' | 'zones'>,
-  composition: ShowCompositionV1,
-  owner: Extract<ShowPropertyAnimationStorageOwner, { kind: 'group' }>,
-  change: ShowPropertyAnimationChange,
-  newId: () => string,
-): ShowCompositionV1 {
-  const draft = structuredClone(composition)
-  const occurrence = draft.groupOccurrences?.find((candidate) => candidate.id === owner.occurrenceId)
-  const definition = draft.groupDefinitions?.find((candidate) => candidate.id === owner.definitionId)
-  if (!occurrence || occurrence.definitionId !== owner.definitionId || !definition) return composition
-  // Accept materialized occurrence-prefixed ids, like the Group transition
-  // functions do; the definition stores the local form. When an id resolves
-  // both as an exact local id and as a materialized form of a different
-  // local id, the reference is genuinely ambiguous: refuse by identity
-  // rather than silently editing either candidate.
-  const prefix = `${occurrence.id}:`
-  const AMBIGUOUS = Symbol('ambiguous')
-  const resolveLocal = (
-    supplied: string,
-    existsLocal: (candidate: string) => boolean,
-  ): string | typeof AMBIGUOUS => {
-    const exact = existsLocal(supplied)
-    const strippedCandidate = supplied.startsWith(prefix) ? supplied.slice(prefix.length) : null
-    const stripped = strippedCandidate !== null && strippedCandidate !== supplied
-      && existsLocal(strippedCandidate)
-    if (exact && stripped) return AMBIGUOUS
-    if (!exact && stripped) return strippedCandidate!
-    return supplied
-  }
-  if ('trackId' in change) {
-    const resolved = resolveLocal(
-      change.trackId,
-      (candidate) => definition.propertyTracks?.some((track) => track.id === candidate) ?? false,
-    )
-    if (resolved === AMBIGUOUS) return composition
-    change = { ...change, trackId: resolved }
-  }
-  if ('keyframeId' in change) {
-    const localTrackId = change.trackId
-    const track = definition.propertyTracks?.find((candidate) => candidate.id === localTrackId)
-    const resolved = resolveLocal(
-      change.keyframeId,
-      (candidate) => track?.keyframes.some((keyframe) => keyframe.id === candidate) ?? false,
-    )
-    if (resolved === AMBIGUOUS) return composition
-    change = { ...change, keyframeId: resolved }
-  }
-  if (change.kind === 'add-track') {
-    const durationMs = Math.max(
-      0,
-      ...definition.placements.map((placement) => placement.startMs + placement.durationMs),
-    )
-    const keyframes = change.keyframes ?? [
-      { timeMs: 0, value: change.initialValue, easing: { curve: 'linear' as const } },
-      { timeMs: durationMs, value: change.initialValue, easing: { curve: 'linear' as const } },
-    ]
-    definition.propertyTracks = [
-      ...(definition.propertyTracks ?? []),
-      {
-        id: newId(),
-        target: structuredClone(change.target),
-        keyframes: keyframes.map((keyframe) => ({ ...structuredClone(keyframe), id: newId() })),
-      },
-    ]
-  } else if (change.kind === 'update-keyframe') {
-    const track = definition.propertyTracks?.find((candidate) => candidate.id === change.trackId)
-    const keyframe = track?.keyframes.find((candidate) => candidate.id === change.keyframeId)
-    if (!track || !keyframe) return composition
-    Object.assign(keyframe, structuredClone(change.changes))
-    track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
-  } else if (change.kind === 'add-keyframe') {
-    const track = definition.propertyTracks?.find((candidate) => candidate.id === change.trackId)
-    if (!track) return composition
-    track.keyframes.push({ ...structuredClone(change.keyframe), id: newId() })
-    track.keyframes.sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
-  } else if (change.kind === 'delete-keyframe') {
-    const track = definition.propertyTracks?.find((candidate) => candidate.id === change.trackId)
-    // A track needs at least two keyframes, matching the scene-path rule.
-    if (!track || track.keyframes.length <= 2) return composition
-    if (!track.keyframes.some((candidate) => candidate.id === change.keyframeId)) return composition
-    track.keyframes = track.keyframes.filter((candidate) => candidate.id !== change.keyframeId)
-  } else {
-    if (!definition.propertyTracks?.some((candidate) => candidate.id === change.trackId)) return composition
-    definition.propertyTracks = definition.propertyTracks.filter((candidate) => candidate.id !== change.trackId)
-    if (definition.propertyTracks.length === 0) delete definition.propertyTracks
-  }
-  if (definition.propertyTracks) {
-    definition.propertyTracks = normalizeShowPropertyTracks(definition.propertyTracks)
-  }
-  if (change.kind === 'delete-track') return draft
-  if (
-    validateShowGroups(show, draft).length > 0
-    || validateShowPropertyTracks(show, materializeShowGroupOccurrences(draft)).length > 0
-  ) return composition
-  return draft
-}
-
-function projectGroupContext(
-  show: ShowRecord,
-  composition: ShowCompositionV1,
-  value: ShowClipInspectorValue,
-  owner: ShowGroupClipOwner,
-): ShowPropertyAnimationEditorContext | null {
-  const occurrence = composition.groupOccurrences?.find((candidate) => candidate.id === owner.occurrenceId)
-  const definition = composition.groupDefinitions?.find((candidate) => candidate.id === occurrence?.definitionId)
-  const sceneRange = projectShowTimeline(show).scenes.find((candidate) => candidate.sceneId === occurrence?.sceneId)
-  if (!occurrence || !definition || !sceneRange || !value.instanceId) return null
-  const occurrenceCount = composition.groupOccurrences
-    ?.filter((candidate) => candidate.definitionId === definition.id).length ?? 1
-  const definitionUseCount = new Set(definition.placements
-    .filter((placement) => placement.instanceId === value.instanceId)
-    .map((placement) => placement.logicalClipId ?? placement.id)).size
-  return {
-    storageOwner: {
-      kind: 'group',
-      definitionId: definition.id,
-      occurrenceId: occurrence.id,
-    },
-    tracks: (definition.propertyTracks ?? []).filter((track) => trackBelongsToValue(track, value)),
-    trackIssues: trackIssuesForGroup(show, composition, occurrence.id, definition.propertyTracks ?? []),
-    storageDurationMs: Math.max(
-      0,
-      ...definition.placements.map((placement) => placement.startMs + placement.durationMs),
-    ),
-    showTimeOffsetMs: sceneRange.startMs + occurrence.startMs,
-    instanceUseCount: definitionUseCount * occurrenceCount,
-  }
-}
-
-function ordinaryInstanceUseCount(composition: ShowCompositionV1, instanceId: string): number {
-  return new Set(composition.scenes.flatMap((scene) => scene.zones.flatMap((zone) => [
-    ...zone.main.flatMap((placement) => placement.instanceId === instanceId
-      ? [placement.logicalClipId ?? placement.id]
-      : []),
-    ...zone.overlays.flatMap((layer) => layer.placements.flatMap((placement) => (
-      placement.instanceId === instanceId ? [placement.logicalClipId ?? placement.id] : []
-    ))),
-  ]))).size
-}
-
-function trackBelongsToValue(
-  track: ShowPropertyAnimationTrack,
-  value: ShowClipInspectorValue,
-): boolean {
-  if (track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-control') {
-    return track.target.instanceId === value.instanceId
-  }
-  return track.target.placementId === value.placementId
-}
-
-function trackIssuesForScene(
-  show: ShowRecord,
-  composition: ShowCompositionV1,
-  sceneId: string,
-): Record<string, ShowPropertyAnimationValidationIssue[]> {
-  const sceneIndex = composition.scenes.findIndex((scene) => scene.sceneId === sceneId)
-  const scene = composition.scenes[sceneIndex]
-  if (!scene) return {}
-  const issues = validateShowPropertyTracks(show, composition)
-  return Object.fromEntries((scene.propertyTracks ?? []).map((track, trackIndex) => [
-    track.id,
-    issues.filter((issue) => issuePathBelongsTo(
-      issue.path,
-      `scenes[${sceneIndex}].propertyTracks[${trackIndex}]`,
-    )),
-  ]))
-}
-
-function trackIssuesForGroup(
-  show: ShowRecord,
-  composition: ShowCompositionV1,
-  occurrenceId: string,
-  tracks: readonly ShowPropertyAnimationTrack[],
-): Record<string, ShowPropertyAnimationValidationIssue[]> {
-  const materialized = materializeShowGroupOccurrences(composition)
-  const issues = validateShowPropertyTracks(show, materialized)
-  return Object.fromEntries(tracks.map((track) => {
-    const materializedId = `${occurrenceId}:${track.id}`
-    for (const [sceneIndex, scene] of materialized.scenes.entries()) {
-      const trackIndex = (scene.propertyTracks ?? []).findIndex((candidate) => candidate.id === materializedId)
-      if (trackIndex < 0) continue
-      const prefix = `scenes[${sceneIndex}].propertyTracks[${trackIndex}]`
-      return [track.id, issues.filter((issue) => issuePathBelongsTo(issue.path, prefix))]
-    }
-    return [track.id, []]
-  }))
-}
-
-function issuePathBelongsTo(path: string, trackPath: string): boolean {
-  return path === trackPath
-    || path.startsWith(`${trackPath}.`)
-    || path.startsWith(`${trackPath}[`)
 }
 
 /**

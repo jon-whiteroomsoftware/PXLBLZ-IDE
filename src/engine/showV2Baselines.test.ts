@@ -17,7 +17,6 @@ import { checkBaselines, firstDifferentRuntimeFrame, runtimeComparability } from
 const FORBIDDEN_MODULES = [
   'src/engine/showBoundaryTransitionTimeRepair.ts',
   'src/engine/showClipDeletionBoundaryEligibility.ts',
-  'src/engine/showClipInvariant.ts',
   'src/engine/showLayoutIntervals.ts',
   'src/engine/showCompositionProjection.ts',
   'src/engine/showOverlayLayerAuthoring.ts',
@@ -93,20 +92,12 @@ describe('#1042 v2 baselines', () => {
   })
 
   it('the guard recognizes a forbidden import', () => {
-    expect(forbidden('src/engine/showClipInvariant')).toBe(true)
     expect(forbidden('src/engine/showCommands')).toBe(true)
     expect(forbidden('src/engine/showCommands/catalog')).toBe(true)
     expect(forbidden('src/engine/showCommandsV2')).toBe(false)
   })
 
   it.each([
-    ['a named import', "import { a } from './showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a type import', "import type { A } from '@/engine/showClipInvariant.ts'", 'src/engine/showClipInvariant'],
-    ['a multi-line import', "import {\n  a,\n  b,\n} from './showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a side-effect import', "import './showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a re-export', "export { a } from './showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a star re-export', "export * from '@/engine/showClipInvariant'", 'src/engine/showClipInvariant'],
-    ['a dynamic import', "const m = await import('./showClipInvariant')", 'src/engine/showClipInvariant'],
     ['an alias directory import', "import { c } from '@/engine/showCommands'", 'src/engine/showCommands'],
     ['an alias directory index import', "import { c } from '@/engine/showCommands/index'", 'src/engine/showCommands'],
     ['a root-relative directory import', "import { c } from 'src/engine/showCommands'", 'src/engine/showCommands'],
@@ -116,7 +107,6 @@ describe('#1042 v2 baselines', () => {
     ['a directory submodule import', "import { c } from './showCommands/catalog'", 'src/engine/showCommands/catalog'],
     ['a dynamic directory import', "void import('@/engine/showCommands')", 'src/engine/showCommands'],
     ['a dynamic import with attributes', "void import('./showCommands', { with: { type: 'json' } })", 'src/engine/showCommands'],
-    ['an import with a comment before the specifier', "import { c } from /* v1 */ './showClipInvariant'", 'src/engine/showClipInvariant'],
     ['a type-only directory import', "import type { X } from '@/engine/showCommands'", 'src/engine/showCommands'],
   ])('the guard flags %s', (_form, source, path) => {
     expect(flagged(source)).toEqual([path])

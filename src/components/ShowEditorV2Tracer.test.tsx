@@ -187,35 +187,6 @@ vi.mock('@/engine/showControllerCompatibilityContext', async (importOriginal) =>
   }
 })
 
-/**
- * The legacy command owners the unconnected v1 commands reach: Split, Clone,
- * Delete, manual resize and the two legacy drag owners. Provider spies cannot
- * stand in for these - with no legacy row open every one of them returns its
- * input unchanged, so a mistaken legacy dispatch persists nothing and would be
- * invisible in the save count. Each wrapper records the call and then runs the
- * real implementation; behaviour is unchanged.
- */
-const legacy = vi.hoisted(() => {
-  const calls: string[] = []
-  const observe = <T extends object>(actual: T, owners: readonly string[]): T => {
-    const observed = { ...actual } as Record<string, unknown>
-    for (const owner of owners) {
-      const real = (actual as Record<string, unknown>)[owner]
-      if (typeof real !== 'function') throw new Error(`No legacy owner named ${owner} to observe.`)
-      observed[owner] = (...args: unknown[]) => {
-        calls.push(owner)
-        return (real as (...input: unknown[]) => unknown)(...args)
-      }
-    }
-    return observed as T
-  }
-  return { calls, observe }
-})
-vi.mock('@/engine/showGroupModel', async (importOriginal) => legacy.observe(
-  await importOriginal<typeof import('@/engine/showGroupModel')>(),
-  ['deleteShowGroupOccurrence'],
-))
-
 /** The clip-temporal submissions one gesture made, in order. */
 function temporalSubmissions() {
   return admission.calls
@@ -270,9 +241,6 @@ function openV2Editor(id: string): OpenV2Editor {
  */
 function expectNoWrite(before: EditorState, after: EditorState): void {
   expect(admission.calls.map((call) => call.door)).toEqual([])
-  // A legacy owner invoked with no legacy row open returns its input unchanged,
-  // so this is the only assertion that can see it.
-  expect(legacy.calls).toEqual([])
   expect(after.record).toBe(before.record)
   expect(after.history).toEqual({ past: [], future: [] })
   expect(after.revision).toBe(before.revision)
@@ -365,7 +333,6 @@ beforeEach(() => {
   plannedShowLevel.calls.length = 0
   boundaryPlanner.narrow = null
   compatibilityProfiles.calls.length = 0
-  legacy.calls.length = 0
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
@@ -641,7 +608,6 @@ describe('v2 tracer settlement routing (#1065)', () => {
     expect(after.history.past).toEqual([before.record])
     expect(after.history.future).toEqual([])
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
   })
 
   it('settles a converted-boundary-joined Clip at its explicit start with the window reclaimed (#1068)', async () => {
@@ -693,7 +659,6 @@ describe('v2 tracer settlement routing (#1065)', () => {
       authoredClip(before.record, 'overlay-a').startMs - 2_000,
     )
     expectOneEdit(before, after)
-    expect(legacy.calls).toEqual([])
   })
 
   it('submits one settlement per gesture when the drop repeats', async () => {
@@ -2323,7 +2288,6 @@ function expectOneEdit(before: EditorState, after: EditorState): void {
   expect(after.revision).toBe(before.revision + 1)
   expect(after.v2Writes).toBe(before.v2Writes + 1)
   expect(after.legacyWrites).toBe(0)
-  expect(legacy.calls).toEqual([])
 }
 
 /** Undo restores the preimage composition exactly; Redo restores the edit. */
@@ -3169,7 +3133,6 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     expect(screen.getByTestId('show-clip-delete-blocked')).toHaveTextContent('Keep one Clip')
     expect(screen.getByRole('status', { name: 'Clip deletion unavailable' })).toHaveTextContent(
       'A Show must contain at least one Clip.',
@@ -3201,7 +3164,6 @@ describe('v2 clip delete (#1066 slice 2)', () => {
     expect(screen.queryByRole('alertdialog', { name: 'Remove connected Clip?' })).not.toBeInTheDocument()
     expect(admission.calls.map((call) => call.door)).toEqual(['admitShowV2PilotClipDelete'])
     expect(deleteSubmissions()).toEqual([{ intent: { kind: 'delete-clip', clipId: 'resize-a' }, baseRevision: 0 }])
-    expect(legacy.calls).toEqual([])
   })
 
 // A converted `--layout-N` split with a second logical Clip: deleting one
@@ -3315,7 +3277,6 @@ describe('v2 logical-clip delete (#1068 item 1b)', () => {
     expect(after.record).toBe(before.record)
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
-    expect(legacy.calls).toEqual([])
   })
 })
 
@@ -3633,7 +3594,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.controlTargets).toEqual({ sliderSpeed: 0.75 })
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
     expect(planned.calls).toHaveLength(2)
   })
 
@@ -3666,7 +3626,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(after.revision).toBe(enabled.revision + 1)
     expect(after.v2Writes).toBe(enabled.v2Writes + 1)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     await expectUndoRedoExact(editor, enabled)
   })
 
@@ -3700,7 +3659,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(after.record.composition.patternInstances.find(instance => instance.id === 'resize-instance')?.controlTargets).toBeUndefined()
     expect(after.record.composition.propertyTracks.some(track => track.id === 'lane-speed')).toBe(false)
     expectOneEdit(before, after)
-    expect(legacy.calls).toEqual([])
     await expectUndoRedoExact(editor, before)
   })
 
@@ -3770,7 +3728,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect(after.record.composition.groupDefinitions[0]!.patternInstances[0]!.controlTargets).toBeUndefined()
     expect(after.record.composition.groupDefinitions[0]!.propertyTracks.some((track) => track.id === 'lane-speed')).toBe(false)
     expectOneEdit(before, after)
-    expect(legacy.calls).toEqual([])
     await expectUndoRedoExact(editor, before)
   })
 
@@ -3837,7 +3794,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     expect((await authoredClipValue(editor.showId, 'resize-a')).simulation.steppedClock).toBeUndefined()
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
   })
 
   it('stores Playback evaluation through the instance door', async () => {
@@ -4022,7 +3978,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(3)
     expect(after.v2Writes).toBe(3)
-    expect(legacy.calls).toEqual([])
   })
 
   it('clamps a sub-minimum Edge width on v2 as v1 does (#1069)', async () => {
@@ -4049,7 +4004,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(3)
     expect(after.v2Writes).toBe(3)
-    expect(legacy.calls).toEqual([])
   })
 
   it('adds a Ripple Effect through the palette and the appearance door', async () => {
@@ -4098,7 +4052,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
   })
 
   it('writes a packed shadow color edit on v2 (#1069)', async () => {
@@ -4129,7 +4082,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
   })
 
   it('removes one Effect and leaves the Clip through the appearance door', async () => {
@@ -4153,7 +4105,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
   })
 
   it('duplicates and reorders Effects through the overflow menu', async () => {
@@ -4191,7 +4142,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(4)
     expect(after.v2Writes).toBe(4)
-    expect(legacy.calls).toEqual([])
 
     // The moved distort Effect no longer lands last in the array once a
     // color-output Effect trails it; the same menu gesture still names the
@@ -4242,7 +4192,6 @@ describe('v2 clip appearance (#1066 slice 3)', () => {
     const after = editor.state()
     expect(after.history.past).toHaveLength(2)
     expect(after.v2Writes).toBe(2)
-    expect(legacy.calls).toEqual([])
   })
 
   it('refuses header Start timing with no write and keeps record identity', async () => {
@@ -4561,7 +4510,6 @@ describe('v2 show end and show metadata (#1066 slice 6)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
   })
 
   it('enables Trails through the show-metadata door (row 796)', async () => {
@@ -4875,7 +4823,6 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     expect(after.record.zoneLayouts.some((layout) => layout.id === 'both')).toBe(true)
   })
 
@@ -4898,7 +4845,6 @@ describe('v2 Zone and Zone Layout definition wiring (#1066 slice 7)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     expect(after.record.zones.find((zone) => zone.id === 'z2')?.name).toBe('Second')
   })
 
@@ -5539,7 +5485,6 @@ describe('v2 marquee selection and Make Group (#1066 L2583)', () => {
     expect(useShowEditorViewStore.getState().selection)
       .toEqual({ kind: 'group', occurrenceId })
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
     await act(async () => {})
@@ -5609,7 +5554,6 @@ describe('v2 Group occurrence inspector writes (#1066)', () => {
     expect(screen.getByText('3 linked occurrences')).toBeInTheDocument()
     expect(after.v2Writes).toBe(before.v2Writes + 1)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     expectOneEdit(before, after)
 
     fireEvent.click(screen.getByRole('button', { name: 'Undo Show edit' }))
@@ -6384,7 +6328,6 @@ describe('v2 Layout occurrence Duplicate and Make Unique (#1066 slice 8a)', () =
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     expect(useShowEditorViewStore.getState().selection).toEqual({ kind: 'zone-layout', layoutId: 'both', intervalId: 'interval-1' })
   })
 
@@ -7097,7 +7040,6 @@ describe('v2 View code and Download .epe (#1066)', () => {
     expect(screen.getByText(`Generated pattern - ${stored.name}`)).toBeInTheDocument()
     expect(screen.getByTestId('v2-viewcode-source').textContent).toBe(expectedV2Source(stored))
     expect(admission.calls).toEqual([])
-    expect(legacy.calls).toEqual([])
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to show' }))
     expect(screen.queryByText(`Generated pattern - ${stored.name}`)).not.toBeInTheDocument()
@@ -7189,7 +7131,6 @@ describe('v2 Zone Layout routing transfers (#1066)', () => {
     expect(afterEasing.revision).toBe(afterDuration.revision + 1)
     expect(afterEasing.v2Writes).toBe(afterDuration.v2Writes + 1)
     expect(afterEasing.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
     fireEvent.click(within(routingPanel()).getByRole('button', { name: 'Remove routing marker' }))
     await act(async () => {})
     const afterRemove = editor.state()
@@ -7782,7 +7723,6 @@ describe('v2 markers, insert time and add layer (#1090 slice C)', () => {
     expect(after.history).toEqual({ past: [], future: [] })
     expect(after.v2Writes).toBe(0)
     expect(after.legacyWrites).toBe(0)
-    expect(legacy.calls).toEqual([])
   })
 
   it('inserts Time on a v2 Show at a free time through the insert-time door', async () => {

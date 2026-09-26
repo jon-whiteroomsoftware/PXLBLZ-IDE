@@ -16,11 +16,6 @@ import {
 } from './showClipInspectorModel'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import type { ShowStageDiagnosticRect } from './showStageDiagnostics'
-import {
-  buildShowPropertyAnimationOptions,
-  projectShowPropertyAnimationEditorContext,
-  projectShowPropertyAnimationOverview,
-} from './showPropertyAnimationEditorModel'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import { projectShowEditorStagePresentationV2 } from './showEditorStagePresentation'
 import {
@@ -452,30 +447,6 @@ describe.each(grouped)('$key Group Clip inspector', testCase => {
     }
   })
 
-  it('summarizes the same Group Property-animation rows in Show time', () => {
-    for (const child of children) {
-      const v1Value = frozenV1Output<ShowClipInspectorValue | null>(`showEditorPresentationEquivalence.test.ts::summarizes the same Group Property-animation rows in Show time::${testCase.key}::${child.occurrenceId}:${child.placementId}`)!
-      const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value, child)
-      const v2 = projectShowEditorInspectorPresentationV2(record, child.atMs)
-        .groupsByOccurrenceId[child.occurrenceId]!.clipsById[child.placementId]!
-      expect(v1Context, `v1 context for ${child.occurrenceId}:${child.placementId}`).not.toBeNull()
-      const v1Rows = projectShowPropertyAnimationOverview(
-        v1Context!,
-        buildShowPropertyAnimationOptions(v1Value),
-      )
-      const v2Rows = projectShowPropertyAnimationOverview(
-        {
-          tracks: v2.animation.tracks.map(track => track.editor),
-          trackIssues: {},
-          showTimeOffsetMs: v2.animation.showTimeOffsetMs,
-          instanceUseCount: v2.animation.instanceUseCount,
-        },
-        buildShowPropertyAnimationOptions(v2.value),
-      )
-      expect(v2Rows, `${testCase.key}/${child.occurrenceId}:${child.placementId}`).toEqual(v1Rows)
-    }
-  })
-
   it('places every Group occurrence over the same Show window and lanes', () => {
     const timeline = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const presentation = projectShowEditorInspectorPresentationV2(record, testCase.fixedTimeMs)
@@ -760,35 +731,6 @@ describe.each(grouped)('$key Group binding and reuse', testCase => {
         .map(lane => Number(lane?.split('#')[1]))
       expect(Math.min(...lanes), `${testCase.key}/${occurrence.id} top lane`).toBe(band.topLayerIndex)
       expect(Math.max(...lanes), `${testCase.key}/${occurrence.id} bottom lane`).toBe(band.bottomLayerIndex)
-    }
-  })
-
-  /**
-   * `instanceUseCount` is displayed text: the animation editor prints
-   * "Affects {n} linked Clips" from it. The tracer's consumer contract is the
-   * same displayed value, so this asserts equality against the original v1
-   * definition-linked consumer rather than pinning a divergence. The v1 side is
-   * additionally anchored to the structure of the source, so the pair cannot
-   * pass by two readers making the same mistake.
-   */
-  it('counts the same linked Group Pattern-instance uses as the v1 editor', () => {
-    for (const child of groupChildOwners(source)) {
-      const v1Value = frozenV1Output<ShowClipInspectorValue | null>(`showEditorPresentationEquivalence.test.ts::counts the same linked Group Pattern-instance uses as the v1 editor::${testCase.key}::${child.occurrenceId}:${child.placementId}`)!
-      const v1Context = projectShowPropertyAnimationEditorContext(source, v1Value, child)!
-      const v2 = projectShowEditorInspectorPresentationV2(record, child.atMs)
-        .groupsByOccurrenceId[child.occurrenceId]!.clipsById[child.placementId]!
-      const definition = source.composition!.groupDefinitions!
-        .find(candidate => candidate.placements.some(placement => placement.id === child.placementId))!
-      // v1 counts distinct logical slots sharing the instance, once per occurrence.
-      const slotUses = new Set(definition.placements
-        .filter(placement => placement.instanceId === v1Value.instanceId)
-        .map(placement => placement.logicalClipId ?? placement.id)).size
-      const occurrences = source.composition!.groupOccurrences!
-        .filter(candidate => candidate.definitionId === definition.id).length
-      const label = `${testCase.key}/${child.occurrenceId}:${child.placementId}`
-      expect(v1Context.instanceUseCount, `${label} v1 structure`).toBe(slotUses * occurrences)
-      expect(v2.animation.instanceUseCount, `${label} displayed linked uses`)
-        .toBe(v1Context.instanceUseCount)
     }
   })
 })

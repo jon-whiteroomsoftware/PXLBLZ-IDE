@@ -124,7 +124,7 @@ the pre-commit focused set. Run them before requesting review of any such range.
 The stock Show catalogue separates finished pieces by output contract.
 **Portable Shows** holds Shows for standard square maps; **Installations** holds
 Shows bound to a specific stock map. The first Portable Show is the Coronal Mass
-Ejection remix, ported from `scripts/promo/cme-teaser.ts`, whose Pattern ships as
+Ejection remix, ported from a since-retired promo script; its Pattern ships as
 stock `CoronalMassEjection` credited to ZRanger1.
 
 **ZRanger1 has granted blanket permission** (2026-08-05) to ship their Pattern
@@ -145,31 +145,3 @@ Write a temporary `_*-probe.test.ts` **inside the worktree** — path aliases on
 resolve in-tree — and append results to the scratchpad, because vitest swallows
 `console.log`. Delete probes before committing; `git add -A` will otherwise grab
 them, and a probe left under `src/` breaks other agents' `npm test`.
-
-## Authoring Shows by script
-
-Promo and teaser Shows are authored programmatically rather than by hand in the
-editor, because hand-written composition JSON is fragile — cells and the
-composition sidecar must agree — while the engine's own pure functions produce
-exactly what the editor would. `scripts/promo/cme-teaser.ts` is the worked
-example.
-
-The shape: build a flat ShowRecord with `createShowWithOutputContract` and the
-showModel mutators, project it with
-`projectFlatShowToCompositionV1WithCellOrigins` stamping
-`executionModel: 'deterministic-loop'`, add tracks with `addShowPropertyTrack`
-and `addShowPropertyKeyframe`, compile-check with `compileShowForPreview`, then
-POST or PATCH `/api/shows` with a locally minted session cookie.
-
-Gotchas worth knowing before the first run:
-
-- A positive single-Scene routed Show compiles as one hold. Do not add a
-  padding Scene or artificial duration to make it compile.
-- One Pattern continuing across a Cut is one **held cell**, not two cells. Two
-  cells means two restarted instances.
-- Property tracks are Scene-local, in Scene-relative milliseconds. Instance
-  time-scale tracks **replace** the instance's base time scale while active.
-- Deleting a visual Transition persists as a `kind: 'cut'` record rather than a
-  removal.
-- Pattern-clock hue landing must be calibrated empirically rather than derived;
-  two-point interpolation converges quickly.
