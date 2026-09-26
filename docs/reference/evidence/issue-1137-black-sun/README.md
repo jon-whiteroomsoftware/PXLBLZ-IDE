@@ -1,9 +1,9 @@
 # #1137 Black Sun Installation: Stage proof
 
-Captured 2026-09-25 from commit `339e8d22` (the iris repair, on top of
-`86fbf028` and `f76ed021`, which were rebased onto `cd4e52b7`) on registry
+Captured 2026-09-25 from commit `4c2f213b` (the iris hold, on top of the
+Black Sun commits rebased onto `b002b942`) on registry
 runtime `1137:5179` (`npm run dev:issue -- --issue 1137 --profile shared`). It
-served this worktree at `339e8d22` with a clean tree, against main's shared
+served this worktree at `4c2f213b` with a clean tree, against main's shared
 API and local D1. Repo Playwright (Chromium) opened
 `/studio/shows/stock-show-installation-black-sun?capture` at 1600 × 1000,
 signed in with `npm run dev:session -- --issue 1137` in its own browser
@@ -27,12 +27,15 @@ be used: since the #967 over-under workspace the Show route has no
 | `black-sun-53s.png` | 53 s (1590) | Cyan spiral; hole at full size before the first step | Violet counter-comet |
 | `black-sun-57s.png` | 57 s (1710) | Cyan spiral; hole smaller after two steps | Violet counter-comet |
 | `black-sun-60s.png` | 60 s (1800) | Cyan spiral; hole closed | Violet counter-comet |
+| `black-sun-61s.png` | 61 s (1830) | Cyan spiral; hole still closed | Violet counter-comet |
 | `black-sun-62.1s.png` | 62.1 s (1863) | White | White |
 | `black-sun-63s.png` | 63 s (1890) | Black | Black |
 
 The iris steps at 54, 56, 58, and 60 s are asserted by `closes the iris in four
 beat-locked steps` in `src/engine/blackSunShow.test.ts`, which samples each
 two-second step window every 250 ms and fails on the previous smooth close.
+The same test asserts the hole stays closed at 60.5, 61, and 61.75 s, until
+the spiral Clip ends at 62 s.
 
 The 1,920 frames were assembled into a 64.0 s, 30 fps H.264 video for
 normal-speed playback review. It is not committed.
@@ -43,16 +46,16 @@ normal-speed playback review. It is not committed.
 shown: the Show under Built-in Shows › Installations (4 Shows), its timeline
 with the six chapter Markers and four iris tracks (viewport x, y, width,
 height), Zones 490/490 assigned on Eclipse Dome, and the Stage row reading
-Eclipse dome · Output map · 490 px. The editor shows Source Code 45.3 KB /
-66.8 KB and VM 1,530/10,240.
+Eclipse dome · Output map · 490 px. The editor shows Source Code 48.7 KB /
+66.8 KB and VM 1,526/10,240.
 
 The compiled artifact's `summary.resources`:
 
 | Resource | Used | Budget |
 |---|---|---|
-| Artifact bytes | 44,544 B | 68,384 B (23,840 B left) |
+| Artifact bytes | 48,040 B | 68,384 B (20,344 B left) |
 | Persistent globals | 202 | 256 (54 left) |
-| VM words | 1,530 | 10,240 |
+| VM words | 1,526 | 10,240 |
 
 Persistent globals have the closest margin. There are no blockers.
 
