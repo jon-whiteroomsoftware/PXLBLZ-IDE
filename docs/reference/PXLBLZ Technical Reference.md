@@ -1330,8 +1330,9 @@ pixel count.
 
 # Part 6 — Agent service
 
-An agent edits a Show the same way a person does: through the command catalogue
-(§20), in a private working copy, admitted by the open editor. Two kinds of
+An agent edits a Show in a private working copy admitted by the open editor.
+Ordinary changes use the command catalogue (§20); an external MCP client can
+also replace the whole private Show through `replace_show`. Two kinds of
 agent use that path. The **Pixelblaze agent** is built in: the Worker calls the
 model and relays each tool call to the browser. An **external agent** is any
 MCP client the person authorizes with OAuth, such as Claude Code or Codex; its
@@ -1411,7 +1412,11 @@ An operation has three phases.
    immutable request identity, and opens a private candidate for that binding.
    Its one-line `intent` is shown in the drawer's Activity.
 2. **Commands** change the candidate. Each runs the same owner the editor
-   uses and returns its result or refusal at once. Nothing reaches the Show
+   uses and returns its result or refusal at once. An external MCP client can
+   instead send `replace_show` with a full record based on `read_show` and the
+   `pxlblz://schemas/show-record/v2` resource. The id must match the connected
+   Show; the current name is kept. The executor validates the record at this
+   call, and later commands apply to the replacement. Nothing reaches the Show
    or its history yet.
 3. **`commit_edit`** asks the editor to admit the candidate. Admission checks,
    in order: the session and revision; that the Show is still open and not
