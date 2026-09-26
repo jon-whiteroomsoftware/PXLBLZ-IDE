@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1142",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-distortion-effects",
+  "operation": "Ran npm run render -- --show stock-show-showcase-distortion-effects --width 1200 --start 0.5 --seconds 0.1 --fps 10 --keep-frames against dev:main; the capture is the unmodified PNG frame the command saved to /tmp/pxlblz-captures (reported 1 frames saved (1200x1200)). Before this commit the same command failed after 30 s waiting for preview-pane canvas.",
+  "captures": [".wrsp/ui-proof/1142-render-show-distortion.png"],
+  "capturedAtCommit": "5b7f2014142b4490633d3a686eaa73525dcb3d12"
+}

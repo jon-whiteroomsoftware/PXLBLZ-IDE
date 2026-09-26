@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1142",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-installation-totality",
+  "operation": "Ran npm run render -- --show stock-show-installation-totality --width 1200 --start 40 --seconds 0.1 --fps 10 --keep-frames against dev:main; the capture is the unmodified PNG frame the command saved to /tmp/pxlblz-captures (reported 1 frames saved (1199x1200)). The full 72 s run at 60 fps saved 4320 frames at 1199x1200 and a 1200x1200 mp4.",
+  "captures": [".wrsp/ui-proof/1142-render-show-totality.png"],
+  "capturedAtCommit": "5b7f2014142b4490633d3a686eaa73525dcb3d12"
+}
