@@ -96,9 +96,11 @@ affected set. The 128-item bound is part of the schema and refuses with
 One successful bulk command returns one aggregate change whose details merge
 every item's affected collections
 ([`support.ts:122-124`](../../../src/engine/showCommandsV2/support.ts)).
-`create_layers` with Clips is the exception: it returns the Layer change followed
-by the Clip changes, each tagged `create_layers`
-([`layers.ts:145-153`](../../../src/engine/showCommandsV2/layers.ts)). A
+`create_layers` with Clips is the exception: it returns exactly two changes, one
+aggregate for all Layers followed by one aggregate for all Clips, both tagged
+`create_layers`
+([`layers.ts:145-153`](../../../src/engine/showCommandsV2/layers.ts),
+[`clipSpec.ts:293`](../../../src/engine/showCommandsV2/clipSpec.ts)). A
 valid full no-op returns the original record and no change, so callers create
 no activity, timestamp, history, adoption, or save entry.
 
