@@ -262,7 +262,7 @@ export function lowerShowCompositionV2ForCompile(
   }
   const resolved = resolveAndLowerShowV2(record, lookup)
   if ('issues' in resolved) {
-    throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.message}`).join('; '))
+    throw new Error(resolved.issues.map(issue => `Show composition v2 ${issue.path}: ${issue.detail ?? issue.message}`).join('; '))
   }
   if (needsGlobalLayoutRecipe(resolved.context.record, resolved.context.route)
     || (resolved.context.route === 'transition' && resolved.context.record.composition.propertyTracks.some(track => track.target.kind === 'show-repeat-scale'))) {

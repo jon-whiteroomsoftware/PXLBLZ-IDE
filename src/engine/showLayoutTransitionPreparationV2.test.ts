@@ -180,7 +180,7 @@ it.each([false,true].flatMap(splitIncoming=>[600,700,800,900].map(atMs=>({splitI
  record.composition.layoutOccurrences.push({...structuredClone(record.composition.layoutOccurrences[0]),id:'later',layoutId:'second',startMs:atMs,durationMs:1000-atMs})
  const before=structuredClone(record),actual=prepare(record)
  expect(actual).toMatchObject({status:'refused',issues:[{code:'unsupported-layout-occurrences',path:'composition.layoutOccurrences'}]})
- if(actual.status==='refused')expect(actual.issues[0].message).toContain('Independent Clip sampling')
+ if(actual.status==='refused')expect(actual.issues[0].detail).toContain('Independent Clip sampling')
  expect(record).toEqual(before)
  expect(()=>lowerShowCompositionV2ForCompile(record,lookup)).toThrow('Independent Clip sampling')
 })

@@ -324,7 +324,7 @@ describe('one dictation turn (#34)', () => {
     ])
     const result = await run(agent, 'Crossfade into an animated Clip.')
     expect(agent.prompts).toHaveLength(2)
-    expect(agent.prompts[1]).toMatch(/^\[editor\] The edit could not be applied: .*section-scoped/i)
+    expect(agent.prompts[1]).toMatch(/^\[editor\] The edit could not be applied: .*A property track or held appearance change cannot start or end inside Transition/i)
     expect(result.disposition.kind).toBe('committed')
     expect(result.finalText).toBe('Left the Cut in place instead.')
     const entries = history(store, sessionId)

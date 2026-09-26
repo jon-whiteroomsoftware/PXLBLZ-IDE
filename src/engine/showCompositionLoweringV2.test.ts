@@ -1538,7 +1538,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
 
     expect(() => lowerShowCompositionV2ForCompile(record, {
       byCellId: {}, byPatternInstanceId: { instance: SOURCE, 'out-b': SOURCE, 'in-b': SOURCE },
-    })).toThrow('Transitions whose windows overlap in time cannot be compiled yet.')
+    })).toThrow('independent render targets')
   })
 
   it.each(['fast', 'fidelity'] as const)('preserves divergent Clip appearance through a positive Transition in %s mode', (fidelity) => {
@@ -1604,7 +1604,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
         participants: [{ id: 'participant', zoneId: 'zone', layerId: 'layer:zone:main', fromClipId: 'from', toClipId: 'to' }],
         propertyRamps: [{ target: { kind: 'clip-opacity', clipId: 'to' }, from: 0 }],
       }]
-    }, "This Transition's property ramp cannot be compiled yet."],
+    }, 'property-ramp'],
   ])('refuses unproved %s instead of dropping it', (_name, change, message) => {
     const record = convertedRecord()
     change(record)
