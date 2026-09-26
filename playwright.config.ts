@@ -29,6 +29,7 @@ export default defineConfig({
   testDir: './e2e',
   testIgnore: '**/*.auth.spec.ts',
   fullyParallel: true,
+  workers: 4,
   reporter: process.env.WRSP_RUNNER_OUTPUT_DIR
     ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]]
     : 'list',

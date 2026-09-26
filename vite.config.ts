@@ -72,6 +72,8 @@ export function createVitestTestProjects() {
       server: { strictPort: false },
       test: {
         name: 'chromium-layout',
+        maxWorkers: 1,
+        fileParallelism: false,
         globals: true,
         setupFiles: ['./src/test/layout.setup.ts'],
         include: LAYOUT_TEST_FILES,

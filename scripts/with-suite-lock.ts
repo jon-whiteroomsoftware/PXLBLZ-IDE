@@ -1,4 +1,5 @@
-// Serialize heavy test suites across this repository's worktrees (#748).
+// Serialize heavy suites across worktrees (#748); validated remote claims
+// cooperate with the bounded host policy (upstream WRSP #42).
 //
 // One full suite fits this machine comfortably; several concurrent ones do
 // not: stacked Vitest worker pools and Playwright fleets produced contention
@@ -13,6 +14,7 @@ import { spawn, execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { qualifiedRemoteExecution } from '@whiteroom/software-process/dist/runner/qualification.js'
 
 const POLL_MS = 2_000
 const REPORT_EVERY_MS = 30_000
@@ -151,6 +153,25 @@ async function main(): Promise<void> {
     return
   }
   const command = process.argv.slice(separator + 1)
+  const qualified = qualifiedRemoteExecution()
+  if (qualified) {
+    const expected: Record<string, { suite: string; group: string }> = {
+      'test:full': { suite: 'full-vitest', group: 'vitest' },
+      'test:e2e': { suite: 'e2e-public', group: 'playwright' },
+      'test:e2e:auth-smoke': { suite: 'e2e-auth-smoke', group: 'playwright' },
+      'test:e2e:shows': { suite: 'e2e-shows', group: 'playwright' },
+    }
+    if (expected[label]?.suite !== qualified.suite || expected[label]?.group !== qualified.group) {
+      throw new Error('Qualified remote job does not authorize this suite label.')
+    }
+    console.log(`WRSP qualified job ${qualified.jobId}: suite ${qualified.suite}, group ${qualified.group}; repository suite lock not taken.`)
+    process.exitCode = await new Promise<number>((resolve, reject) => {
+      const child = spawn(command[0], command.slice(1), { stdio: 'inherit' })
+      child.once('error', reject)
+      child.once('close', (code) => resolve(code ?? 1))
+    })
+    return
+  }
   const gitCommon = execFileSync('git', [
     'rev-parse',
     '--path-format=absolute',

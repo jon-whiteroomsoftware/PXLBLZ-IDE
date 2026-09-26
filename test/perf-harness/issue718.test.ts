@@ -121,5 +121,6 @@ describe('render-target plane contention census (#718)', () => {
     // rejection reopens #718 by failing here with the evidence collected
     // above. Designed Trails suspensions are enumerated, not asserted.
     expect(rows).toEqual([])
-  })
+  // Catalogue-wide correctness census needs headroom when test jobs share CPU.
+  }, 10_000)
 })
