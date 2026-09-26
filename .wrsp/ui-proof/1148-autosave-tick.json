@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1148",
+  "route": "/PXLBLZ-IDE/studio/patterns/proof-1148-autosave",
+  "operation": "Opened a Pattern in the editor with no tick override (window.__pxlblzSyncTickMs unset), typed a comment at the end of its source, and waited for the autosave PATCH on the production 4000 ms tick; the capture shows the edited source saved with no save-status glyph. Driven in the Claude built-in browser, captured with repo Playwright because the built-in browser cannot write screenshot files.",
+  "captures": [".wrsp/ui-proof/1148-autosave-tick.png"],
+  "capturedAtCommit": "73dd368213324dd0cfeb1361665734f81a8d5529"
+}
