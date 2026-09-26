@@ -6856,6 +6856,7 @@ function emitInternedSharedPhysicalSceneZonePlan(
       ...capture.lines.slice(0, -1),
     ].join('\n'),
     render: [
+      ...capture.prelude,
       capture.lines[capture.lines.length - 1],
       `${member.prefix}_emit()`,
       'return',
@@ -6918,6 +6919,7 @@ function emitSharedPhysicalSceneZoneStack(
     )
     return [
       `${directPlacement.member.pixelCountName} = __pxlblz_show_route_pixelCount`,
+      ...capture.prelude,
       ...capture.lines,
       `${directPlacement.member.prefix}_emit()`,
       'return',
@@ -7800,6 +7802,7 @@ function emitRoutedSceneStackWrapper(
           outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
         )
         return [
+          ...rendered.prelude,
           ...rendered.lines,
           `${prefix}_r = ${solo.member.prefix}_r`,
           `${prefix}_g = ${solo.member.prefix}_g`,
@@ -7913,7 +7916,7 @@ function emitPhysicalSceneZoneStack(
       `if (${local} >= 0) {`,
       ...(directPlacement.member.binding?.uniformPixelCountBinding ? [] : [`  ${directPlacement.member.pixelCountName} = ${pixelCount}`]),
       ...directEntry,
-      indentBlock(capture.lines.join('\n'), 2),
+      indentBlock([...capture.prelude, ...capture.lines].join('\n'), 2),
       ...directExit,
       `  return`,
       `}`,
@@ -7974,7 +7977,7 @@ function emitPatternOutputReusePrepass(groups: SelectedPatternOutputReuseGroup[]
     )
     return `if (__pxlblz_show_scene == ${group.sceneIndex}) {
   ${member.pixelCountName} = ${group.pixelCount}
-${indentBlock(capture.lines.slice(0, -1).join('\n'), 2)}${capture.lines.length > 1 ? '\n' : ''}  for (var __pxlblz_show_reuse_index = 0; __pxlblz_show_reuse_index < ${group.pixelCount}; __pxlblz_show_reuse_index = __pxlblz_show_reuse_index + 1) {
+${indentBlock([...capture.prelude, ...capture.lines].slice(0, -1).join('\n'), 2)}${capture.lines.length > 1 ? '\n' : ''}  for (var __pxlblz_show_reuse_index = 0; __pxlblz_show_reuse_index < ${group.pixelCount}; __pxlblz_show_reuse_index = __pxlblz_show_reuse_index + 1) {
     ${capture.lines[capture.lines.length - 1]}
     ${emitShowRenderTargetWrite(group.renderTarget, 'r', '__pxlblz_show_reuse_index', `${member.prefix}_r`)}
     ${emitShowRenderTargetWrite(group.renderTarget, 'g', '__pxlblz_show_reuse_index', `${member.prefix}_g`)}
@@ -8085,7 +8088,7 @@ function emitRoutedPlacementStackCapture(
       if (staticOpacity === 0) {
         return routedPlacementCanSkipEvaluation(placement, placements, outputDimension)
           ? []
-          : rendered.lines
+          : [...rendered.prelude, ...rendered.lines]
       }
       // #904: for the stack's FIRST contributor the accumulator is provably
       // the literal 0, so `m * (1) + t * (1 - (1))` is `m` in 16.16 AND in
@@ -8098,6 +8101,7 @@ function emitRoutedPlacementStackCapture(
       if ((endpointOptimizationActive || (!foldDisabled && placement === firstContributor))
         && routedPlacementTakesDirectAssignment(placement, propertyTracks)) {
         return [
+          ...rendered.prelude,
           ...rendered.lines,
           `${target}_r = ${member.prefix}_r`,
           `${target}_g = ${member.prefix}_g`,
@@ -8128,12 +8132,14 @@ function emitRoutedPlacementStackCapture(
         const canSkip = routedPlacementCanSkipEvaluation(placement, placements, outputDimension)
         return canSkip
           ? [
+              ...rendered.prelude,
               `var ${opacityName} = ${rendered.opacity}`,
               `if (${opacityName} > 0) {`,
               ...[...rendered.lines, ...blend].map((line) => `  ${line}`),
               '}',
             ]
           : [
+              ...rendered.prelude,
               `var ${opacityName} = ${rendered.opacity}`,
               ...rendered.lines,
               `if (${opacityName} > 0) {`,
@@ -8152,6 +8158,7 @@ function emitRoutedPlacementStackCapture(
       if (!memberHasContentKey(member)) {
         const opacity = hoistOpacity ? hoistedName : `(${rendered.opacity})`
         return [
+          ...rendered.prelude,
           ...rendered.lines,
           ...opacityDeclaration,
           `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
@@ -8163,6 +8170,7 @@ function emitRoutedPlacementStackCapture(
         ? `${hoistedName} * ${member.prefix}_alpha`
         : `(${rendered.opacity}) * ${member.prefix}_alpha`
       return [
+        ...rendered.prelude,
         ...rendered.lines,
         ...opacityDeclaration,
         `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
@@ -8205,6 +8213,7 @@ function emitDisjointViewportCoverageStack(
       ? `(${rendered.opacity}) * ${ground.member.prefix}_alpha`
       : rendered.opacity
     lines.push(
+      ...rendered.prelude,
       ...rendered.lines,
       `${target}_r = ${ground.member.prefix}_r * (${alpha})`,
       `${target}_g = ${ground.member.prefix}_g * (${alpha})`,
@@ -8229,7 +8238,7 @@ function emitDisjointViewportCoverageStack(
     )
     lines.push(
       `${index === 0 ? 'if' : 'else if'} ${predicate} {`,
-      ...rendered.lines.map((line) => `  ${line}`),
+      ...[...rendered.prelude, ...rendered.lines].map((line) => `  ${line}`),
       `  ${target}_r = ${frame.member.prefix}_r * (${alpha}) + ${target}_r * (1 - (${alpha}))`,
       `  ${target}_g = ${frame.member.prefix}_g * (${alpha}) + ${target}_g * (1 - (${alpha}))`,
       `  ${target}_b = ${frame.member.prefix}_b * (${alpha}) + ${target}_b * (1 - (${alpha}))`,
@@ -8259,12 +8268,13 @@ function emitTwoLayerContentKeyStack(
     `var ${target}_r = 0`,
     `var ${target}_g = 0`,
     `var ${target}_b = 0`,
+    ...topRendered.prelude,
     ...topRendered.lines,
     `${target}_r = ${top.member.prefix}_r * ${topAlpha}`,
     `${target}_g = ${top.member.prefix}_g * ${topAlpha}`,
     `${target}_b = ${top.member.prefix}_b * ${topAlpha}`,
     `if (${topAlpha} < 1) {`,
-    ...lowerRendered.lines.map((line) => `  ${line}`),
+    ...[...lowerRendered.prelude, ...lowerRendered.lines].map((line) => `  ${line}`),
     `  ${target}_r = ${target}_r + ${lower.member.prefix}_r * ${lowerAlpha} * (1 - ${topAlpha})`,
     `  ${target}_g = ${target}_g + ${lower.member.prefix}_g * ${lowerAlpha} * (1 - ${topAlpha})`,
     `  ${target}_b = ${target}_b + ${lower.member.prefix}_b * ${lowerAlpha} * (1 - ${topAlpha})`,
@@ -8454,12 +8464,14 @@ function emitViewportCoverageStack(
     : lowerRendered.opacity
   const indentBranch = (lines: string[]) => lines.map((line) => `  ${line}`)
   const topBranch = [
+    ...topRendered.prelude,
     ...topRendered.lines,
     `${target}_r = ${top.member.prefix}_r * (${topAlpha})`,
     `${target}_g = ${top.member.prefix}_g * (${topAlpha})`,
     `${target}_b = ${top.member.prefix}_b * (${topAlpha})`,
   ]
   const lowerBranch = [
+    ...lowerRendered.prelude,
     ...lowerRendered.lines,
     `${target}_r = ${lower.member.prefix}_r * (${lowerAlpha})`,
     `${target}_g = ${lower.member.prefix}_g * (${lowerAlpha})`,
@@ -8514,7 +8526,9 @@ function emitViewportCoverageStack(
     ...indentBranch(lowerBranch),
     '} else {',
     ...indentBranch([
+      ...topRendered.prelude,
       ...topRendered.lines,
+      ...lowerRendered.prelude,
       ...lowerRendered.lines,
       `${target}_r = ${top.member.prefix}_r * (${topAlpha}) * ${mixName} + ${lower.member.prefix}_r * (${lowerAlpha}) * (1 - ${mixName})`,
       `${target}_g = ${top.member.prefix}_g * (${topAlpha}) * ${mixName} + ${lower.member.prefix}_g * (${lowerAlpha}) * (1 - ${mixName})`,
@@ -8546,6 +8560,7 @@ function emitCoverageDirectedPlacementStack(
       ? `(${rendered.opacity}) * ${member.prefix}_alpha`
       : rendered.opacity
     const lines = [
+      ...rendered.prelude,
       ...rendered.lines,
       `${target}_r = ${target}_r + ${member.prefix}_r * (${alpha}) * ${remaining}`,
       `${target}_g = ${target}_g + ${member.prefix}_g * (${alpha}) * ${remaining}`,
@@ -8684,7 +8699,7 @@ function emitRoutedPlacementCapture(
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   viewportCoordinates?: RoutedViewportCoordinates,
-): { lines: string[]; opacity: string } {
+): { prelude: string[]; lines: string[]; opacity: string } {
   const placementTracks = (propertyTracks ?? []).filter((track) => (
     'placementId' in track.target && track.target.placementId === placement.placementId
   ))
@@ -8692,13 +8707,31 @@ function emitRoutedPlacementCapture(
   const baseOpacity = opacityTrack && localTimeExpression
     ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
     : String(clampNumber(placement.opacity ?? 1, 0, 1))
-  const framePropertyExpressions = localTimeExpression
+  const animatedFrameExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = localTimeExpression
     ? Object.fromEntries(placementTracks.flatMap((track) => (
         track.target.kind === 'placement-viewport'
           ? [[track.target.property, emitShowPropertyTrackExpression(track, localTimeExpression)]]
           : []
       )))
     : {}
+  // #1138: an animated aperture property inlined into the mask is evaluated
+  // once per use site per pixel (up to five copies for a ring); hoist each
+  // animated property into one per-pixel local and hand the viewport helpers
+  // the local name instead.
+  const aperturePrelude: string[] = []
+  const framePropertyExpressions: Partial<Record<'x' | 'y' | 'width' | 'height', string>> = {
+    ...animatedFrameExpressions,
+  }
+  if (viewportCoordinates !== undefined) {
+    for (const property of ['x', 'y', 'width', 'height'] as const) {
+      const expression = animatedFrameExpressions[property]
+      if (expression === undefined) continue
+      const namespace = (placement.placementId ?? placement.consumerId).replace(/[^a-zA-Z0-9_]/g, '_')
+      const local = `__pxlblz_ap_${namespace}_${property}`
+      aperturePrelude.push(`var ${local} = ${expression}`)
+      framePropertyExpressions[property] = local
+    }
+  }
   // #1080: the 1D downgrade keeps the mask expression but evaluates it along
   // the frame's centre line: x is the zone-normalized index while y is the
   // frame centre (animated frames reuse the same track values as the 2D path).
@@ -8736,6 +8769,7 @@ function emitRoutedPlacementCapture(
   // form is separately disabled).
   const uniform = member.binding?.uniformPrologueBinding === true
   return {
+    prelude: aperturePrelude,
     lines: [
       ...(uniform ? [] : [
         ...(brightnessTrack && localTimeExpression
