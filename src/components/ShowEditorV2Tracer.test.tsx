@@ -8297,22 +8297,24 @@ describe('v2 timeline refusal feedback (#1098)', () => {
     expectClipRefusal('overlay-a', 'No Zone Layout', 'No Zone Layout covers this time.')
   })
 
-  it('names a Split whose playhead rounds onto the Clip edge', async () => {
+  it('disables Split with the reason when the playhead rounds onto the Clip edge (#1098, #1126)', async () => {
     const editor = openV2EditorForRecord(connectedV2Record('refusal-split-edge'))
     render(<ShowEditor showId={editor.showId} />)
     // 0.3 ms inside resize-b's start: the capability sees an interior
-    // playhead, and the planner rounds it onto the edge.
+    // playhead, and the split dry-run's planner rounds it onto the edge.
     await selectClipAt(editor.showId, 'CometLoom', 1, 7_000.3)
     const before = editor.state()
+    const split = timelineCommand('Split at playhead')
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    expect(split).toHaveAttribute('title', 'Move the playhead inside the Clip to split it.')
 
-    fireEvent.click(timelineCommand('Split at playhead'))
+    fireEvent.click(split)
     await act(async () => {})
 
     const after = editor.state()
     expect(admission.calls).toEqual([])
     expect(after.record).toBe(before.record)
     expect(after.v2Writes).toBe(0)
-    expectClipRefusal('resize-b', 'Playhead at the edge', 'Move the playhead inside the Clip to split it.')
   })
 
   it('names a double-click add inside a Transition in the status only', async () => {
