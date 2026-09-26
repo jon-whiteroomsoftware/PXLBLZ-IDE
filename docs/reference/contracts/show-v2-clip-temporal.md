@@ -209,9 +209,7 @@ explicitly first. An edge with no meeting boundary never consults the repair, so
 far-edge trims keep the junction and Show End exact.
 
 Time-anchored record inventory for the reclaim. The commit moves exactly the
-content whose Show-time anchor moved, mirroring what v1 does to the same window
-when its connected resize reclaims it (`resizeShowConnectedClipInShowAtGlobalTime`
-shifts the downstream chain and shortens its loop while Scene starts follow):
+content whose Show-time anchor moved:
 ordinary Clips at or after the window end shift with their appearance keys,
 Clip- and sole-instance-owned Property tracks, and whole-output windows whose
 endpoints all move, while participant Transition windows follow their endpoint

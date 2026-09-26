@@ -6,7 +6,7 @@ The [Scene-retirement specification](../../plans/scene-retirement-specification.
 
 ## The view model
 
-`ShowTimelineViewModel` is the common description consumed by the timeline, strip, ruler, Layout lane and Marker surfaces. Its `recordVersion` says which shape produced the view; renderers do not use it as a compatibility switch. The view has no Scene identity. See `src/engine/showTimelineViewModel.ts:20-53`.
+`ShowTimelineViewModel` is the description consumed by the timeline, strip, ruler, Layout lane and Marker surfaces. `projectShowTimelineV2` builds it from a v2 record; its `recordVersion` is 2 and renderers do not use it as a compatibility switch. The view has no Scene identity. See `projectShowTimelineV2` in `src/engine/showTimelineViewModelV2.ts`.
 
 | Field | Meaning |
 | --- | --- |
@@ -16,22 +16,20 @@ The [Scene-retirement specification](../../plans/scene-retirement-specification.
 | `layers[].junctions` and `transitions` | Derived boundaries and authored Transitions, including Layer participants or whole-output contributors. |
 | `layoutIntervals` | Layout occurrences with definition identity, Zone ids, interval, parameters and optional incoming transfer. |
 | `markers` | Markers, including the optional chapter role. |
-| `propertyTracks` and `items[].appearanceKeys` | Optional authored Property tracks and held-appearance keys in the v2 projection. |
+| `propertyTracks` and `items[].appearanceKeys` | Authored Property tracks and held-appearance keys. |
 | `structuralTimesMs` | Snap candidates in first-appearance order. |
 
-The optional collections are absent in a v1 projection: v1 Property tracks are Scene-local, and v1 placement appearance has no global key identity. A renderer draws only what the projection supplies. See `src/engine/showTimelineViewModel.ts:35-53`, `src/engine/showTimelineViewModelV2.ts:219-244`, and `src/engine/showTimelineViewModelV2.ts:354-360`.
+The projection supplies the authored Property tracks and held-appearance keys directly. A renderer draws only what the projection supplies. See `projectShowTimelineV2` in `src/engine/showTimelineViewModelV2.ts`.
 
-Each selectable row, Layer, item, junction, Layout occurrence and Marker carries a `ShowTimelineSelection`; `showTimelineSelectionKey` supplies stable DOM and store keys. The selection vocabulary addresses Clips, Groups, Group Clips, Layers, Transitions, derived Cuts, Layout occurrences, Markers, Zones and the Show, without addressing a `ShowCell` inside a `ShowScene`. See `src/engine/showTimelineViewModel.ts:95-214` and `src/components/ShowEditor.tsx:611-629`.
+Editor selection is a `ShowSelection` in `src/store/showEditorViewStore.ts`; `showSelectionKey` in `src/components/ShowEditor.tsx` supplies stable DOM and store keys. The selection vocabulary addresses Clips, Transitions, Zones, Zone Layouts, Group occurrences, Group Clips and the Show.
 
-## The two projections
+## The projection
 
-`fromShowTimelineProjection` assembles the v1 view from computed timeline, strip, unified timeline and Layout projections plus Markers. `projectShowTimelineViewModel` is its record-level entry point; its composition argument is the caller's projected sidecar, not a persisted v2 composition. See `src/engine/showTimelineViewModel.ts:341-489`.
-
-`projectShowTimelineV2(record)` reads a v2 record immutably. It orders Layers by rank, materializes Group Clip uses, derives Cut junctions, projects authored Transitions and whole-output participants, and includes Layout occurrences, Markers and Property tracks. It allocates no record identity. See `src/engine/showTimelineViewModelV2.ts:20-80` and `src/engine/showTimelineViewModelV2.ts:219-244`.
+`projectShowTimelineV2(record)` reads a v2 record immutably. It orders Layers by rank, materializes Group Clip uses, derives Cut junctions, projects authored Transitions and whole-output participants, and includes Layout occurrences, Markers and Property tracks. It allocates no record identity. See `projectShowTimelineV2` in `src/engine/showTimelineViewModelV2.ts`.
 
 ### Legacy sidecars
 
-The v1 projection carries Scene-local facts only in explicit `legacy` fields: item placement and Scene ids, a stored v1 boundary Cut id, and Layout interval Scene ids. The v2 projection does not populate those fields. The v1 gesture branches still consume them until #1042. See `src/engine/showTimelineViewModel.ts:341-455` and `src/engine/showTimelineViewModelV2.ts:26-80`.
+Removed in #1042: the v1 projection carried Scene-local facts in explicit `legacy` fields (item placement and Scene ids, a stored v1 boundary Cut id, and Layout interval Scene ids). The v2 projection never populated those fields and nothing consumes them.
 
 ### Measured differences between the two views
 
@@ -41,11 +39,11 @@ The pinned parity corpus correlates v1 and converted v2 views through conversion
 
 - A Cut is the absence of an authored Transition at exact adjacency. A derived Cut has `scope: 'derived-cut'` and no Transition id; a 1 ms gap has no junction. See `src/engine/showTimelineViewModelV2.ts:38-80` and `src/engine/showTransitionsV2.ts:1-90`.
 - A whole-output Transition names all contributors in its window, not merely one adjacent Layer pair. See `src/engine/showTimelineViewModelV2.ts:40-53`.
-- Projection does not adopt a record or allocate authored identity. See `src/engine/showTimelineViewModelV2.ts:20-27` and `src/engine/showTimelineViewModel.ts:341-489`.
+- Projection does not adopt a record or allocate authored identity. See `projectShowTimelineV2` in `src/engine/showTimelineViewModelV2.ts`.
 
-## The v1 container
+## The v2 workspace
 
-The existing timeline still has v1 branches for Scene-local grid geometry, Layout addressing, Property lanes and Clip gestures. Those branches read the v1 projection and its legacy sidecars when the routed record is v1. On a v2 backing, the same workspace receives the v2 timeline, time columns, Transition, Layout, Zone Map and Property-lane projections plus the v2 gesture callbacks. See `src/components/ShowEditor.tsx:4125-4170` and `src/engine/showTimelineViewModel.ts:341-455`.
+The workspace receives the v2 timeline, time columns, Transition, Layout, Zone Map and Property-lane projections plus the v2 gesture callbacks. A stored v1 row is not opened (see below); nothing reads the removed v1 projection.
 
 ## Which record backs the open editor
 

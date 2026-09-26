@@ -1132,8 +1132,8 @@ operation-specific unified-timeline projection and durable-reference
 assertions. A refused edit must return the original composition by reference
 and leave both inputs deeply unchanged.
 
-`src/store/showStore.test.ts` exercises this helper. The composition-model,
-v2 Transition, and v2 property-animation suites named as `testFiles` in
+`src/store/showStore.test.ts` exercises this helper. The
+v2 Transition and v2 property-animation suites named as `testFiles` in
 `scripts/show-authoring-mutation.ts` provide the accepted, refused, and
 edit-sequence examples. The declared cross-operation partitions, review-defect
 map, and multi-step cases live in
@@ -1147,7 +1147,6 @@ During development, run:
 
 ```bash
 npx vitest run src/test/showAuthoringContract.test.ts \
-  src/engine/showCompositionModel.test.ts \
   src/engine/showTransitionsV2.test.ts \
   src/engine/showPropertyAnimationV2.test.ts \
   src/engine/showPropertyTrackTimeMappingV2.test.ts \

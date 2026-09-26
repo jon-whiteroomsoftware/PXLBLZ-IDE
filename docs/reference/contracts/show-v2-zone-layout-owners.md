@@ -24,7 +24,7 @@ principle keeps the command set on content inside Shows, not Show structure.
 | `remove` | Refuses the last Zone. Otherwise cascades explicitly through the owners that already hold those rules - the Group occurrence owner for occurrences bound to the Zone, the Clip-deletion owner for its Clips with that owner's Transition and Clip-track cascades, then the Layer owner for its now-unreferenced Layers - and finally drops the Zone's membership and ranges from every definition, dropping an operator that named it exactly as v1 does. |
 
 Identity is never allocated inside either owner: `add` takes the complete new
-Zone, and the editor seeds it from `showV2AddZoneIntent` with v1's defaults -
+Zone, and the editor seeds it from `planShowV2ZoneAdd` (`src/engine/showV2ZonePlanning.ts`) -
 `zone-<n>`, 60 nominal pixels and the next palette color - plus a fresh
 workspace id.
 
@@ -131,8 +131,7 @@ owner, so a malformed runtime object never reaches preparation or adoption.
 
 ## Proof
 
-- `src/engine/showZonesV2.test.ts`, `src/engine/showZoneLayoutDefinitionsV2.test.ts`
-  and `src/engine/showV2ZoneLayoutEditorModel.test.ts`: immutable preimage,
+- `src/engine/showZonesV2.test.ts` and `src/engine/showZoneLayoutDefinitionsV2.test.ts`: immutable preimage,
   reopened records through the provisional codec, `prepareShowStageV2` for the
   `references missing zone` counterexample, every refusal code, and the v1
   parameter conversions.

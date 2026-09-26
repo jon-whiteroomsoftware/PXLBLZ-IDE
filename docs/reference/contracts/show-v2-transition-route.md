@@ -52,7 +52,7 @@ outside this slice. Existing Stage sample-from-position behavior is unchanged.
 
 ## Transition Insert, settings and Reset to Cut (#1038)
 
-The pilot mounts `ShowV2TransitionEditor` beside its existing duration control.
+The editor mounts `ShowLayerTransitionEditor` (the Layer Transition Details popover) beside its existing duration control.
 The panel selects one derived Cut junction or one existing Transition and calls
 `admitShowV2PilotTransitionEdit`, the third public typed wrapper on the same
 private closed dispatch. Its `transition-edit` command accepts exactly `insert`,
@@ -144,7 +144,7 @@ atomic refusal, unrepaired and unwidened by this slice.
 [route model tests](../../../src/engine/showV2TransitionEditorModel.test.ts),
 [carrier tests](../../../src/engine/showTransitionsV2RampCarrier.test.ts),
 [topology partitions](../../../src/engine/showTransitionsV2Completion.test.ts),
-[panel tests](../../../src/components/ShowV2TransitionEditor.test.tsx) and the
+[popover wiring](../../../src/components/ShowEditorV2Tracer.test.tsx) and the
 [authenticated flow](../../../e2e/show-v2-transitions.auth.spec.ts) own this proof;
 the packet is [issue-1038-transition-route](../evidence/issue-1038-transition-route/test-design.json).
 

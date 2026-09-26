@@ -1131,8 +1131,8 @@ accepts all seven persisted target kinds plus Clip-relative shortcuts for
 opacity, view, Transform, Viewport, numeric Effect parameters, Pattern controls,
 and time scale. Its strict key array accepts two or more Show-global keys and
 retains normalized structured easing in the receipt. `edit_property_keyframes`
-resolves existing key IDs against one preimage and delegates one add/update/delete
-set to `editShowPropertyKeyframes`, which sorts and validates the final track once.
+resolves existing key IDs against one preimage and delegates one add/update/remove
+set to `editShowPropertyV2`, which sorts and validates the final track once.
 This permits time swaps and delete/add replacement while preserving the two-key
 floor, Scene ownership, target identity, and dependency validation.
 
@@ -1247,11 +1247,12 @@ visible composition, so the first render matches post-edit state.
 **Groups.** `groupDefinitions`/`groupOccurrences` persist linked reuse without
 a second timeline model: a definition owns instances, relative placements,
 internal Transitions, and tracks; an occurrence owns interval, Zone, start,
-base Layer, and X/Y offset. `showGroupModel.ts` owns selection closure
-(transitive over touched non-Cut Transition chains), validation over the
-materialized result, Duplicate (shared definition), Make Unique, Ungroup, and
-occurrence-prefixed materialization at compile/preview boundaries so private
-state never leaks between occurrences. Double-click enters modeless isolation;
+base Layer, and X/Y offset. `showGroupModel.ts` owns validation over the
+materialized result and occurrence-prefixed materialization at compile/preview
+boundaries so private state never leaks between occurrences; the v2 edit owners
+are `showGroupEditsV2.ts` (Duplicate via `duplicateShowGroupOccurrenceV2`,
+Make Unique via `makeShowGroupUniqueV2`, Ungroup via `ungroupShowGroupOccurrenceV2`)
+and `showGroupCreationV2.ts` (`createShowGroupFromSelectionV2`). Double-click enters modeless isolation;
 stale isolation closes itself.
 
 **Layer Transitions.** Only positive-duration records persist; Cuts are
