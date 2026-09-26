@@ -8,7 +8,7 @@ import { convertibleV1Show } from '../../../test/showV2TracerFixture'
 import worker, { type WorkerEnv } from '../../index'
 
 // This Node suite exercises Shows routes; native OAuth runs in workerd suites.
-vi.mock('@cloudflare/workers-oauth-provider', () => ({ OAuthProvider: class {}, OAuthError: Error }))
+vi.mock('@cloudflare/workers-oauth-provider', async () => (await import('../../../test/oauthProviderFake')).oauthProviderModule())
 
 const userId = 'github:123'
 const retired = {

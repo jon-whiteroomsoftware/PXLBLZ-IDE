@@ -10,7 +10,7 @@ import worker, { handleApiRequest, type WorkerEnv } from './index'
 import type { WorkerRoute } from './router'
 
 // OAuth's native workerd import is exercised by the real-runtime suites.
-vi.mock('@cloudflare/workers-oauth-provider', () => ({ OAuthProvider: class {}, OAuthError: Error }))
+vi.mock('@cloudflare/workers-oauth-provider', async () => (await import('../test/oauthProviderFake')).oauthProviderModule())
 
 function envWithAssets(assets?: (request: Request) => Response): WorkerEnv {
   return {
