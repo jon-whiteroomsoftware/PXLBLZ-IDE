@@ -66,9 +66,10 @@ matter most:
 time or to another Zone or Layer, subject to the usual overlap checks. A time
 move carries Transition-connected Clips along with it, and resizing an edge
 ripples the Clips connected after it while the Transition stays intact. A Clip
-at either end of a Transition cannot change Zone or Layer; remove the
-Transition first. `create_layers` adds overlay Layers, optionally with Clips
-already on them.
+at either end of a Transition between two Clips cannot change Zone or Layer;
+remove that Transition first. A whole-output Transition does not block the
+move unless it was converted from an older Show file's scene boundary.
+`create_layers` adds overlay Layers, optionally with Clips already on them.
 
 ## Appearance over time
 
