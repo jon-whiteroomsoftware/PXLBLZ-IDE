@@ -2358,6 +2358,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
         const split = page.getByRole('button', { name: 'Split at playhead' })
         if (admission.toolbarSplit.accepted) await clickToolbarSplitWithFixedId(page)
         else {
+          await split.hover()
           await expect(split).toHaveAttribute('aria-disabled', 'true')
           await split.press('Enter')
           await expect(page.getByRole('status', { name: 'Split unavailable' })).toBeVisible()
@@ -2451,6 +2452,7 @@ test.describe('agent editing baseline (#945): reproductions on the live Show edi
       if (admission.toolbarSplit) {
         // Closing the inspector preserves selection; Undo removes that selected
         // right half. The same action must resolve the restored Clip again.
+        await page.getByRole('button', { name: 'Split at playhead' }).hover()
         await expect(page.getByRole('button', { name: 'Split at playhead' })).not.toHaveAttribute('aria-disabled', 'true')
         await clickToolbarSplitWithFixedId(page)
         await expect.poll(successfulSaves).toBe(++saveCount)
