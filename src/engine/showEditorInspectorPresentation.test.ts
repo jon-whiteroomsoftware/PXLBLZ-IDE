@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import type { ShowRecord } from './personalContentRecords'
-import { formatShowBoundaryIdentity, showBoundaryClipIdentity } from './showClipIdentity'
+import { formatShowBoundaryIdentity } from './showClipIdentity'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { createDefaultShow } from './showModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
@@ -432,7 +433,7 @@ describe('routing transfer parity on the committed corpus', () => {
     const transfer = projectShowEditorRoutingTransfersV2(converted)[routing!.id]
 
     expect(transfer, `v2 transfer for ${routing!.id}`).toBeDefined()
-    expect(transfer!.boundaryIdentity).toBe(showBoundaryClipIdentity(source, routing!.afterSceneId))
+    expect(transfer!.boundaryIdentity).toBe(frozenV1Output<string>('showEditorInspectorPresentation.test.ts::routing transfer::1'))
     expect(transfer!.layoutId).toBe(routing!.layoutId)
     expect(transfer!.durationMs).toBe(routing!.durationMs)
     expect(transfer!.easing).toEqual(routing!.easing)
@@ -787,7 +788,6 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
   })
 
   it('reads the destination and outgoing sides the authored Transition names', () => {
-    const source = corpusSource('fresh')
     const record = participantBoundary()
     const before = structuredClone(record)
 
@@ -795,7 +795,7 @@ describe('projectShowEditorBoundaryTransitionsV2', () => {
 
     // Destination time and the Pattern starting there, exactly as the existing
     // boundary identity reads it from v1.
-    expect(boundary.boundaryIdentity).toBe(showBoundaryClipIdentity(source, 'scene-1'))
+    expect(boundary.boundaryIdentity).toBe(frozenV1Output<string>('showEditorInspectorPresentation.test.ts::boundary::1'))
     expect(boundary.destinations).toEqual([{
       zoneId: 'zone-1',
       zoneName: 'main',

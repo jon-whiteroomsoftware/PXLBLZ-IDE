@@ -19,7 +19,6 @@ import { insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
 import { projectShowUnifiedTimeline, type ShowUnifiedTimelineJunctionProjection } from './showUnifiedTimelineProjection'
 import { addShowZone, createDefaultShow, type ShowCompileRecipeSourceLookup } from './showModel'
 import { stockMapSpec } from './maps'
-import { projectFlatShowToCompositionV1 } from './showCompositionModel'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import { V1_STOCK_SHOWS, v1StockShowById } from '../test/v1StockShowsFixture'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
@@ -140,7 +139,7 @@ describe('v2 Layer Transition insertion plan (#1075 G4b-2a)', () => {
       }
       converted.push(`${input.corpus}:${input.corpusId}`)
       const { show } = input
-      const composition = show.composition ?? projectFlatShowToCompositionV1(show, lookup)
+      const composition = show.composition ?? frozenV1Output<ShowCompositionV1>(`showV2LayerTransitionInsertion.test.ts::flat projection::${input.corpus}:${input.corpusId}`)
       const record = conversion.record
       const projection = projectShowUnifiedTimeline(show, composition)
       for (const zone of projection.zones) {

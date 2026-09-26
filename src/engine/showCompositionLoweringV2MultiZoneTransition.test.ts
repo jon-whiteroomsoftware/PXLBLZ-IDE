@@ -15,7 +15,7 @@ import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import {
   addShowScene, addShowZone, createShowWithOutputContract, extendShowCell, placeShowClip,
-  removeShowClip, showRecordToCompileRecipe, splitShowAtTime, updateShowBoundaryTransition, updateShowCellPattern, updateShowRoutingLayout,
+  removeShowClip, showRecordToCompileRecipe, updateShowBoundaryTransition, updateShowCellPattern, updateShowRoutingLayout,
 } from './showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -24,6 +24,7 @@ import { canLowerShowV2ToFlat } from './showFlatLoweringV2'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { planShowV2BoundaryTransitionChanges } from './showV2TransitionEditorModel'
 import type { ShowTransitionChanges } from './showTransitionAuthoring'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 
 /**
  * Carrying a participant Transition on the continuous-flat route once a Show
@@ -228,8 +229,7 @@ describe('a second Zone with its own Clip', () => {
   it('admits a Clip that ends before the outgoing Clip and compiles the v1 bytes', () => {
     // v1's equivalent: split the first Scene at 20s so the Zone-2 Clip owns
     // only the first part, keeping one continuous Clip on Zone 1.
-    let legacy = addShowZone(freshV1(INSTALLATION))
-    legacy = splitShowAtTime(legacy, 20_000)
+    let legacy = frozenV1Output<ShowRecord>('showCompositionLoweringV2MultiZoneTransition.test.ts::second Zone split::1')
     legacy = removeShowClip(legacy, 'cell-3')
     legacy = extendShowCell(legacy, 'cell-1', 2)
     legacy = placeShowClip(legacy, 'zone-2', 'scene-1', { pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D' })

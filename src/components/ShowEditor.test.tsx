@@ -62,12 +62,17 @@ vi.mock('@/engine/showVmResourceLedger', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/engine/showVmResourceLedger')>()
   return { ...actual, SHOW_ARTIFACT_BUDGET_BYTES: 30_000 }
 })
-import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
+import { frozenV1Output } from '@/test/v1AuthoringOracles'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 import { appendShowLayoutInterval } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import * as preparedStage from '@/engine/showPreparedStageV2'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
+
+type FrozenFreezeFixture = {
+  show: ShowRecord & { composition: NonNullable<ShowRecord['composition']> }
+  patterns: PatternRecord[]
+}
 
 /**
  * Zone Layout definitions are authored in the Zone Map, reached from the Zone
@@ -6186,7 +6191,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('keeps active Controller transforms in the source advisory when renderer pressure blocks delivery (#849)', () => {
-    const [, fixture] = buildShowCompositionFreezeCases()
+    const [, fixture] = frozenV1Output<FrozenFreezeFixture[]>('showCompositionFreeze.ts::cases::1')
     const show = structuredClone(fixture.show)
     for (const scene of show.composition.scenes) {
       for (const zone of scene.zones) {
@@ -7085,7 +7090,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   })
 
   it('surfaces actionable renderer pressure without tinting the source gauge (#63, #492, #499)', () => {
-    const [portable, installation] = buildShowCompositionFreezeCases()
+    const [portable, installation] = frozenV1Output<FrozenFreezeFixture[]>('showCompositionFreeze.ts::cases::1')
     usePatternStore.setState({ userPatterns: portable.patterns })
     const portableEditor = openV2EditorForRecord(convertForTest(portable.show, Object.fromEntries(portable.patterns.map((pattern) => [pattern.id, pattern.src]))))
 

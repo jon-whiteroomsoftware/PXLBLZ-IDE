@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { showV2ViewModelCorpus } from '../test/showV2ViewModelCorpus'
 import { convertShowRecordV1ToV2, type ShowV1ToV2Report } from './showRecordV1ToV2'
-import {
-  projectShowTimelineViewModel,
-  type ShowTimelineItemView,
-  type ShowTimelineLayerView,
-  type ShowTimelineViewModel,
-} from './showTimelineViewModel'
+import type { ShowTimelineItemView, ShowTimelineLayerView, ShowTimelineViewModel } from './showTimelineViewModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { projectShowTimelineV2 } from './showTimelineViewModelV2'
 
 /**
@@ -55,7 +51,7 @@ describe('Show timeline view-model parity across the 47-record corpus', () => {
       expect(conversion.status).toBe('converted')
       if (conversion.status !== 'converted') return
       const { record, report } = conversion
-      const v1 = projectShowTimelineViewModel(entry.show, entry.editorComposition)
+      const v1 = frozenV1Output<ShowTimelineViewModel>(`showTimelineViewModelParity.test.ts::corpus::${entry.corpus}:${entry.corpusId}`)
       const v2 = projectShowTimelineV2(record)
 
       expect(v2.recordVersion).toBe(2)

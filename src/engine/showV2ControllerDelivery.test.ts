@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import { convertForTest } from '@/test/showEditorV2Harness'
-import { buildShowCompositionFreezeCases } from './showCompositionFreeze'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { createShowWithOutputContract } from './showModel'
 import { createInstallationShowOutputContract } from './showOutputContract'
@@ -10,7 +10,7 @@ import { installationCoverageBlockingMessage } from './showInstallationCoverage'
 import { validateInstallationCoverageV2 } from './showInstallationCoverageV2'
 import { captureShowStageEditV2, type ShowPreparedStageDependenciesV2 } from './showPreparedStageV2'
 import { portableTargetPixelBlocker } from './showPreviewArtifact'
-import type { PatternRecord } from './personalContentRecords'
+import type { PatternRecord, ShowRecord } from './personalContentRecords'
 import {
   compileShowV2ForDelivery,
   exportShowV2ForDelivery,
@@ -18,6 +18,11 @@ import {
   prepareShowV2ForController,
   type ShowV2ControllerTarget,
 } from './showV2ControllerDelivery'
+
+type FrozenFreezeFixture = {
+  show: ShowRecord & { composition: NonNullable<ShowRecord['composition']> }
+  patterns: PatternRecord[]
+}
 
 // The editor's `preparedV2Dependencies` shape with no personal content: stock
 // Patterns, libraries and maps resolve inside preparation.
@@ -89,7 +94,7 @@ describe('prepareShowV2ControllerDelivery (#1129)', () => {
   })
 
   it('refuses a renderer-pressure-blocked Show at the pressure stage (#849)', () => {
-    const [, fixture] = buildShowCompositionFreezeCases()
+    const [, fixture] = frozenV1Output<FrozenFreezeFixture[]>('showCompositionFreeze.ts::cases::1')
     const show = structuredClone(fixture.show)
     for (const scene of show.composition.scenes) {
       for (const zone of scene.zones) {

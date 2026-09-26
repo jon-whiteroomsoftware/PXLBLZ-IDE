@@ -10,7 +10,6 @@ import {
   addShowZone,
   createDefaultShow,
   extendShowCell,
-  splitShowAtTime,
   updateShowCellAdaptations,
   updateShowCellRestartOnEntry,
   updateShowTransition,
@@ -37,6 +36,7 @@ import {
 import { showRecordToCompileRecipe, type ShowCompileRecipeSourceLookup } from './showModel'
 import type { ShowRecipe } from './showCompiler'
 import type { ShowRecord } from './personalContentRecords'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 
 describe('retired stock Pattern references (#63)', () => {
   it('resolves a retired stock id to its successor source', () => {
@@ -709,7 +709,7 @@ export function render(index) { rgb(field[index], 0, 0) }
   )
 
   it('uses shared preview state for Continue and isolated state for Restart (#415)', () => {
-    const continued = splitShowAtTime(createDefaultShow('show-1', 'Split preview'), 10_000)
+    const continued = frozenV1Output<ShowRecord>('showPreviewArtifact.test.ts::Continue Restart preview::1')
     const destination = continued.cells.find((cell) => cell.sceneId === 'scene-3')!
 
     const continueArtifact = compileShowForPreview(continued, [], undefined, {}).artifact

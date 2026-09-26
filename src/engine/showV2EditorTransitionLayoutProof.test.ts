@@ -11,7 +11,7 @@ import { prepareShowStageV2 } from './showPreparedStageV2'
 import { qualifyShowV2PilotArtifacts } from './showV2Pilot'
 import { editShowTransitionV2 } from './showTransitionsV2'
 import { projectShowTimelineV2 } from './showTimelineViewModelV2'
-import { showTimelineSelectionKey } from './showTimelineViewModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import {
   buildShowV2LayoutEditorModel,
   planShowV2LayoutEdit,
@@ -228,8 +228,12 @@ describe('the v2 editor Zone Layout lane', () => {
     const lane = buildShowV2LayoutEditorModel(record)
     expect(lane.occurrences.map(value => value.id))
       .toEqual(projectShowTimelineV2(record).layoutIntervals.map(interval => interval.id))
-    expect(lane.occurrences.map(value => showTimelineSelectionKey({ kind: 'layout-occurrence', occurrenceId: value.id })))
-      .toEqual(projectShowTimelineV2(record).layoutIntervals.map(interval => showTimelineSelectionKey(interval.selection)))
+    const laneSelectionKeys = frozenV1Output<string[]>('showV2EditorTransitionLayoutProof.test.ts::lane selections::1')
+    const intervalSelectionKeys = frozenV1Output<string[]>('showV2EditorTransitionLayoutProof.test.ts::interval selections::1')
+    const occurrenceId = (key: string) => key.replace(/^layout-occurrence:/, '')
+    expect(lane.occurrences.map(value => value.id)).toEqual(laneSelectionKeys.map(occurrenceId))
+    expect(projectShowTimelineV2(record).layoutIntervals.map(interval => interval.id)).toEqual(intervalSelectionKeys.map(occurrenceId))
+    expect(laneSelectionKeys).toEqual(intervalSelectionKeys)
 
     expect(planShowV2LayoutEdit(record, request, allocator('a')))
       .toEqual(planShowV2LayoutEdit(record, request, allocator('b')))

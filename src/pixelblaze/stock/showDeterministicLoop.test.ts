@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyShowPatternSlotSelections, restoreShowReferencePatternSlots } from '@/engine/showReferenceShow'
-import { replaceShowPatternInstance } from '@/engine/showCompositionModel'
+import { frozenV1Output } from '@/test/v1AuthoringOracles'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { nativeDimension } from '@/engine/loadPattern'
@@ -98,11 +98,8 @@ describe('stock deterministic-loop census (#823)', () => {
       entry.show.composition?.executionModel === 'deterministic-loop'
       && entry.patternSlots?.some((group) => group.instanceIds.length > 0)
     ))!
-    const instanceId = item.patternSlots!.find((group) => group.instanceIds.length > 0)!.instanceIds[0]
     // Permanent Clip Detail-style reassignment forfeits the cast-bound proof.
-    const replaced = replaceShowPatternInstance(
-      item.show.composition!, instanceId, { pattern: { kind: 'stock', id: 'IceFloes2D' }, patternName: 'IceFloes2D' },
-    )
+    const replaced = frozenV1Output<NonNullable<typeof item.show.composition>>('showDeterministicLoop.test.ts::permanent reassignment::1')
     expect(replaced.executionModel).toBeUndefined()
     // Restoring the authored cast after a transient projection restores it.
     const projected = applyShowPatternSlotSelections(

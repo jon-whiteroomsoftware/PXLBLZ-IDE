@@ -8,9 +8,9 @@ import { parseEpe } from './epeImport'
 import { createFastReplayRuntime } from './fastReplay'
 import { layoutOccurrencesBlockedV2 } from './showBoundaryScopeV2'
 import { createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
-import { projectFlatShowToCompositionV1 } from './showCompositionModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
+import type { ShowRecord } from './personalContentRecords'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import { duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
 import { planShowV2LayoutEdit } from './showV2LayoutEditorModel'
 import { createShowGroupFromSelectionV2 } from './showGroupCreationV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
@@ -961,10 +961,7 @@ describe('the repair retimes a Show-scoped repeat-scale track (#1068)', () => {
 describe('a Scene Property track retimes through the repair as v1 Remove does (#1068)', () => {
   function sceneTrackSource(keys: number[]) {
     const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
-    source.composition = projectFlatShowToCompositionV1(source, {
-      byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
-      stageDimension: 1,
-    })
+    source.composition = frozenV1Output<NonNullable<typeof source.composition>>('showConvertedBoundaryRepairV2.test.ts::sceneTrackSource::1')
     const scene = source.composition.scenes[1]
     scene.propertyTracks = [{
       id: 'scene-2-brightness',
@@ -1013,10 +1010,7 @@ describe('changing a converted boundary duration retimes the loop as v1 does (#1
       show.scenes[1].sampleTargets = { repeatScale: 2 }
     }
     if (kind === 'track') {
-      show.composition = projectFlatShowToCompositionV1(show, {
-        byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
-        stageDimension: 1,
-      })
+      show.composition = frozenV1Output<NonNullable<typeof show.composition>>('showConvertedBoundaryRepairV2.test.ts::track source::1')
       const scene = show.composition.scenes[1]
       scene.propertyTracks = [{
         id: 'scene-2-brightness',
@@ -1082,10 +1076,7 @@ describe('changing a converted boundary duration retimes the loop as v1 does (#1
 describe('the outgoing Scene track retimes its end through the repair (#1068)', () => {
   function outgoingTrackSource() {
     const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
-    source.composition = projectFlatShowToCompositionV1(source, {
-      byCellId: Object.fromEntries(source.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])),
-      stageDimension: 1,
-    })
+    source.composition = frozenV1Output<NonNullable<typeof source.composition>>('showConvertedBoundaryRepairV2.test.ts::outgoingTrackSource::1')
     const scenes = source.composition.scenes
     scenes[0].propertyTracks = [{
       id: 'scene-1-brightness',
@@ -1180,8 +1171,7 @@ describe('Layout occurrence edits promote a converted boundary (#1068)', () => {
     expect(duplicated.record.composition.layoutOccurrences.map(o => [o.id, o.startMs, o.durationMs])).toEqual([[occurrenceId, 0, 62000], ['dup-empty', 62000, 62000]])
     expect(duplicated.record.composition.transitions.map(t => [t.id, t.participants, t.wholeOutput])).toEqual([[BOUNDARY, [], { startMs: 30000, fromClipIds: [LEFT], toClipIds: [RIGHT] }]])
     expect(duplicated.affectedTransitionIds).toContain(BOUNDARY)
-    const source = createDefaultShow('boundary-repair', 'Boundary repair', 1)
-    const v1 = duplicateShowLayoutInterval(source, projectShowLayoutIntervals(source)[0].id, { withContent: false })
+    const v1 = frozenV1Output<ShowRecord>('showConvertedBoundaryRepairV2.test.ts::duplicate empty layout::1')
     const converted = convertShowRecordV1ToV2(v1, { byCellId: Object.fromEntries(v1.cells.map(cell => [cell.id, DEMOS[resolveStockPatternId(cell.pattern.id)]])) })
     expect(converted.status).toBe('converted')
     if (converted.status !== 'converted') throw new Error(JSON.stringify(converted))

@@ -9,7 +9,6 @@ import {
   normalizeShowTransitionState,
   placeShowClip,
   showRecordToCompileRecipe,
-  splitShowAtTime,
   updateShowBoundaryTransition,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -23,6 +22,7 @@ import {
   serializedShowCompositionBytes,
 } from './showCompositionProjection'
 import type { ShowRecord } from './personalContentRecords'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 
 const SOURCE = `export function render(index) { rgb(index / 60, 0.2, 0.4) }`
 
@@ -94,7 +94,7 @@ describe('flat Show Scene-composition projection spike (#462)', () => {
     expect(heldProjection.scenes.flatMap((scene) => scene.placements)).toHaveLength(2)
     expect(new Set(heldProjection.scenes.flatMap((scene) => scene.placements.map((placement) => placement.instanceId))).size).toBe(1)
 
-    const split = splitShowAtTime(held, 10_000)
+    const split = frozenV1Output<ShowRecord>('showCompositionProjection.test.ts::Continue Restart projection::1')
     const continued = projectFlatShowComposition(split, lookup(split))
     expect(continued.patternInstances.filter((instance) => instance.compiled)).toHaveLength(1)
 

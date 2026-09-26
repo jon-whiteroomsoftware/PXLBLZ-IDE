@@ -5,10 +5,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
 import type { ShowRecordV2 } from './showCompositionV2'
 import { projectShowTimeline, showLoopDurationMs, showVisualTransitionAfter } from './showModel'
-import {
-  projectShowTimelineViewModel,
-  type ShowTimelineViewModel,
-} from './showTimelineViewModel'
+import type { ShowTimelineViewModel } from './showTimelineViewModel'
 import {
   projectShowEditorTimeColumnsV2,
   projectShowEditorTimelineV2,
@@ -97,7 +94,7 @@ describe.each(manifest.corpus)('$key timeline', testCase => {
   })
 
   it('presents the same Show identity, loop length and Zone rows', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     expect(v2.showId).toBe(v1.showId)
     expect(v2.showEndMs).toBe(v1.showEndMs)
@@ -140,7 +137,7 @@ describe.each(manifest.corpus)('$key timeline', testCase => {
   })
 
   it('presents the same Layout lane windows, Zones and labels', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const intervals = (view: ShowTimelineViewModel) => view.layoutIntervals.map(interval => ({
       definitionId: interval.definitionId,
@@ -161,7 +158,7 @@ describe.each(manifest.corpus)('$key timeline', testCase => {
    * the v1 editor drew, which for every committed case is the authored set.
    */
   it('presents the same visible Markers the v1 timeline drew', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const visible = (view: ShowTimelineViewModel) => view.markers.map(marker => ({
       id: marker.id,
@@ -202,7 +199,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   const record = convert(source)
 
   it('presents the same Layer names, ranks and lane order', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const layers = (view: ShowTimelineViewModel) => view.rows.map(row => ({
       zoneId: row.zoneId,
@@ -213,7 +210,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   })
 
   it('presents the same Clip items, held appearance and lane membership', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const items = (view: ShowTimelineViewModel) => view.rows.flatMap(row => row.layers.flatMap(layer => (
       layer.items.map(item => ({
@@ -236,7 +233,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   })
 
   it('presents the same Layer junctions and Cut targets', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const junctions = (view: ShowTimelineViewModel) => {
       const positions = layerPositions(view)
@@ -256,7 +253,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   })
 
   it('presents the same Group bands', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const groups = (view: ShowTimelineViewModel) => view.rows.flatMap(row => row.groups.map(group => ({
       id: group.id,
@@ -275,7 +272,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   })
 
   it('presents the same Transitions, windows and participants', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const transitions = (view: ShowTimelineViewModel) => {
       const positions = layerPositions(view)
@@ -301,7 +298,7 @@ describe.each(composed)('$key composed timeline', testCase => {
   })
 
   it('keeps every v1 snap candidate except the Scene-only boundaries', () => {
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const v2 = projectShowEditorTimelineV2(record)
     const retained = new Set<number>([
       0,
@@ -480,7 +477,7 @@ describe.each(grouped)('$key Group Clip inspector', testCase => {
   })
 
   it('places every Group occurrence over the same Show window and lanes', () => {
-    const timeline = projectShowTimelineViewModel(source)
+    const timeline = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`)
     const presentation = projectShowEditorInspectorPresentationV2(record, testCase.fixedTimeMs)
     for (const band of timeline.rows.flatMap(row => row.groups)) {
       const v2 = presentation.groupsByOccurrenceId[band.id]
@@ -608,7 +605,7 @@ describe('editor timeline Marker visibility with authored Markers', () => {
   it('draws exactly the Markers the v1 timeline drew', () => {
     const source = sourceWithAuthoredMarkers()
     const record = convert(source)
-    const v1 = projectShowTimelineViewModel(source)
+    const v1 = frozenV1Output<ShowTimelineViewModel>('showEditorPresentationEquivalence.test.ts::authored Markers::1')
     const v2 = projectShowEditorTimelineV2(record)
     const visible = (view: ShowTimelineViewModel) => view.markers.map(marker => ({
       id: marker.id,
@@ -756,7 +753,7 @@ describe.each(grouped)('$key Group binding and reuse', testCase => {
       const v2 = presentation.groupsByOccurrenceId[occurrence.id]!
       expect(v2.baseLayer, `${testCase.key}/${occurrence.id} base Layer`).toBe(occurrence.baseLayer)
       expect(v2.clipCount).toBe(definition.placements.length)
-      const band = projectShowTimelineViewModel(source).rows
+      const band = frozenV1Output<ShowTimelineViewModel>(`showEditorPresentationEquivalence.test.ts::timeline::${testCase.key}`).rows
         .flatMap(row => row.groups).find(candidate => candidate.id === occurrence.id)!
       const lanes = v2.layerBindings
         .map(binding => positions.get(binding.layerId))

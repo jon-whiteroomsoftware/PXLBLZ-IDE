@@ -8,7 +8,7 @@ import { editShowTransitionV2, type ShowTransitionEditIntentV2 } from '@/engine/
 import { editShowZoneV2 } from '@/engine/showZonesV2'
 import { editShowLayerV2 } from '@/engine/showLayersV2'
 import { visualWindows } from '@/engine/showTimelineV2'
-import { showBoundaryClipIdentity } from '@/engine/showClipIdentity'
+import { frozenV1Output } from '@/test/v1AuthoringOracles'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
@@ -1182,7 +1182,7 @@ function boundaryPanel(): HTMLElement {
 
 describe('v2 boundary Transition inspector (#1065)', () => {
   it('opens the boundary panel from a participant-scope junction the user clicks', async () => {
-    const { source, record } = convertedFreshBoundary('tracer-boundary-fresh')
+    const { record } = convertedFreshBoundary('tracer-boundary-fresh')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
@@ -1195,14 +1195,14 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     }))
     await act(async () => {})
 
-    expect(within(boundaryPanel()).getByText(showBoundaryClipIdentity(source, 'scene-1')))
+    expect(within(boundaryPanel()).getByText(frozenV1Output<string>('ShowEditorV2Tracer.test.tsx::fresh boundary::1')))
       .toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Layer Transition Details' })).not.toBeInTheDocument()
     expectNoWrite(before, editor.state())
   })
 
   it('reads supported advanced rows from the authored record', async () => {
-    const { source, record } = convertedAdvancedBoundary('tracer-boundary-advanced')
+    const { record } = convertedAdvancedBoundary('tracer-boundary-advanced')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
@@ -1215,7 +1215,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     const panel = boundaryPanel()
     // The boundary heading v1 draws, resolved from the authored destination
     // time and the Pattern that starts there.
-    expect(within(panel).getByText(showBoundaryClipIdentity(source, 'scene-1'))).toBeInTheDocument()
+    expect(within(panel).getByText(frozenV1Output<string>('ShowEditorV2Tracer.test.tsx::advanced boundary::1'))).toBeInTheDocument()
     // The Change button is the palette's only entry point, and it stays enabled.
     expect(within(panel).getByRole('button', { name: /Change$/ })).toBeEnabled()
     // The crossfade-only control and its cost readout, exactly as v1 draws them.
@@ -1375,7 +1375,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
   })
 
   it('reads a native whole-output Transition through the same boundary panel', async () => {
-    const { source, record } = nativeWholeOutputBoundary('tracer-boundary-whole-output')
+    const { record } = nativeWholeOutputBoundary('tracer-boundary-whole-output')
     const editor = openV2EditorForRecord(record)
     render(<ShowEditor showId={editor.showId} />)
     const before = editor.state()
@@ -1388,7 +1388,7 @@ describe('v2 boundary Transition inspector (#1065)', () => {
     await act(async () => {})
 
     const panel = boundaryPanel()
-    expect(within(panel).getByText(showBoundaryClipIdentity(source, 'scene-2'))).toBeInTheDocument()
+    expect(within(panel).getByText(frozenV1Output<string>('ShowEditorV2Tracer.test.tsx::whole output boundary::1'))).toBeInTheDocument()
     fireEvent.click(within(panel).getByText('Advanced transition controls'))
     // The outgoing scalar is the one handed over at the boundary, not the one
     // the outgoing Clip started with two Scenes earlier.

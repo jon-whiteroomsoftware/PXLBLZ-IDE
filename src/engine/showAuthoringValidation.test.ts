@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { captureShowAuthoringBaseline, validateShowAuthoring } from './showAuthoringValidation'
-import { projectFlatShowToCompositionV1 } from './showCompositionModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { personalBaseShow } from '../agent-harness/baseline/fixtures'
 import { stockPatternSource } from '../agent-harness/shows/stockCatalogue'
 import { LIBRARIES } from '../pixelblaze/libs'
@@ -14,10 +14,7 @@ import { LIBRARIES } from '../pixelblaze/libs'
  */
 function openGrammarFixture(): { document: { show: ReturnType<typeof personalBaseShow> } } {
   const show = personalBaseShow('authoring-fixture')
-  show.composition = projectFlatShowToCompositionV1(show, {
-    byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, stockPatternSource(cell.pattern.id)!])),
-    stageDimension: 2,
-  })
+  show.composition = frozenV1Output<NonNullable<typeof show.composition>>('showAuthoringValidation.test.ts::openGrammarFixture::1')
   return { document: { show } }
 }
 

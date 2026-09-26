@@ -39,6 +39,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import type { ShowRecord } from './personalContentRecords'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 
 function expectHoleFreeStrip(show: ShowRecord): void {
   const strip = projectShowStrip(show)
@@ -685,7 +686,7 @@ describe('showModel (#318)', () => {
   })
 
   it('compiles Continue as shared Pattern state and Restart as a fresh instance (#415)', () => {
-    const continued = splitShowAtTime(createDefaultShow('show-1', 'Split Show', 1), 10_000)
+    const continued = frozenV1Output<ShowRecord>('showModel.test.ts::Continue Restart compile::1')
     const destination = continued.cells.find((cell) => cell.sceneId === 'scene-3')!
     const sources = {
       byCellId: Object.fromEntries(continued.cells.map((cell) => [
