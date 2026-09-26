@@ -543,6 +543,8 @@ or focus it and press **Enter**, to open the drawer. Pin it to keep it beside
 the timeline. The drawer starts with a choice: **Use the Pixelblaze agent** or
 **Connect your agent with MCP**.
 
+![The Agent drawer open beside the Show timeline, offering Use the Pixelblaze agent or Connect your agent with MCP above an empty Activity list.](../screenshots/agent-drawer-start.png)
+
 The built-in agent is the quick way in. Choose it, type a request in **Ask for
 an edit…**, and press **Send**. Above the message box, a counter shows how many
 messages you have left today and when the count resets.
@@ -574,6 +576,8 @@ unavailable while an edit is still in flight.
    "Connect to my Show in PXLBLZ." The window stays open for two minutes. When
    the agent calls, the drawer asks you to **Answer** or choose **Not now**,
    and gives you thirty seconds to decide.
+
+![The MCP setup steps in the Agent drawer: the endpoint with a Claude Code command to copy, the authorization step, and the Ready to connect button.](../screenshots/agent-drawer-mcp-setup.png)
 
 Steps 1 and 2 happen once per client. After that, connecting to a Show is
 just step 3. If a client goes unused for more than a day, expect it to ask you

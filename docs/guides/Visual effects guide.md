@@ -11,7 +11,7 @@ The fastest way to learn is to open **Shows > Built-in Shows** in Studio:
 visual references you can pick apart. Built-ins use the real editor; changes
 live in a session draft, and **Reset** or reload restores the shipped version.
 
-![A production Show with five Zones, compact property bands, Transition junctions, cost disclosure, and Stage coverage.](../screenshots/show-visual-toolkit-overview.png)
+![The Redline Installation Show paused at 18 seconds: five Zone rows of Clips divided by Interval Markers, the Zones, Stage, and Source code summaries under the preview controls, and the lit Stage.](../screenshots/show-visual-toolkit-overview.png)
 
 ## The ownership rule
 
@@ -44,7 +44,7 @@ Selecting an entity opens a modeless **Details** popover attached to it, and
 several can stay open for comparison. During a drag they hide, then reopen,
 so they never obscure placement.
 
-![A Clip's Entity Detail Panel: exact timing and brightness fields, tabbed Pattern/Place/Effects/Playback sections, Pattern controls, and instance sharing, all beside the surrounding timeline.](../screenshots/show-visual-toolkit-entity-detail.png)
+![A Clip's Details popover over the timeline: start, duration, brightness, and opacity fields; Pattern, Place, Effects, and Playback tabs; the Pattern's controls; and a Pattern instance shared by 40 Clips.](../screenshots/show-visual-toolkit-entity-detail.png)
 
 ## Choosing an Effect
 
