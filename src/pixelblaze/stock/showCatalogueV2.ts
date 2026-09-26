@@ -3161,6 +3161,33 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       defaultOpen: true
     }
   }
+,
+  {
+    id: "stock-show-installation-black-sun",
+    name: "Black Sun Installation",
+    track: "installation",
+    collection: "installations",
+    level: null,
+    order: 4,
+    lesson: "Black Sun Installation",
+    description: "Four grayscale Luma instances play a 120 BPM black hole on the 490-LED Eclipse Dome. A black disc swallows the centre while violet rings escape it and violet comets circle the halo; a photon ring hangs in the vacuum, a cyan spiral arm turns in quarter-turn beats, and the hole closes in four beat-locked steps before a white hit.",
+    note: {
+      label: "Installations",
+      title: "Black Sun Installation",
+      purpose: "Four grayscale Luma instances play a 120 BPM black hole on the 490-LED Eclipse Dome. A black disc swallows the centre while violet rings escape it and violet comets circle the halo; a photon ring hangs in the vacuum, a cyan spiral arm turns in quarter-turn beats, and the hole closes in four beat-locked steps before a white hit.",
+      notice: "The black hole is one inverted ellipse Aperture shared by the escaping rings and the spiral. The closing iris is one keyframe pair per Aperture property with a four-step curve, so it locks to the beat without a key per step. The halo comets are violet-tinted and luma-keyed, so their black drops out.",
+      prompts: [
+        "Scrub from Lock to Close: the hole shrinks in four hard steps, one every two seconds.",
+        "Open the artifact inventory: two LumaPinwheel instances turn the comets in opposite directions on the halo."
+      ],
+      guide: {
+        documentId: "show-visual-toolkit",
+        heading: "aperture-shapes-and-edges",
+        label: "Read aperture shapes and edges"
+      },
+      defaultOpen: true
+    }
+  }
 ]
 
 export function stockShowCatalogueById(id: string): StockShowCatalogueEntry | undefined {

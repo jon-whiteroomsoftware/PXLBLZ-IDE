@@ -90,6 +90,7 @@ describe('built-in entity organization', () => {
         { kind: 'entity', entityId: 'stock-show-showcase-redline-installation' },
         { kind: 'entity', entityId: 'stock-show-remix-overture' },
         { kind: 'entity', entityId: 'stock-show-installation-totality' },
+        { kind: 'entity', entityId: 'stock-show-installation-black-sun' },
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOW_CATALOGUE.length)

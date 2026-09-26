@@ -682,7 +682,8 @@ that add one idea at a time, **Showcases** cataloguing every Effect,
 Transition, animation, and easing, finished **Portable Shows** (the Coronal
 Mass Ejection remix, Quadrille), and map-specific **Installations** (the
 2,000-pixel Redline; Overture, a 128 BPM opening night for the Proscenium
-arch stage; and Totality, a solar eclipse on the 490-pixel Eclipse Dome).
+arch stage; Totality, a solar eclipse on the 490-pixel Eclipse Dome; and Black
+Sun, a 120 BPM black hole on the same dome).
 Edit them freely: changes live in a session draft,
 **Reset** or reload restores the shipped version, and **Clone** keeps your
 variant.

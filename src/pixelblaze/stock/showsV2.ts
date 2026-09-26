@@ -17,7 +17,7 @@
 // converts, so `npm run show:v2-native-parity` compares this builder's output
 // against converted legacy records rather than two outputs of one builder.
 // #1042 retires the legacy builder after migration.
-import type { ShowClipEffect, ShowStructuredEasing } from '@/engine/personalContentRecords'
+import type { ShowClipEffect, ShowClipViewport, ShowStructuredEasing } from '@/engine/personalContentRecords'
 import type { ShowRecordV2, ShowTransitionV2 } from '@/engine/showCompositionV2'
 import {
   CUBIC_IN,
@@ -91,6 +91,7 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   quadrilleRemixV2(),
   overtureRemixV2(),
   totalityInstallationV2(),
+  blackSunInstallationV2(),
 ]
 
 export function stockShowV2ById(id: string | null | undefined): ShowRecordV2 | undefined {
@@ -2411,6 +2412,62 @@ function totalityInstallationV2(): ShowRecordV2 {
       chapter('m-totality', 32_500, 'Totality'),
       chapter('m-third-contact', 48_000, 'Third contact'),
       chapter('m-release', 49_000, 'Release'),
+    ],
+  })
+}
+
+// Black Sun (#1137): 120 BPM on the Eclipse Dome. A black disc swallows the
+// centre; violet rings escape it, then only a photon ring hangs in the vacuum.
+// A cyan spiral arm turns in quarter-turn beats while the hole closes in four
+// beat-locked steps: one stepped segment per Aperture property. Violet comets
+// circle the halo, keyed so black drops out, and a white hit closes the Show.
+function blackSunInstallationV2(): ShowRecordV2 {
+  const end = 64_000
+  const violet = [0.55, 0.12, 1]
+  const cyan = [0.15, 0.95, 1]
+  const black = [0, 0, 0]
+  const luma = (loop: number, direction: number, spacing: number, width: number, feather: number, lean: number) => ({
+    sliderLoopInterval: loop, sliderDirection: direction, sliderSpacing: spacing, sliderWidth: width, sliderFeather: feather, sliderLean: lean,
+  })
+  const keyBlack = (id: string): ShowClipEffect => ({ id, kind: 'luma-key', target: 0, tolerance: 0.03, softness: 0.08 })
+  const hole: ShowClipViewport = { enabled: true, ...eclipseDisc(0.3), aperture: 'ellipse', edge: 'hard', invert: true }
+  const steps: ShowStructuredEasing = { curve: 'steps', steps: 4, position: 'end' }
+  const iris = (id: string, property: 'x' | 'y' | 'width' | 'height') =>
+    eclipseTrack(id, { kind: 'clip-aperture', clipId: 'spiral', property }, [[52_000, eclipseDisc(0.3)[property]], [60_000, eclipseDisc(0)[property], steps]])
+  const main = mainLayerId(ECLIPSE_ZONE)
+  const haloLayer = overlayLayerId(ECLIPSE_ZONE, 1)
+  return eclipseDomeShowV2({
+    id: 'stock-show-installation-black-sun',
+    name: 'Black Sun Installation',
+    showEndMs: end,
+    patternInstances: [
+      instance('comet', 'LumaPinwheel', 1, luma(0.2, 1, 0, 0.14, 0.5, 0.92)),
+      instance('counter-comet', 'LumaPinwheel', 1, luma(0.2, 0, 0, 0.14, 0.5, 0.08)),
+      instance('rings', 'LumaRings', 1, luma(0.05, 1, 0.27, 0.3, 0.5, 0.15)),
+      { ...steppedInstance('spiral', 'LumaSpiral', 1, 500), controlTargets: luma(0.2, 1, 0.053, 0.4, 0.3, 0.5) },
+    ],
+    layers: [mainLayer(ECLIPSE_ZONE, 'Field'), overlayLayer(ECLIPSE_ZONE, 1, 'Halo'), overlayLayer(ECLIPSE_ZONE, 2, 'Hit')],
+    clips: [
+      clip('escape', 'rings', ECLIPSE_ZONE, main, 8_000, 16_000, { aperture: hole, effects: [eclipseTint('escape-violet', black, violet)] }),
+      clip('photon-ring', 'rings', ECLIPSE_ZONE, main, 24_000, 12_000, {
+        aperture: { enabled: true, ...eclipseDisc(0.4), aperture: 'ring', ringWidth: 0.25, edge: 'soft', feather: 0.01 },
+        effects: [eclipseTint('photon-violet', [0.08, 0.02, 0.18], violet)],
+      }),
+      clip('spiral', 'spiral', ECLIPSE_ZONE, main, 36_000, 26_000, { aperture: hole, effects: [eclipseTint('spiral-cyan', black, cyan), eclipseDomeOnly('spiral-dome')] }),
+      clip('comet-1', 'comet', ECLIPSE_ZONE, haloLayer, 0, 24_000, { aperture: ECLIPSE_HALO_ONLY, effects: [eclipseTint('comet-violet', black, violet), keyBlack('comet-key')] }),
+      clip('comet-2', 'counter-comet', ECLIPSE_ZONE, haloLayer, 36_000, 26_000, { aperture: ECLIPSE_HALO_ONLY, effects: [eclipseTint('comet2-violet', black, violet), keyBlack('comet2-key')] }),
+      clip('hit', 'rings', ECLIPSE_ZONE, overlayLayerId(ECLIPSE_ZONE, 2), 62_000, 250, { effects: [eclipseTint('hit-white', [1, 1, 1], [1, 1, 1])] }),
+    ],
+    // The iris: one stepped segment per Aperture property, four hard rungs at
+    // 54, 56, 58 and 60 s from a single keyframe pair (the accepted budget trade).
+    propertyTracks: [iris('iris-x', 'x'), iris('iris-y', 'y'), iris('iris-w', 'width'), iris('iris-h', 'height')],
+    markers: [
+      chapter('m-horizon', 0, 'Event horizon'),
+      chapter('m-escape', 8_000, 'Escape'),
+      chapter('m-vacuum', 24_000, 'Vacuum'),
+      chapter('m-spiral', 36_000, 'Spiral'),
+      chapter('m-lock', 52_000, 'Lock'),
+      chapter('m-close', 62_000, 'Close'),
     ],
   })
 }
