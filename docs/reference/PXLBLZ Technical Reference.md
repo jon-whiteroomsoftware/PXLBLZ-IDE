@@ -1832,12 +1832,6 @@ Performance and hardware tiers stay explicit because their reliability and
 environments differ. Development builds expose a hidden Show Stage telemetry
 probe; production builds omit it.
 
-Private diagnostic transactions can retain two plain Clips on one Scene, Zone
-and Layer through a temporary mutual overlap. The engine reuses ordinary
-movement and checks every collision; strict raw final validation precedes
-candidate delivery. The [command contract](contracts/show-command-semantics.md#private-two-clip-rearrangement)
-defines this finite exception and its ownership limits.
-
 An ordinary editable Show route exposes the production Agent drawer after the
 signed-in session resolves its effective agent capabilities. External MCP is
 available to every signed-in account while the service is enabled; the built-in

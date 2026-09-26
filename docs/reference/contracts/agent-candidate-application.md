@@ -67,9 +67,7 @@ private transaction proof from live record, save, history and export proof.
 ## Private two-Clip rearrangement
 
 The explicit private transaction can retain two plain Clips and rearrange their
-starts through one specifically permitted same-Layer overlap. [Show command
-semantics](show-command-semantics.md#private-two-clip-rearrangement) defines the
-finite ownership and collision checks. Both pending completion and private commit
+starts through one specifically permitted same-Layer overlap. Both pending completion and private commit
 strictly validate the raw final composition. The complete candidate alone reaches
 the existing whole-Show revision admission, one history group and ordinary save.
 

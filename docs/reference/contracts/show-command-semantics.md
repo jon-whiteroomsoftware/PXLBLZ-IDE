@@ -64,16 +64,16 @@ revision comparison, concurrent merge, cancellation, or persistence guarantee.
 See [Show state, history, and persistence](show-state-history-persistence.md)
 for adoption and save behavior.
 
-### Bounded final-state bulk exception
+### Bulk commands
 
-`create_clips`, `create_layers`, and `update_clips` take their items in the
-shape published by the
+`create_clips`, `create_layers`, and `update_clips` apply their items in
+payload order as one atomic candidate, and each item's owner validates its step
+against the candidate so far
+([`support.ts:99-125`](../../../src/engine/showCommandsV2/support.ts)). Items
+take the shape published by the
 [versioned authoring reference](../../../src/engine/showCommandsV2/authoringReference.ts)
-and [`clipSpec.ts`](../../../src/engine/showCommandsV2/clipSpec.ts). The v2
-registry has no final-state exception: each command applies its items in
-payload order as one atomic candidate, and each item passes through its owner,
-which validates its own result against the candidate so far
-([`support.ts:99-125`](../../../src/engine/showCommandsV2/support.ts)). A swap
+and [`clipSpec.ts`](../../../src/engine/showCommandsV2/clipSpec.ts); there is
+no final-state exception. A swap
 or rotation whose intermediate arrangement collides therefore refuses; order
 the items so every step is valid. `update_clips` checks every Clip identity
 against the original record, refuses a Clip patched twice, and fills omitted
@@ -179,30 +179,6 @@ intermediates remain outside the contract.
 [`commands.test.ts:470-540`](../../../src/engine/showCommandsV2/commands.test.ts)
 covers trailing, leading and Transition-closing resize and the occupied-range
 refusal.
-
-## Private two-Clip rearrangement
-
-An explicit diagnostic transaction may retain two distinct plain Clips on the
-same Scene, Zone and Layer, including Main or an overlay, and move them through
-a temporary mutual overlap. The first overlapping move requires a valid composed
-input and fixes both participant identities for the rest of that transaction.
-Only moves of those two Clips can subsequently mutate it, even after overlap resolves.
-Commit, validation, reads and rollback remain available.
-
-Every step retains Clip IDs, durations, instance bindings and ownership, uses
-safe integer global starts within the original Scene, and reuses ordinary
-placement and keyframe movement. Shared-instance tracks keep their ordinary
-ownership rule. All intersecting pairs are checked; a third Clip enclosed by a
-long participant is still a collision. Segmented Clips, connected Transitions,
-owner changes and Group occurrences in the participants' Scene/Zone refuse.
-Groups outside that ownership remain unchanged.
-
-The capability belongs to private transaction state. Ordinary moves remain
-strict, and both pending completion and commit validate the raw final composition
-without overlap permission before document preparation. Unresolved overlap
-cannot be normalized into success. The [candidate contract](agent-candidate-application.md#private-two-clip-rearrangement)
-owns delivery and the consumer tests
-cover complete records, history, refusal and private lifecycle behavior.
 
 ## Logical Clip splitting (#951)
 
