@@ -1,10 +1,10 @@
 # #1137 Black Sun Installation: Stage proof
 
-Captured 2026-09-25 from commit `ca022264` on registry runtime `1137:5179`
-(`npm run dev:issue -- --issue 1137 --profile shared`). It served this worktree
-at that commit with a clean tree, against main's shared API and local D1. The
-commit was rebased unchanged onto `4e217609` as `1d144a83`; the rebase added
-only #1136's evidence docs. Repo Playwright (Chromium) opened
+Captured 2026-09-25 from commit `339e8d22` (the iris repair, on top of
+`86fbf028` and `f76ed021`, which were rebased onto `cd4e52b7`) on registry
+runtime `1137:5179` (`npm run dev:issue -- --issue 1137 --profile shared`). It
+served this worktree at `339e8d22` with a clean tree, against main's shared
+API and local D1. Repo Playwright (Chromium) opened
 `/studio/shows/stock-show-installation-black-sun?capture` at 1600 × 1000,
 signed in with `npm run dev:session -- --issue 1137` in its own browser
 context. No page error was raised.
@@ -30,6 +30,10 @@ be used: since the #967 over-under workspace the Show route has no
 | `black-sun-62.1s.png` | 62.1 s (1863) | White | White |
 | `black-sun-63s.png` | 63 s (1890) | Black | Black |
 
+The iris steps at 54, 56, 58, and 60 s are asserted by `closes the iris in four
+beat-locked steps` in `src/engine/blackSunShow.test.ts`, which samples each
+two-second step window every 250 ms and fails on the previous smooth close.
+
 The 1,920 frames were assembled into a 64.0 s, 30 fps H.264 video for
 normal-speed playback review. It is not committed.
 
@@ -39,15 +43,15 @@ normal-speed playback review. It is not committed.
 shown: the Show under Built-in Shows › Installations (4 Shows), its timeline
 with the six chapter Markers and four iris tracks (viewport x, y, width,
 height), Zones 490/490 assigned on Eclipse Dome, and the Stage row reading
-Eclipse dome · Output map · 490 px. The editor shows Source Code 48.0 KB /
+Eclipse dome · Output map · 490 px. The editor shows Source Code 45.3 KB /
 66.8 KB and VM 1,530/10,240.
 
 The compiled artifact's `summary.resources`:
 
 | Resource | Used | Budget |
 |---|---|---|
-| Artifact bytes | 47,356 B | 68,384 B (21,028 B left) |
-| Persistent globals | 200 | 256 (56 left) |
+| Artifact bytes | 44,544 B | 68,384 B (23,840 B left) |
+| Persistent globals | 202 | 256 (54 left) |
 | VM words | 1,530 | 10,240 |
 
 Persistent globals have the closest margin. There are no blockers.
