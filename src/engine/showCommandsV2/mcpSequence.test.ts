@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
@@ -156,9 +156,10 @@ describe('#1029 sequence in v2 vocabulary', () => {
     expect(artifacts.importedShow.composition.propertyTracks).toHaveLength(2)
     expect(parseEpe(artifacts.epeText)).toMatchObject({ stamp: { kind: 'show' } })
 
-    const directory = join(repoRoot, 'docs', 'reference', 'evidence', 'issue-1041-v2-commands')
-    mkdirSync(directory, { recursive: true })
-    writeFileSync(join(directory, 'mcp-sequence-transcript.json'), `${JSON.stringify({
+    // The committed transcript is #1041's evidence: a behaviour change fails here
+    // until it is refreshed on purpose with UPDATE_MCP_SEQUENCE_TRANSCRIPT=1.
+    const evidencePath = join(repoRoot, 'docs', 'reference', 'evidence', 'issue-1041-v2-commands', 'mcp-sequence-transcript.json')
+    const evidence = `${JSON.stringify({
       issue: 1029,
       catalogue: 'v2',
       surface: 'agentMcpRouting tools/call schema boundary plus the v2 catalogue over the prepared v2 record',
@@ -168,6 +169,8 @@ describe('#1029 sequence in v2 vocabulary', () => {
         pxlshowBytes: artifacts.pxlshowBytes.byteLength,
         epeBytes: new TextEncoder().encode(artifacts.epeText).byteLength,
       },
-    }, null, 2)}\n`)
+    }, null, 2)}\n`
+    if (process.env.UPDATE_MCP_SEQUENCE_TRANSCRIPT) writeFileSync(evidencePath, evidence)
+    expect(readFileSync(evidencePath, 'utf8')).toBe(evidence)
   })
 })
