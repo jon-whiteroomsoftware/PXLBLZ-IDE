@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   authenticatedPlaywrightSeedSql,
   authenticatedPlaywrightAccountIndex,
   authenticatedPlaywrightUser,
 } from './authenticated-playwright-user'
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.resetModules()
+})
 
 describe('authenticated Playwright synthetic identities', () => {
   it('assigns sequential tests in each worker distinct accounts from disjoint bounded pools', () => {
@@ -23,8 +28,17 @@ describe('authenticated Playwright synthetic identities', () => {
   it('bounds account indices by the selected worker count', () => {
     expect(authenticatedPlaywrightAccountIndex(5, 0, 6)).toBe(320)
     expect(() => authenticatedPlaywrightAccountIndex(6, 0, 6)).toThrow(/out of range/)
-    expect(authenticatedPlaywrightAccountIndex(3, 0)).toBe(192)
-    expect(() => authenticatedPlaywrightAccountIndex(4, 0)).toThrow(/out of range/)
+    expect(authenticatedPlaywrightAccountIndex(3, 0, 4)).toBe(192)
+    expect(() => authenticatedPlaywrightAccountIndex(4, 0, 4)).toThrow(/out of range/)
+  })
+
+  it('uses the host worker count when no count is passed', async () => {
+    vi.stubEnv('WRSP_HOST_PLAYWRIGHT_AUTH_WORKERS', '6')
+    vi.resetModules()
+    const { authenticatedPlaywrightWorkerCount, authenticatedPlaywrightAccountIndex } = await import('./authenticated-playwright-user')
+
+    expect(authenticatedPlaywrightWorkerCount).toBe(6)
+    expect(authenticatedPlaywrightAccountIndex(5, 0)).toBe(320)
   })
 
   it('seeds every requested test account without including the persistent development identity', () => {
