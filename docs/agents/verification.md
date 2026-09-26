@@ -49,6 +49,27 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 0.20.0 adoption (#1154)
+
+This adoption updates the executable package from 0.19.0. Source release is
+WRSP 0.20.0; see its `docs/reference/process-release-0.20.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.20.0, tag `v0.20.0` |
+| Source | `ef367f61dd93852207f02c3350c9cddfb37c10d2` |
+| Tarball | `vendor/whiteroom-software-process-0.20.0.tgz` |
+| SHA256 | `c9b14e3af9d85b5c5499b5af926dfd26f2b399545d7441f4ae476f41e5f40331` |
+
+`review:push`, `review:status`, and `wrsp-operator-authorization` answer ancestry
+from one in-memory graph, so long ranges no longer hang, and `review:push`
+prints progress to stderr (WRSP #136). `.husky/pre-push` now runs
+`npm run lint` before the approval check (WRSP #138). Host suite environments
+and timing records (WRSP #142, #143) need the runner daemon upgraded to 0.20.0
+as a separate host step; until then, the `WRSP_HOST_*` defaults in "Runner
+worker sizing" apply. The review policy fingerprint, receipt format,
+staged-test selection, and runtime dependencies are unchanged.
+
 ## WRSP 0.19.0 adoption (#1145)
 
 This adoption updates the executable package from 0.18.0. Source release is
@@ -361,7 +382,7 @@ Astra Low override. The classifier was retired in #1140.
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
 | Before landing (ordinary review) | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
 | Final committed tip, before landing | `npx wrsp-runner test <tip>` | One coordinator executes the required full Vitest and three browser suites declared in `wrsp.config.mjs`; matching completed records are reused. |
-| Before each push | `npm run review:push`, `npm run check:artifact-oracle`, and `wrsp-check-test-evidence <tip>` through `.husky/pre-push` | Require exact approval coverage, prove exported Show deliverables reopen, and consume matching evidence for all required runner suites. |
+| Before each push | `npm run lint`, `npm run review:push`, `npm run check:artifact-oracle`, and `wrsp-check-test-evidence <tip>` through `.husky/pre-push` | Refuse a lint failure in seconds, require exact approval coverage, prove exported Show deliverables reopen, and consume matching evidence for all required runner suites. |
 | Periodic sweep | `npm run check:issue-proof -- --since-days <n>` | Audit recently closed issues for a named and attached proof. A report, not a hook. |
 
 ### Candidate review and landing
@@ -605,6 +626,9 @@ its remote base to its pushed tip. A new ref derives its base only from the
 remote main line; if that baseline does not exist, the gate blocks instead of
 self-basing the range at the pushed tip. Missing or stale coverage blocks with an explicit
 `review:candidate` command; pre-push does not repeat substantive review.
+
+The hook first runs `npm run lint`; a failure refuses the push before the
+approval check (WRSP #138).
 
 After every outgoing ref has exact coverage, the hook runs the artifact oracle
 gate and then requires passing WRSP evidence for the exact local tip. The four

@@ -1,6 +1,7 @@
 #!/bin/sh
-# Reuse exact candidate approvals, prove the exported Show deliverables reopen,
-# then require exact-tip evidence for every heavy publication suite.
+# Run the lint static gate, reuse exact candidate approvals, prove the exported
+# Show deliverables reopen, then require exact-tip evidence for every heavy
+# publication suite.
 #
 # Why pre-push (not pre-commit): these are the comprehensive publication gates. The
 # pre-commit hook already runs focused tests and high-risk invariants. Heavy suites
@@ -10,10 +11,13 @@
 # tests through the installed wrsp-check-artifact-oracle: each deliverable's
 # real exporter writes a file, its ordinary importer reopens it, and exactly
 # one WRSP-ARTIFACT-ORACLE report per deliverable must validate.
-echo "▶ Checking exact candidate-review approvals before publication…"
 REF_UPDATES=$(mktemp "${TMPDIR:-/tmp}/pxlblz-pre-push.XXXXXX") || exit $?
 trap 'rm -f "$REF_UPDATES"' EXIT
 cat > "$REF_UPDATES" || exit $?
+
+echo "▶ Pre-push static gate: lint"
+npm run lint || { echo "Push refused: static gate 'lint' failed."; exit 1; }
+echo "▶ Checking exact candidate-review approvals before publication…"
 
 npm run review:push -- "$1" "$2" < "$REF_UPDATES" && npm run check:artifact-oracle || exit $?
 
