@@ -117,6 +117,66 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'propertyTrackIntervalsOverlap',
     'return left.activeStartMs < right.activeStartMs + right.activeDurationMs',
   ),
+  target(
+    'move',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    '? startMs + clip.durationMs',
+  ),
+  target(
+    'move',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    'startMs - clip.startMs)',
+  ),
+  target(
+    'resize',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    'const trailingDeltaMs = endMs - oldEndMs',
+  ),
+  target(
+    'resize',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    'edited.durationMs = endMs - startMs',
+  ),
+  target(
+    'split',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    'edited.durationMs = intent.atMs - clip.startMs',
+  ),
+  target(
+    'split',
+    'showClipTemporalV2.ts',
+    'editShowClipTemporalV2',
+    'durationMs: oldEndMs - intent.atMs',
+  ),
+  target(
+    'duplicate',
+    'showClipsV2.ts',
+    'duplicateShowClipV2',
+    'const deltaMs = intent.startMs - clip.startMs',
+  ),
+  target(
+    'duplicate',
+    'showClipsV2.ts',
+    'duplicateShowClipV2',
+    'endMs > record.composition.showEndMs',
+  ),
+  target(
+    'show-end',
+    'showLayoutIntervalsV2.ts',
+    'editShowLayoutIntervalsV2',
+    'last.durationMs += intent.showEndMs - previousEndMs',
+  ),
+  target(
+    'show-end',
+    'showLayoutIntervalsV2.ts',
+    'showEndProtectionIssue',
+    'contribution.endMs > showEndMs',
+  ),
 ]
 
 export function buildShowAuthoringMutationScope(repoRoot: string): ResolvedMutationTarget[] {
@@ -170,11 +230,13 @@ export function buildStrykerConfig(repoRoot: string) {
     ignorePatterns: ['.claude', '.agents'],
     mutate: buildShowAuthoringMutationScope(repoRoot).map(({ mutationRange }) => mutationRange),
     testFiles: [
-      'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
       'src/engine/showTransitionsV2.test.ts',
       'src/engine/showPropertyAnimationV2.test.ts',
       'src/engine/showPropertyTrackTimeMappingV2.test.ts',
+      'src/engine/showClipTemporalV2.test.ts',
+      'src/engine/showClipsV2.test.ts',
+      'src/engine/showLayoutIntervalsV2.test.ts',
     ],
     vitest: {
       configFile: 'vitest.mutation.config.ts',

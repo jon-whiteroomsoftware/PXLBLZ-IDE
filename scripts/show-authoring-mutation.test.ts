@@ -137,12 +137,17 @@ describe('Show authoring mutation qualification (#597)', () => {
     ])).toThrow(/stale mutation classification/)
   })
 
-  it('resolves a narrow named-function scope for the remaining authoring operations (#1133)', () => {
+  it('resolves a named-function scope for every authoring operation on its v2 owner (#1133)', () => {
     const scope = buildShowAuthoringMutationScope(process.cwd())
 
     expect(new Set(scope.map(({ operation }) => operation))).toEqual(new Set([
+      'move',
+      'resize',
+      'split',
+      'duplicate',
       'transition',
       'animation-edit',
+      'show-end',
     ]))
     expect(scope.map(({ functionName }) => functionName)).toEqual(expect.arrayContaining([
       'downstreamClosure',
@@ -151,6 +156,10 @@ describe('Show authoring mutation qualification (#597)', () => {
       'insertTrackHold',
       'deriveShowRestartEventsV2',
       'propertyTrackIntervalsOverlap',
+      'editShowClipTemporalV2',
+      'duplicateShowClipV2',
+      'editShowLayoutIntervalsV2',
+      'showEndProtectionIssue',
     ]))
     expect(scope.every(({ mutationRange }) => (
       /^src\/engine\/[^:*]+\.ts:\d+:\d+-\d+:\d+$/.test(mutationRange)
@@ -185,9 +194,12 @@ describe('Show authoring mutation qualification (#597)', () => {
     )
     expect(config).not.toHaveProperty('mutator.excludedMutations')
     expect(config.testFiles).toEqual(expect.arrayContaining([
-      'src/engine/showCompositionModel.test.ts',
       'src/agent-harness/test/commandParity.test.ts',
+      'src/engine/showClipTemporalV2.test.ts',
+      'src/engine/showClipsV2.test.ts',
+      'src/engine/showLayoutIntervalsV2.test.ts',
     ]))
+    expect(config.testFiles).not.toContain('src/engine/showCompositionModel.test.ts')
   })
 
   it('ignores the tracked agent-skills symlink in the sandbox copy', () => {

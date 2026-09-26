@@ -1203,15 +1203,15 @@ testing into a second full suite:
 
 | Operation | Qualified fault boundary |
 | --- | --- |
-| Move | Dispatch between ordinary and multi-Scene movement; every divergent static appearance maps to one complete visible destination slice |
-| Resize | Placement-animation keyframes retain their offset from the moved edge |
-| Split | The public plan uses strict interior Clip boundaries |
-| Duplicate | The immediate-after destination retains one complete source-Clip duration and every distinct copied static appearance |
+| Move | `editShowClipTemporalV2` end-time and translation delta |
+| Resize | `editShowClipTemporalV2` trailing-edge delta and resized duration |
+| Split | `editShowClipTemporalV2` left and right part durations at the split time |
+| Duplicate | `duplicateShowClipV2` destination delta and Show End admission |
 | Transition | Insert validation, resize-delta arithmetic, and v2 hyperedge ripple preserve a valid composition and move each downstream Clip once |
 | Animation edit | Batch limits, preimage reference uniqueness, final validation, no-op identity, exact retained-curve offsets, Insert Time boundary mapping, shared Restart coalescing and instance-target overlap |
-| Show End | Authored-content clamping, exact empty-suffix pruning, and meaningful-Boundary refusal |
+| Show End | `editShowLayoutIntervalsV2` last-interval extension and `showEndProtectionIssue` content-past-end refusal |
 
-#1042 Phase 4 slice 4-1 removed the v1 command-catalogue targets and four targets with no remaining product call path. Slice 4-2 removed the v1 Clip inspector target; 17 targets remain.
+#1042 retired the v1 targets; #1133 retargeted move, resize, split, duplicate and show-end to their v2 owners, bringing the catalog to 16 targets.
 
 The wrapper fails closed when the runner cannot start, omits or malforms its
 JSON report, reports no mutants, leaves a result pending, times out or errors,
@@ -1219,8 +1219,9 @@ or leaves a meaningful survivor unexplained. Equivalent or mechanically
 irrelevant survivors belong in
 `scripts/show-authoring-mutation-classifications.json` with a stable
 fingerprint and concrete reason. The parser rejects blank, duplicate, and stale
-classifications. The qualified #597 run on 2026-07-23 killed all 57 selected
-mutants in 6.4 seconds, with no survivors, timeouts, errors, or classifications.
+classifications. The 2026-09-26 run reported 22 killed, 0 survived, 0 timed out,
+and 0 errored mutants in approximately 18 seconds; qualification failed closed
+because three v2 fragments emitted no mutants.
 
 Run this command after changing one of the catalogued transformation boundaries,
 after a review cluster exposes weak fault sensitivity in the Show authoring
