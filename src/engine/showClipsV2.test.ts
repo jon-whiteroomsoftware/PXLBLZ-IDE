@@ -538,9 +538,27 @@ describe('v2 linked duplicate identity admission', () => {
     const source = fixture()
     const before = structuredClone(source)
     const result = editShowClipV2(source, linkedDuplicateIntent(source, startMs))
-    expect(result).toMatchObject({ status: 'refused', affectedClipIds: [], affectedTrackIds: [] })
+    expect(result).toMatchObject({
+      status: 'refused', code: 'invalid-intent',
+      message: 'Duplicate interval must use safe integer milliseconds within Show End.',
+      affectedClipIds: [], affectedTrackIds: [],
+    })
     expect(result.record).toBe(source)
     expect(source).toEqual(before)
+  })
+
+  it('accepts a duplicate that ends exactly at Show End', () => {
+    const source = fixture()
+    source.composition.showEndMs = 2_200
+    source.composition.layoutOccurrences[0].durationMs = 2_200
+    const clip = source.composition.clips[0]
+    const startMs = source.composition.showEndMs - clip.durationMs
+    const result = editShowClipV2(source, linkedDuplicateIntent(source, startMs))
+    expect(result).toMatchObject({ status: 'changed' })
+    if (result.status !== 'changed') return
+    const copy = result.record.composition.clips.find(candidate => candidate.id === 'copy')
+    expect(copy).toBeDefined()
+    expect(copy!.startMs + copy!.durationMs).toBe(2_200)
   })
 
   it.each([
