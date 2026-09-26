@@ -27,7 +27,7 @@
 
   <rect x="44" y="216" width="268" height="44" fill="#1d232b" stroke="#59626d"/>
   <text x="58" y="235" font-size="10" font-weight="bold" fill="#97a1ac">internal compatibility representation</text>
-  <text x="58" y="251" font-size="9.5" fill="#97a1ac">Scene partitions + composition lowering</text>
+  <text x="58" y="251" font-size="9.5" fill="#97a1ac">Compiler-only Scene lowering</text>
 
   <line x1="108" y1="200" x2="150" y2="214" stroke="#59626d" stroke-width="1.2" marker-end="url(#arrow)"/>
   <line x1="248" y1="200" x2="206" y2="214" stroke="#59626d" stroke-width="1.2" marker-end="url(#arrow)"/>
@@ -54,5 +54,5 @@
   <text x="422" y="235" font-size="10.5" font-weight="bold" fill="#dde3ea">Per-pixel routing + composite</text>
   <text x="422" y="251" font-size="9.5" fill="#97a1ac">one hardware-ready render entry point</text>
 
-  <text x="360" y="308" text-anchor="middle" font-size="11" fill="#dde3ea">the editor exposes intent; Scene partitions remain compiler and persistence machinery</text>
+  <text x="360" y="308" text-anchor="middle" font-size="11" fill="#dde3ea">the editor saves direct entities; Scene partitions exist only in the compiler</text>
 </svg>

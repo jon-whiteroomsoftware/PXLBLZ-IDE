@@ -6,8 +6,8 @@
   <!-- input -->
   <rect x="40" y="60" width="150" height="52" fill="none" stroke="#97a1ac" stroke-width="1.2"/>
   <text x="115" y="82" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">Show record</text>
-  <text x="115" y="98" text-anchor="middle" font-size="9" fill="#97a1ac">Scenes, Zones, clips,</text>
-  <text x="115" y="108" text-anchor="middle" font-size="9" fill="#97a1ac">boundaries, curves</text>
+  <text x="115" y="98" text-anchor="middle" font-size="9" fill="#97a1ac">Zones Layouts Clips Layers</text>
+  <text x="115" y="108" text-anchor="middle" font-size="9" fill="#97a1ac">Groups Transitions Markers</text>
 
   <!-- arrow -->
   <line x1="190" y1="86" x2="228" y2="86" stroke="#97a1ac" stroke-width="1.2"/>

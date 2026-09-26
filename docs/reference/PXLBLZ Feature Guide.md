@@ -458,19 +458,17 @@ variant previews it on the Stage before you commit, each exposes only its
 legal fields, and costs are explicit: a feathered reveal evaluates both
 Patterns only inside the band.
 
-Deleting a Clip also removes its attached Layer Transitions. If deleting Clip
-edges leaves a simple Scene Transition unused across the complete Show, PXLBLZ
-turns that boundary into a Cut and keeps its former duration as ordinary
-timeline space. Existing Clips, markers, later Scenes, routing events, and Show
-End stay at their original global times. Boundaries still used by another
-Layer, Zone, incoming Clip, or Property animation stay intact; coupled state
-that cannot be preserved refuses the deletion without creating an Undo or save
-entry.
+Deleting a Clip removes its attached Transitions and Clip-owned Property
+tracks. Surviving Clips, Layouts, Markers, and Show End keep their global
+times, so the vacated interval remains blank unless other content covers it.
+If an attached Transition carries Property ramps that need preservation, the
+edit requires an exact projection plan or refuses without an Undo or save entry.
 
-Property animation uses one model everywhere: the destination owns the
-value; the incoming boundary owns start, duration, and easing. Animation
-speed, brightness, opacity, Transform, exported sliders, and split position all
-animate the same way and appear as sparklines beneath their Zones. The
+Property animation uses saved tracks with an explicit target, activation
+interval, and Show-global keyframes; a Transition may carry an explicit
+Property ramp over its own window. Animation speed, brightness, opacity,
+Transform, exported sliders, and split position appear as sparklines beneath
+their Zones. The
 diamond beside any animatable field creates or reopens its ramp, and the
 Clip's **Animations** overview is the one place to see and remove every
 track.
@@ -479,8 +477,8 @@ Connected MCP agents can create two-key or multi-key tracks for opacity,
 brightness, phase, Transform, Viewport, Effect parameters, Pattern controls,
 and Pattern time scale. They can also revise a track atomically: moving or
 swapping keys, changing values or easing, and adding or deleting keys in one
-request. Times are Show-global at the command boundary even though saved tracks
-remain owned by one Scene.
+request. Saved Property tracks use Show-global key times and an explicit
+activation interval.
 
 ## 16. Zones and routing
 
@@ -536,8 +534,8 @@ distinguishes three things in plain language:
 **configured uses** are separately configured versions of that Pattern in the
 Show, **copies in delivered code** are the copies the compiler kept in the
 generated Pixelblaze Pattern, and **timeline placements** are the Clips that
-place those uses on the Stage. A Clip that crosses an internal Scene boundary
-still appears and counts once on the timeline.
+place those uses on the Stage. A Clip spanning a Zone Layout switch remains
+one placement on the timeline.
 
 Those counts do not say how many run at once. **Pattern copies running** gives
 the maximum number that can run simultaneously. **Busiest LED** says how many
@@ -614,9 +612,10 @@ state. Contact loss and active work keep their existing text status instead.
 Connected agents can address Main or a numbered overlay Layer when adding and
 moving Clips. Overlay numbering starts at zero for the topmost Layer. They can
 also move a complete overlay Layer to a final front-to-back position, or remove
-one only after every Scene's corresponding Layer is empty. Layer changes in one
-request use the result of each preceding command, so a newly inserted Layer can
-be filled, reordered, and later referenced in the same edit.
+one after reassigning every Clip, Group binding, and Transition participant
+that refers to it. Layer changes in one request use the result of each
+preceding command, so a newly inserted Layer can be filled, reordered, and
+later referenced in the same edit.
 
 For collection authoring, `create_clips` creates several fully configured Clips,
 `create_layers` creates ordered overlay Layers with optional Clips, and
@@ -637,20 +636,19 @@ interim issue. Activity distinguishes final saved edits, changes applied to a
 draft, refused work and cancellation. Losing contact does not prove failure:
 known save outcomes remain visible, and **Restore contact** checks the existing
 operation without replaying it. When the editor refuses an invalid complete
-candidate, the final result can identify a specific safe validation issue, such
-as the Scene and duration property that must be repaired.
+candidate, the final result can identify a specific safe validation issue,
+such as a Clip timing or Layer reference that must be repaired.
 
 The activity transcript remains visible while choosing, connecting, disconnecting,
 or switching between the built-in and MCP agents. New and changing activity always
 moves the activity pane to its latest entry without moving keyboard focus or the page.
 
 Canonical agent edits can set a Clip's static opacity, Content Transform, and
-Aperture frame or silhouette. Partial edits retain omitted values on every part
-of a Clip that continues across Scenes, while shape-specific Aperture settings
-are removed when the silhouette changes. Later Clip moves, resizes, splits and
-copies keep those Scene-specific appearances when the destination can represent
-them exactly. An edit that would merge two different appearances into one Scene,
-or hide one in a Scene Transition, is refused instead of flattening the Clip.
+Aperture frame or silhouette. Partial edits retain omitted values across the
+Clip's held appearance keys; changing the silhouette removes settings specific
+to the previous shape. Selected-time edits hold until the next key. Whole-Clip
+edits that overwrite varied appearance ask for confirmation, and moves,
+trims, splits, and copies preserve or restrict the surviving keys.
 
 A supported single exact Clip resize can offer **Retry** against current state.
 Retry creates a new activity, preserves the earlier failure and any unsent draft,
@@ -696,10 +694,10 @@ It floats above the timeline without shrinking the Stage preview.
 
 The card's **Live strip** switch shows or hides one 32 px row above the
 timeline, remembered per Show. The strip follows the current reference example
-as the Show plays. Without a reference guide it follows the Scene in a multi-Scene
-Show, or the most recently started Clip on the first Zone's main lane in a
-single-Scene Show, showing its Pattern name and Clip counter even through gaps.
-**Try with Pattern** runs another Pattern through
+as the Show plays. Without a reference guide it follows chapter Markers when
+the Show has more than one chapter Marker. Otherwise it names the most recently
+started Clip on the first Zone's bottom Layer, showing its Pattern name and
+Clip counter even through gaps. **Try with Pattern** runs another Pattern through
 the same choreography: one slot has an inline chooser; several slots share a
 **Patterns** chip that opens their choosers and Reset. The strip's × hides it.
 At narrow widths, the pill becomes an icon and the strip keeps the narration

@@ -190,15 +190,22 @@ The normalized 2D ownership rule inside a Portable **Zone Layout**. A hard opera
 _Avoid_: calling an operator a map or Effect; treating Soft Split as overlapping physical zones; assuming a Portable operator depends on pixel index or wiring order.
 
 **Scene** (in a Show):
-A persisted compatibility and compiler interval spanning the complete Show rather than one Zone row. A Scene selects one **Zone Layout**, owns Show-wide property targets, and meets its neighbors at stable **Transition** boundaries. The unified editor does not expose Scene as an authoring object: it resolves direct Clip time, Layer, and Zone edits onto internal Scene owners. Clips may preserve a **Pattern instance** across an internal boundary.
+A compiler-internal interval used while lowering the Scene-free v2 Show into
+routed stacks and one generated Pattern. Scenes are neither saved v2 entities
+nor authored or user-visible time owners. The v2 record saves Clips, Layers,
+Layout occurrences, Transitions, Property tracks, Markers, and Groups directly;
+a Clip can keep one **Pattern instance** across compiler intervals.
 _Avoid_: using Scene in production labels, help, diagnostics, or exported summaries; using scene for one zone's clip; treating each zone row as an independent Scene; nesting Scenes inside Scenes.
 
-**Zone composition** (internal Show representation):
-The compatibility/compiler partition for exactly one internal **Scene** x **Zone** cell. It stores the bottom-Layer Clip schedule, higher Layers, and typed Property animation tracks before lowering. The production editor projects these partitions into continuous Zone and Layer rows on the unified Timeline; it never opens a Zone-composition sub-editor.
+**Zone composition** (v1 import representation):
+One **Scene** x **Zone** cell in a legacy v1 composition. The v1 import adapter
+converts its Clip and Layer content into direct v2 owners; no Zone-composition
+cell persists in a v2 Show. The compiler can build transient routed Zone stacks
+from those v2 owners without exposing a Zone-composition editor.
 _Avoid_: presenting Zone composition as an authoring scope; recursive timelines; cross-Zone Clips.
 
-**Main clips** (internal storage term):
-The persisted schedule that projects as the bottom Layer of one Zone. Its Clips are mutually exclusive in time, may leave intentional gaps, and render beneath higher Layers. The production editor treats it as a normal Layer except for its stable bottom position.
+**Main clips** (v1 import term):
+The legacy schedule for the bottom Layer of one Zone. V2 stores those Clips directly on a stable bottom Layer; they are mutually exclusive in time, may leave intentional gaps, and render beneath higher Layers. The editor treats it as a normal Layer except for its stable bottom position.
 _Avoid_: Base Cuts; assuming the Layer must cover the whole Show; treating Main as a special Pattern type.
 
 **Overlay layer**:
@@ -210,7 +217,7 @@ The versioned promise every **Show** chooses before its timeline opens. Its kind
 _Avoid_: treating the contract as a temporary Preview setting; inferring portability from map dimension; implying an existing Show can convert between contracts.
 
 **Show**:
-A saved choreography under one **Show output contract**. Its canonical editor is one proportional timeline of direct **Clips** on explicit **Layers** and **Zones** under a shared ruler. Clip Start fields use Show-global time. A boundary that needs a name uses the primary incoming Clip's compact identity: `15.0: CompassRose` below one minute, `1:15.3: CompassRose` at or above it, plus an additional-Clip count when needed. Internal Scenes remain a persistence and compiler partition, not an authoring object. Stable first-class **Transition** entities sit at junctions between connected Clips on one Layer. Cut, crossfade, Fade through color, wipe, dither, and portal select independently of either neighboring Clip; even a zero-duration Cut remains an explicit selectable junction. A Clip references a Pattern/demo through one **Pattern instance**, occupies one time interval on exactly one Zone and Layer, and owns placement, Effects, and presentation. **Live** presents the running Pattern, **Freeze** captures one complete RGB traversal at Clip entry, and **Strobe** periodically captures and holds complete traversals. **Blink** gates the final Clip output without stopping its Pattern clock. Clip **Opacity** weights the final placement output: Main fades toward black, while higher Layers source-over composite against the content below. **Brightness** remains a placement-view adjustment before composition. Advanced evaluation policies remain separate: authored **Freeze at entry** and **Refresh (4 slices)** reduce Pattern work while keeping private time alive. Splitting a Clip preserves its Pattern instance; **Make Pattern Independent** clones the instance and its local automation for one Clip, while **Rejoin Shared Pattern** deliberately adopts another compatible instance and discards an otherwise orphaned private instance. A Clip may be deleted to leave explicit blank time. A Clip-level property target belongs to its destination Clip; a Show-wide property target belongs to its internal destination Scene. In both cases the incoming junction owns how an explicit start reaches the target over that property's duration and easing. Nested Animation speed, Brightness, Pattern-control, and Split bands are projections of the same property-transition model; multiple independent curves may run together, including exact-zero pause and moving Zone ownership without private-clock reset. Pattern controls mean exported slider functions only, never arbitrary private locals. The Show compiler turns the arrangement into one generated Pixelblaze artifact routed over the Show's Zone Layout ranges or the saved Stage. Shows own their output promise, transport, timing, placement, Zone routing, Clip adaptation, and **Show output Effects** so Patterns remain reusable textures. New timeline compositions reset Pattern state and clocks at the explicit Show End so every loop is deterministic. Preview seeking reconstructs that same deterministic Pattern state from Show start; Trails deliberately clears only its prior-frame output history at the destination and does not mutate the saved Show.
+A saved choreography under one **Show output contract**. Its canonical editor is one proportional timeline of direct **Clips** on explicit **Layers** and **Zones** under a shared ruler. Clip Start fields use Show-global time. A boundary that needs a name uses the primary incoming Clip's compact identity: `15.0: CompassRose` below one minute, `1:15.3: CompassRose` at or above it, plus an additional-Clip count when needed. Internal Scenes exist only during compiler lowering. Stable first-class **Transition** entities sit at junctions between connected Clips on one Layer; an exact adjacent junction without a stored Transition projects as a selectable Cut. A Clip references a Pattern/demo through one **Pattern instance**, occupies one time interval on exactly one Zone and Layer, and owns placement, Effects, and presentation. **Live** presents the running Pattern, **Freeze** captures one complete RGB traversal at Clip entry, and **Strobe** periodically captures and holds complete traversals. **Blink** gates the final Clip output without stopping its Pattern clock. Clip **Opacity** weights the final placement output: Main fades toward black, while higher Layers source-over composite against the content below. **Brightness** remains a placement-view adjustment before composition. Advanced evaluation policies remain separate: authored **Freeze at entry** and **Refresh (4 slices)** reduce Pattern work while keeping private time alive. Splitting a Clip preserves its Pattern instance; **Make Pattern Independent** clones the instance and its local automation for one Clip, while **Rejoin Shared Pattern** deliberately adopts another compatible instance and discards an otherwise orphaned private instance. A Clip may be deleted to leave explicit blank time. Clip-level Property targets belong to their Clips, instance targets to their Pattern instances, Layout targets to Layout occurrences, and Show-wide targets to the Show. Saved tracks use global activation and keyframe times; explicit Transition Property ramps use their Transition's window. Multiple independent curves may run together, including exact-zero pause and moving Zone ownership without private-clock reset. Pattern controls mean exported slider functions only, never arbitrary private locals. The Show compiler turns the arrangement into one generated Pixelblaze artifact routed over the Show's Zone Layout ranges or the saved Stage. Shows own their output promise, transport, timing, placement, Zone routing, Clip adaptation, and **Show output Effects** so Patterns remain reusable textures. The saved composition's `executionModel` selects continuous or deterministic-loop behavior; deterministic-loop resets Pattern state and clocks at Show End. Preview seeking reconstructs that same Pattern state from Show start; Trails deliberately clears only its prior-frame output history at the destination and does not mutate the saved Show.
 _Avoid_: playlist when describing compiled multi-zone choreography; implying patterns know which zone they are rendering.
 
 **Marker** (in a Show):
@@ -226,7 +233,7 @@ Zone-agnostic reusable choreography containing relative-time Clips, relative Lay
 _Avoid_: treating a Group definition as a rendered Pattern, a Zone, or one placement on the timeline; nesting Groups; placing only one endpoint of a Transition in a Group.
 
 **Group occurrence** (in a Show):
-One Scene-interval- and Zone-local placement of a **Group definition**. It owns Show start, base Layer, destination Zone, and normalized X/Y translation. In a Show stored as v1, linked occurrences share choreography but project fresh occurrence-local Pattern runtime identities while preserving the definition's internal sharing graph. The Scene-free v2 representation shares runtimes by default: an occurrence binds explicit runtime identities, and neither Duplicate nor Make Unique creates another runtime; only explicit **Make Pattern Independent** does. The #1039 cutover made v2 the production Show path, so the v2 reading governs every fresh Show and every converted row. Production's six v1 rows were deleted on 2026-09-25 (#1105), leaving no production row for operator conversion. A v2 occurrence also owns an ordered list of **occurrence-local holds** that pause definition-local time without changing the shared definition. **Duplicate** creates another linked occurrence, **Make Unique** copies the definition for one occurrence while keeping its container, and **Ungroup** materializes ordinary Clips and removes only that occurrence's container.
+One Show-global and Zone-local placement of a **Group definition**. It owns Show start, base Layer, destination Zone, and normalized X/Y translation. In a Show stored as v1, linked occurrences share choreography but project fresh occurrence-local Pattern runtime identities while preserving the definition's internal sharing graph. The Scene-free v2 representation shares runtimes by default: an occurrence binds explicit runtime identities, and neither Duplicate nor Make Unique creates another runtime; only explicit **Make Pattern Independent** does. The #1039 cutover made v2 the production Show path, so the v2 reading governs every fresh Show and every converted row. Production's six v1 rows were deleted on 2026-09-25 (#1105), leaving no production row for operator conversion. A v2 occurrence also owns an ordered list of **occurrence-local holds** that pause definition-local time without changing the shared definition. **Duplicate** creates another linked occurrence, **Make Unique** copies the definition for one occurrence while keeping its container, and **Ungroup** materializes ordinary Clips and removes only that occurrence's container.
 _Avoid_: describing v1's occurrence-local runtimes and v2's shared-by-default runtimes as one rule; implying that Duplicate or Make Unique allocates a runtime in v2; allowing an occurrence to cross a Zone or Zone Layout boundary; using Ungroup when the intent is to keep the container and unlink it.
 
 **Show score** (compiler detail):
@@ -277,29 +284,30 @@ _Avoid_: stock Show in user-facing copy; describing a Built-in Show as read-only
 The Lesson pill beside the Show title opens the floating Reading card with the
 Show's purpose, things to notice and try, and guide link. Hover opens it briefly;
 click pins it. The Live strip is a separate, optional 32 px row above the timeline
-that follows the current reference example, interval (labelled INTERVAL with its
-authored name and counter), or single-Scene main-lane Clip and hosts Try with Pattern.
+that follows the current reference example, a chapter Marker when the Show has
+more than one chapter Marker (labelled INTERVAL with the chapter name and
+counter), or the most recently started main-lane Clip otherwise; it hosts Try
+with Pattern.
 Its visibility is remembered per Show; the card never consumes layout height.
 _Avoid_: treating the card's open state as the strip's visibility; calling these
 surfaces authored Show content or adding their state to a Show record.
 
 **Property animation** (in a Show):
 A saved change in one numeric Clip, Effect, Pattern-instance, routing, or
-Show-wide property. The destination entity owns the target value while an
-incoming boundary may own an explicit start, duration, and easing. Several
-properties may inherit one boundary's timing and an individual property may
-override it. Typed keyframe tracks may remain Scene-partitioned in the saved
-composition and compiler lowering, but the production editor projects their
-meaningful changes onto the unified Timeline rather than exposing a second
-Scene-local authoring scope. Instance time and public Pattern controls remain
-instance-owned; placement view, Clip Transform, Clip opacity, and Effect
-parameters remain placement-owned. Unanimated values stay inline and create no
-empty lanes. Clip Detail projects all tracks owned by the selected Clip through
-one **Animations overview** reached from the persistent `Animations — N`
-summary. It groups placement-owned and shared Pattern-instance targets, reports
-Show-global endpoint ranges, and navigates back to each target's owning field.
-The overview owns removal and keeps validator-identified orphan tracks and
-tracks with any supported key count visible without rewriting their stored points.
+Show-wide property. The v2 composition stores each typed Property track with
+an explicit target, global activation interval, and Show-global keyframe
+times. Group-definition tracks use local time before occurrence
+materialization. The editor projects their meaningful changes onto the
+unified Timeline, with no Scene-local authoring scope. Instance time and
+public Pattern controls remain instance-owned; placement view, Clip Transform,
+Clip opacity, and Effect parameters remain placement-owned. Unanimated values
+stay inline and create no empty lanes. Clip Detail projects all tracks owned
+by the selected Clip through one **Animations overview** reached from the
+persistent `Animations — N` summary. It groups placement-owned and shared
+Pattern-instance targets, reports Show-global endpoint ranges, and navigates
+back to each target's owning field. The overview owns removal and keeps
+validator-identified orphan tracks and tracks with any supported key count
+visible without rewriting their stored points.
 _Avoid_: describing compiler Scene partitions as user-facing authoring objects;
 representing internal Scene boundaries as a second timeline hierarchy;
 silently dropping orphan tracks or coercing multi-keyframe tracks into
@@ -314,15 +322,15 @@ The visible silhouette inside a Clip Viewport's frame. The frame stays the place
 _Avoid_: coupling Aperture geometry to Content transforms; calling the Stage camera an Aperture; treating the Soft band as a second Pattern evaluation on the current post-capture path; persisting a separate circle shape.
 
 **Transition** (in a Show):
-A stable junction between two connected Clips on one Layer. A Transition carries
-a visual kind, duration, easing, and type-specific configuration; a
-zero-duration Cut remains an explicit selectable junction. Destination Clips
-own Clip-level property targets, Show targets remain Show-owned, and the
-incoming boundary owns how explicit start values reach those targets. The saved
-compiler representation may lower a junction through an internal Scene
-boundary without making that Scene an authoring object. Zone Layout intervals
-share the Show time axis but remain routing structure rather than Clip
-Transitions.
+A stable, positive-duration visual junction between connected Clips on one
+Layer, or an explicit whole-output contributor set. It carries a visual kind,
+duration, easing, and type-specific configuration; exact Clip adjacency
+without a Transition projects as a selectable Cut. Clip targets remain
+Clip-owned, Show targets remain Show-owned, and an explicit Transition
+Property ramp uses its Transition's timing. The saved v2 record does not own
+Scenes; compiler lowering may route the junction through an internal Scene
+boundary. Zone Layout intervals share the Show time axis but remain routing
+structure rather than Clip Transitions.
 _Avoid_: storing Transition intent as outgoing-Scene decoration; calling Zone
 Layout changes Transitions; using Transition as a synonym for every property
 curve.
@@ -402,7 +410,7 @@ Two independent per-point channels. **sample** — the coordinates fed to the re
 _Avoid_: using "coordinates" unqualified — say sample or pos.
 
 **Show sample remapping** (Show compiler):
-An authored transform of the local `sample` presented to a Pattern after a Show routing layout has selected a zone and normalized its domain. It never changes Stage Map `sample`, preview `pos`, zone ownership, or the routing layout's internal local index. The shipped synchronized-tiling tracer repeats 1D normalized index position or 2D local X/Y with one Show-wide `repeatScale`; `1` is exact identity. A destination scene owns the target and its incoming visual boundary owns start, duration, and easing through the shared property model. A 2D Pattern keeps its physical/local `index` argument while X/Y repeat; a 1D renderer receives the repeated normalized index domain.
+An authored transform of the local `sample` presented to a Pattern after a Show routing layout has selected a zone and normalized its domain. It never changes Stage Map `sample`, preview `pos`, zone ownership, or the routing layout's internal local index. The shipped synchronized-tiling tracer repeats 1D normalized index position or 2D local X/Y with one Show-wide `repeatScale`; `1` is exact identity. The Show owns that target; a v2 Property track can animate it with global activation and keyframe times. A 2D Pattern keeps its physical/local `index` argument while X/Y repeat; a 1D renderer receives the repeated normalized index domain.
 _Avoid_: calling remapping a map, viewport effect, or routing layout; implying that it moves LEDs or reassigns zones; applying an undefined policy to 3D samples.
 
 **Shape** (1D viewport embedding):

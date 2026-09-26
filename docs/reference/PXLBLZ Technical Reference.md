@@ -870,9 +870,8 @@ and its profile links exclude records in Trash.
 A Show is authored as timeline choreography and shipped as one ordinary
 self-contained Pixelblaze Pattern. The unified editor preserves human intent
 as Clips, Layers, Zones, Transitions, Groups, routing, and Property animation;
-persistence and compilation retain internal Scene partitions as a
-compatibility and lowering representation, then flatten everything into a
-scheduler and isolated Pattern members.
+the v2 record saves those entities directly. The compiler may lower them through
+internal Scene intervals before generating a scheduler and isolated Pattern members.
 
 ## 19. Show domain model and persistence
 
@@ -984,16 +983,16 @@ Stage dimension exactly against the Patterns and Maps the import creates and the
 workspace's own. Conversion runs before any
 write; a refusal shows its first issue in the import dialog and writes nothing.
 
-![Show authoring model: direct timeline entities and routing pass through an internal compatibility representation, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
+![Show authoring model: direct timeline entities and routing pass through compiler-internal lowering, then compile into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
-Key ownership rules of the substrate: a scene owns duration and Show-wide
-property targets; a zone owns semantic identity; a clip owns Pattern
-reference, span, adaptations, control targets, Effect stack, and entry
-behavior; a transition is a stable boundary entity; a destination clip or
-scene owns each animated value while the incoming boundary owns start,
-duration, and easing; routing layouts own Installation ranges or Portable
-logical geometry; the Show owns target Controller, output contract, and Stage
-map.
+Key ownership rules of the v2 record: the Show owns `showEndMs`, Show-wide
+Property targets, output contract, target Controller, and Stage map; a Zone
+owns semantic identity; a Pattern instance owns its source and controls; a
+Clip owns its global interval, Layer, Zone, appearance, Effects, and entry
+policy; a positive Transition owns its participants or whole-output
+contributors and window; a Property track owns its target, activation, and
+global keyframes; Layout occurrences reference routing definitions, which
+own Installation ranges or Portable logical geometry.
 
 **Output contract.** New records carry a versioned `installation` (exact
 count + map) or `portable-2d` (reference count/map + variable-resolution
@@ -1020,51 +1019,40 @@ would remove a control animation, a confirmation names the Pattern and affected
 controls; swaps that remove no animation apply immediately. Clip and Group
 inspector replacements use the same selective rule without prompting.
 
-**Boundary events and easing.** `ShowRecord.transitions` is the only persisted
-owner of visual and routing boundary events; a zero-duration Cut is the
-neutral form. Easing normalizes to one structured curve representation
+**Boundary events and easing.** `ShowRecordV2.composition.transitions` stores
+positive-duration visual Transitions; exact Clip adjacency projects a Cut without
+a stored Transition. Easing normalizes to one structured curve representation
 (linear; quadratic/cubic/sine/Back with direction; CSS cubic Bezier; Steps;
 Hold) shared by Transitions, property animation, and Effect parameters. Legacy
 ease names map to their exact prior behavior; invalid structures normalize to
 Linear with field-addressed validator issues.
 
-`showClipDeletion.ts` owns direct logical Clip deletion across both the editor
-and command registry. After attached Layer-transition cleanup, it classifies
-only visual Scene boundaries touched by the original physical Clip segments
-against the complete post-delete Show. A boundary with surviving Layer,
-incoming-content, or property-transition use stays intact. An otherwise unused
-simple visual boundary is converted by
-`showBoundaryTransitionTimeRepair.ts`: the stable boundary becomes a Cut, its
-duration extends the destination hold, and destination-local placements,
-Scene-local keyframes, and Group occurrences shift by the same amount. This
-keeps unrelated global schedules, routing times, markers, and explicit Show End
-fixed while making the former transition interval authorable. Pattern-instance
-private time is not shifted. Cross-boundary shared instances, output feedback,
-ambiguous ownership, malformed timing, and other unproved forms refuse the
-compound edit without adopting any partial deletion. Import and hydration do
-not classify or rewrite pre-existing zero-junction boundary records; a known
-record can use the explicit stable-ID conversion after individual review.
+`showTransitionsV2.ts` owns Clip deletion and its attached Transition cleanup
+for editor and command callers. The removed Clip, its owned Property tracks,
+and Transitions naming it leave together; surviving Clips, Layout occurrences,
+Markers, and Show End keep their global times. A removed Transition's non-Clip
+Property ramps require an explicit projection plan, or the edit refuses without
+adopting a partial result.
 
-Pointer and composition-inspector duration commits share the exact resize owner
-through `showManualClipResize.ts`. Bounded pointer feedback uses the owner's
-reported capacity; release resolves the painted range against its captured source.
-Named manual Transition-to-Cut exceptions remain distinct from exact agent
-requests.
+Pointer gestures use `showTimelineGesturesV2.ts` to plan Clip moves and
+resizes. `showClipTemporalV2.ts` commits ordinary Clip timing and appearance;
+`showTransitionsV2.ts` handles connected moves, Transition edits, and
+Transition-attached edge resizes.
 
 Timeline authoring is framework-free: `showClipTemporalV2.ts` (split, trim,
 extend, and move as atomic record updates in global time, with typed
 refusals), `showClipsV2.ts` (duplicate, and the Clip edit entry that forwards
-temporal intents), `showClipInspectorModel.ts` (Show-global
-projection of Scene-relative storage), `showClipIdentity.ts` (compact boundary
+temporal intents), `showV2ClipAppearancePlanning.ts` (inspector patches
+planned against v2 held appearance), `showClipIdentity.ts` (compact boundary
 identity like `15.0: CompassRose`), `showSpatialSelection.ts` (Installation
 spatial authoring as pure index-set operations), and `ShowZoneSpatialSelector`
 (screen-space zone editing over the resolved output map, exact-count 2D
 only).
 
-**Show command registry.** `src/engine/showCommands/` exposes pure Show edits
-through a typed registry for structured callers. Commands use global
-milliseconds and convert to Scene-local storage where required. The
-[Show command semantics contract](contracts/show-command-semantics.md) owns
+**Show command registry.** `src/engine/showCommandsV2/` exposes pure Show
+edits through a typed registry for structured callers. Commands use global
+milliseconds and edit the v2 record's direct owners.
+The [Show command semantics contract](contracts/show-command-semantics.md) owns
 invocation, refusal, identity, and batch obligations. The
 [Show state, history, and persistence contract](contracts/show-state-history-persistence.md)
 owns adoption and recovery; the
@@ -1072,54 +1060,50 @@ owns adoption and recovery; the
 records the experimental external-editor boundary and its present limits. The shared
 production admission owner is `src/agent/editorAdmission.ts`; diagnostic
 callers retain a thin observation wrapper over the same session owner.
-Both record versions run one authoring validator over a delivered candidate:
-`validateShowAuthoring` for v1 and `validateShowAuthoringV2` for v2, which share
-the version-independent halves of the rule — dependency and control metadata,
-the Portable 2D capability rule, the Installation coverage rule, the Zone Layout
-structural rule in `showZoneLayoutStructure.ts`, and the output pixel count
-rule. `docs/reference/evidence/issue-1039-validation-parity/audit.md` enumerates
-every v1 Show diagnostic against its v2 counterpart, including the rows the v2
-representation retires and the five that remain open.
+The production candidate admission path runs `validateShowAuthoringV2` over
+v2 records. The retired `validateShowAuthoring` remains defined for v1
+compatibility but has no non-test production caller. V2 validation checks
+dependencies and control metadata, Portable 2D capability, Installation
+coverage, Zone Layout structure, and output pixel count.
+`docs/reference/evidence/issue-1039-validation-parity/audit.md` enumerates
+the v1 diagnostics against their v2 counterparts, including retired rules.
 Logical Clip removal shares one validated owner across ordinary manual deletion,
 connected confirmation and the diagnostic descriptor adapter.
 Logical Clip splitting likewise shares its existing manual owner with the
 canonical and diagnostic command; copied curves, numeric rounding and endpoint
 references follow the [split contract](contracts/show-command-semantics.md#logical-clip-splitting-951).
-Static Clip Aperture, opacity, and Content Transform commands also use the manual
-inspector owner. They merge omitted fields against each physical segment of a
-logical Clip, retain property tracks, and preserve only the explicitly supported
-per-segment presentation differences. The registry still refuses unrelated
-View, Effect, ownership, Zone, or Layer divergence. Reopened Show artifacts
-compile each segment's fixed Aperture and Content pose independently. Structural
-Clip edits preserve those records through exact Scene-slice mapping; a move,
-resize or copy refuses when a Scene or Transition gap cannot represent every
-divergent source presentation without flattening it.
+Static Clip Aperture, opacity, and Content Transform commands use the v2 held
+appearance owner. Omitted fields retain their values at each appearance key;
+selected-time changes hold until the next key, while whole-Clip changes can
+overwrite held variation after confirmation. Clip moves, trims, splits, and
+copies preserve or restrict those keys under the v2 edit rules.
+
+`showLayersV2.ts` owns stable Show-wide Layer reorder and removal. Removal
+requires every Clip, Group Layer binding, and Transition participant that
+references the Layer to be explicitly reassigned; it validates the complete
+candidate before adoption.
+
 `add_clip` and `move_clip` share one Layer address (`main` or a nonnegative
 front-to-back overlay index) and report their accepted projected placement.
 The [versioned Clip and Layer authoring schema](agent-clip-layer-authoring.md)
 is the single recursive descriptor source for `create_clips`, `create_layers`,
 and `update_clips`; production MCP, built-in functions, diagnostic MCP, runtime
 validation, and published resources all derive their nested schemas from it.
-`showOverlayLayerAuthoring.ts` owns whole-Layer reorder and empty-only removal
-across internal Scenes. It admits only valid, uniform explicit target-Zone
-stacks without a target-Zone Group occurrence, preserves whole Layer objects,
-and returns the per-Scene identities plus old-to-new index map needed for a
-truthful command receipt.
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries
 whose goldens write outside declared `touches` or leave a declared pattern
 unexercised.
 
-Animation commands live in `showCommands/animation.ts`. `add_property_track`
-accepts all seven persisted target kinds plus Clip-relative shortcuts for
-opacity, view, Transform, Viewport, numeric Effect parameters, Pattern controls,
-and time scale. Its strict key array accepts two or more Show-global keys and
-retains normalized structured easing in the receipt. `edit_property_keyframes`
-resolves existing key IDs against one preimage and delegates one add/update/remove
-set to `editShowPropertyV2`, which sorts and validates the final track once.
-This permits time swaps and delete/add replacement while preserving the two-key
-floor, Scene ownership, target identity, and dependency validation.
+Animation commands live in `showCommandsV2/animation.ts`. `add_property_track`
+accepts v2 persisted targets plus Clip-relative shortcuts for opacity, view,
+Transform, Aperture, numeric Effect parameters, Pattern controls, and time scale.
+Its strict key array accepts two or more Show-global keys and retains normalized
+structured easing in the receipt. `edit_property_keyframes` resolves existing
+key IDs against one preimage and delegates one add/update/remove set to
+`editShowPropertyV2`, which sorts and validates the final track once. This
+permits time swaps and delete/add replacement while preserving the two-key
+floor, target identity, activation, and dependency validation.
 
 The explicit internal authoring-validation policy accepts delivery-incomplete
 candidates while preserving typed structural and dependency checks. The diagnostic
@@ -1241,13 +1225,14 @@ and `showGroupCreationV2.ts` (`createShowGroupFromSelectionV2`). Double-click en
 stale isolation closes itself.
 
 **Layer Transitions.** Only positive-duration records persist; Cuts are
-derived where placements abut (`showUnifiedTimelineProjection.ts`).
+derived where placements abut (`projectShowTransitionJunctionsV2` in
+`showTransitionsV2.ts`).
 `showTransitionsV2.ts` owns the editing algebra: creating or
 growing a Transition shifts the connected successors; same-Layer moves carry
-the connected sequence; cross-Layer moves detach; a move or resize that breaks
-a Scene-boundary junction replaces it with a Cut and collapses its time.
-Composition validation enforces clean endpoints — an unrelated same-Zone Clip
-may span a Transition or stay out of it, never start or stop inside it.
+the connected sequence; cross-Layer moves require explicit detachment of
+participant Transitions. A converted v1 whole-output boundary can require
+a separate window-reclaim repair or refuse when that repair cannot preserve
+the record.
 
 **Markers, Show End, Insert Time.** The Show End handle uses a timeline-local
 overlay outside the horizontal scroller, preserving its full hit target while
@@ -1333,21 +1318,16 @@ preview-override seam plus a deterministic seek to the boundary midpoint, and
 Apply alone persists. The Effect palette deliberately never recompiles the
 Stage on hover.
 
-**Stage.** `ShowStagePreview` compiles the same Fast and Precise artifacts as
-Pattern preview, reports measured FPS, and omits Pattern-level speed,
+**Stage.** `ShowStagePreview` renders the prepared artifact in Fast and Precise
+preview modes, reports measured FPS, and omits Pattern-level speed,
 controls, and watch variables — Show transport is the canonical clock. Stage
-preview does not apply artifact gates; `compileShowForArtifact` enforces
-coverage, Portable 2D capability, the 2,000-pixel ceiling, and resource limits
-for inspection, export, Run, Save, and reconciliation. In the rejected v2 route (removed by #1067 Stage 1)
-the same Installation coverage and Portable gates lived in `buildShowV2RouteArtifacts`,
-which the delivery panel and Send to Controller both read (#1039), together
-with the compiled artifact's own resource ledger, whose first blocker that
-route returned verbatim the way `compileShowForArtifact` reports it as
-`artifactBlocker`. v1 preview (`compileShowForPreview` in `showPreviewArtifact.ts`) and v2 Stage preparation share one content-keyed LRU-8 compile cache keyed by the compile recipe, library overrides, compile options and attribution. The coverage and Portable gates never compete: the coverage
-rule returns nothing for a Portable contract and the Portable rule nothing for
-an Installation one. The Portable target-Controller pixel-count blocker has no
-v2 counterpart yet, because nothing supplies a connected Controller's count to
-v2 preparation. Installation preview uses the
+preview does not apply artifact gates; v2 Stage preparation in
+`showPreparedStageV2.ts` validates the record and dependencies, lowers it with
+`prepareShowV2ForCompile`, and compiles through the shared artifact cache.
+The Show editor captures that prepared v2 Stage for preview; delivery additionally
+checks output-contract and resource blockers. The legacy
+`compileShowForPreview` in `showPreviewArtifact.ts` has no non-test caller
+outside its own v1 artifact wrapper. Installation preview uses the
 contract's saved count and ranges; Portable preview uses the saved reference,
 never a connected Controller. Zone outlines and timing guides are session-only
 SVG diagnostics that never mutate compiled pixels. `showStageDiagnostics.ts`
@@ -1390,10 +1370,10 @@ share a 68 px label column with a 6 px gap before their values.
 The Lesson pill opens a portaled Reading card; its hover/pinned state is local
 to the current Show. The card's switch and the Live strip's hide button share
 the existing per-Show session visibility. The strip renders reference narration
-or the Scene at loop time for multi-Scene Shows. Single-Scene Shows instead name
-the Pattern of the most recently started Clip on the first Zone's main lane,
-with the counter ordered by Clip start; blank time retains that Clip. The strip
-also renders the existing Pattern slot selectors inline or
+or the current chapter Marker when the Show has more than one chapter Marker.
+Otherwise it names the most recently started Clip on the first Zone's bottom
+Layer, with the counter ordered by Clip start; blank time retains that Clip.
+The strip also renders the existing Pattern slot selectors inline or
 in the shared toolbar popover. Floating surfaces use the Show Escape registry
 and contribute no layout height; slot projection and swap confirmation retain
 their existing ownership.
@@ -1448,16 +1428,17 @@ contracts.
 
 **Lowering shape.** A one-zone Installation with no routing switch keeps the
 compact static-routing recipe. Multi-zone and routing-switch Shows lower every
-Scene into a routed Scene sequence: each Scene maps every Zone to a member;
+compiler-internal Scene into a routed Scene sequence: each Scene maps every
+Zone to a member;
 the scheduler selects placements, applies boundary ramps, advances each unique
 member once per frame, and routes each pixel through the active domain. One
 positive routed Scene compiles as a single hold segment with no Transition; an
 empty routed Scene sequence remains invalid.
 `showCompositionLowering.ts` unions Main and overlay boundaries into ordered
 routed stacks (Main back, overlays front-to-back) and preserves
-Continue/Restart identity across gaps. Newly materialized compositions persist
-`executionModel: deterministic-loop`, which resets member state at the Show
-End wrap.
+Continue/Restart identity across gaps. The saved v2 composition owns
+`executionModel` (`continuous` or `deterministic-loop`); the latter resets
+member state at the Show End wrap.
 
 Module seams (#570): `showRoutingRepresentation.ts` (logical layout shapes,
 coverage diagnostics, representation pricing, packed-table decode, the
@@ -1695,10 +1676,10 @@ and Pinwheel are normalized-radial by design; `showLogicalAspectAdvisory()`
 surfaces the compressed-axis warning rather than injecting aspect correction.
 
 Moving Split renormalizes the selected side and updates the member's virtual
-`pixelCount`; Soft Split evaluates both stacks only inside its feather, with
-Scene Transitions captured independently per side. Routing transfers compare
-one eased threshold against stable Stage position and run only the selected
-layout's route — no renderer blending.
+`pixelCount`; Soft Split evaluates both routed stacks only inside its feather,
+with Transition snapshots captured independently for each routed side. Routing
+transfers compare one eased threshold against stable Stage position and run only
+the selected layout's route — no renderer blending.
 
 The representation planner proves exact ownership before specializing:
 complete partitions compile to an ordered upper-bound short-circuit; cyclic
@@ -1740,10 +1721,11 @@ choreography and embeds reachable personal dependencies. An `.epe` is the
 compiled hardware artifact described below. It contains generated Pixelblaze
 source and compatibility facts, not an editable Show model.
 
-`showEpeExport.ts` packages the exact generated source with a program id, a
-preview JPEG, a readable Show-global Clip schedule, Transition/routing facts,
-provenance, and retained member license comments. Version-1 banners may carry
-optional `pxlblz:map`, `pxlblz:compat`, and `pxlblz:show-output` comment
+`showEpeExportV2.ts` packages the exact generated source with a program id, a
+preview JPEG, a readable Show-global Clip and Layout schedule, Transition facts,
+provenance, and retained member license comments. `showEpeExport.ts` supplies
+shared metadata and formatting helpers. Version-1 banners may carry optional
+`pxlblz:map`, `pxlblz:compat`, and `pxlblz:show-output` comment
 records; `pxlblz:show-output` is the authoritative artifact-level contract
 (Installation: pixels + map identity + fingerprint; Portable: 2D classes +
 variable resolution). Unknown versions or malformed optional lines omit only
