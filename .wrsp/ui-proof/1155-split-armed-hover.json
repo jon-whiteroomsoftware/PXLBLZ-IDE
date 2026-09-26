@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1155",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Quadrille (Fast) stopped, in headed Chromium at 1600x1000 @2x, against the issue runtime serving 8a1f05a7. Stepped the playhead 30 times at 150 ms intervals, first with the pointer away from Split and then with the pointer hovering Split, while keyboard focus stayed on the playhead. Pointer away: 8 long animation frames, 10 ms blocking in total, longest frame 67 ms. Hovering Split: 25 long animation frames, 1,553 ms blocking, longest frame 507 ms. The hovered window reached the Show end at 51.2 s, so about 21 of its steps moved the playhead. The capture shows the hovered state at the end, with Split refused (aria-disabled=true). Then played 10 s with the pointer away: 600 rAF frames, 0 long animation frames.",
+  "captures": [".wrsp/ui-proof/1155-split-armed-hover.png"],
+  "capturedAtCommit": "8a1f05a7f4add6011a4a64a18542dd4c155f54cb"
+}
