@@ -27,7 +27,7 @@
   <rect x="56" y="180" width="368" height="50" fill="#232a33" stroke="#97a1ac" stroke-width="1"/>
   <text x="68" y="198" font-size="10" font-weight="bold" fill="#dde3ea">PREVIEW settings</text>
   <text x="416" y="198" text-anchor="end" font-size="8" fill="#97a1ac">how the browser draws it</text>
-  <text x="68" y="218" font-size="9" fill="#97a1ac">renderer &#183; playback speed &#183; light size &#183; diffusion &#183; solidity</text>
+  <text x="68" y="218" font-size="9" fill="#97a1ac">renderer &#183; speed &#183; light size &#183; diffusion &#183; interior opacity</text>
 
   <!-- controller container -->
   <rect x="560" y="52" width="120" height="190" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
