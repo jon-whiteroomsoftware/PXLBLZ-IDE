@@ -23,6 +23,10 @@ import { nativeStockSourceLookupV2 } from './showsV2Compile'
 import { classify, compareValues } from '../../../scripts/show-v2-native-parity'
 
 const NATIVE_CASES = STOCK_SHOWS_V2.map(record => [record.id, record] as const)
+// Shows the pinned legacy catalogue also lists; native-only Shows have no
+// legacy record to compare against.
+const LEGACY_IDS = new Set(V1_STOCK_SHOWS.map(entry => entry.id))
+const LEGACY_CASES = NATIVE_CASES.filter(([id]) => LEGACY_IDS.has(id))
 
 // A single-passage Show carries no chapter: its lone whole-Show chapter was redundant (#1097 item 6).
 const SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS = new Set([
@@ -43,10 +47,14 @@ const SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS = new Set([
 ])
 
 describe('native v2 stock catalogue census', () => {
-  it('lists the same Shows in the same order as the pinned legacy catalogue', () => {
-    expect(STOCK_SHOWS_V2).toHaveLength(40)
-    expect(STOCK_SHOWS_V2.map(record => record.id)).toEqual(V1_STOCK_SHOWS.map(entry => entry.id))
-    expect(STOCK_SHOWS_V2.map(record => record.name)).toEqual(V1_STOCK_SHOWS.map(entry => entry.name))
+  it('lists the pinned legacy catalogue in order, then the Shows authored natively in v2', () => {
+    // Native-only Shows (#1134) have no legacy counterpart to compare against.
+    const nativeOnly = ['stock-show-installation-totality']
+    expect(STOCK_SHOWS_V2).toHaveLength(V1_STOCK_SHOWS.length + nativeOnly.length)
+    const legacy = STOCK_SHOWS_V2.slice(0, V1_STOCK_SHOWS.length)
+    expect(legacy.map(record => record.id)).toEqual(V1_STOCK_SHOWS.map(entry => entry.id))
+    expect(legacy.map(record => record.name)).toEqual(V1_STOCK_SHOWS.map(entry => entry.name))
+    expect(STOCK_SHOWS_V2.slice(V1_STOCK_SHOWS.length).map(record => record.id)).toEqual(nativeOnly)
   })
 
   it('resolves every catalogue entry by id and refuses an unknown one', () => {
@@ -66,7 +74,7 @@ describe('native v2 stock catalogue census', () => {
   })
 })
 
-describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
+describe.each(NATIVE_CASES)('native v2 stock Show %s', (_id, record) => {
   it('validates and reopens through the v2 codec unchanged', () => {
     expect(validateShowRecordV2(record)).toEqual([])
     const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(record))
@@ -83,7 +91,9 @@ describe.each(NATIVE_CASES)('native v2 stock Show %s', (id, record) => {
     expect(artifact.code.length).toBeGreaterThan(0)
     expect(artifact.summary.resources.blockers).toEqual([])
   })
+})
 
+describe.each(LEGACY_CASES)('native v2 stock Show %s', (id, record) => {
   it('carries the legacy Scene arc as ordered chapter Markers', () => {
     const legacy = v1StockShowById(id)!
     const scenes = projectShowTimeline(legacy.show).scenes

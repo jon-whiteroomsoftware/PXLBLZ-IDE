@@ -43,14 +43,16 @@ describe('v2 stock Show metadata catalogue', () => {
   })
 
   it('preserves every legacy metadata value and optional field', () => {
-    expect(STOCK_SHOW_CATALOGUE).toHaveLength(V1_STOCK_SHOWS.length)
+    // The legacy catalogue leads; native-only Shows (#1134) follow it.
+    expect(STOCK_SHOW_CATALOGUE.slice(0, V1_STOCK_SHOWS.length).map((entry) => entry.id))
+      .toEqual(V1_STOCK_SHOWS.map((entry) => entry.id))
     for (const entry of V1_STOCK_SHOWS) {
       expect(stockShowCatalogueById(entry.id), entry.id).toEqual(legacyMetadataProjection(entry))
     }
   })
 
   it('resolves all slots and reference anchors in native v2 records', () => {
-    expect(STOCK_SHOW_CATALOGUE).toHaveLength(40)
+    expect(STOCK_SHOW_CATALOGUE).toHaveLength(41)
     for (const entry of STOCK_SHOW_CATALOGUE) {
       const record = stockShowV2ById(entry.id)
       expect(record, entry.id).toBeDefined()

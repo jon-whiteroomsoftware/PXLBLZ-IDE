@@ -29,6 +29,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
 import { STOCK_SHOWS_V2 } from '@/pixelblaze/stock/showsV2'
 import { nativeStockStageDimensionV2 } from '@/pixelblaze/stock/showsV2Compile'
+import { v1StockShowById } from '@/test/v1StockShowsFixture'
 
 export const BASELINE_DIR = resolve('docs/reference/evidence/issue-1042-v2-baselines')
 export const BASELINES_PATH = resolve(BASELINE_DIR, 'baselines.json')
@@ -83,7 +84,10 @@ export function runtimeComparability(generatorNodeMajor: number, nodeVersion: st
 }
 
 export function baselineInputs(): BaselineInput[] {
-  const stock = STOCK_SHOWS_V2.map((record): BaselineInput => ({
+  // The stock corpus is the Shows the legacy catalogue shipped, which #1042
+  // migrates. Native-only Shows added since (#1134) are outside this evidence
+  // and carry their own tests (Jon, 2026-09-25).
+  const stock = STOCK_SHOWS_V2.filter(record => v1StockShowById(record.id)).map((record): BaselineInput => ({
     corpus: 'stock', id: record.id, record: structuredClone(record), patterns: [], libraries: [],
   }))
   const fixtures = readdirSync(FIXTURE_DIR).filter(name => name.endsWith('.json')).sort().map((name): BaselineInput => {

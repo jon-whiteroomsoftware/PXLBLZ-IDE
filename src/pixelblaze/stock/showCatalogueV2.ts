@@ -3134,6 +3134,33 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       defaultOpen: true
     }
   }
+,
+  {
+    id: "stock-show-installation-totality",
+    name: "Totality Installation",
+    track: "installation",
+    collection: "installations",
+    level: null,
+    order: 3,
+    lesson: "Totality Installation",
+    description: "One grayscale LumaCells instance plays a 490-LED eclipse dome inside a halo ring. The moon crosses a boiling gold sun in held steps; at the last sliver the sun turns white under a white halo flash, totality shows red prominences at the rim inside a cool corona, and the sun returns from the other side.",
+    note: {
+      label: "Installations",
+      title: "Totality Installation",
+      purpose: "One grayscale LumaCells instance plays a 490-LED eclipse dome inside a halo ring. The moon crosses a boiling gold sun in held steps; at the last sliver the sun turns white under a white halo flash, totality shows red prominences at the rim inside a cool corona, and the sun returns from the other side.",
+      notice: "Every voice is the same LumaCells instance. The sun is a gold tint kept to the dome by a Vignette; the moon is that Clip's own inverted Aperture on one property track. The prominences and corona are the same cells thresholded and tinted inside a ring and the halo, and the diamond ring is the gold tint fading off the last sliver.",
+      prompts: [
+        "Scrub through first contact: the moon advances in steps and holds, so each bite reads as a stage of the eclipse.",
+        "Open the artifact inventory: one Pattern instance serves the sun, the prominences, and the corona."
+      ],
+      guide: {
+        documentId: "show-visual-toolkit",
+        heading: "aperture-shapes-and-edges",
+        label: "Read aperture shapes and edges"
+      },
+      defaultOpen: true
+    }
+  }
 ]
 
 export function stockShowCatalogueById(id: string): StockShowCatalogueEntry | undefined {

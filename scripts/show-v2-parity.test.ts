@@ -6,6 +6,7 @@ import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
 import type { ShowCompileRecipeSourceLookup } from '../src/engine/showModel'
 import { LIBRARIES } from '../src/pixelblaze/libs'
 import { STOCK_SHOWS_V2 } from '../src/pixelblaze/stock/showsV2'
+import { v1StockShowById } from '../src/test/v1StockShowsFixture'
 import { nativeStockSourceLookupV2 } from '../src/pixelblaze/stock/showsV2Compile'
 import { describe, expect, it } from 'vitest'
 import { assertPreparedMemberProvenance, censusLoweringInputs, runtimeParity, semanticSampleTimes, sha256, stableJson } from './show-v2-parity'
@@ -128,9 +129,12 @@ describe('inventoried lowering census', () => {
     for (const input of inputs) measure('converted-v1', input.corpusId, input.record, input.lookup, input.libraries)
   })
 
-  it('keeps every native stock v2 Show on its route, recipe and bytes', { timeout: 60_000 }, () => {
-    expect(STOCK_SHOWS_V2.length).toBe(40)
-    for (const record of STOCK_SHOWS_V2) measure('native-v2', record.id, record, nativeStockSourceLookupV2(record), LIBRARIES)
+  it('keeps every inventoried native stock v2 Show on its route, recipe and bytes', { timeout: 60_000 }, () => {
+    // The census inventoried the Shows the legacy catalogue shipped. Native-only
+    // Shows added since (#1134) are outside its evidence (Jon, 2026-09-25).
+    const inventoried = STOCK_SHOWS_V2.filter(record => v1StockShowById(record.id))
+    expect(inventoried.length).toBe(40)
+    for (const record of inventoried) measure('native-v2', record.id, record, nativeStockSourceLookupV2(record), LIBRARIES)
   })
 
   it('reaches only span-sampled records with more than one Zone and a participant Transition', () => {

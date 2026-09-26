@@ -57,10 +57,23 @@ import {
   transfer,
   wholeOutputTransition,
 } from './showsV2Authoring'
+import {
+  ECLIPSE_DOME_RADIUS,
+  ECLIPSE_HALO_ONLY,
+  ECLIPSE_ZONE,
+  eclipseAcross,
+  eclipseDisc,
+  eclipseDomeOnly,
+  eclipseDomeShowV2,
+  eclipseTint,
+  eclipseTrack,
+  type EclipseKey,
+} from './showsV2Eclipse'
 
 /**
- * The native v2 catalogue in the same order the pinned legacy catalogue lists
- * it, so census, capacity and Gallery ordering compare row for row.
+ * The native v2 catalogue: first every Show the pinned legacy catalogue lists,
+ * in its order, so census, capacity and Gallery ordering compare row for row;
+ * then the Shows authored natively in v2, which have no legacy counterpart.
  */
 export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   learn100V2(),
@@ -77,6 +90,7 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   remixCoronalMassEjectionV2(),
   quadrilleRemixV2(),
   overtureRemixV2(),
+  totalityInstallationV2(),
 ]
 
 export function stockShowV2ById(id: string | null | undefined): ShowRecordV2 | undefined {
@@ -2337,6 +2351,66 @@ function overtureRemixV2(): ShowRecordV2 {
       chapter('scene-marker:curtain-up', 15_000, 'Curtain up'),
       chapter('scene-marker:the-surge', 30_000, 'The surge'),
       chapter('scene-marker:the-house', 33_750, 'The house'),
+    ],
+  })
+}
+
+// Totality (#1136): one gold-tinted LumaCells sun, confined to the dome by a
+// Vignette. The moon is the sun Clip's own inverted Aperture, eating it in
+// stair steps. The diamond ring is the sun's last sliver turning white under a
+// white halo flash; the red prominences and the cool corona live across
+// totality as held Clips whose entry and exit are tracks. Keeping every Clip
+// edge off the timeline holds the score to three compiled time sections.
+function totalityInstallationV2(): ShowRecordV2 {
+  const end = 72_000
+  const moon = 1.04 * 2 * ECLIPSE_DOME_RADIUS
+  const main = mainLayerId(ECLIPSE_ZONE)
+  return eclipseDomeShowV2({
+    id: 'stock-show-installation-totality',
+    name: 'Totality Installation',
+    showEndMs: end,
+    patternInstances: [
+      instance('cells', 'LumaCells', 1, { sliderLoopInterval: 0.5, sliderDirection: 1, sliderSpacing: 0.18, sliderWidth: 0.55, sliderFeather: 0.7, sliderLean: 0.35 }),
+    ],
+    layers: [mainLayer(ECLIPSE_ZONE, 'Sun'), overlayLayer(ECLIPSE_ZONE, 1, 'Limb'), overlayLayer(ECLIPSE_ZONE, 2, 'Halo')],
+    clips: [
+      clip('sun', 'cells', ECLIPSE_ZONE, main, 0, end, {
+        aperture: { enabled: true, x: eclipseAcross(1.02), y: 0.5 - moon / 2, width: moon, height: moon, aperture: 'ellipse', edge: 'hard', invert: true },
+        effects: [eclipseTint('gold', [0.35, 0.07, 0], [1, 0.78, 0.35]), eclipseDomeOnly('sun-dome')],
+      }),
+      clip('prominences', 'cells', ECLIPSE_ZONE, overlayLayerId(ECLIPSE_ZONE, 1), 31_500, 17_500, {
+        opacity: 0,
+        aperture: { enabled: true, ...eclipseDisc(1), aperture: 'ring', ringWidth: 0.12, edge: 'soft', feather: 0.01 },
+        effects: [{ id: 'prom-cut', kind: 'threshold', threshold: 0.6, amount: 1 }, eclipseTint('prom-red', [0, 0, 0], [1, 0.1, 0.12])],
+      }),
+      clip('halo', 'cells', ECLIPSE_ZONE, overlayLayerId(ECLIPSE_ZONE, 2), 31_500, 17_500, {
+        aperture: ECLIPSE_HALO_ONLY,
+        effects: [{ id: 'halo-flash', kind: 'threshold', threshold: 0, amount: 1 }, eclipseTint('corona-white', [0, 0, 0], [0.85, 0.9, 1])],
+      }),
+    ],
+    propertyTracks: [
+      // Contact steps with holds, then a slow linear last second so the final
+      // sliver and the halo flash overlap as the diamond ring.
+      eclipseTrack('moon-x', { kind: 'clip-aperture', clipId: 'sun', property: 'x' }, ([
+        [12_000, 1.02], [14_000, 0.8], [17_000, 0.8], [19_000, 0.6], [22_000, 0.6], [24_000, 0.4], [27_000, 0.4],
+        [29_000, 0.16], [31_500, 0.035, LINEAR], [32_600, 0, LINEAR], [48_000, -0.045, LINEAR], [70_000, -1.08],
+      ] satisfies EclipseKey[]).map(([timeMs, v, easing]): EclipseKey => [timeMs, eclipseAcross(v), easing])),
+      // The sun's colour map fades out on the last sliver: the diamond is white.
+      eclipseTrack('diamond-tint', { kind: 'clip-effect', clipId: 'sun', effectId: 'gold', effectKind: 'color-map', parameterId: 'amount' },
+        [[30_800, 1], [31_400, 0], [32_600, 0], [32_700, 1], [47_800, 1], [48_300, 0], [49_300, 1]]),
+      eclipseTrack('prom-in', { kind: 'clip-opacity', clipId: 'prominences' }, [[32_300, 0], [33_000, 1], [47_500, 1], [48_000, 0]]),
+      // The halo flashes solid white, then settles into the cells' corona.
+      eclipseTrack('corona-in', { kind: 'clip-effect', clipId: 'halo', effectId: 'halo-flash', effectKind: 'threshold', parameterId: 'amount' },
+        [[32_300, 1, LINEAR], [33_300, 0], [47_700, 0], [48_000, 1]]),
+      eclipseTrack('corona-out', { kind: 'clip-opacity', clipId: 'halo' }, [[48_400, 1], [49_000, 0]]),
+    ],
+    markers: [
+      chapter('m-sun', 0, 'Sun'),
+      chapter('m-first-contact', 12_000, 'First contact'),
+      chapter('m-diamond-ring', 31_500, 'Diamond ring'),
+      chapter('m-totality', 32_500, 'Totality'),
+      chapter('m-third-contact', 48_000, 'Third contact'),
+      chapter('m-release', 49_000, 'Release'),
     ],
   })
 }

@@ -39,7 +39,8 @@ export const STOCK_SHOW_IDS = [
   "stock-show-showcase-redline-installation",
   "stock-show-remix-coronal-mass-ejection",
   "stock-show-remix-quadrille",
-  "stock-show-remix-overture"
+  "stock-show-remix-overture",
+  "stock-show-installation-totality"
 ] as const
 const ids = new Set<string>(STOCK_SHOW_IDS)
 export const isStockShowId = (id: string): boolean => ids.has(id)
@@ -85,6 +86,7 @@ export const STOCK_SHOW_METADATA = [
   { id: 'stock-show-remix-coronal-mass-ejection', name: 'Coronal Mass Ejection Remix' },
   { id: 'stock-show-remix-quadrille', name: 'Quadrille' },
   { id: 'stock-show-remix-overture', name: 'Overture Installation' },
+  { id: 'stock-show-installation-totality', name: 'Totality Installation' },
 ] as const
 const stockShowNames = new Map<string, string>(STOCK_SHOW_METADATA.map(({ id, name }) => [id, name]))
 export const stockShowName = (id: string): string | undefined => stockShowNames.get(id)
