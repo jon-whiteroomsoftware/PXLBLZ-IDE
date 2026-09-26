@@ -109,7 +109,9 @@
               "clip-b",
               "clip-c"
             ],
-            "instances": [],
+            "instances": [
+              "inst-a"
+            ],
             "transitions": [],
             "tracks": [
               "track-a"
@@ -126,6 +128,7 @@
               "clip-a",
               "clip-b",
               "clip-c",
+              "inst-a",
               "track-a"
             ],
             "discardedControlTargets": []
@@ -334,18 +337,6 @@
       },
       "patternInstances": [
         {
-          "id": "inst-a",
-          "pattern": {
-            "kind": "stock",
-            "id": "TestPattern1D"
-          },
-          "patternName": "TestPattern1D",
-          "time": {
-            "timeScale": 1,
-            "timeOffsetMs": 0
-          }
-        },
-        {
           "id": "inst-b",
           "pattern": {
             "kind": "stock",
@@ -501,7 +492,7 @@
     }
   },
   "artifacts": {
-    "pxlshowBytes": 952,
+    "pxlshowBytes": 939,
     "epeBytes": 12008
   }
 }
