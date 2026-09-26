@@ -1,13 +1,6 @@
-import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
 import { isShowRecordV2, type ShowDocument } from '../engine/showDocument'
-import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
+import type { ShowRecordV2 } from '../engine/showCompositionV2'
 import { requireShowOutputContract } from '../engine/showOutputContract'
-import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
-import {
-  normalizeShowComposition,
-  validateShowComposition,
-  validateShowCompositionTimelineMetadata,
-} from '../engine/showCompositionModel'
 import { PersonalStorageGuardError } from './resourceProtection'
 import { cloneValidShowRecordV2ForWorker } from './showV2Codec'
 
@@ -24,49 +17,9 @@ export interface D1DatabaseShowsLike {
 export interface D1ShowRow {
   id: string
   name: string
-  scenes_json: string
-  zones_json: string
-  cells_json: string
-  routing_layouts_json?: string | null
-  transitions_json?: string | null
-  composition_json?: string | null
-  record_json?: string | null
-  output_effects_json?: string | null
-  output_contract_json?: string | null
-  import_metadata_json?: string | null
-  target_controller_profile_id: string | null
-  stage_map_id: string | null
+  record_json: string | null
   updated_at: number
 }
-
-export interface D1ShowMigrationSourceRow extends D1ShowRow {
-  user_id: string
-  created_at: number
-  routing_switches_json: string
-}
-
-export const D1_SHOW_MIGRATION_SOURCE_COLUMNS = [
-  'user_id',
-  'id',
-  'name',
-  'scenes_json',
-  'zones_json',
-  'cells_json',
-  'target_controller_profile_id',
-  'created_at',
-  'updated_at',
-  'stage_map_id',
-  'routing_layouts_json',
-  'routing_switches_json',
-  'transitions_json',
-  'output_contract_json',
-  'composition_json',
-  'output_effects_json',
-  'import_metadata_json',
-  'record_json',
-] as const satisfies readonly (keyof D1ShowMigrationSourceRow)[]
-
-export const D1_SHOW_MIGRATION_CAS_COLUMNS = D1_SHOW_MIGRATION_SOURCE_COLUMNS.slice(2)
 
 export interface D1UnreadableShow {
   id: string
@@ -76,75 +29,41 @@ export interface D1UnreadableShow {
 }
 
 export interface D1ShowListResult {
-  shows: ShowDocument[]
+  shows: ShowRecordV2[]
   unreadableShows: D1UnreadableShow[]
 }
 
-export function showRecordFromRow(row: D1ShowRow): ShowDocument {
-  if (row.record_json) return cloneValidShowRecordV2ForWorker(parseJson<unknown>(row.record_json, null))
-  const outputContract = requireShowOutputContract(
-    row.output_contract_json ? parseJson(row.output_contract_json, null) : null,
-    row.id,
-  )
-  const outputEffects = row.output_effects_json
-    ? normalizeShowOutputEffects(parseJson(row.output_effects_json, []))
-    : []
-  const importMetadata = normalizeShowImportMetadata(parseJson(row.import_metadata_json ?? 'null', null))
-  const rawComposition = row.composition_json
-    ? parseJson<unknown>(row.composition_json, null)
-    : undefined
-  const show = normalizeShowTransitionState(normalizeShowRoutingState({
-    id: row.id,
-    name: row.name,
-    scenes: parseJson(row.scenes_json, []),
-    zones: parseJson(row.zones_json, []),
-    cells: parseJson(row.cells_json, []),
-    routingLayouts: parseJson(row.routing_layouts_json ?? '[]', []),
-    transitions: parseJson(row.transitions_json ?? '[]', []),
-    ...(row.target_controller_profile_id ? { targetControllerProfileId: row.target_controller_profile_id } : {}),
-    stageMapId: row.stage_map_id ?? null,
-    outputContract,
-    ...(outputEffects.length > 0 ? { outputEffects } : {}),
-    ...(importMetadata ? { importMetadata } : {}),
-    updatedAt: row.updated_at,
-  }))
-  const composition = rawComposition
-    ? normalizeStoredComposition(show, rawComposition)
-    : undefined
-  return composition ? { ...show, composition } : show
+export function showRecordFromRow(row: D1ShowRow): ShowRecordV2 | null {
+  if (row.record_json === null) return null
+  return cloneValidShowRecordV2ForWorker(parseJson<unknown>(row.record_json, null))
 }
 
-/**
- * The stored version-2 Shows (#1042). A row without `record_json` is an
- * unconverted version-1 row: the product no longer reads it, and it waits for
- * the operator conversion (#1105), which reads the table directly.
- */
+/** Rows without a version-2 record remain stored but are not listed. */
 export async function listD1ShowsV2(
   db: D1DatabaseShowsLike,
   userId: string,
 ): Promise<D1ShowListResult> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-             composition_json, record_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json,
-             import_metadata_json, updated_at
+      SELECT id, name, record_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
     `)
     .bind(userId)
     .all<D1ShowRow>()
-  const shows: ShowDocument[] = []
+  const shows: ShowRecordV2[] = []
   const unreadableShows: D1UnreadableShow[] = []
   for (const row of results) {
-    if (!row.record_json) continue
+    if (row.record_json === null) continue
     try {
-      shows.push(showRecordFromRow(row))
+      const show = showRecordFromRow(row)
+      if (show) shows.push(show)
     } catch (error) {
       unreadableShows.push({
         id: row.id,
         name: row.name,
-        code: row.output_contract_json ? 'invalid_show_record' : 'missing_show_output_contract',
+        code: 'invalid_show_record',
         error: error instanceof Error ? error.message : String(error),
       })
     }
@@ -162,59 +81,26 @@ export async function replaceD1ShowV2(
   if (!written) throw new Error(`Show "${id}" is unavailable for version-2 replacement.`)
 }
 
-export async function replaceD1ShowV2IfCurrent(
-  db: D1DatabaseShowsLike,
-  userId: string,
-  id: string,
-  record: ShowDocument,
-  expected: D1ShowMigrationSourceRow,
-): Promise<boolean> {
-  return writeD1ShowV2(db, userId, id, record, expected)
-}
-
 async function writeD1ShowV2(
   db: D1DatabaseShowsLike,
   userId: string,
   id: string,
   record: ShowDocument,
-  expected?: D1ShowMigrationSourceRow,
 ): Promise<boolean> {
   if (!isShowRecordV2(record) || record.id !== id) {
     throw new Error('A version-2 Show replacement must match the requested identity.')
   }
   const validated = cloneValidShowRecordV2ForWorker(record)
-  const outputContract = requireWritableShowOutputContract(validated.outputContract, validated.id)
+  requireWritableShowOutputContract(validated.outputContract, validated.id)
   const result = await db
     .prepare(`
       UPDATE personal_shows
-      SET name = ?, scenes_json = ?, zones_json = ?, cells_json = ?, routing_layouts_json = ?,
-          transitions_json = ?, composition_json = ?, record_json = ?, output_effects_json = ?,
-          target_controller_profile_id = ?, stage_map_id = ?, output_contract_json = ?,
-          import_metadata_json = ?, updated_at = ?
+      SET name = ?, record_json = ?, updated_at = ?
       WHERE user_id = ? AND id = ?
-      ${expected ? `AND ${D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => `${column} IS ?`).join(' AND ')}` : ''}
     `)
-    .bind(
-      validated.name,
-      '[]',
-      JSON.stringify(validated.zones),
-      '[]',
-      JSON.stringify(validated.zoneLayouts),
-      '[]',
-      null,
-      JSON.stringify(validated),
-      validated.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(validated.outputEffects)) : null,
-      validated.targetControllerProfileId ?? null,
-      validated.stageMapId ?? null,
-      JSON.stringify(outputContract),
-      validated.importMetadata ? JSON.stringify(validated.importMetadata) : null,
-      validated.updatedAt,
-      userId,
-      id,
-      ...(expected ? D1_SHOW_MIGRATION_CAS_COLUMNS.map(column => expected[column] ?? null) : []),
-    )
+    .bind(validated.name, JSON.stringify(validated), validated.updatedAt, userId, id)
     .run()
-  return expected ? result.meta?.changes === 1 : result.meta?.changes !== 0
+  return result.meta?.changes !== 0
 }
 
 export async function createD1Show(
@@ -223,76 +109,17 @@ export async function createD1Show(
   record: ShowDocument,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
-  const outputContract = requireWritableShowOutputContract(record.outputContract, record.id)
-  if (isShowRecordV2(record)) {
-    const validated = cloneValidShowRecordV2ForWorker(record)
-    await db
-      .prepare(`
-        INSERT INTO personal_shows (
-          user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-          composition_json, record_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at,
-          import_metadata_json
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .bind(
-        userId,
-        validated.id,
-        validated.name,
-        '[]',
-        JSON.stringify(validated.zones),
-        '[]',
-        JSON.stringify(validated.zoneLayouts),
-        '[]',
-        null,
-        JSON.stringify(validated),
-        validated.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(validated.outputEffects)) : null,
-        validated.targetControllerProfileId ?? null,
-        validated.stageMapId ?? null,
-        JSON.stringify(outputContract),
-        now,
-        validated.updatedAt,
-        validated.importMetadata ? JSON.stringify(validated.importMetadata) : null,
-      )
-      .run()
-    return
+  if (!isShowRecordV2(record)) {
+    throw new Error('A version-2 Show create requires a version-2 record.')
   }
-  if (
-    record.composition != null
-    && (!isShowSceneArray(record.scenes) || !isShowZoneArray(record.zones))
-  ) {
-    throw unsupportedCompositionError()
-  }
-  const composition = record.composition == null
-    ? null
-    : requireValidComposition(record, record.composition)
+  requireWritableShowOutputContract(record.outputContract, record.id)
+  const validated = cloneValidShowRecordV2ForWorker(record)
   await db
     .prepare(`
-      INSERT INTO personal_shows (
-        user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
-        composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at,
-        import_metadata_json
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO personal_shows (user_id, id, name, record_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-    .bind(
-      userId,
-      record.id,
-      record.name,
-      JSON.stringify(record.scenes),
-      JSON.stringify(record.zones),
-      JSON.stringify(record.cells),
-      JSON.stringify(record.routingLayouts),
-      JSON.stringify(normalizeShowTransitionState(record).transitions),
-      composition ? JSON.stringify(composition) : null,
-      record.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(record.outputEffects)) : null,
-      record.targetControllerProfileId ?? null,
-      record.stageMapId ?? null,
-      JSON.stringify(outputContract),
-      now,
-      record.updatedAt,
-      record.importMetadata ? JSON.stringify(record.importMetadata) : null,
-    )
+    .bind(userId, validated.id, validated.name, JSON.stringify(validated), now, validated.updatedAt)
     .run()
 }
 
@@ -309,125 +136,6 @@ function parseJson<T>(value: string, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-function normalizeStoredComposition(
-  show: Pick<ShowRecord, 'scenes' | 'zones'>,
-  value: unknown,
-): ShowCompositionV1 | undefined {
-  try {
-    if (!isCompositionV1Envelope(value)) return undefined
-    if (validateShowCompositionTimelineMetadata(value).length > 0) return undefined
-    const normalized = normalizeShowComposition(show, value)
-    return validateShowComposition(show, normalized).length === 0 ? normalized : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function requireValidComposition(
-  show: Pick<ShowRecord, 'scenes' | 'zones'>,
-  value: unknown,
-): ShowCompositionV1 {
-  if (!isCompositionV1Envelope(value)) throw unsupportedCompositionError()
-  try {
-    if (validateShowCompositionTimelineMetadata(value).length > 0) throw unsupportedCompositionError()
-    const normalized = normalizeShowComposition(show, value)
-    if (validateShowComposition(show, normalized).length > 0) throw unsupportedCompositionError()
-    return normalized
-  } catch (error) {
-    if (error instanceof PersonalStorageGuardError) throw error
-    throw unsupportedCompositionError()
-  }
-}
-
-function isCompositionV1Envelope(value: unknown): value is ShowCompositionV1 {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<ShowCompositionV1> & { version?: unknown }
-  return candidate.version === 1
-    && Array.isArray(candidate.patternInstances)
-    && Array.isArray(candidate.scenes)
-}
-
-function isShowSceneArray(value: unknown): value is ShowRecord['scenes'] {
-  return Array.isArray(value)
-    && value.length > 0
-    && value.every((scene) => (
-      isRecord(scene)
-      && isNonEmptyString(scene.id)
-      && typeof scene.name === 'string'
-      && Number.isInteger(scene.durationMs)
-      && Number(scene.durationMs) > 0
-      && (
-        scene.routingTargets === undefined
-        || (
-          isRecord(scene.routingTargets)
-          && (
-            scene.routingTargets.splitPosition === undefined
-            || Number.isFinite(scene.routingTargets.splitPosition)
-          )
-        )
-      )
-      && (
-        scene.sampleTargets === undefined
-        || (
-          isRecord(scene.sampleTargets)
-          && (
-            scene.sampleTargets.repeatScale === undefined
-            || Number.isFinite(scene.sampleTargets.repeatScale)
-          )
-        )
-      )
-    ))
-}
-
-function isShowZoneArray(value: unknown): value is ShowRecord['zones'] {
-  return Array.isArray(value)
-    && value.length > 0
-    && value.every((zone) => (
-      isRecord(zone)
-      && isNonEmptyString(zone.id)
-      && typeof zone.name === 'string'
-      && Number.isInteger(zone.nominalPixelCount)
-      && Number(zone.nominalPixelCount) > 0
-      && (zone.color === undefined || typeof zone.color === 'string')
-      && (zone.icon === undefined || typeof zone.icon === 'string')
-    ))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0
-}
-
-function normalizeShowImportMetadata(value: unknown): ShowRecord['importMetadata'] | undefined {
-  if (!isRecord(value)) return undefined
-  if (
-    value.kind !== 'show-file'
-    || !isNonEmptyString(value.originalShowId)
-    || !isNonEmptyString(value.appVersion)
-    || !isNonEmptyString(value.exportedAt)
-    || Number.isNaN(Date.parse(value.exportedAt))
-    || !Number.isFinite(value.importedAt)
-  ) return undefined
-  return {
-    kind: 'show-file',
-    originalShowId: value.originalShowId,
-    appVersion: value.appVersion,
-    exportedAt: value.exportedAt,
-    importedAt: Number(value.importedAt),
-  }
-}
-
-function unsupportedCompositionError(): PersonalStorageGuardError {
-  return new PersonalStorageGuardError(
-    'unsupported_show_composition',
-    400,
-    'Show composition must be a valid version-1 payload',
-  )
 }
 
 function requireWritableShowOutputContract(value: unknown, showId: string) {

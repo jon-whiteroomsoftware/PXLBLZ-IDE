@@ -1,3 +1,6 @@
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 import {
   MAX_PERSONAL_CONTENT_BYTES,
   MAX_PERSONAL_ENTITY_ROWS,
@@ -22,6 +25,45 @@ function usageDb(usage: { entity_count: number; content_bytes: number }) {
 }
 
 describe('personal-storage resource protection (#407)', () => {
+  it("counts a v2 Show's record bytes", async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      CREATE TABLE personal_patterns (user_id TEXT, id TEXT, name TEXT, src TEXT, controls_json TEXT, params_json TEXT, settings_json TEXT);
+      CREATE TABLE personal_maps (user_id TEXT, id TEXT, name TEXT, generator TEXT, params_json TEXT, points_json TEXT, source TEXT, grid_dims_json TEXT, import_metadata_json TEXT);
+      CREATE TABLE personal_mixins (user_id TEXT, id TEXT, name TEXT, kind TEXT, src TEXT);
+      CREATE TABLE personal_libraries (user_id TEXT, id TEXT, name TEXT, src TEXT);
+      CREATE TABLE personal_shows (user_id TEXT, id TEXT, name TEXT, record_json TEXT);
+      CREATE TABLE controller_profiles (user_id TEXT, id TEXT, name TEXT, device_id TEXT, last_known_device_name TEXT, last_seen_ip TEXT, map_fingerprints_json TEXT, board_json TEXT, inputs_json TEXT, global_transforms_json TEXT, electrical_profile_json TEXT, pattern_bindings_json TEXT);
+      CREATE TABLE personal_settings (user_id TEXT, key TEXT, value_json TEXT);
+      CREATE TABLE controller_metadata (user_id TEXT, key TEXT, value_json TEXT);
+    `)
+    const converted = convertShowRecordV1ToV2({ ...convertibleV1Show(), id: 'show-1', name: 'New Show' })
+    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
+    const recordJson = JSON.stringify(converted.record)
+    sqlite.prepare('INSERT INTO personal_shows (user_id, id, name, record_json) VALUES (?, ?, ?, ?)')
+      .run('github:123', 'show-1', 'New Show', recordJson)
+    let usage: { entity_count: number; content_bytes: number } | null = null
+    const db = {
+      prepare(sql: string) {
+        let values: SQLInputValue[] = []
+        return {
+          bind(...next: unknown[]) {
+            values = next as SQLInputValue[]
+            return this
+          },
+          async first() {
+            usage = sqlite.prepare(sql).get(...values) as typeof usage
+            return usage
+          },
+        }
+      },
+    }
+
+    await readProtectedJson(new Request('https://pxlblz.example/api/shows', { method: 'POST', body: '{}' }), db, 'github:123')
+
+    expect(usage).toEqual({ entity_count: 1, content_bytes: 6 + 8 + recordJson.length })
+  })
+
   it('rejects an oversized write before parsing JSON or querying D1', async () => {
     let prepared = false
     const db = {

@@ -2,7 +2,6 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { vi } from 'vitest'
 import { createSessionToken, sessionCookieName } from '../../../cloudflare/auth'
 import { createD1Show } from '../../../cloudflare/shows'
-import { createDefaultShow } from '../../../engine/showModel'
 import { convertShowRecordV1ToV2 } from '../../../engine/showRecordV1ToV2'
 import type { ShowRecordV2 } from '../../../engine/showCompositionV2'
 import { convertibleV1Show } from '../../../test/showV2TracerFixture'
@@ -44,13 +43,7 @@ function showsDatabase() {
   sqlite.exec(`
     CREATE TABLE personal_shows (
       user_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,
-      scenes_json TEXT NOT NULL DEFAULT '[]', zones_json TEXT NOT NULL DEFAULT '[]',
-      cells_json TEXT NOT NULL DEFAULT '[]', target_controller_profile_id TEXT,
-      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, stage_map_id TEXT,
-      routing_layouts_json TEXT NOT NULL DEFAULT '[]',
-      routing_switches_json TEXT NOT NULL DEFAULT '[]', transitions_json TEXT,
-      output_contract_json TEXT, composition_json TEXT, output_effects_json TEXT,
-      import_metadata_json TEXT, record_json TEXT,
+      record_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
       PRIMARY KEY (user_id, id)
     );
   `)
@@ -78,9 +71,9 @@ function showsDatabase() {
       }
     },
   }
-  const rows = () => sqlite.prepare('SELECT id, name, scenes_json, record_json FROM personal_shows ORDER BY id')
-    .all() as Array<{ id: string; name: string; scenes_json: string; record_json: string | null }>
-  return { db, rows }
+  const rows = () => sqlite.prepare('SELECT id, name, record_json FROM personal_shows ORDER BY id')
+    .all() as Array<{ id: string; name: string; record_json: string | null }>
+  return { db, rows, sqlite }
 }
 
 function v2Record(id: string, name: string, updatedAt = 200): ShowRecordV2 {
@@ -91,7 +84,8 @@ function v2Record(id: string, name: string, updatedAt = 200): ShowRecordV2 {
 
 async function seeded() {
   const store = showsDatabase()
-  await createD1Show(store.db, userId, { ...convertibleV1Show(), id: 'v1-row', name: 'Unconverted', updatedAt: 100 }, 1)
+  store.sqlite.prepare('INSERT INTO personal_shows (user_id, id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(userId, 'v1-row', 'Unconverted', 1, 100)
   await createD1Show(store.db, userId, v2Record('v2-row', 'Converted'), 1)
   return store
 }
@@ -142,7 +136,7 @@ describe('Shows API: the version-1 door is closed (#1042)', () => {
     expect(rows()).toEqual(before)
   })
 
-  it('never lists an unconverted version-1 row in the version-2 list', async () => {
+  it('never lists a row without a version-2 record', async () => {
     const { db } = await seeded()
 
     const response = await send(db, '/api/shows?show-version=2')
@@ -186,7 +180,7 @@ describe('Shows API: the version-1 door is closed (#1042)', () => {
     expect(JSON.parse(rows().find(row => row.id === 'v2-row')!.record_json!)).toEqual(replacement)
   })
 
-  it('keeps DELETE unchanged for both stored row shapes', async () => {
+  it('keeps DELETE unchanged for rows with and without a record', async () => {
     const { db, rows } = await seeded()
 
     expect((await send(db, '/api/shows/v2-row', { method: 'DELETE' })).status).toBe(200)
@@ -210,10 +204,10 @@ describe('Shows API output-contract validation (#653)', () => {
     expect(rows()).toEqual([])
   })
 
-  it('does not surface an unconverted contract-less row as an unreadable v2 Show', async () => {
-    const show = createDefaultShow('legacy-show', 'Legacy', 123)
+  it('does not surface a row without a record as an unreadable v2 Show', async () => {
     const store = showsDatabase()
-    await createD1Show(store.db, userId, show, 1)
+    store.sqlite.prepare('INSERT INTO personal_shows (user_id, id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, 'legacy-show', 'Legacy', 1, 123)
 
     const response = await send(store.db, '/api/shows?show-version=2')
 

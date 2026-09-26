@@ -1,401 +1,117 @@
-import {
-  createD1Show,
-  deleteD1Show,
-  listD1ShowsV2,
-  showRecordFromRow,
-  replaceD1ShowV2,
-  type D1DatabaseShowsLike,
-} from './shows'
-import { createDefaultShow, normalizeShowTransitionState } from '../engine/showModel'
-import { createInstallationShowOutputContract } from '../engine/showOutputContract'
-import { normalizeShowComposition } from '../engine/showCompositionModel'
-import type { ShowCompositionV1 } from '../engine/personalContentRecords'
-import { transitionV1Show } from '../test/showV2TracerFixture'
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { createD1Show, deleteD1Show, listD1ShowsV2, replaceD1ShowV2, showRecordFromRow, type D1DatabaseShowsLike } from './shows'
 import { convertShowRecordV1ToV2 } from '../engine/showRecordV1ToV2'
+import { convertibleV1Show } from '../test/showV2TracerFixture'
 
-function composition(): ShowCompositionV1 {
-  return {
-    version: 1,
-    patternInstances: [{
-      id: 'instance-1',
-      pattern: { kind: 'stock', id: 'TestPattern1D' },
-      patternName: 'TestPattern1D',
-      time: { timeScale: 1, timeOffsetMs: 0 },
-    }],
-    scenes: [{
-      sceneId: 'scene-1',
-      zones: [{
-        zoneId: 'zone-1',
-        main: [{
-          id: 'placement-1',
-          instanceId: 'instance-1',
-          startMs: 0,
-          durationMs: 10_000,
-          view: { mirror: false, phase: 0, brightness: 1 },
-        }],
-        overlays: [],
-      }],
-    }],
-  }
+const userId = 'github:123'
+
+function v2Record(id = 'show-v2', name = 'V2 Show') {
+  const result = convertShowRecordV1ToV2({ ...convertibleV1Show(), id, name })
+  if (result.status !== 'converted') throw new Error(JSON.stringify(result.issues))
+  return { ...result.record, updatedAt: 456 }
 }
 
-function fakeDb(rows: Record<string, unknown>[] = []): {
-  db: D1DatabaseShowsLike
-  calls: Array<{ sql: string; values: unknown[]; action: 'all' | 'run' }>
-} {
-  const calls: Array<{ sql: string; values: unknown[]; action: 'all' | 'run' }> = []
-  return {
-    calls,
-    db: {
-      prepare(sql) {
-        let bound: unknown[] = []
-        return {
-          bind(...values) {
-            bound = values
-            return this
-          },
-          async all<T>() {
-            calls.push({ sql, values: bound, action: 'all' })
-            return { results: rows as T[] }
-          },
-          async run() {
-            calls.push({ sql, values: bound, action: 'run' })
-            return { success: true }
-          },
-        }
-      },
+function showsDatabase() {
+  const sqlite = new DatabaseSync(':memory:')
+  sqlite.exec(`
+    CREATE TABLE personal_shows (
+      user_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,
+      record_json TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, id)
+    );
+    CREATE INDEX idx_personal_shows_updated_at ON personal_shows(user_id, updated_at DESC);
+  `)
+  const db: D1DatabaseShowsLike = {
+    prepare(sql: string) {
+      let values: SQLInputValue[] = []
+      const statement = sqlite.prepare(sql)
+      return {
+        bind(...next: unknown[]) {
+          values = next as SQLInputValue[]
+          return this
+        },
+        async all<T>() {
+          return { results: statement.all(...values) as T[] }
+        },
+        async run() {
+          const result = statement.run(...values)
+          return { success: true, meta: { changes: Number(result.changes) } }
+        },
+      }
     },
   }
+  return { db, sqlite }
 }
 
-describe('D1 show persistence (#318)', () => {
-  it('writes and reopens an explicitly versioned v2 Show without the v1 normalizer', async () => {
-    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const record = { ...converted.record, id: 'show-v2', name: 'V2 pilot', updatedAt: 456 }
-    const { db, calls } = fakeDb()
+describe('D1 Show persistence (#1042)', () => {
+  it('creates and reopens a v2 Show', async () => {
+    const { db, sqlite } = showsDatabase()
+    const record = v2Record()
+    await createD1Show(db, userId, record, 100)
 
-    await createD1Show(db, 'github:123', record, 100)
+    const row = sqlite.prepare('SELECT id, name, record_json, updated_at FROM personal_shows WHERE user_id = ? AND id = ?')
+      .get(userId, record.id)
+    expect(showRecordFromRow(row as never)).toEqual(record)
+  })
 
-    const values = calls[0].values
-    expect(values).toContain(JSON.stringify(record))
-    expect(showRecordFromRow({
+  it('lists only rows with a v2 record', async () => {
+    const { db, sqlite } = showsDatabase()
+    sqlite.prepare('INSERT INTO personal_shows (user_id, id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(userId, 'unconverted', 'Unconverted', 1, 100)
+    const record = v2Record()
+    await createD1Show(db, userId, record, 100)
+
+    await expect(listD1ShowsV2(db, userId)).resolves.toEqual({ shows: [record], unreadableShows: [] })
+    expect(showRecordFromRow({ id: 'unconverted', name: 'Unconverted', record_json: null, updated_at: 100 })).toBeNull()
+  })
+
+  it('refuses a non-v2 record at create before writing', async () => {
+    const { db, sqlite } = showsDatabase()
+
+    await expect(createD1Show(db, userId, convertibleV1Show(), 100)).rejects.toThrow('version-2')
+    expect(sqlite.prepare('SELECT COUNT(*) AS count FROM personal_shows').get()).toEqual({ count: 0 })
+  })
+
+  it('writes only name, record and timestamp', async () => {
+    const { db, sqlite } = showsDatabase()
+    const record = v2Record()
+    await createD1Show(db, userId, record, 100)
+    const replacement = { ...record, name: 'Replaced', updatedAt: 789 }
+
+    await replaceD1ShowV2(db, userId, record.id, replacement)
+
+    expect(sqlite.prepare('SELECT * FROM personal_shows WHERE user_id = ? AND id = ?').get(userId, record.id)).toEqual({
+      user_id: userId,
       id: record.id,
-      name: record.name,
-      scenes_json: '[]',
-      zones_json: JSON.stringify(record.zones),
-      cells_json: '[]',
-      routing_layouts_json: JSON.stringify(record.zoneLayouts),
-      transitions_json: '[]',
-      composition_json: JSON.stringify(record.composition),
-      record_json: JSON.stringify(record),
-      output_effects_json: null,
-      target_controller_profile_id: null,
-      stage_map_id: record.stageMapId ?? null,
-      output_contract_json: JSON.stringify(record.outputContract),
-      import_metadata_json: null,
-      updated_at: record.updatedAt,
-    })).toEqual(record)
-  })
-
-  it('lists only stored v2 rows and replaces them only through the full-record writer (#1042)', async () => {
-    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const record = { ...converted.record, id: 'v2-explicit', updatedAt: 789 }
-    const row = {
-      id: record.id, name: record.name, scenes_json: '[]', zones_json: '[]', cells_json: '[]',
-      routing_layouts_json: '[]', transitions_json: '[]', composition_json: null,
-      record_json: JSON.stringify(record), output_effects_json: null, output_contract_json: JSON.stringify(record.outputContract),
-      target_controller_profile_id: null, stage_map_id: record.stageMapId ?? null, import_metadata_json: null, updated_at: record.updatedAt,
-    }
-    const legacy = createDefaultShow('v1-unconverted', 'Unconverted', 123)
-    const legacyRow = {
-      id: legacy.id, name: legacy.name, scenes_json: JSON.stringify(legacy.scenes), zones_json: JSON.stringify(legacy.zones),
-      cells_json: JSON.stringify(legacy.cells), routing_layouts_json: '[]', transitions_json: '[]', composition_json: null,
-      record_json: null, output_effects_json: null, output_contract_json: JSON.stringify(legacy.outputContract),
-      target_controller_profile_id: null, stage_map_id: null, import_metadata_json: null, updated_at: legacy.updatedAt,
-    }
-    const listed = fakeDb([legacyRow, row])
-    await expect(listD1ShowsV2(listed.db, 'github:123')).resolves.toEqual({ shows: [record], unreadableShows: [] })
-
-    const replacement = { ...record, name: 'Saved v2' }
-    const written = fakeDb()
-    await replaceD1ShowV2(written.db, 'github:123', record.id, replacement)
-    expect(written.calls[0].values).toContain(JSON.stringify(replacement))
-    await expect(replaceD1ShowV2(written.db, 'github:123', 'wrong-id', replacement)).rejects.toThrow('match')
-  })
-
-  it('maps D1 rows to ShowRecord values', () => {
-    const show = createDefaultShow('show-1', 'Tazii nights', 123)
-    const outputContract = createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 240 })
-    const outputEffects = [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }]
-
-    expect(showRecordFromRow({
-      id: show.id,
-      name: show.name,
-      scenes_json: JSON.stringify(show.scenes),
-      zones_json: JSON.stringify(show.zones),
-      cells_json: JSON.stringify(show.cells),
-      routing_layouts_json: JSON.stringify(show.routingLayouts),
-      transitions_json: JSON.stringify(show.transitions),
-      composition_json: JSON.stringify(composition()),
-      output_effects_json: JSON.stringify(outputEffects),
-      target_controller_profile_id: 'ctrl-1',
-      stage_map_id: 'map-1',
-      output_contract_json: JSON.stringify(outputContract),
-      updated_at: 123,
-    })).toEqual(expect.objectContaining({
-      ...show,
-      transitions: [expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade' })],
-      targetControllerProfileId: 'ctrl-1',
-      stageMapId: 'map-1',
-      outputContract,
-      outputEffects,
-      composition: composition(),
-    }))
-  })
-
-  it('scopes list and delete by signed-in user', async () => {
-    const { db, calls } = fakeDb()
-    await listD1ShowsV2(db, 'github:123')
-    await deleteD1Show(db, 'github:123', 'show-1')
-
-    expect(calls[0].sql).toContain('WHERE user_id = ?')
-    expect(calls[0].values).toEqual(['github:123'])
-    expect(calls[1].sql).toContain('WHERE user_id = ? AND id = ?')
-    expect(calls[1].values).toEqual(['github:123', 'show-1'])
-  })
-
-  it('creates shows with user id in the key and serialized strip data', async () => {
-    const { db, calls } = fakeDb()
-    const show = {
-      ...createDefaultShow('show-1', 'Tazii nights', 123),
-      outputContract: createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 240 }),
-      composition: composition(),
-      outputEffects: [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }],
-    }
-
-    await createD1Show(db, 'github:123', show, 100)
-
-    expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'show-1'])
-    expect(calls[0].values).toContain(JSON.stringify(show.scenes))
-    expect(calls[0].values).toContain(JSON.stringify(show.cells))
-    expect(calls[0].values).toContain(JSON.stringify(show.routingLayouts))
-    expect(calls[0].values).toContain(JSON.stringify(normalizeShowTransitionState(show).transitions))
-    expect(calls[0].values).toContain(JSON.stringify(show.outputContract))
-    expect(calls[0].values).toContain(JSON.stringify(show.composition))
-    expect(calls[0].values).toContain(JSON.stringify(show.outputEffects))
-    expect(calls[0].values).toContain(null)
-  })
-
-  it('round-trips Show-file import provenance through its D1 sidecar', async () => {
-    const { db, calls } = fakeDb()
-    const importMetadata = {
-      kind: 'show-file' as const,
-      originalShowId: 'show-original',
-      appVersion: '1.0.0',
-      exportedAt: '2026-08-14T12:00:00.000Z',
-      importedAt: 456,
-    }
-    const show = { ...createDefaultShow('show-imported', 'Imported', 456), importMetadata }
-
-    await createD1Show(db, 'github:123', show, 100)
-
-    expect(calls[0].sql).toContain('import_metadata_json')
-    expect(calls[0].values).toContain(JSON.stringify(importMetadata))
-    expect(showRecordFromRow({
-      id: show.id,
-      name: show.name,
-      scenes_json: JSON.stringify(show.scenes),
-      zones_json: JSON.stringify(show.zones),
-      cells_json: JSON.stringify(show.cells),
-      routing_layouts_json: JSON.stringify(show.routingLayouts),
-      transitions_json: JSON.stringify(show.transitions),
-      composition_json: null,
-      import_metadata_json: JSON.stringify(importMetadata),
-      target_controller_profile_id: null,
-      stage_map_id: null,
-      output_contract_json: JSON.stringify(show.outputContract),
-      updated_at: show.updatedAt,
-    })).toMatchObject({ importMetadata })
-  })
-
-  it('rejects a contract-less Show before a D1 create write', async () => {
-    const { db, calls } = fakeDb()
-    const { outputContract: _outputContract, ...show } = createDefaultShow(
-      'contract-less-show',
-      'Contract-less',
-      123,
-    )
-
-    await expect(createD1Show(db, 'github:123', show as never, 100)).rejects.toMatchObject({
-      code: 'missing_show_output_contract',
-      status: 400,
-      message: 'Show contract-less-show is missing a valid output contract',
+      name: replacement.name,
+      record_json: JSON.stringify(replacement),
+      created_at: 100,
+      updated_at: replacement.updatedAt,
     })
-    expect(calls).toEqual([])
+    await expect(replaceD1ShowV2(db, userId, 'wrong-id', replacement)).rejects.toThrow('match')
   })
 
-  it('round-trips a normalized composition through the D1 column contract', async () => {
-    const { db, calls } = fakeDb()
-    const show = {
-      ...createDefaultShow('show-round-trip', 'Composition round trip', 123),
-      composition: composition(),
-    }
+  it('reports an unreadable v2 row without losing readable Shows', async () => {
+    const { db, sqlite } = showsDatabase()
+    const record = v2Record()
+    await createD1Show(db, userId, record, 100)
+    sqlite.prepare('INSERT INTO personal_shows (user_id, id, name, record_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(userId, 'corrupt-show', 'Corrupt', '{"version":2}', 1, 100)
 
-    await createD1Show(db, 'github:123', show, 100)
-    const values = calls[0].values
-    const reloaded = showRecordFromRow({
-      id: String(values[1]),
-      name: String(values[2]),
-      scenes_json: String(values[3]),
-      zones_json: String(values[4]),
-      cells_json: String(values[5]),
-      routing_layouts_json: String(values[6]),
-      transitions_json: String(values[7]),
-      composition_json: String(values[8]),
-      output_effects_json: values[9] as string | null,
-      target_controller_profile_id: values[10] as string | null,
-      stage_map_id: values[11] as string | null,
-      output_contract_json: values[12] as string | null,
-      updated_at: Number(values[14]),
-    })
-
-    expect(reloaded.composition).toEqual(normalizeShowComposition(show, show.composition))
-    expect(reloaded).toEqual(expect.objectContaining({
-      id: show.id,
-      name: show.name,
-      scenes: show.scenes,
-      zones: show.zones,
-      cells: show.cells,
-    }))
-  })
-
-  it('rejects rows without the required output contract', () => {
-    const show = createDefaultShow('legacy-show', 'Legacy', 123)
-    expect(() => showRecordFromRow({
-      id: show.id,
-      name: show.name,
-      scenes_json: JSON.stringify(show.scenes),
-      zones_json: JSON.stringify(show.zones),
-      cells_json: JSON.stringify(show.cells),
-      routing_layouts_json: JSON.stringify(show.routingLayouts),
-      transitions_json: JSON.stringify(show.transitions),
-      composition_json: null,
-      target_controller_profile_id: null,
-      stage_map_id: 'plane',
-      output_contract_json: null,
-      updated_at: 123,
-    })).toThrow('Show legacy-show is missing a valid output contract')
-  })
-
-  it('reports an unreadable v2 row without failing the readable Shows collection', async () => {
-    const converted = convertShowRecordV1ToV2(transitionV1Show('crossfade'))
-    if (converted.status !== 'converted') throw new Error(JSON.stringify(converted.issues))
-    const readable = { ...converted.record, id: 'readable-show', name: 'Readable', updatedAt: 124 }
-    const row = (id: string, name: string, recordJson: string) => ({
-      id, name, scenes_json: '[]', zones_json: '[]', cells_json: '[]',
-      routing_layouts_json: '[]', transitions_json: '[]', composition_json: null,
-      record_json: recordJson, output_effects_json: null, output_contract_json: JSON.stringify(readable.outputContract),
-      target_controller_profile_id: null, stage_map_id: null, import_metadata_json: null, updated_at: 124,
-    })
-    const { db } = fakeDb([
-      row(readable.id, readable.name, JSON.stringify(readable)),
-      row('corrupt-show', 'Corrupt', JSON.stringify({ version: 2 })),
-    ])
-
-    await expect(listD1ShowsV2(db, 'github:123')).resolves.toEqual({
-      shows: [readable],
+    await expect(listD1ShowsV2(db, userId)).resolves.toEqual({
+      shows: [record],
       unreadableShows: [expect.objectContaining({ id: 'corrupt-show', name: 'Corrupt', code: 'invalid_show_record' })],
     })
   })
 
-  it.each([
-    ['an unknown future version', { ...composition(), version: 2 }],
-    ['a malformed version-1 payload', { version: 1, patternInstances: null, scenes: [] }],
-    ['a semantically invalid version-1 payload', {
-      ...composition(),
-      scenes: [{ sceneId: 'missing-scene', zones: [] }],
-    }],
-    ['invalid Show End and Marker metadata', {
-      ...composition(),
-      durationMs: 0,
-      markers: [{ id: 'negative-marker', timeMs: -1 }],
-    }],
-  ])('keeps the flat Show readable when composition_json contains %s', (_label, invalidComposition) => {
-    const show = createDefaultShow('safe-flat-show', 'Safe flat Show', 123)
-    const record = showRecordFromRow({
-      id: show.id,
-      name: show.name,
-      scenes_json: JSON.stringify(show.scenes),
-      zones_json: JSON.stringify(show.zones),
-      cells_json: JSON.stringify(show.cells),
-      routing_layouts_json: JSON.stringify(show.routingLayouts),
-      transitions_json: JSON.stringify(show.transitions),
-      composition_json: JSON.stringify(invalidComposition),
-      target_controller_profile_id: null,
-      stage_map_id: null,
-      output_contract_json: JSON.stringify(show.outputContract),
-      updated_at: 123,
-    })
-
-    expect(record).toEqual(expect.objectContaining({
-      id: show.id,
-      scenes: show.scenes,
-      zones: show.zones,
-      cells: show.cells,
-    }))
-    expect(record.composition).toBeUndefined()
-  })
-
-  it.each([
-    ['create', async (db: D1DatabaseShowsLike, show: ReturnType<typeof createDefaultShow>, invalidComposition: unknown) => {
-      await createD1Show(db, 'github:123', { ...show, composition: invalidComposition } as never, 100)
-    }],
-  ])('rejects an unsupported composition version before a D1 %s write', async (_label, write) => {
-    const { db, calls } = fakeDb()
-    const show = createDefaultShow('safe-write-show', 'Safe write Show', 123)
-
-    await expect(write(db, show, { ...composition(), version: 2 })).rejects.toMatchObject({
-      code: 'unsupported_show_composition',
-      status: 400,
-    })
-    expect(calls).toEqual([])
-  })
-
-  it.each([
-    ['create', async (db: D1DatabaseShowsLike, show: ReturnType<typeof createDefaultShow>, invalidComposition: unknown) => {
-      await createD1Show(db, 'github:123', { ...show, composition: invalidComposition } as never, 100)
-    }],
-  ])('rejects invalid Show End and Marker metadata before a D1 %s write (#592)', async (_label, write) => {
-    const { db, calls } = fakeDb()
-    const show = createDefaultShow('invalid-timeline-metadata', 'Invalid timeline metadata', 123)
-    const invalidComposition = {
-      ...composition(),
-      durationMs: 0,
-      markers: [{ id: 'negative-marker', timeMs: -1 }],
-    }
-
-    await expect(write(db, show, invalidComposition)).rejects.toMatchObject({
-      code: 'unsupported_show_composition',
-      status: 400,
-    })
-    expect(calls).toEqual([])
-  })
-
-  it('rejects structurally malformed owner arrays before a composition create write', async () => {
-    const show = createDefaultShow('show-1', 'Stored Show', 123)
-    const { db, calls } = fakeDb()
-
-    await expect(createD1Show(db, 'github:123', {
-      ...show,
-      scenes: [{ id: 'scene-1' }],
-      composition: { version: 1, patternInstances: [], scenes: [] },
-    } as never, 100)).rejects.toMatchObject({
-      code: 'unsupported_show_composition',
-      status: 400,
-    })
-
-    expect(calls).toEqual([])
+  it('scopes list and delete by user', async () => {
+    const { db } = showsDatabase()
+    const record = v2Record()
+    await createD1Show(db, userId, record, 100)
+    await expect(listD1ShowsV2(db, 'github:other')).resolves.toEqual({ shows: [], unreadableShows: [] })
+    await deleteD1Show(db, 'github:other', record.id)
+    await expect(listD1ShowsV2(db, userId)).resolves.toEqual({ shows: [record], unreadableShows: [] })
+    await deleteD1Show(db, userId, record.id)
+    await expect(listD1ShowsV2(db, userId)).resolves.toEqual({ shows: [], unreadableShows: [] })
   })
 })

@@ -135,7 +135,6 @@
     "show:v2-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-parity.ts",
     "show:v2-baselines": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-baselines.ts",
     "show:v2-native-parity": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-native-parity.ts",
-    "show:v2-migrate": "npm run check:node && tsx src/agent-harness/run.ts scripts/show-v2-migrate.ts",
     "capture:chapters": "npm run check:node && tsx scripts/with-suite-lock.ts capture:chapters -- tsx scripts/run-authenticated-playwright.ts e2e/capture-chapters.auth.spec.ts --workers=1",
     "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1"
   },
