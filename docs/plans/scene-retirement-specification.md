@@ -810,7 +810,7 @@ No worker changes a neighbor's contract silently to make its own tests pass.
 | #1041 | `src/engine/showCommands/`, `src/agent-harness/`, schemas, MCP/admission resources | After #1038; `replace_clip_pattern` plus accepted Restart action; real pilot MCP proof |
 | #1039 | Show store/editor, providers/fresh/native stock, production MCP, migration procedure | After #1044/#1038/#1040/#1041; deployed route/MCP and per-row evidence |
 | #1042 | Legacy authoring imports/modules, then storage migration | After #1039; separate code/storage milestones |
-| #1043 | CONTEXT, Feature/Technical references, contracts, diagram and string guard | After #1042; current public vocabulary and behavior |
+| #1043 | CONTEXT, Feature/Technical references, contracts, diagram and product-string rewording (string guard dropped, Jon 2026-09-26) | After #1042; current public vocabulary and behavior |
 | #1045 | Running editor comparison, restriction ledger, Jon's decision | After #1043; no automatic implementation |
 
 At most two implementation workers may run under Jon's Astralite authorization;
