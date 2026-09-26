@@ -97,20 +97,23 @@ These are executable examples, not exhaustive proof over every possible Show.
 
 ## Exact timeline markers
 
-`add_marker`, `move_marker`, `update_marker` and `remove_marker` share
+`add_marker`, `update_marker` and `remove_marker` share
 [one marker owner](../../../src/engine/showMarkersV2.ts) with the
-manual callbacks and legacy timeline helper entrypoints. Structured `at_ms`
+manual callbacks and legacy timeline helper entrypoints. There is no separate
+move command: `update_marker` moves a Marker through its `at_ms` field.
+Structured `at_ms`
 values are nonnegative safe integers; fractional, nonfinite, negative and unsafe
 values refuse before any rounding or clamping. Times beyond Show End remain
 supported. Marker edits preserve every unrelated authored record and reference,
 including composition ordering. Only the marker collection is sorted by time
-then id; removing its final member omits the collection.
+then id; removing its final member leaves an empty collection.
 
 Missing targets, duplicate marker identities and empty structured updates
-refuse. A valid same-value move or update returns the original record and zero
+refuse. A valid same-value update returns the original record and zero
 changes, without a timestamp, adoption, history entry or save. Input and marker
-identity validation precede that result. Name and color remain optional strings;
-no nullable public input or new color restriction is introduced.
+identity validation precede that result. Name and color remain optional strings
+with no new color restriction. `role` is the one nullable public input: it
+accepts `chapter`, and `null` clears the chapter role.
 
 Manual controls retain their existing time conversion and rounding, generated
 names and colors, name trimming, and explicit undefined name clearing. The
@@ -482,15 +485,17 @@ complete records, refusal, parity, split-then-edit/move and export/Undo/Redo.
 
 ## Logical Clip duplication (#951)
 
-`duplicate_clip(clip_id, linked?)` and manual **Clone** share the duplication
-owner in `showClipsV2`. The copy begins immediately after the
-source's complete logical span, with the same duration and Layer. Manual Clone
-and omitted/false linkage create an independent Pattern instance; true linkage
-shares the existing instance. Independent copies retain settings, clone supported
-instance animation and invalidate the cast-bound deterministic-loop proof.
-Linked copies retain the cast and proof. Supported placement animation is copied
-in either mode, with fresh derived track/keyframe identities and shifted local
-Scene time. Original curves remain unchanged.
+`duplicate_clip(clip_id, start_ms, zone_id?, layer_id?, independent?)` and
+manual **Clone** share the duplication owner in `showClipsV2`. Manual Clone
+places the copy immediately after the source Clip, on its Zone and Layer, with
+the same duration; the command places it at `start_ms`, defaulting Zone and
+Layer to the source's. The copy shares the source Pattern instance, minting no
+runtime of its own, and carries the source's entry policy. Manual Clone always
+shares; the command shares unless `independent: true` is supplied, which then
+gives the copy a fresh Pattern instance with copied controls and instance
+tracks. Clip-owned property tracks and appearance keys are copied in
+either mode, with fresh identities and times shifted by the copy's offset.
+Original curves remain unchanged.
 
 Free tails, internal Cuts and supported multi-Scene spans retain their existing
 semantics. Multi-Scene placement animation, and independent multi-Scene instance

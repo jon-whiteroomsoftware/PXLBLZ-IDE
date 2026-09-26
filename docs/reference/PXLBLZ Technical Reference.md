@@ -1272,13 +1272,15 @@ remaining clipped by the vertical timeline pane (#63).
 Marker edits; the Marker commands in `showCommandsV2/markers.ts` forward to it. The
 [command contract](contracts/show-command-semantics.md) defines that boundary.
 `showLayoutIntervalsV2.ts` owns Show End changes and `showTimelineV2.ts` owns
-Insert Time. Show End may
-prune a composition-empty trailing Scene suffix across ordinary Cuts while
-keeping the retained Scene positive; it refuses before discarding meaningful
-visual or routing Boundaries or any Scene-owned content. Insert Time extends the
-containing Scene, splits crossing placements, shifts later content, holds crossing
-animation, and refuses inside Transitions and inside value-changing nonlinear
-segments rather than silently reshaping a curve. Markers never affect rendering.
+Insert Time. Extending Show End lengthens the final Layout occurrence.
+Shortening it removes Layout occurrences that start at or after the new end and
+trims the one containing it; it refuses while a Clip contribution, active
+property track or Layout transfer would extend past the new end. Insert Time
+lengthens the containing Layout occurrence and shifts later content. A crossing
+Clip is lengthened, not split, and a held appearance key keeps its appearance
+through the inserted time; crossing property animation holds likewise. Insert
+Time refuses strictly inside visual Transitions and Layout transfers. Markers
+never affect rendering.
 
 **Property lanes.** `showPropertyLaneProjection.ts` projects authored tracks
 into truthful sparkline geometry, disclosed only when a value actually

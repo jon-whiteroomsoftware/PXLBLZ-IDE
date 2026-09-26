@@ -6,65 +6,57 @@ validate the complete result, project the intended logical timeline, and retain
 every durable reference. Refused edits return the original composition by
 reference and leave the complete prior state unchanged.
 
-Operation-specific suites beside each owning engine carry the accepted,
-refused, and edit-sequence cases. The shared assertions live in
-`src/test/showAuthoringContract.ts`.
+The central table-driven matrix that carried these cases was retired with
+Scenes. Its v2 replacement is partial: the v2 owner suites below cover some
+partitions, and the rest have no v2 coverage yet. The shared assertions in
+`src/test/showAuthoringContract.ts` accept only v1 compositions
+(`ShowCompositionV1`, with `validateShowComposition` as the oracle); no v2
+suite uses them.
 
 ## Declared partitions
 
-The matrix varies one load-bearing dimension at a time. A row names the
-representative executable case; nearby operation-specific regressions can
-exercise additional combinations without expanding this into a Cartesian
-product.
+Each row varies one load-bearing dimension and names the representative v2
+case by its test title, or says it has none.
 
-| Dimension | Partition | Representative executable coverage |
+| Dimension | Partition | Representative v2 coverage |
 | --- | --- | --- |
-| Time | Ordinary Scene time | Accepted move, trim/extend, and split cases in `showClipTemporalV2.test.ts` |
-| Time | Exact Scene boundary | `exact Scene start after a Transition` matrix row |
-| Time | Scene Transition gap | Refused move matrix row; `disables Split inside the hidden Scene Transition gap` |
-| Time | Fractional boundary | `fractional boundary rounded once` matrix row; `rounds one fractional logical Clip split boundary` |
-| Time | Show End | Refused Show End move matrix row; `adds a Clip at Show End by extending the final interval` |
-| Time | Occupied destination | Refused duplicate matrix row; `rejects a move that would overwrite another Clip` |
-| Ownership | Main | Accepted and refused operation rows use Main as the baseline owner |
-| Ownership | Overlay Layer | `overlay Layer ownership` matrix row |
-| Ownership | Another Zone | `another Zone` matrix row |
-| Ownership | Two-Scene logical Clip | `logical Clip spanning two Scenes` matrix row |
-| Ownership | Three-or-more-Scene logical Clip | `logical Clip spanning three Scenes` matrix row and consecutive-move sequence |
-| Relationship | Isolated Clip | Baseline operation rows |
-| Relationship | Transition-connected Clips | `Transition-connected Clips` matrix row and Transition edit rows |
-| Relationship | Group occupancy | Refused `Group-occupied destination` matrix row |
-| Relationship | Placement animation | `placement animation` matrix row and animated split regression |
-| Relationship | Instance animation | `instance animation` matrix row and partitioned-keyframe regressions |
-| Relationship | Nonlinear easing | Refused `nonlinear instance easing across Scenes` matrix row |
-| Relationship | Divergent static presentation | `showTimelineClipAppearanceRepartition.test.ts` covers exact Main/overlay preservation and unrepresentable Scene/gap refusal |
+| Time | Ordinary time | `showClipsV2.test.ts`: `moves animation according to ownership (shared instance: %s)`, `trim then extend holds the retained value after reopening instead of resurrecting removed changes`, `splits at %s without changing appearance or instance ownership` |
+| Time | Exact Scene boundary | No v2 coverage yet |
+| Time | Scene Transition gap | No v2 coverage yet |
+| Time | Fractional boundary | `showClipTemporalV2.test.ts`: `refuses a fractional startMs at the temporal owner instead of rounding it` |
+| Time | Show End | `showClipCreationV2.test.ts`: `extends Show End for a Clip starting exactly at Show End (#1091)`; no v2 refused-move case yet |
+| Time | Occupied destination | `showClipsV2.test.ts`: `returns the original record for no-op and rejects a move into another Clip`; `showClipTemporalV2.test.ts`: `names the validator overlap issue when a move lands on an occupied same-Layer range (#1098)` |
+| Ownership | Main | No v2 coverage yet |
+| Ownership | Overlay Layer | No v2 coverage yet |
+| Ownership | Another Zone | `showClipsV2.test.ts`: `accepts a routed destination across Layout occurrences and refuses an unavailable destination Zone` |
+| Ownership | Two-Scene logical Clip | No v2 coverage yet |
+| Ownership | Three-or-more-Scene logical Clip | No v2 coverage yet |
+| Relationship | Isolated Clip | `showV2ClipDeletePlanning.test.ts`: `plans a free Clip as a bare delete-clip intent` |
+| Relationship | Transition-connected Clips | `showClipTemporalV2.test.ts`: `splits a connected Clip with incoming endpoints on the left and outgoing endpoints on the right` |
+| Relationship | Group occupancy | `showClipsV2.test.ts`: `accepts exact materialized-Group adjacency, counts the effective sharer, and refuses one-millisecond overlap` |
+| Relationship | Placement animation | `showClipsV2.test.ts`: `retargets every Clip-owned Property form and preserves Effect identity inside copied appearance` |
+| Relationship | Instance animation | `showTransitionsV2.test.ts`: `keeps instance animation global when a materialized Group Clip shares the moved Clip instance` |
+| Relationship | Nonlinear easing | `showClipTemporalV2.test.ts`: `partitions retained nonlinear Clip activation exactly and keeps one global instance owner on split` |
+| Relationship | Divergent static presentation | No v2 coverage yet |
 
 ## Operation contract coverage
 
-Every operation has an accepted and refused representative in the table-driven
-matrix. More specialized regressions remain beside the owning engine.
+Each operation names one accepted and one refused v2 case where one exists.
 
-| Operation | Accepted partition | Refused partition | Primary specialized suite |
+| Operation | Accepted v2 case | Refused v2 case | Suite |
 | --- | --- | --- | --- |
-| Move | Ordinary Scene time | Scene Transition gap | `showClipTemporalV2.test.ts` |
-| Resize | Ordinary Scene time | Non-positive duration | `showClipTemporalV2.test.ts` |
-| Split | Ordinary Scene time | Exact Clip boundary | `showClipTemporalV2.test.ts` |
-| Duplicate | Empty destination | Occupied destination | `showClipsV2.test.ts` |
-| Delete | One of multiple Clips | Final remaining Clip | `showCompositionModel.test.ts` |
-| Inspector edit | Placement-owned property | Out-of-bounds duration | `showClipInspectorModel.test.ts` |
-| Transition edit | Isolated derived Cut | Non-positive duration | `showTransitionsV2.test.ts` |
-
-The accepted callback checks visible logical Clip identity plus the references
-specific to the operation: Pattern instances, placement or instance property
-tracks, Transition endpoints, logical segment roots, or destination ownership.
-`validateShowComposition` remains the full structural oracle. The refused
-callback compares both the Show and composition to deep snapshots and requires
-same-reference refusal.
+| Move | `moves animation according to ownership (shared instance: %s)` | `returns the original record for no-op and rejects a move into another Clip` | `showClipsV2.test.ts` |
+| Resize | `maps both selected edges and connected successors atomically across fixed Layouts` | `refuses a clip-edge resize against a converted Property ramp carrier (#1061)` | `showClipTemporalV2.test.ts` |
+| Split | `splits at %s without changing appearance or instance ownership` (`showClipsV2.test.ts`) | `refuses a split at or outside the clip bounds and a group child` (`showV2ClipTemporalPlanning.test.ts`) | as named |
+| Duplicate | `duplicates at exact adjacency with fresh authored identities while preserving the shared runtime` | `refuses invalid duplicate start %s atomically` | `showClipsV2.test.ts` |
+| Delete | `plans a free Clip as a bare delete-clip intent` | `refuses the final remaining Clip` | `showV2ClipDeletePlanning.test.ts` |
+| Inspector edit | No v2 coverage yet | No v2 coverage yet | none |
+| Transition edit | `inserts, moves, resizes and resets one Transition as immutable atomic edits` | `refuses collision and unavailable-Zone cascades atomically` | `showTransitionsV2.test.ts` |
 
 ## Deterministic sequences
 
-Each step below independently passes the accepted-edit contract. A sequence
-therefore localizes a failure to the first state transition that violates
-validation, projection, or reference integrity.
+These sequences were qualified against v1 compositions. None has v2 coverage
+yet.
 
 | Sequence | Stress applied |
 | --- | --- |
@@ -73,8 +65,8 @@ validation, projection, or reference integrity.
 | Split, then move | The right split result moves without changing the left result |
 | Move, then inspect | A Clip moved into another Scene remains addressable through its new inspector owner |
 | Duplicate, then delete | Removing the duplicate preserves the original Clip and its Pattern reference |
-| Move, resize, split, persist, reload | `showStore.test.ts` verifies the serialized multi-Scene result and unified projection |
-| Partial static setter, split, export, reload, compile | `clipProperties.compiler.test.ts` verifies each divergent physical appearance after structural authoring |
+| Move, resize, split, persist, reload | The serialized multi-Scene result and unified projection survive reload |
+| Partial static setter, split, export, reload, compile | Each divergent physical appearance survives structural authoring |
 
 ## Mutation-driven refinements
 
@@ -97,8 +89,8 @@ they represent the same load-bearing decisions.
 ## Review-defect map
 
 This map records the invariant and partition that should have exposed each
-review fix. The named regression is retained in the operation-specific suite;
-the matrix row supplies the broader neighboring partition.
+review fix. The commits predate v2; the partitions above say which now have v2
+coverage.
 
 | Commit | Defect family | Detecting invariant and partition |
 | --- | --- | --- |
@@ -133,12 +125,10 @@ the matrix row supplies the broader neighboring partition.
 ## Maintenance rule
 
 A logical Clip bug adds or sharpens a partition before it adds an isolated
-example. Put the smallest representative case in the central matrix when the
-defect generalizes across operations. Keep mechanism-heavy regressions beside
-their engine, and link them from this document. Add a sequence when the failure
-requires valid state produced by an earlier edit.
+example. Keep the case beside its owning v2 engine and name it from the
+matching row here. Add a sequence when the failure requires valid state
+produced by an earlier edit.
 
-Changing `showAuthoringContract.ts` runs the central matrix, the four
-operation-specific authoring suites, and the persistence sequence through
-the `wrsp.config.mjs` boundary map. Before handoff, run those targeted suites, the
+Changing `showAuthoringContract.ts` runs the suites mapped to it in the
+`wrsp.config.mjs` boundary map. Before handoff, run the targeted suites, the
 full Vitest suite, and the relevant Playwright smoke suite.
