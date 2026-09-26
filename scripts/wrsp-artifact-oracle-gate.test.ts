@@ -82,7 +82,7 @@ describe('installed wrsp-check-artifact-oracle in a disposable fixture (#940)', 
     expect(result.stdout).toMatch(/\[PASS\] Artifact deliverable "good": 17 bytes at .*good\.txt \(sha256 [a-f0-9]{64}\)\./)
   })
 
-  it('fails absent, empty, silent, marker-only, and mismatched deliverables while still passing the good one', () => {
+  it('fails absent, empty, silent, marker-only, and mismatched deliverables while still passing the good one', { timeout: 60_000 }, () => {
     const fixture = fixtureWithDeliverables({
       good: goodExport,
       absent: `

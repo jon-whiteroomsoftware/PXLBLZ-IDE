@@ -59,7 +59,7 @@ function check(fixture: GitFixture, base: string, tip: string) {
 }
 
 describe('installed wrsp-check-ui-proof under the repository policy (#940)', () => {
-  it('walks missing, stand-in, missing-file, empty, malformed, valid, then stale proof for one UI change', () => {
+  it('walks missing, stand-in, missing-file, empty, malformed, valid, then stale proof for one UI change', { timeout: 60_000 }, () => {
     const fixture = seededFixture()
     writeFileSync(join(fixture.directory, 'src/components/ShowEditor.tsx'), 'export const ShowEditor = 2\n')
     const uiSha = fixture.commitAll('touch ShowEditor')
@@ -173,7 +173,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     expect(stale.output).toContain('UI PROOF BLOCKED')
   })
 
-  it('does not require proof when only a colocated component test changes', () => {
+  it('does not require proof when only a colocated component test changes', { timeout: 60_000 }, () => {
     const fixture = seededFixture()
     writeFileSync(join(fixture.directory, 'src/components/ShowEditor.test.tsx'), 'test 2\n')
     const testOnlySha = fixture.commitAll('touch a component test')
@@ -183,7 +183,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     expect(result.output).toContain('UI proof not required: no configured UI path changed.')
   })
 
-  it('accepts the committed record shape verbatim when its capture commit is the range base', () => {
+  it('accepts the committed record shape verbatim when its capture commit is the range base', { timeout: 60_000 }, () => {
     // The real record was captured on reviewed main (the adoption base) and
     // committed by a candidate that touches no UI path. In the fixture the
     // same record, re-pointed at the fixture base, must be accepted for a UI

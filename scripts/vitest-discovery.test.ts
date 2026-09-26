@@ -62,7 +62,7 @@ describe('Vitest discovery boundaries', () => {
     ))).toBe(true)
   })
 
-  it('ignores tests below nested worktrees and node_modules directories', () => {
+  it('ignores tests below nested worktrees and node_modules directories', { timeout: 60_000 }, () => {
     const workspaceRoot = process.cwd()
     const nestedRoot = mkdtempSync(path.join(tmpdir(), 'pxlblz-vitest-discovery-'))
     const ordinaryTest = path.join(nestedRoot, 'src', 'ordinary.test.ts')

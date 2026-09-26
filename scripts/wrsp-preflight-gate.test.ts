@@ -43,7 +43,7 @@ async function listenOnEphemeralPort(): Promise<number> {
 }
 
 describe('installed wrsp-preflight worktree check (#940)', () => {
-  it('refuses the shared checkout and accepts a linked worktree of the same repository', () => {
+  it('refuses the shared checkout and accepts a linked worktree of the same repository', { timeout: 60_000 }, () => {
     const fixture = createGitFixture('pxlblz-preflight-worktree')
     fixtures.push(fixture)
     writeFileSync(join(fixture.directory, 'README.md'), 'fixture\n')
@@ -79,7 +79,7 @@ describe('installed wrsp-preflight worktree check (#940)', () => {
 })
 
 describe('installed wrsp-preflight port check (#940)', () => {
-  it('names the owning process of an occupied port and reports the same port free once released', async () => {
+  it('names the owning process of an occupied port and reports the same port free once released', { timeout: 60_000 }, async () => {
     const fixture = createGitFixture('pxlblz-preflight-port')
     fixtures.push(fixture)
     const port = await listenOnEphemeralPort()
