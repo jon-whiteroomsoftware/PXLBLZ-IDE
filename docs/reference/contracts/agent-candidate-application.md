@@ -79,7 +79,7 @@ a stale delivered candidate preserves intervening manual work. This path retains
 whole-Show context and admission. It does not qualify general canonical moves,
 Group rearrangement, destination changes or arbitrary temporary invalidity.
 
-[Private-pair tests](../../../src/agent-harness/test/privateClipRearrangement.test.ts)
+Private-pair tests
 own full-record and private lifecycle checks. The [consumer evidence](../evidence/issue-949-private-pair/README.md)
 records browser sequence PP's durable record, export/reopen and Undo results for
 the finite two-Clip swap.
@@ -208,7 +208,7 @@ without poisoning the original. A foreign-Show candidate delivered with the vali
 registered envelope receives a stored terminal `invalid-candidate` refusal: reads
 agree with delivery, and the diagnostic adapter records rejection once and releases
 metadata subscriptions. A changed duplicate cannot replace the original candidate
-identity. No automatic retry or provider/model call is introduced. [Store consumer tests](../../../src/store/showInputWait.test.ts)
+identity. No automatic retry or provider/model call is introduced. Store consumer tests
 cover complete records/history, zero attributable writes while waiting/refused,
 monotonic boundaries and a serialized `.pxlshow` reopened through its importer. Actual field
 ownership is covered by `src/dev/agentFieldActivity.test.tsx`, shared-control
@@ -218,7 +218,7 @@ Layer-scoped context remains unqualified.
 
 Manual pointer and composition-inspector duration commits also use the exact
 resize semantic owner, with two explicitly tagged manual Transition-to-Cut
-exceptions ([command contract](show-command-semantics.md#manual-resize-commits)).
+exceptions.
 They retain ordinary editor persistence and conservative captured-source refusal;
 sharing semantics does not give them this request lifecycle or narrow context.
 
@@ -415,7 +415,7 @@ diagnostic until #946, #947 and #959 decide what becomes engine code (#949).
   [`test/genericIdentityBoundary.test.ts`](../../../src/agent-harness/test/genericIdentityBoundary.test.ts),
   [`test/genericIdentityLedger.test.ts`](../../../src/agent-harness/test/genericIdentityLedger.test.ts),
   [`test/genericIdentityTransit.test.ts`](../../../src/agent-harness/test/genericIdentityTransit.test.ts),
-  [`test/genericIdentityPlacementOrder.test.ts`](../../../src/agent-harness/test/genericIdentityPlacementOrder.test.ts),
+  `test/genericIdentityPlacementOrder.test.ts`,
   [`test/genericDeclaredStructure.test.ts`](../../../src/agent-harness/test/genericDeclaredStructure.test.ts)).
   Provenance lives for one operation's working copy, as the ledger does;
   across separate operations of a transaction the contract accepts remove

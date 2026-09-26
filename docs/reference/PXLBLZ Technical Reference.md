@@ -1064,7 +1064,7 @@ Pointer and composition-inspector duration commits share the exact resize owner
 through `showManualClipResize.ts`. Bounded pointer feedback uses the owner's
 reported capacity; release resolves the painted range against its captured source.
 Named manual Transition-to-Cut exceptions remain distinct from exact agent
-requests. See the [manual resize contract](contracts/show-command-semantics.md#manual-resize-commits).
+requests.
 
 Timeline authoring is framework-free: `showClipTemporalV2.ts` (split, trim,
 extend, and move as atomic record updates in global time, with typed
@@ -1096,8 +1096,7 @@ rule. `docs/reference/evidence/issue-1039-validation-parity/audit.md` enumerates
 every v1 Show diagnostic against its v2 counterpart, including the rows the v2
 representation retires and the five that remain open.
 Logical Clip removal shares one validated owner across ordinary manual deletion,
-connected confirmation and the diagnostic descriptor adapter; its dependency
-cleanup and preservation boundary is in the [removal contract](contracts/show-command-semantics.md#logical-clip-removal-951).
+connected confirmation and the diagnostic descriptor adapter.
 Logical Clip splitting likewise shares its existing manual owner with the
 canonical and diagnostic command; copied curves, numeric rounding and endpoint
 references follow the [split contract](contracts/show-command-semantics.md#logical-clip-splitting-951).
@@ -1120,8 +1119,7 @@ validation, and published resources all derive their nested schemas from it.
 across internal Scenes. It admits only valid, uniform explicit target-Zone
 stacks without a target-Zone Group occurrence, preserves whole Layer objects,
 and returns the per-Scene identities plus old-to-new index map needed for a
-truthful command receipt. The precise behavior and finite topology are in the
-[Layer command contract](contracts/show-command-semantics.md#overlay-layer-addressing-reorder-and-removal-10121014).
+truthful command receipt.
 
 Adding a command requires a descriptor in its family module plus a golden
 accepted case and refusal partition. The faithfulness sweep fails entries
