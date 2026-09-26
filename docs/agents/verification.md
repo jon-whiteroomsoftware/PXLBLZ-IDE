@@ -24,6 +24,29 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
+## WRSP 0.19.0 adoption (#1145)
+
+This adoption updates the executable package from 0.18.0. Source release is
+WRSP 0.19.0; see its `docs/reference/process-release-0.19.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.19.0, tag `v0.19.0` |
+| Source | `289391f68e1b30a9c01c80aed8d6e6511d9ace06` |
+| Tarball | `vendor/whiteroom-software-process-0.19.0.tgz` |
+| SHA256 | `783ba242de31c30000dfb2af91dd638ff859b95976bb1e543bb458d6f38a382f` |
+
+`wrsp-preflight worktree` now exits 1 in a linked worktree whose
+`core.hooksPath` directory is missing (WRSP #137). Here that directory is
+husky's generated `.husky/_`, which a worktree provisioned by cloning
+`node_modules/` lacks, so its commits would run no hooks. The refusal names
+the remedy: `npx husky` in the worktree, which needs no network. The worker
+launcher's refusal (exit 66) and the PreToolUse commit gate that denies
+`git commit` in such a worktree are agent tooling deployed from the WRSP
+checkout with `wrsp-agents install`. The review policy fingerprint, review
+semantics, receipt format, staged-test selection and runtime dependencies are
+unchanged.
+
 ## WRSP 0.18.0 adoption (#1118)
 
 This adoption updates the executable package from 0.17.1. Source release is
