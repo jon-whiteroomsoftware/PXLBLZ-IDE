@@ -10,8 +10,8 @@ import {
   SHOW_AUTHORING_V2_SCHEMA_URI,
   SHOW_AUTHORING_V2_SERVER_INTRO,
 } from '../../engine/showCommandsV2/authoringReference'
-import type { PrivateEditResult } from '../../engine/agentPrivateExecutor'
-import { isAgentMcpError, isAgentMcpResult } from '../../engine/agentMcpResults'
+import { REPLACE_SHOW_MAX_BYTES, refuseOversizedReplaceShow, type PrivateEditResult } from '../../engine/agentPrivateExecutor'
+import { isAgentMcpError, isAgentMcpResult, type AgentMcpResult } from '../../engine/agentMcpResults'
 import type { WorkerEnv } from '../apiRoutes'
 import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 import { agentGrantLive } from './agentGrant'
@@ -144,11 +144,13 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     const resolved = await queryExternalTool(env, grant, binding_id, { kind: 'list_controller_profiles' })
     return output(toolResult(resolved))
   })
-  const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown) => {
+  const registerMutation = (name: string, description: string, fields: Record<string, z.ZodTypeAny>, payload: (args: Record<string, unknown>) => unknown, refuse?: (args: Record<string, unknown>) => AgentMcpResult | undefined) => {
     if (Object.keys(fields).some(key => key in operation)) throw new Error('Canonical command collides with transport identity')
     server.registerTool(name, { description, inputSchema: z.object({ ...operation, ...fields }).strict(), outputSchema: AGENT_MCP_OUTPUT_SCHEMAS.mutation }, async args => {
       const { binding_id, operation_id, idempotency_key, ...command } = args
       if (!active()) return output({ code: 'unauthorized' })
+      const refusal = refuse?.(command)
+      if (refusal) return output(refusal)
       const resolved = await dispatchExternalTool(env, grant, binding_id, { operationId: operation_id, ...(idempotency_key ? { idempotencyKey: idempotency_key } : {}), payload: payload(command) })
       return output(toolResult(resolved))
     })
@@ -159,7 +161,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     return output(toolResult(resolved))
   })
   for (const entry of catalogue) registerMutation(entry.name, entry.description, entry.shape, args => ({ kind: 'command', name: entry.name, arguments: args }))
-  registerMutation('replace_show', `Replace the connected Show's whole private composition. Start from read_show output; the record format is ${SHOW_RECORD_V2_SCHEMA_URI}. The supplied id must match the connected Show and the current Show name is kept.`, { show: z.record(z.unknown()) }, ({ show }) => ({ kind: 'replace_show', show }))
+  registerMutation('replace_show', `Replace the connected Show's whole private composition. Start from read_show output; the record format is ${SHOW_RECORD_V2_SCHEMA_URI}. The supplied id must match the connected Show and the current Show name is kept. Records larger than ${REPLACE_SHOW_MAX_BYTES} bytes (compact JSON) are refused with show-too-large; use the catalogue commands for those Shows.`, { show: z.record(z.unknown()) }, ({ show }) => ({ kind: 'replace_show', show }), ({ show }) => refuseOversizedReplaceShow(show))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
   server.registerResource('clip-layer-authoring-schema-v2', SHOW_AUTHORING_V2_SCHEMA_URI, {

@@ -5,8 +5,8 @@ import { agentMcpRouting } from './agentMcpRouting'
 
 const grant = { accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60 }
 type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]; [key: string]: unknown }
-/** The production catalogue's own discovery size: #1157 added a bounded replace_show tool schema (294,751 to 299,077 bytes). The complete record schema is a separate resource, not inlined into tools/list. */
-const OBSERVED_V2_DISCOVERY_BYTES = 299_077
+/** The production catalogue's own discovery size with the replace_show size refusal described. The complete record schema is a separate resource, not inlined into tools/list. */
+const OBSERVED_V2_DISCOVERY_BYTES = 299_201
 
 async function toolsList() {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {

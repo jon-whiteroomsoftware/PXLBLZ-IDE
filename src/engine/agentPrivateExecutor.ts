@@ -18,6 +18,20 @@ export interface PrivateEditOwner {
   outcome(request: ShowEditRequest): unknown
 }
 export interface PrivateEditResult extends AgentMcpResult { code: AgentMcpResultCode }
+export const REPLACE_SHOW_MAX_BYTES = 60_000
+
+export function refuseOversizedReplaceShow(show: unknown): PrivateEditResult | undefined {
+  const bytes = new TextEncoder().encode(JSON.stringify(show)).byteLength
+  if (bytes <= REPLACE_SHOW_MAX_BYTES) return undefined
+  return {
+    code: 'refused', reason: 'show-too-large',
+    issues: [{
+      code: 'show-too-large',
+      message: `The Show record is ${bytes} bytes; replace_show accepts at most ${REPLACE_SHOW_MAX_BYTES} bytes. Edit this Show with the catalogue commands instead.`,
+    }],
+  }
+}
+
 const payloadSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('begin_edit'), intent: z.string().max(240).refine(text => !/[\r\n]/.test(text)).optional() }).strict(),
   z.object({ kind: z.literal('command'), name: z.string().max(128), arguments: z.record(z.unknown()) }).strict(),
@@ -103,6 +117,8 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
     }
     if (!operation.private) return { code: 'finished' }
     if (payload.kind === 'replace_show') {
+      const sizeRefusal = refuseOversizedReplaceShow(payload.show)
+      if (sizeRefusal) return sizeRefusal
       if (payload.show.id !== operation.request.showId) return {
         code: 'refused', reason: 'show-identity-mismatch',
         issues: [{ code: 'show-identity-mismatch', message: 'The replacement Show id must match the connected Show.' }],

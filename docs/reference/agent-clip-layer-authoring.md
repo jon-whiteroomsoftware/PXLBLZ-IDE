@@ -31,7 +31,11 @@ Changes happen inside one private operation:
    private composition. Its id must match the connected Show; its supplied
    name is ignored, keeping the connected Show's name. A structurally or
    semantically invalid record is refused immediately. Later commands apply
-   to the replacement.
+   to the replacement. The compact `JSON.stringify(show)` must be at most
+   60,000 UTF-8 bytes; larger records are refused with `show-too-large`. An
+   MCP request body over 67,584 bytes receives HTTP 413 before the tool runs.
+   Each accepted `replace_show` counts toward the relay's 4 MiB per-session
+   identity total.
 3. `commit_edit` offers the whole result to the editor, which revalidates it
    and applies it as one Undo step. `cancel_edit` discards it.
    `get_outcome` reports what finally happened: saved, applied to a draft,

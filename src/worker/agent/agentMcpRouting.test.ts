@@ -2,6 +2,7 @@ import Ajv, { type ValidateFunction } from 'ajv'
 import { expect, it, vi } from 'vitest'
 import type { WorkerEnv } from '../apiRoutes'
 import { agentMcpRouting } from './agentMcpRouting'
+import { AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcpSchemas'
 import { createShowEditSession } from '../../engine/showEditAdmission'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import showRecordV2Schema from '../../../schemas/show-record-v2.provisional.schema.json'
@@ -48,6 +49,49 @@ function account(owner: { fetch: ReturnType<typeof vi.fn> | ((input: Request) =>
 function expectCopies(result: { content: Array<{ text: string }>; structuredContent: Record<string, unknown> }) {
   expect(JSON.parse(result.content[0].text)).toEqual(result.structuredContent)
 }
+
+it.each([
+  [60_000, true],
+  [60_001, false],
+] as const)('replace_show handles a %i-byte compact Show at the stated boundary', async (bytes, dispatched) => {
+  const show = { name: 'x'.repeat(bytes - JSON.stringify({ name: '' }).length) }
+  expect(new TextEncoder().encode(JSON.stringify(show)).byteLength).toBe(bytes)
+  const owner = { fetch: vi.fn(async () => Response.json({ code: 'changed', changes: [] })) }
+  const result = await call(owner, 'replace_show', {
+    binding_id: 'binding', operation_id: 'operation', idempotency_key: 'replace', show,
+  })
+  expectCopies(result)
+  expect(AGENT_MCP_OUTPUT_SCHEMAS.mutation.safeParse(result.structuredContent).success).toBe(true)
+  if (dispatched) {
+    expect(result.structuredContent.code).toBe('changed')
+    expect(owner.fetch).toHaveBeenCalledOnce()
+  } else {
+    expect(result.structuredContent).toEqual({
+      code: 'refused', reason: 'show-too-large',
+      issues: [{
+        code: 'show-too-large',
+        message: 'The Show record is 60001 bytes; replace_show accepts at most 60000 bytes. Edit this Show with the catalogue commands instead.',
+      }],
+    })
+    expect(result.isError).toBe(true)
+    expect(owner.fetch).not.toHaveBeenCalled()
+  }
+})
+
+it('counts UTF-8 bytes when refusing a multibyte Show', async () => {
+  const show = { name: 'é'.repeat(30_000) }
+  expect(JSON.stringify(show).length).toBeLessThan(60_000)
+  expect(new TextEncoder().encode(JSON.stringify(show)).byteLength).toBe(60_011)
+  const owner = { fetch: vi.fn() }
+  const result = await call(owner, 'replace_show', {
+    binding_id: 'binding', operation_id: 'operation', show,
+  })
+  expect(result.structuredContent).toMatchObject({
+    code: 'refused', reason: 'show-too-large',
+    issues: [{ code: 'show-too-large', message: expect.stringContaining('60011 bytes') }],
+  })
+  expect(owner.fetch).not.toHaveBeenCalled()
+})
 
 it.each([
   ['get_connection', {}],

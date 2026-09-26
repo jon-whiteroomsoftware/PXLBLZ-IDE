@@ -277,6 +277,32 @@ describe('browser private edit executor on a v2 record', () => {
     expect(owner.apply).not.toHaveBeenCalled()
   })
 
+  it('refuses an oversized Show and commits the pre-refusal candidate', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    const oversized = structuredClone(before)
+    const layer = oversized.composition.layers[0]
+    layer.name = ''
+    const baseBytes = new TextEncoder().encode(JSON.stringify(oversized)).byteLength
+    layer.name = 'x'.repeat(60_001 - baseBytes)
+    expect(new TextEncoder().encode(JSON.stringify(oversized)).byteLength).toBe(60_001)
+
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'command', name: 'rename_show', arguments: { name: 'Kept candidate' } }).code).toBe('changed')
+    expect(send(2, { kind: 'replace_show', show: oversized })).toEqual({
+      code: 'refused', reason: 'show-too-large',
+      issues: [{
+        code: 'show-too-large',
+        message: 'The Show record is 60001 bytes; replace_show accepts at most 60000 bytes. Edit this Show with the catalogue commands instead.',
+      }],
+    })
+    expect(current()).toEqual(before)
+    expect(owner.apply).not.toHaveBeenCalled()
+    expect(send(3, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current()).toEqual({ ...before, name: 'Kept candidate' })
+    expect(owner.apply).toHaveBeenCalledOnce()
+  })
+
   it('applies a later command to the replaced private Show', () => {
     const { send, current } = setup()
     const before = structuredClone(current())

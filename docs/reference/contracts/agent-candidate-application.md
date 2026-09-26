@@ -580,6 +580,11 @@ supersedes earlier private commands; later catalogue commands fold onto it.
 `cancel_edit` discards it, while `commit_edit` runs the unchanged whole-Show
 admission and adopts an accepted candidate in one Undo entry. The MCP resource
 `pxlblz://schemas/show-record/v2` serves the persisted record schema.
+`replace_show` accepts at most 60,000 UTF-8 bytes of compact `JSON.stringify(show)`;
+larger records refuse with `show-too-large` and leave the private candidate
+unchanged. An MCP request body over 67,584 bytes receives HTTP 413 before the
+tool runs. Each accepted `replace_show` counts toward the relay's 4 MiB
+per-session identity total.
 
 The activity entry stays working after a command refusal and shows at most three
 issue messages, each bounded to 160 characters. It acquires neither a final
