@@ -1420,10 +1420,11 @@ test.describe('silent save-failure feedback (#810)', () => {
   // aborted requests still log as browser console errors.
   test.use({ allowedBrowserErrors: [/net::ERR_FAILED|Failed to fetch/] })
 
-  // The autosave tick runs every 4s; glyph assertions span at least one tick.
+  // The two offline #810 tests shorten the tick to 500 ms through the DEV seam; #818 keeps 4 s.
   const TICK = { timeout: 15_000 }
 
   test('pattern editor shows cant-save while offline and recovers on its own (#810)', async ({ page }) => {
+    await page.addInitScript(() => { (window as { __pxlblzSyncTickMs?: number }).__pxlblzSyncTickMs = 500 })
     const pattern = {
       id: 'e2e-810-pattern',
       name: 'Save feedback bench',
@@ -1568,6 +1569,7 @@ test.describe('silent save-failure feedback (#810)', () => {
   })
 
   test('a failed Pattern departure save keeps the edit open and retries on navigation (#818)', async ({ page }) => {
+    // This test exercises the production 4000 ms autosave tick.
     const patternA = {
       id: 'e2e-810-nav-a',
       name: 'Nav bench A',
@@ -1618,6 +1620,7 @@ test.describe('silent save-failure feedback (#810)', () => {
   })
 
   test('map editor keeps an offline draft retrying instead of losing it (#810)', async ({ page }) => {
+    await page.addInitScript(() => { (window as { __pxlblzSyncTickMs?: number }).__pxlblzSyncTickMs = 500 })
     const map = {
       id: 'e2e-810-map',
       name: 'Offline bench map',

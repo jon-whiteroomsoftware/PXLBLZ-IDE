@@ -12,6 +12,13 @@ import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 const SYNC_TICK_MS = 4000
 const PREVIEW_DEBOUNCE_MS = 600
 
+function syncTickMs(): number {
+  // DEV-only e2e seam, absent from production builds (PXLBLZ-IDE #1148).
+  if (!import.meta.env.DEV) return SYNC_TICK_MS
+  const value = (window as { __pxlblzSyncTickMs?: unknown }).__pxlblzSyncTickMs
+  return typeof value === 'number' && Number.isInteger(value) && value >= 100 && value < SYNC_TICK_MS ? value : SYNC_TICK_MS
+}
+
 export function Editor() {
   const source = useEditorStore((s) => s.source)
   const isReadOnly = useEditorStore((s) => s.isReadOnly)
@@ -39,7 +46,7 @@ export function Editor() {
   // the buffer-replacing open paths flush from their own seams. Bake and write
   // failures surface via the stores and the save-status glyph.
   useEffect(() => {
-    const id = setInterval(flushPendingAutosave, SYNC_TICK_MS)
+    const id = setInterval(flushPendingAutosave, syncTickMs())
     return () => {
       clearInterval(id)
       flushPendingAutosave()
