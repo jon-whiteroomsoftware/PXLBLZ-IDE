@@ -83,6 +83,23 @@ export default {
     ],
     boundaries: [
       {
+        name: 'product-vocabulary',
+        prefixes: ['src/components/', 'src/engine/showCommandsV2/'],
+        exact: [
+          'src/App.tsx',
+          'src/engine/showLessonNarration.ts',
+          'src/engine/showEditorInspectorPresentation.ts',
+          'src/engine/showClipTemporalV2.ts',
+          'src/engine/showTransitionsV2.ts',
+          'src/engine/showClipsV2.ts',
+          'src/engine/showLayoutIntervalsV2.ts',
+          'src/pixelblaze/stock/showCatalogueV2.ts',
+          'src/pixelblaze/stock/showsV2.ts',
+          'src/test/productStrings.ts',
+        ],
+        tests: ['src/test/showProductVocabulary.test.ts'],
+      },
+      {
         name: 'show-compiler',
         exact: ['src/engine/showCompiler.ts'],
         tests: [

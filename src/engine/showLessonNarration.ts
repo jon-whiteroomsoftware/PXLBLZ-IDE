@@ -44,7 +44,7 @@ export function showLessonNarrationV2(
     return { kind: 'CLIP', label: clip?.patternName ?? 'No Clip', index: clip?.index ?? -1, count: clip?.count ?? 0 }
   }
   const chapter = currentShowChapterV2(record, positionMs)
-  return { kind: 'INTERVAL', label: chapter?.name ?? 'No Scene', index: chapter?.index ?? -1, count: chapter?.count ?? 0 }
+  return { kind: 'INTERVAL', label: chapter?.name ?? 'No chapter', index: chapter?.index ?? -1, count: chapter?.count ?? 0 }
 }
 
 export function showLessonAuthoredSlotPatternV2(

@@ -826,7 +826,7 @@ function resizeTrailing(record: ShowRecordV2, clipId: string, endMs: number): Sh
   const boundary = convertedBoundaryRepairSpecV2(record, transition.id)
   if (boundary.status === 'ramp-carrier') return refusedResult(record, 'unsupported-property-carrier', rampCarrierRefusalMessageV2(boundary.transitionId))
   if (boundary.status === 'ready') {
-    if (endMs > oldEndMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+    if (endMs > oldEndMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets boundary Transition "${boundary.repair.transitionId}" at its edge; it cannot extend into the Transition. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, clip.startMs, endMs, boundary.repair)
   }
   const deltaMs = endMs - oldEndMs
@@ -919,7 +919,7 @@ function resizeLeading(record: ShowRecordV2, clipId: string, startMs: number): S
   // Transition in place, with no ripple (Jon, 2026-09-24, #1111-C).
   if (durationMs <= 0) return extendLeadingThroughTransitionV2(record, clip, startMs, transition)
   if (boundary.status === 'ready') {
-    if (startMs < clip.startMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${boundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+    if (startMs < clip.startMs) return refusedResult(record, 'invalid-topology', `Clip "${clip.id}" meets boundary Transition "${boundary.repair.transitionId}" at its edge; it cannot extend into the Transition. Reset the Transition explicitly first.`)
     return resizeConvertedBoundaryEdge(record, clip, startMs, oldEndMs, boundary.repair)
   }
   const next = structuredClone(record)

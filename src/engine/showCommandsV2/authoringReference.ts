@@ -28,7 +28,7 @@ export const SHOW_AUTHORING_V2_REFERENCE_URI = 'pxlblz://docs/clip-layer-authori
 
 export const SHOW_AUTHORING_V2_SERVER_INTRO =
   `Show authoring uses schema version ${SHOW_AUTHORING_V2_SCHEMA_VERSION}. `
-  + 'Every command addresses entities by stable identity from read_show; there are no indices, Scenes or time lookups. '
+  + 'Every command addresses entities by stable identity from read_show; there are no index or time lookups. '
   + 'Times are exact global milliseconds and intervals are half-open; nothing is clamped and Show End never grows on its own. '
   + 'An already-satisfied request returns unchanged with no changes and does not abort the batch. '
   + `Each bulk array carries 1 to ${SHOW_AUTHORING_V2_MAX_BATCH_ITEMS} items and applies as one atomic candidate. `
@@ -166,7 +166,7 @@ function effectTable(): string {
 
 export const SHOW_AUTHORING_V2_REFERENCE_MARKDOWN = `# Show authoring reference v${SHOW_AUTHORING_V2_SCHEMA_VERSION}
 
-Every command addresses entities by stable identity from \`read_show\`: \`clip_id\`, \`layer_id\`, \`instance_id\`, \`transition_id\`, \`interval_id\`, \`track_id\`, \`keyframe_id\`, \`marker_id\`, \`effect_id\`, \`group_occurrence_id\`. A derived Cut junction is addressed by its \`(from_clip_id, to_clip_id)\` pair. There are no indices, Scenes or time lookups.
+Every command addresses entities by stable identity from \`read_show\`: \`clip_id\`, \`layer_id\`, \`instance_id\`, \`transition_id\`, \`interval_id\`, \`track_id\`, \`keyframe_id\`, \`marker_id\`, \`effect_id\`, \`group_occurrence_id\`. A derived Cut junction is addressed by its \`(from_clip_id, to_clip_id)\` pair. There are no index or time lookups.
 
 Times are nonnegative safe-integer global milliseconds, durations are positive, and intervals are half-open. Timing is exact: nothing is clamped, and Show End grows only through \`set_show_end\`, \`insert_time\` and an appended or duplicated Layout interval. An already-satisfied valid request returns \`unchanged\` with no changes, creates no history, timestamp or save, and never aborts the batch it is in.
 
@@ -176,7 +176,7 @@ Every changed command reports the same fourteen affected collections in \`change
 
 \`ClipSpec\` places one Clip at an exact interval: \`zone_id\`, \`layer_id\`, \`start_ms\`, \`duration_ms\` and a structured \`pattern\` reference. \`instance\` decides the runtime: \`"sole"\` (default) reuses the one existing runtime for that Pattern source, creates the first when none exists, and refuses with candidate identities when several exist; \`"new"\` creates the first runtime; any other value is an explicit existing \`instance_id\`. \`entry_policy\` is \`continue\` or \`restart\`; \`restart\` resets the whole Pattern instance at that Clip's first contribution, which every Clip sharing the runtime observes.
 
-\`ClipPatch\` updates one Clip by \`clip_id\`. \`start_ms\` and \`duration_ms\` go through the Clip temporal owner, so a Transition-connected Clip translates its whole connected component rigidly and a resized edge ripples connected successors while Transition identity and settings stay fixed. \`zone_id\` and \`layer_id\` re-place the Clip: its held appearance keys and Clip-owned tracks travel with it, shared Pattern-instance tracks stay where they are, and no runtime is created. A re-placement refuses when the Clip is a participant endpoint of a Transition or a contributor to a converted Scene boundary (reset that Transition first rather than detaching it), when the destination Layer is already occupied at that interval, and when the destination Zone is missing from the active Layout for any part of the Clip's post-detach contribution interval. \`instance_properties\` writes Pattern-instance values, which affect every Clip sharing the runtime and appear in \`instances\` and \`clips\`.
+\`ClipPatch\` updates one Clip by \`clip_id\`. \`start_ms\` and \`duration_ms\` go through the Clip temporal owner, so a Transition-connected Clip translates its whole connected component rigidly and a resized edge ripples connected successors while Transition identity and settings stay fixed. \`zone_id\` and \`layer_id\` re-place the Clip: its held appearance keys and Clip-owned tracks travel with it, shared Pattern-instance tracks stay where they are, and no runtime is created. A re-placement refuses when the Clip is a participant endpoint of a Transition or a contributor to a converted boundary Transition (reset that Transition first rather than detaching it), when the destination Layer is already occupied at that interval, and when the destination Zone is missing from the active Layout for any part of the Clip's post-detach contribution interval. \`instance_properties\` writes Pattern-instance values, which affect every Clip sharing the runtime and appear in \`instances\` and \`clips\`.
 
 ## Markers
 

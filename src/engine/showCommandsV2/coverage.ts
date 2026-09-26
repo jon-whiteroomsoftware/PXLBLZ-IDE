@@ -99,7 +99,7 @@ export const SHOW_COMMAND_V2_NAME_MAP: ShowCommandV2NameMapEntry[] = [
 
 /** Retired v1 addressing forms, with the v2 replacement. */
 export const RETIRED_V1_ADDRESSING: Array<{ form: string; replacement: string }> = [
-  { form: 'scene_id', replacement: 'Scenes are retired; address Clips, Layout intervals and Markers by identity.' },
+  { form: 'scene_id', replacement: 'Address Clips, Layout intervals and Markers by identity.' },
   { form: 'layer: "main" | index', replacement: 'layer_id, a stable Zone-owned Layer identity.' },
   { form: 'overlay_layer_index', replacement: 'layer_id, with stacking authored by rank or above_layer_id / below_layer_id.' },
   { form: 'at_ms / after_clip_id Boundary lookup', replacement: 'transition_id, or the (from_clip_id, to_clip_id) pair of a derived Cut junction.' },
@@ -184,8 +184,8 @@ export const RETIRED_V1_REFUSAL_CODES: Array<{ code: string; reason: string }> =
   { code: 'last-clip', reason: 'Decision D6: removing the final Clip leaves a valid empty Show.' },
   { code: 'no-change', reason: 'Catalogue rule 4: an already-satisfied request returns unchanged, never a refusal.' },
   { code: 'delete-refused', reason: 'Replaced by the owner code that explains the refusal.' },
-  { code: 'unknown-scene', reason: 'Scenes are retired from the authored contract.' },
-  { code: 'outside-scene', reason: 'Scene-local time is retired; owned-track-out-of-bounds covers the interval case.' },
+  { code: 'unknown-scene', reason: 'Use Clip, Layout interval or Marker identity in authored commands.' },
+  { code: 'outside-scene', reason: 'Use Show-global time; owned-track-out-of-bounds covers the interval case.' },
   { code: 'multi-segment-clip', reason: 'One Clip is one authored record across Layout switches; boundary-crossing-content covers duplication.' },
   { code: 'missing-composition', reason: 'A v2 record always carries a composition.' },
   { code: 'unsupported-schema-version', reason: 'read_show returns the v2 record only.' },

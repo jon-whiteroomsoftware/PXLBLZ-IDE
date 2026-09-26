@@ -205,7 +205,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
         }
         next.composition.transitions = next.composition.transitions.filter(transition => transition.id !== incoming[0].id)
       } else if (leadingBoundary.status === 'ready') {
-        if (leadingDeltaMs < 0) return refuse('invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${leadingBoundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+        if (leadingDeltaMs < 0) return refuse('invalid-topology', `Clip "${clip.id}" meets boundary Transition "${leadingBoundary.repair.transitionId}" at its edge; it cannot extend into the Transition. Reset the Transition explicitly first.`)
         pendingRepairs.push(leadingBoundary.repair)
       } else {
         const boundary = next.composition.transitions.find(transition => transition.id === incoming[0].id)!
@@ -218,7 +218,7 @@ export function editShowClipTemporalV2(record: ShowRecordV2, intent: ShowClipTem
       const trailingBoundary = convertedBoundaryRepairSpecV2(record, outgoing[0].id)
       if (trailingBoundary.status === 'ramp-carrier') return refuse('unsupported-property-carrier', rampCarrierRefusalMessageV2(trailingBoundary.transitionId))
       if (trailingBoundary.status === 'ready') {
-        if (trailingDeltaMs > 0) return refuse('invalid-topology', `Clip "${clip.id}" meets converted Scene-boundary Transition "${trailingBoundary.repair.transitionId}" at the Scene edge; it cannot extend into the boundary. Reset the Transition explicitly first.`)
+        if (trailingDeltaMs > 0) return refuse('invalid-topology', `Clip "${clip.id}" meets boundary Transition "${trailingBoundary.repair.transitionId}" at its edge; it cannot extend into the Transition. Reset the Transition explicitly first.`)
         pendingRepairs.push(trailingBoundary.repair)
       } else {
         const successors = downstreamClosure(record, transitionEndpoints(outgoing[0]).to)
