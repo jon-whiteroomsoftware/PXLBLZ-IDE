@@ -1219,9 +1219,10 @@ or leaves a meaningful survivor unexplained. Equivalent or mechanically
 irrelevant survivors belong in
 `scripts/show-authoring-mutation-classifications.json` with a stable
 fingerprint and concrete reason. The parser rejects blank, duplicate, and stale
-classifications. The 2026-09-26 run reported 22 killed, 0 survived, 0 timed out,
-and 0 errored mutants in approximately 18 seconds; qualification failed closed
-because three v2 fragments emitted no mutants.
+classifications. The 2026-09-26 amended run reported 36 killed, 12 survived,
+0 timed out, and 0 errored mutants in approximately 28 seconds. All 16 targets
+emitted mutants; qualification failed closed on the 12 survivors in duplicate
+admission.
 
 Run this command after changing one of the catalogued transformation boundaries,
 after a review cluster exposes weak fault sensitivity in the Show authoring

@@ -127,7 +127,7 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'move',
     'showClipTemporalV2.ts',
     'editShowClipTemporalV2',
-    'startMs - clip.startMs)',
+    'applyShowTransitionClipShiftV2(record, next, connectedComponent(componentSource, [clip.id]), startMs - clip.startMs)',
   ),
   target(
     'resize',
@@ -163,7 +163,10 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'duplicate',
     'showClipsV2.ts',
     'duplicateShowClipV2',
-    'endMs > record.composition.showEndMs',
+    `  if (!Number.isSafeInteger(intent.startMs) || intent.startMs < 0
+    || !Number.isSafeInteger(endMs) || endMs > record.composition.showEndMs) {
+    return refuse('invalid-intent', 'Duplicate interval must use safe integer milliseconds within Show End.')
+  }`,
   ),
   target(
     'show-end',
@@ -175,7 +178,9 @@ const SHOW_AUTHORING_MUTATION_TARGETS: MutationTarget[] = [
     'show-end',
     'showLayoutIntervalsV2.ts',
     'showEndProtectionIssue',
-    'contribution.endMs > showEndMs',
+    `    if (contribution.endMs > showEndMs) {
+      return \`Clip contribution "\${clip.id}" ends at \${contribution.endMs} ms.\`
+    }`,
   ),
 ]
 
