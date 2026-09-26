@@ -234,6 +234,7 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   },
   { id: 'redline-stage-2d', name: 'Redline stage', kind: 'custom', dim: 2, source: source('redline-stage-2d') },
   { id: 'proscenium-stage-2d', name: 'Proscenium stage', kind: 'custom', dim: 2, source: source('proscenium-stage-2d') },
+  { id: 'eclipse-dome-2d', name: 'Eclipse dome', kind: 'custom', dim: 2, source: source('eclipse-dome-2d') },
   { id: 'seed-ring-2d', name: 'Ring', kind: 'path', dim: 2, source: source('ring') },
 ]
 
