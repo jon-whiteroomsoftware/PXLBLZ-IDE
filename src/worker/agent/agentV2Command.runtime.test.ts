@@ -32,6 +32,7 @@ import { admitShowV2PilotSetShowEnd } from '../../store/showV2PreparedEditAdmiss
 import { STOCK_SHOW_IDS } from '../../pixelblaze/stock/showIds'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
 import type { ShowRecordV2 } from '../../engine/showCompositionV2'
+import { validateShowRecordV2 } from '../../engine/showCompositionV2'
 
 globalThis.Blob = (await import('node:buffer')).Blob as unknown as typeof globalThis.Blob
 
@@ -346,6 +347,58 @@ it('answers a duplicate begin key with the original operation and never opens a 
     expect(repeat).toMatchObject({ code: 'begun', operation_id: begun.operation_id })
     const changed = await editor.tool('begin_edit', { binding_id: editor.binding_id, intent: 'A different intent', idempotency_key: 'begin' })
     expect(changed).toMatchObject({ code: 'identity_conflict', operation_id: begun.operation_id })
+    expect(editor.write).not.toHaveBeenCalled()
+  } finally { editor.close() }
+}, 120_000)
+
+it('replaces the connected Show through MCP and restores the prior composition in one Undo', async () => {
+  const editor = await boundEditor()
+  try {
+    const before = structuredClone(editor.current())
+    const replacement = structuredClone(before)
+    replacement.name = 'Ignored input name'
+    replacement.composition.layers[0].name = 'Agent replacement'
+    expect(validateShowRecordV2(replacement)).toEqual([])
+    const begun = await editor.tool('begin_edit', { binding_id: editor.binding_id, intent: 'Replace the composition', idempotency_key: 'begin' })
+    const identity = { binding_id: editor.binding_id, operation_id: begun.operation_id as string }
+    expect((await editor.tool('replace_show', { ...identity, idempotency_key: 'replace', show: replacement })).code).toBe('changed')
+    expect(editor.current()).toEqual(before)
+    expect((await editor.tool('commit_edit', { ...identity, idempotency_key: 'commit' })).code).toBe('outcome')
+    await vi.waitFor(async () => {
+      expect(await editor.tool('get_outcome', identity)).toMatchObject({ code: 'outcome', receipt: { status: 'applied', settlement: 'saved' } })
+    })
+    expect(editor.current()).toMatchObject({ id: before.id, name: before.name, composition: replacement.composition })
+    expect(editor.history().past).toEqual([before])
+    expect(editor.write).toHaveBeenCalledTimes(1)
+    const saved = editor.readSaved()
+    const bundle = buildShowFileBundle(saved, { patterns: [PATTERN], maps: [], libraries: [] }, { appVersion: 'mcp-v2', exportedAt: '2026-01-01T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(bundle.bundle), { acceptV2: true })
+    expect(reopened.show).toEqual(saved)
+    expect(await useShowStore.getState().undoShowV2Pilot(before.id)).toBe(true)
+    expect({ ...editor.current(), updatedAt: before.updatedAt }).toEqual(before)
+    expect(editor.history().past).toEqual([])
+  } finally { editor.close() }
+}, 120_000)
+
+it('refuses an unknown Pattern at commit without adopting a partial replacement', async () => {
+  const editor = await boundEditor()
+  try {
+    const before = structuredClone(editor.current())
+    const replacement = structuredClone(before)
+    replacement.composition.patternInstances[0].pattern = { kind: 'user', id: 'missing-pattern' }
+    expect(validateShowRecordV2(replacement)).toEqual([])
+    const begun = await editor.tool('begin_edit', { binding_id: editor.binding_id, intent: 'Replace the composition', idempotency_key: 'begin' })
+    const identity = { binding_id: editor.binding_id, operation_id: begun.operation_id as string }
+    expect((await editor.tool('replace_show', { ...identity, idempotency_key: 'replace', show: replacement })).code).toBe('changed')
+    expect((await editor.tool('commit_edit', { ...identity, idempotency_key: 'commit' })).code).toBe('outcome')
+    expect(await editor.tool('get_outcome', identity)).toMatchObject({
+      code: 'outcome', receipt: {
+        status: 'refused', reason: 'invalid-candidate',
+        diagnostic: { stage: 'authoring', issues: expect.arrayContaining([expect.objectContaining({ code: 'pattern-reference-unavailable' })]) },
+      },
+    })
+    expect(editor.current()).toEqual(before)
+    expect(editor.history().past).toEqual([])
     expect(editor.write).not.toHaveBeenCalled()
   } finally { editor.close() }
 }, 120_000)

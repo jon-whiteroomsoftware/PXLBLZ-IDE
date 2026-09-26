@@ -413,6 +413,30 @@ it('attributes only successful owned changes once and keeps Send disabled while 
   f.controller.dispatch({ type: 'draft', text: 'Next request' }); f.controller.submit()
   expect(f.builtin).not.toHaveBeenCalled()
 })
+it('shows the replacement instead of changes it superseded', () => {
+  const f = fixture()
+  f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'Codex' } })
+  const request = { operationId: 'binding:op', sessionId: 'session', showId: 'show', baseRevision: 0, payloadKey: '{}', referenceContext: '{}', targets: ['show'] }
+  const emit = (deliveryId: string, payload: unknown, result: PrivateEditResult) => f.emit({
+    type: 'delivery',
+    delivery: { registrationId: 'reg', sessionId: 'session', showId: 'show', bindingId: 'binding', operationId: 'op', deliveryId, sequence: 0, payload },
+    result, request,
+  })
+  f.setReceipt({ request, status: 'pending' })
+  emit('begin', { kind: 'begin_edit', intent: 'Replace the Show' }, { code: 'begun' })
+  emit('old', { kind: 'command', name: 'rename_show', arguments: { name: 'Temporary' } }, {
+    code: 'changed', changes: [{ command: 'rename_show', targetId: 'show', description: 'Renamed temporarily' }],
+  })
+  emit('replace', { kind: 'replace_show', show: {} }, {
+    code: 'changed', changes: [{ command: 'replace_show', targetId: 'show', description: 'Replaced the Show composition; kept the current Show name.' }],
+  })
+  const receipt = { request, status: 'applied' as const, settlement: 'saved' as const }
+  f.setReceipt(receipt)
+  emit('commit', { kind: 'commit_edit' }, { code: 'outcome', receipt })
+  expect(useAgentDrawerStore.getState().state.stream.find(line => line.operationId === 'op')?.changes).toEqual([
+    { targetId: 'show', description: 'Replaced the Show composition; kept the current Show name.' },
+  ])
+})
 it('projects bounded interim command issues on the working entry until final settlement', () => {
   const f = fixture()
   f.emit({ type: 'connection', connection: { kind: 'bound', bindingId: 'binding', agentKind: 'external', agentName: 'Codex' } })

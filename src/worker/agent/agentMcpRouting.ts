@@ -17,6 +17,9 @@ import type { ValidatedAgentGrant } from './AgentOAuthAuthority'
 import { agentGrantLive } from './agentGrant'
 import { connectExternalTool, dispatchExternalTool, queryExternalTool, resolveExternalTool, type ExternalToolConnection } from './accountDelivery'
 import { AGENT_MCP_MOVE_INSTRUCTION, AGENT_MCP_OUTPUT_SCHEMAS } from './agentMcpSchemas'
+import showRecordV2Schema from '../../../schemas/show-record-v2.provisional.schema.json'
+
+const SHOW_RECORD_V2_SCHEMA_URI = 'pxlblz://schemas/show-record/v2'
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 const binding = { binding_id: id.describe('Binding returned by get_connection; changed bindings require a new operation.') }
@@ -156,6 +159,7 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     return output(toolResult(resolved))
   })
   for (const entry of catalogue) registerMutation(entry.name, entry.description, entry.shape, args => ({ kind: 'command', name: entry.name, arguments: args }))
+  registerMutation('replace_show', `Replace the connected Show's whole private composition. Start from read_show output; the record format is ${SHOW_RECORD_V2_SCHEMA_URI}. The supplied id must match the connected Show and the current Show name is kept.`, { show: z.record(z.unknown()) }, ({ show }) => ({ kind: 'replace_show', show }))
   registerMutation('commit_edit', 'Validate and request adoption of the entire private candidate once; command changes describe only the private proposal, waiting/saving are not completion, and invalid-candidate may include bounded validation detail.', {}, () => ({ kind: 'commit_edit' }))
   registerMutation('cancel_edit', 'Retire the private candidate; already-adopted saves retain their receipt.', {}, () => ({ kind: 'cancel_edit' }))
   server.registerResource('clip-layer-authoring-schema-v2', SHOW_AUTHORING_V2_SCHEMA_URI, {
@@ -163,6 +167,11 @@ export async function agentMcpRouting(request: Request, env: WorkerEnv, grant: V
     description: 'Generated JSON Schema for the authored command vocabulary. This is distinct from persisted ShowRecord JSON.',
     mimeType: 'application/schema+json',
   }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(SHOW_AUTHORING_V2_JSON_SCHEMA, null, 2) }] }))
+  server.registerResource('show-record-schema-v2', SHOW_RECORD_V2_SCHEMA_URI, {
+    title: 'Show record schema v2',
+    description: 'Complete JSON Schema for the ShowRecordV2 record returned by read_show and accepted by replace_show.',
+    mimeType: 'application/schema+json',
+  }, uri => ({ contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: JSON.stringify(showRecordV2Schema, null, 2) }] }))
   server.registerResource('clip-layer-authoring-reference-v2', SHOW_AUTHORING_V2_REFERENCE_URI, {
     title: 'Show authoring reference v2',
     description: 'Identity addressing, exact global timing, the appearance apply selector, Effect and Aperture parameter names, the animation target union, the uniform no-op and the affected-entity result.',

@@ -234,10 +234,11 @@ export function createProductionDrawerController(api: Admission, showId: string,
       if (cancelled.has(id) && operation.request) publish(id, api.cancel(operation.request))
     }
     const operation = operations.get(id)
-    if (operation && payload.kind === 'command') {
-      emit({ type: 'call', id, name: payload.name ?? 'command' })
+    if (operation && (payload.kind === 'command' || payload.kind === 'replace_show')) {
+      emit({ type: 'call', id, name: payload.kind === 'replace_show' ? 'replace_show' : payload.name ?? 'command' })
       if (event.result.code === 'refused') emit({ type: 'commandRefused', id, issues: boundedInterimIssues(event.result.issues) })
       if (event.result.code === 'changed' && Array.isArray(event.result.changes)) {
+        if (payload.kind === 'replace_show') operation.changes = []
         for (const rawChange of event.result.changes) {
           if (!rawChange || typeof rawChange !== 'object') continue
           const change = rawChange as { targetId?: unknown; description?: unknown; command?: unknown }

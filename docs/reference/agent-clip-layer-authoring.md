@@ -26,7 +26,12 @@ Changes happen inside one private operation:
    `add_property_tracks` change the working copy. Each is checked
    immediately. A refused command reports why, with a code, the offending
    field, and, when an id failed to resolve, the nearest valid ids. Earlier
-   commands in the operation stay applied.
+   commands in the operation stay applied. `replace_show` instead supplies a
+   complete Show record, starting from `read_show` output, and replaces the
+   private composition. Its id must match the connected Show; its supplied
+   name is ignored, keeping the connected Show's name. A structurally or
+   semantically invalid record is refused immediately. Later commands apply
+   to the replacement.
 3. `commit_edit` offers the whole result to the editor, which revalidates it
    and applies it as one Undo step. `cancel_edit` discards it.
    `get_outcome` reports what finally happened: saved, applied to a draft,
@@ -102,6 +107,8 @@ A connected agent can read the complete, generated reference as MCP
 resources:
 
 - `pxlblz://schemas/clip-layer-authoring/v2`: JSON Schema for every input.
+- `pxlblz://schemas/show-record/v2`: the complete `ShowRecordV2` JSON Schema
+  used by `replace_show`.
 - `pxlblz://docs/clip-layer-authoring/v2`: defaults, clearing rules, the
   per-Effect and per-shape parameter tables, and worked examples.
 

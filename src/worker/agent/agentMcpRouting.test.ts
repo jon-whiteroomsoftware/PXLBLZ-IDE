@@ -4,6 +4,9 @@ import type { WorkerEnv } from '../apiRoutes'
 import { agentMcpRouting } from './agentMcpRouting'
 import { createShowEditSession } from '../../engine/showEditAdmission'
 import { SHOW_COMMANDS_V2 } from '../../engine/showCommandsV2/registry'
+import showRecordV2Schema from '../../../schemas/show-record-v2.provisional.schema.json'
+
+const showRecordV2SchemaUri = 'pxlblz://schemas/show-record/v2'
 
 const grant = {
   accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60,
@@ -55,6 +58,7 @@ it.each([
   ['list_controller_profiles', { binding_id: 'binding' }],
   ['begin_edit', { binding_id: 'binding', intent: 'Rename the Show', idempotency_key: 'begin' }],
   ['rename_show', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'rename', name: 'Renamed' }],
+  ['replace_show', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'replace', show: { version: 2 } }],
   ['commit_edit', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'commit' }],
   ['cancel_edit', { binding_id: 'binding', operation_id: 'operation', idempotency_key: 'cancel' }],
   ['get_outcome', { binding_id: 'binding', operation_id: 'operation' }],
@@ -143,7 +147,7 @@ it('publishes an output schema for every dynamic tool without advertising resour
 
   const listed = await (await request(env, 'tools/list')).json() as { result: { tools: Array<{ name: string; outputSchema?: object; annotations?: { readOnlyHint?: boolean; openWorldHint?: boolean } }> } }
   // The default catalogue is the production one, which is v2 since #1039.
-  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS_V2.length + 10)
+  expect(listed.result.tools).toHaveLength(SHOW_COMMANDS_V2.length + 11)
   for (const tool of listed.result.tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
   for (const name of ['list_patterns', 'list_controller_profiles']) {
     expect(listed.result.tools.find(tool => tool.name === name)?.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false })
@@ -174,16 +178,18 @@ it('keeps tool metadata concise and marks exactly the non-claiming read tools re
     result: { tools: Array<{ name: string; description?: string; annotations?: { readOnlyHint?: boolean }; inputSchema: { properties?: Record<string, { description?: string }> } }> }
   }
   const byName = new Map(listed.result.tools.map(tool => [tool.name, tool]))
-  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS_V2.map(command => command.name), 'commit_edit', 'cancel_edit'])
+  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS_V2.map(command => command.name), 'replace_show', 'commit_edit', 'cancel_edit'])
   const mutations = listed.result.tools.filter(tool => mutationNames.has(tool.name))
 
   // The v2 catalogue authors the same domain in fewer, bulk commands.
-  expect(mutations).toHaveLength(SHOW_COMMANDS_V2.length + 3)
+  expect(mutations).toHaveLength(SHOW_COMMANDS_V2.length + 4)
   expect(mutations.some(tool => tool.description?.includes('Requires the current bound editor'))).toBe(false)
   expect(mutations.some(tool => tool.description?.includes('unkeyed timeouts must be recovered'))).toBe(false)
   for (const command of SHOW_COMMANDS_V2) expect(byName.get(command.name)?.description, command.name).toBe(command.description)
   expect(byName.get('begin_edit')?.description).toBe('Capture a full immutable Show/context and begin one private operation. The intent is required and displayed to the person in the editor. The relay assigns and returns operation_id.')
   expect(byName.get('begin_edit')?.inputSchema.properties?.intent?.description).toBe('Required nonblank edit intent displayed to the person in the editor; one line, at most 240 characters.')
+  expect(byName.get('replace_show')?.description).toContain(showRecordV2SchemaUri)
+  expect(byName.get('replace_show')?.description).toContain('read_show')
 
   const readOnly = listed.result.tools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => tool.name).sort()
   expect(readOnly).toEqual(['get_context', 'get_outcome', 'list_commands', 'list_controller_profiles', 'list_patterns', 'read_show'])
@@ -280,6 +286,10 @@ it('publishes server-owned identity schemas and rejects legacy delivery fields',
   expect(byName.get('begin_edit')?.properties).not.toHaveProperty('operation_id')
   expect(byName.get('begin_edit')?.properties).not.toHaveProperty('delivery_id')
   expect(byName.get('rename_show')).toMatchObject({ required: expect.arrayContaining(['binding_id', 'operation_id']) })
+  expect(byName.get('replace_show')).toMatchObject({
+    required: expect.arrayContaining(['binding_id', 'operation_id', 'show']),
+    properties: { show: { type: 'object' } },
+  })
   expect(byName.get('rename_show')?.properties).not.toHaveProperty('delivery_id')
   expect(byName.get('rename_show')?.properties).not.toHaveProperty('sequence')
 
@@ -299,6 +309,17 @@ it('publishes server-owned identity schemas and rejects legacy delivery fields',
     const response = await request({ ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv, 'tools/call', { name: 'begin_edit', arguments: arguments_ })
     expect((await response.json() as { result: { isError?: boolean } }).result.isError).toBe(true)
   }
+})
+
+it('serves the complete Show record schema as an MCP resource', async () => {
+  const env = { ASSETS: { fetch: vi.fn() } } as unknown as WorkerEnv
+  const listed = await (await request(env, 'resources/list')).json() as { result: { resources: Array<{ uri: string }> } }
+  expect(listed.result.resources).toContainEqual(expect.objectContaining({ uri: showRecordV2SchemaUri }))
+  const response = await (await request(env, 'resources/read', { uri: showRecordV2SchemaUri })).json() as {
+    result: { contents: Array<{ text: string; mimeType: string }> }
+  }
+  expect(response.result.contents[0].mimeType).toBe('application/schema+json')
+  expect(JSON.parse(response.result.contents[0].text)).toEqual(showRecordV2Schema)
 })
 
 it('describes the production v2 catalogue when no editor is bound (#1042)', async () => {

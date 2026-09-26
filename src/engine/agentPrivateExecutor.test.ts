@@ -6,7 +6,7 @@ import { applyShowCommandV2 } from './showCommandsV2/registry'
 import { commandFixtureV2, fixtureContext } from './showCommandsV2/fixtures'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { convertibleV1Show } from '../test/showV2TracerFixture'
-import type { ShowRecordV2 } from './showCompositionV2'
+import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 
 describe('browser private edit executor', () => {
   const scope = { bindingId: 'binding', sessionId: 'session' }
@@ -220,6 +220,93 @@ describe('browser private edit executor on a v2 record', () => {
     return { owner, executor, send, current: () => current }
   }
   const begin = { kind: 'begin_edit', intent: 'Rename the Show' }
+
+  it('round-trips an identical whole Show as unchanged without adopting', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'replace_show', show: before })).toMatchObject({ code: 'unchanged' })
+    expect(send(2, { kind: 'commit_edit' })).toMatchObject({
+      code: 'outcome', receipt: { status: 'completed', completion: 'nothing-applied' },
+    })
+    expect(current()).toEqual(before)
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('replaces the composition while retaining the connected identity and name', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    const replacement = structuredClone(before)
+    replacement.name = 'Ignored input name'
+    replacement.composition.layers[0].name = 'Replacement Layer'
+    expect(validateShowRecordV2(replacement)).toEqual([])
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'replace_show', show: replacement })).toMatchObject({
+      code: 'changed', message: expect.stringContaining('name'),
+      changes: [{ command: 'replace_show', targetId: before.id }],
+    })
+    expect(current()).toEqual(before)
+    expect(send(2, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current()).toEqual({ ...replacement, name: before.name })
+    expect(owner.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses a different Show id and preserves the private candidate', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'replace_show', show: { ...before, id: 'another-show' } })).toMatchObject({
+      code: 'refused', reason: 'show-identity-mismatch', issues: [{ code: 'show-identity-mismatch' }],
+    })
+    expect(send(2, { kind: 'replace_show', show: before }).code).toBe('unchanged')
+    expect(send(3, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current()).toEqual(before)
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('refuses a structurally invalid Show with validator issues and preserves the candidate', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    expect(send(0, begin).code).toBe('begun')
+    const refused = send(1, { kind: 'replace_show', show: { ...before, version: 1 } })
+    expect(refused).toMatchObject({ code: 'refused', reason: 'invalid-show-record', issues: expect.any(Array) })
+    expect((refused.issues as unknown[]).length).toBeGreaterThan(0)
+    expect(send(2, { kind: 'replace_show', show: before }).code).toBe('unchanged')
+    expect(send(3, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current()).toEqual(before)
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('applies a later command to the replaced private Show', () => {
+    const { send, current } = setup()
+    const before = structuredClone(current())
+    const replacement = structuredClone(before)
+    replacement.composition.layers[0].name = 'Replacement Layer'
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'replace_show', show: replacement }).code).toBe('changed')
+    expect(send(2, { kind: 'command', name: 'rename_show', arguments: { name: 'Renamed after replacement' } }).code).toBe('changed')
+    expect(send(3, { kind: 'commit_edit' }).code).toBe('outcome')
+    expect(current().composition.layers[0].name).toBe('Replacement Layer')
+    expect(current().name).toBe('Renamed after replacement')
+  })
+
+  it('discards a whole replacement on cancel', () => {
+    const { owner, send, current } = setup()
+    const before = structuredClone(current())
+    const replacement = structuredClone(before)
+    replacement.composition.layers[0].name = 'Replacement Layer'
+    expect(send(0, begin).code).toBe('begun')
+    expect(send(1, { kind: 'replace_show', show: replacement }).code).toBe('changed')
+    expect(send(2, { kind: 'cancel_edit' })).toMatchObject({ code: 'outcome', receipt: { status: 'cancelled' } })
+    expect(current()).toEqual(before)
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
+
+  it('refuses replacement when no edit is open', () => {
+    const { owner, send, current } = setup()
+    expect(send(0, { kind: 'replace_show', show: current() })).toEqual({ code: 'unknown' })
+    expect(owner.apply).not.toHaveBeenCalled()
+  })
 
   it('folds the v2 catalogue over the private candidate and adopts the v2 record once', () => {
     const { owner, send, current } = setup()

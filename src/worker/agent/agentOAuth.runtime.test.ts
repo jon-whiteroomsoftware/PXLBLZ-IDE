@@ -130,7 +130,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   expect(initialization.result.capabilities.resources.listChanged).not.toBe(true)
   const listing = await rpc('tools/list')
   const tools = (await listing.json() as { result: { tools: Array<{ name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] }; outputSchema?: object; annotations?: { readOnlyHint?: boolean } }> } }).result.tools
-  expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'list_patterns', 'list_controller_profiles', 'read_show', 'get_context', 'begin_edit', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS_V2.map(command => command.name)].sort())
+  expect(tools.map(tool => tool.name).sort()).toEqual(['get_connection', 'list_commands', 'list_patterns', 'list_controller_profiles', 'read_show', 'get_context', 'begin_edit', 'replace_show', 'commit_edit', 'get_outcome', 'cancel_edit', ...SHOW_COMMANDS_V2.map(command => command.name)].sort())
   // None of the retired v1-only authoring names is reachable before attachment.
   expect(tools.map(tool => tool.name)).not.toContain('add_clip')
   for (const tool of tools) expect(tool.outputSchema, tool.name).toMatchObject({ type: 'object' })
@@ -150,6 +150,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   const resources = await rpc('resources/list')
   expect(await resources.json()).toMatchObject({ result: { resources: expect.arrayContaining([
     expect.objectContaining({ uri: 'pxlblz://schemas/clip-layer-authoring/v2' }),
+    expect.objectContaining({ uri: 'pxlblz://schemas/show-record/v2' }),
     expect.objectContaining({ uri: 'pxlblz://docs/clip-layer-authoring/v2' }),
   ]) } })
   const reference = await rpc('resources/read', { uri: 'pxlblz://docs/clip-layer-authoring/v2' })

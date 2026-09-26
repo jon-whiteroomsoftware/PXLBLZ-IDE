@@ -113,7 +113,7 @@ export class AgentRelay {
       return this.enqueueExternal(operationId, deliveryId, input.payload, record, false)
     }
 
-    if (!validId(input.operationId) || (input.idempotencyKey !== undefined && !validId(input.idempotencyKey)) || !['command', 'commit_edit', 'cancel_edit'].includes(kind ?? '')) return { code: 'invalid_payload' }
+    if (!validId(input.operationId) || (input.idempotencyKey !== undefined && !validId(input.idempotencyKey)) || !['command', 'replace_show', 'commit_edit', 'cancel_edit'].includes(kind ?? '')) return { code: 'invalid_payload' }
     const operation = this.operations.get(input.operationId)
     if (!operation) return { code: 'unknown', operationId: input.operationId }
     const prior = input.idempotencyKey === undefined ? undefined : operation.keys.get(input.idempotencyKey)

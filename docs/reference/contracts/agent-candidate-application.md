@@ -568,6 +568,19 @@ within that operation, then commit or cancel. Explicit
 whole-turn completion, commit/admission refusal, service/result-size failure,
 cancellation and retirement retain their existing terminal ownership.
 
+`replace_show` is a private executor payload, not a catalogue command. It accepts
+the complete `ShowRecordV2` returned by `read_show` only inside an open edit. The
+supplied id must match the connected Show or it refuses with
+`show-identity-mismatch`. The supplied name is ignored: replacement keeps the
+name captured from the connected Show, and its outcome says so. The executor
+validates the name-adjusted record with `validateShowRecordV2` at the call and
+refuses `invalid-show-record` with validator issues without changing the private
+candidate. An identical private record returns `unchanged`. A changed record
+supersedes earlier private commands; later catalogue commands fold onto it.
+`cancel_edit` discards it, while `commit_edit` runs the unchanged whole-Show
+admission and adopts an accepted candidate in one Undo entry. The MCP resource
+`pxlblz://schemas/show-record/v2` serves the persisted record schema.
+
 The activity entry stays working after a command refusal and shows at most three
 issue messages, each bounded to 160 characters. It acquires neither a final
 outcome nor an unread completion until settlement; settlement clears the interim

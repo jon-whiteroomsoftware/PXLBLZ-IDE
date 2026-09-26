@@ -34,6 +34,7 @@ describe('v2 authoring resources', () => {
     expect(after.result.resources.map(resource => resource.uri).sort()).toEqual([
       SHOW_AUTHORING_V2_REFERENCE_URI,
       SHOW_AUTHORING_V2_SCHEMA_URI,
+      'pxlblz://schemas/show-record/v2',
     ].sort())
   })
 

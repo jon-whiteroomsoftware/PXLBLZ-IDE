@@ -5,8 +5,8 @@ import { agentMcpRouting } from './agentMcpRouting'
 
 const grant = { accountId: 'account', clientId: 'client', clientName: 'Client', clientOrigins: [], grantId: 'grant', expiresAt: Math.ceil(Date.now() / 1000) + 60 }
 type JsonSchema = { properties?: Record<string, JsonSchema>; required?: string[]; [key: string]: unknown }
-/** The production catalogue's own discovery size: measured at the #1039 flip, re-pinned when #1066 named the converted-boundary re-placement refusal in update_clips (+47 bytes), then #1069 added remove_controls to three command schemas (+624 bytes), #1093 kept remove_controls on update_clips only (-416 bytes), #1094 retired repeat-per-zone Clip sampling (295,626 to 295,599 bytes, -27), #1111 described the one leading-resize rule in resize_clip (295,599 to 295,690 bytes, +91), #1042 removed not_qualified from mutation outcomes (295,690 to 294,746 bytes, -944), and #1043 reworded the update_clips description (294,746 to 294,751 bytes, +5). */
-const OBSERVED_V2_DISCOVERY_BYTES = 294_751
+/** The production catalogue's own discovery size: #1157 added a bounded replace_show tool schema (294,751 to 299,077 bytes). The complete record schema is a separate resource, not inlined into tools/list. */
+const OBSERVED_V2_DISCOVERY_BYTES = 299_077
 
 async function toolsList() {
   const response = await agentMcpRouting(new Request('https://app.test/mcp', {
@@ -22,14 +22,14 @@ const encoded = (value: unknown) => new TextEncoder().encode(JSON.stringify(valu
 it('measures the production v2 discovery catalogue (#1042)', async () => {
   const production = await toolsList()
   const unqualified = await toolsList()
-  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS_V2.map(command => command.name), 'commit_edit', 'cancel_edit'])
+  const mutationNames = new Set(['begin_edit', ...SHOW_COMMANDS_V2.map(command => command.name), 'replace_show', 'commit_edit', 'cancel_edit'])
   const measurement = {
     tools: production.result.tools.length,
     mutations: production.result.tools.filter(tool => mutationNames.has(tool.name)).length,
     currentBytes: encoded(production),
   }
   console.info('issue-1039-v2-schema-census', JSON.stringify(measurement))
-  expect(measurement).toMatchObject({ tools: SHOW_COMMANDS_V2.length + 10, mutations: SHOW_COMMANDS_V2.length + 3 })
+  expect(measurement).toMatchObject({ tools: SHOW_COMMANDS_V2.length + 11, mutations: SHOW_COMMANDS_V2.length + 4 })
   expect(measurement.currentBytes).toBe(OBSERVED_V2_DISCOVERY_BYTES)
   // Discovery is what every unbound client pays before it binds, so its size is
   // measured rather than assumed.

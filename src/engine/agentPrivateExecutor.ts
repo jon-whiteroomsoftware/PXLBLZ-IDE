@@ -3,6 +3,8 @@ import { createDeliveryJournal, MAX_AGENT_DELIVERY_RESULT_BYTES, measureAgentDel
 import type { ShowEditCompletion, ShowEditRequest } from './showEditAdmission'
 import { applyShowCommandV2, type ShowCommandV2Change, type ShowCommandV2Context, type ShowCommandV2Issue } from './showCommandsV2/registry'
 import { isShowRecordV2, type ShowDocument } from './showDocument'
+import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
+import { emptyShowCommandV2Affected } from './showCommandsV2/registry'
 import type { AgentMcpResult, AgentMcpResultCode } from './agentMcpResults'
 
 /** The trusted browser-owned Pattern metadata boundary the v2 catalogue reads (#1039). */
@@ -19,13 +21,14 @@ export interface PrivateEditResult extends AgentMcpResult { code: AgentMcpResult
 const payloadSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('begin_edit'), intent: z.string().max(240).refine(text => !/[\r\n]/.test(text)).optional() }).strict(),
   z.object({ kind: z.literal('command'), name: z.string().max(128), arguments: z.record(z.unknown()) }).strict(),
+  z.object({ kind: z.literal('replace_show'), show: z.record(z.unknown()) }).strict(),
   z.object({ kind: z.literal('commit_edit') }).strict(),
   z.object({ kind: z.literal('cancel_edit') }).strict(),
   z.object({ kind: z.literal('complete_edit'), completion: z.enum(['asked', 'refused', 'nothing-applied', 'commit-refused', 'incomplete', 'service-refused', 'service-failed']) }).strict(),
 ])
 interface Operation {
   request: ShowEditRequest
-  private?: { show: ShowDocument; commandContext: PrivateEditCommandContext; changes: ShowCommandV2Change[] }
+  private?: { show: ShowDocument; originalName: string; commandContext: PrivateEditCommandContext; changes: ShowCommandV2Change[] }
 }
 
 type CommandOutcome =
@@ -89,7 +92,7 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
         owner.complete(captured.request, 'service-refused')
         return { code: 'result_too_large' }
       }
-      operation.private = { show: captured.show, commandContext: captured.commandContext, changes: [] }
+      operation.private = { show: captured.show, originalName: captured.show.name, commandContext: captured.commandContext, changes: [] }
       active = delivery.operationId
       return begun
     }
@@ -99,6 +102,29 @@ export function createAgentPrivateExecutor(scope: DeliveryScope, owner: PrivateE
       return outcome(owner.cancel(operation.request))
     }
     if (!operation.private) return { code: 'finished' }
+    if (payload.kind === 'replace_show') {
+      if (payload.show.id !== operation.request.showId) return {
+        code: 'refused', reason: 'show-identity-mismatch',
+        issues: [{ code: 'show-identity-mismatch', message: 'The replacement Show id must match the connected Show.' }],
+      }
+      const candidate = structuredClone({ ...payload.show, name: operation.private.originalName }) as ShowRecordV2
+      const issues = validateShowRecordV2(candidate)
+      if (issues.length) return { code: 'refused', reason: 'invalid-show-record', issues }
+      if (JSON.stringify(candidate) === JSON.stringify(operation.private.show)) return { code: 'unchanged', message: 'The current Show name was kept.', changes: [] }
+      const changes: ShowCommandV2Change[] = [{
+        command: 'replace_show', targetId: candidate.id,
+        description: 'Replaced the Show composition; kept the current Show name.',
+        details: emptyShowCommandV2Affected(),
+      }]
+      if (new TextEncoder().encode(JSON.stringify({ show: candidate, changes })).byteLength > 1_048_576) {
+        finish(delivery.operationId, operation)
+        owner.complete(operation.request, 'service-refused')
+        return { code: 'result_too_large' }
+      }
+      operation.private.show = candidate
+      operation.private.changes = changes
+      return { code: 'changed', message: 'The current Show name was kept.', changes: structuredClone(changes) }
+    }
     if (payload.kind === 'command') {
       const result = applyPrivateCommand(operation.private.show, payload.name, payload.arguments, operation.private.commandContext)
       if (!result.ok) return { code: 'refused', issues: result.issues }
