@@ -27,16 +27,7 @@ import {
   type ShowGroupUniqueIdentityPlanV2,
 } from './showGroupEditsV2'
 import { planShowV2GroupOccurrenceEdit } from './showV2GroupOccurrenceEditorModel'
-import {
-  completeShowGroupSelection,
-  createShowGroupFromSelection,
-  duplicateShowGroupOccurrence,
-  insertShowGroupLayerTransition,
-  resizeShowGroupLayerTransition,
-  validateShowGroupSelection,
-} from './showGroupModel'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
-import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
 import { propertyEditGroupRecord } from '../test/showV2PropertyEditsFixture'
 import type { ShowRecord } from './personalContentRecords'
 import { effectiveShowInstanceUseCountV2, groupRuntimeBindings, materializeShowGroupsV2 } from './showGroupsV2'
@@ -1397,26 +1388,8 @@ describe('set-definition-clip-timing (#1075 G2a)', () => {
   })
 })
 
-function q6BaseShow(id: string): ShowRecord {
-  const source = resizeBoundaryShow(id)
-  const view = { mirror: false, phase: 0, brightness: 1 }
-  source.composition!.patternInstances.push(
-    { id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Overlay pulse', time: { timeScale: 1, timeOffsetMs: 0 } },
-  )
-  const zone = source.composition!.scenes[0].zones[0]
-  zone.main = [{ id: 'clip-main', instanceId: 'resize-instance', startMs: 0, durationMs: 5_000, view }]
-  zone.overlays = [{ id: 'overlay-1', name: 'Overlay 1', placements: [{ id: 'clip-overlay', instanceId: 'instance-overlay', startMs: 0, durationMs: 5_000, opacity: 1, view }] }]
-  return source
-}
-
 function q6GroupedBefore(): ShowRecord {
-  const show = q6BaseShow('g2dur-oracle')
-  const selection = completeShowGroupSelection(show.composition!, ['clip-main', 'clip-overlay'])
-  const plan = validateShowGroupSelection(show.composition!, selection)
-  if (!plan.enabled) throw new Error('selection not enabled')
-  let composition = createShowGroupFromSelection(show.composition!, { selection, definitionId: 'def-1', occurrenceId: 'occ-1', name: 'Group' })
-  composition = duplicateShowGroupOccurrence(composition, { occurrenceId: 'occ-1', newOccurrenceId: 'occ-2', startMs: 5_000 })
-  return { ...show, composition }
+  return frozenV1Output<ShowRecord>('showGroupEditsV2.test.ts::q6GroupedBefore::1')
 }
 
 it('matches the v1-then-convert oracle for a 4000 ms Group Clip duration (#1075 G2a)', () => {
@@ -1598,8 +1571,7 @@ it('matches v1-then-convert for a definition Layer Transition insert (#1075 G4a)
   if (convertedBefore.status !== 'converted') return
   const v2before = convertedBefore.record
   const beforeSnapshot = structuredClone(v2before)
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1afterComposition = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert track::1')
   expect(v1afterComposition.groupDefinitions![0].placements).toMatchObject([{ id: 'g-a' }, { id: 'g-b' }])
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
   expect(oracle.status).toBe('converted')
@@ -1624,9 +1596,8 @@ it('matches v1-then-convert for a definition Layer Transition insert (#1075 G4a)
 
 it('matches v1-then-convert for a definition Layer Transition resize 1000 to 2500 (#1075 G4a)', () => {
   const v1before = g4aV1Before(true)
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
-  const v1resized = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1inserted), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 2500 })
+  const v1inserted = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert track::1')
+  const v1resized = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a resize track 2500::1')
   expect(v1resized.groupDefinitions![0].placements.find(placement => placement.id === 'g-b')!.startMs).toBe(6500)
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1resized })
   expect(oracle.status).toBe('converted')
@@ -1648,9 +1619,8 @@ it('matches v1-then-convert for a definition Layer Transition resize 1000 to 250
 
 it('matches v1-then-convert for Reset to Cut on a definition Layer Transition (#1075 G4a)', () => {
   const v1before = g4aV1Before(true)
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
-  const v1reset = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1inserted), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 0 })
+  const v1inserted = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert track::1')
+  const v1reset = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a resize track 0::1')
   expect(v1reset.groupDefinitions![0].placements.find(placement => placement.id === 'g-b')!.startMs).toBe(4000)
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1reset })
   expect(oracle.status).toBe('converted')
@@ -1736,8 +1706,7 @@ it('refuses a definition Layer Transition growth that crosses its Layout interva
 
 it('refuses unknown and non-adjacent definition Layer Transition endpoints without writing (#1075 G4a)', () => {
   const v1before = g4aV1Before(false)
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1inserted = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1inserted = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert no-track::1')
   const convertedInserted = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1inserted })
   expect(convertedInserted.status).toBe('converted')
   if (convertedInserted.status !== 'converted') return
@@ -1778,8 +1747,7 @@ it('shifts a definition-owned track on the to-Clip with the v1 keyframes (#1075 
   const convertedBefore = convertShowRecordV1ToV2(v1before)
   expect(convertedBefore.status).toBe('converted')
   if (convertedBefore.status !== 'converted') return
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1afterComposition = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert track::1')
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
   expect(oracle.status).toBe('converted')
   if (oracle.status !== 'converted') return
@@ -1806,8 +1774,7 @@ it('grows a whole-span definition track whose key sits within the shift of the o
   const convertedBefore = convertShowRecordV1ToV2(v1before)
   expect(convertedBefore.status).toBe('converted')
   if (convertedBefore.status !== 'converted') return
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1afterComposition = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a insert modified-track::1')
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
   expect(oracle.status).toBe('converted')
   if (oracle.status !== 'converted') return
@@ -1827,7 +1794,7 @@ it('grows a whole-span definition track whose key sits within the shift of the o
   expect(editedTrack).toMatchObject({ activeStartMs: 0, activeDurationMs: 8000 })
   expect(editedTrack).toEqual(oracleTrack)
   expect(edited.propertyTracks).toEqual(oracle.record.composition.groupDefinitions[0].propertyTracks)
-  const v1reset = resizeShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1afterComposition), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs: 0 })
+  const v1reset = frozenV1Output<NonNullable<ShowRecord['composition']>>('showGroupEditsV2.test.ts::g4a resize modified-track 0::1')
   const resetOracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1reset })
   expect(resetOracle.status).toBe('converted')
   if (resetOracle.status !== 'converted') return

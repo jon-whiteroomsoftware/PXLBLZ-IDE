@@ -3,12 +3,9 @@ import { showV2GroupOccurrenceEditorFixture } from '../test/showV2GroupOccurrenc
 import { convertibleV1Show } from '../test/showV2TracerFixture'
 import { serializeProvisionalShowRecordV2, parseProvisionalShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { moveShowGroupOccurrenceV2, duplicateShowGroupOccurrenceV2, makeShowGroupUniqueV2, ungroupShowGroupOccurrenceV2, deleteShowGroupOccurrenceV2, editShowGroupDefinitionClipAppearanceV2, setShowGroupDefinitionClipTimingV2, writeShowGroupDefinitionInstancePropertiesV2, insertShowGroupDefinitionLayerTransitionV2 } from './showGroupEditsV2'
-import { insertShowGroupLayerTransition } from './showGroupModel'
 import { planShowV2GroupLayerTransitionInsertion } from './showV2LayerTransitionInsertion'
 import { buildShowV2GroupOccurrenceEditorModel, planShowV2GroupOccurrenceEdit, showV2GroupBaseLayerMax } from './showV2GroupOccurrenceEditorModel'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
-import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
-import { completeShowGroupSelection, createShowGroupFromSelection, duplicateShowGroupOccurrence, validateShowGroupSelection } from './showGroupModel'
 import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
@@ -187,26 +184,8 @@ it('refuses set-child-timing for a missing Clip or an empty patch', () => {
   expect(record).toEqual(before)
 })
 
-function g2bBaseShow(id: string): ShowRecord {
-  const source = resizeBoundaryShow(id)
-  const view = { mirror: false, phase: 0, brightness: 1 }
-  source.composition!.patternInstances.push(
-    { id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'Overlay pulse', time: { timeScale: 1, timeOffsetMs: 0 } },
-  )
-  const zone = source.composition!.scenes[0].zones[0]
-  zone.main = [{ id: 'clip-main', instanceId: 'resize-instance', startMs: 0, durationMs: 5_000, view }]
-  zone.overlays = [{ id: 'overlay-1', name: 'Overlay 1', placements: [{ id: 'clip-overlay', instanceId: 'instance-overlay', startMs: 0, durationMs: 5_000, opacity: 1, view }] }]
-  return source
-}
-
 function g2bGroupedBefore(): ShowRecord {
-  const show = g2bBaseShow('g2b-oracle')
-  const selection = completeShowGroupSelection(show.composition!, ['clip-main', 'clip-overlay'])
-  const plan = validateShowGroupSelection(show.composition!, selection)
-  if (!plan.enabled) throw new Error('selection not enabled')
-  let composition = createShowGroupFromSelection(show.composition!, { selection, definitionId: 'def-1', occurrenceId: 'occ-1', name: 'Group' })
-  composition = duplicateShowGroupOccurrence(composition, { occurrenceId: 'occ-1', newOccurrenceId: 'occ-2', startMs: 5_000 })
-  return { ...show, composition }
+  return frozenV1Output<ShowRecord>('showV2GroupOccurrenceEditorModel.test.ts::g2bGroupedBefore::1')
 }
 
 function g2bConvertedBefore(): ShowRecordV2 {
@@ -528,8 +507,7 @@ it('plans a Group-local Layer Transition insert with definition-local ids (#1075
   expect(applied.status, applied.status === 'refused' ? applied.message : '').toBe('changed')
   if (applied.status !== 'changed') return
   const v1before = g4b2cV1Before()
-  const v1transition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const, durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
-  const v1afterComposition = insertShowGroupLayerTransition({ scenes: v1before.scenes, zones: v1before.zones }, structuredClone(v1before.composition!), { occurrenceId: 'occ-1', transition: v1transition })
+  const v1afterComposition = frozenV1Output<NonNullable<ShowRecord['composition']>>('showV2GroupOccurrenceEditorModel.test.ts::g4b2c insert::1')
   const oracle = convertShowRecordV1ToV2({ ...structuredClone(v1before), composition: v1afterComposition })
   expect(oracle.status).toBe('converted')
   if (oracle.status !== 'converted') return

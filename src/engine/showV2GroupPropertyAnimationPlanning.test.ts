@@ -8,10 +8,8 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
-import {
-  applyShowGroupPropertyAnimationChange,
-  type ShowPropertyAnimationChange,
-} from './showPropertyAnimationEditorModel'
+import type { ShowPropertyAnimationChange } from './showPropertyAnimationEditorModel'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { editShowPropertyV2 } from './showPropertyEditsV2'
 import { planShowV2GroupPropertyAnimationChange } from './showV2PropertyAnimationPlanning'
 import type { ShowRecord } from './personalContentRecords'
@@ -66,13 +64,10 @@ function definitionTracks(record: ShowRecordV2) {
 /** v1 write then convert, compared against the new planner plus the property owner. */
 function checkGroupOracle(options: { withTrack: boolean; change: ShowPropertyAnimationChange }): void {
   const v1before = g4aV1Before(options.withTrack)
-  const v1next = applyShowGroupPropertyAnimationChange(
-    v1before,
-    v1before.composition!,
-    { kind: 'group', definitionId: 'def-1', occurrenceId: 'occ-1' },
-    structuredClone(options.change),
-    fixedIds(),
-  )
+  const variant = options.change.kind === 'update-keyframe'
+    ? Object.keys(options.change.changes)[0]
+    : options.change.kind
+  const v1next = frozenV1Output<ShowRecord['composition']>(`showV2GroupPropertyAnimationPlanning.test.ts::checkGroupOracle-${variant}::1`)
   const v1converted = convertShowRecordV1ToV2({ ...v1before, composition: v1next })
   if (v1converted.status !== 'converted') throw new Error(JSON.stringify(v1converted.issues))
   expect(validateShowRecordV2(v1converted.record)).toEqual([])

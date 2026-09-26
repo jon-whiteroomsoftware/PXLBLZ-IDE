@@ -64,7 +64,6 @@ vi.mock('@/engine/showVmResourceLedger', async (importOriginal) => {
 })
 import { frozenV1Output } from '@/test/v1AuthoringOracles'
 import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
-import { appendShowLayoutInterval } from '@/engine/showLayoutIntervals'
 import * as previewThumbnailJpeg from '@/engine/previewThumbnailJpeg'
 import * as preparedStage from '@/engine/showPreparedStageV2'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
@@ -979,8 +978,7 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('keeps repeated routing interval controls distinct from visual transitions (#624)', async () => {
     const user = userEvent.setup()
     const base = addShowRoutingLayout(createDefaultShow('show-routing-interval-identities', 'Routing interval identities', 1000), 'Alternate')
-    const once = appendShowLayoutInterval(base, { layoutId: base.routingLayouts[1].id, durationMs: 4_000 })
-    const show = appendShowLayoutInterval(once, { layoutId: base.routingLayouts[1].id, durationMs: 5_000 })
+    const show = frozenV1Output<ShowRecord>('ShowEditor.test.tsx::repeated routing interval controls::1')
     const editor = openV2EditorForRecord(convertForTest(show))
 
     render(<ShowEditor showId={editor.showId} />)

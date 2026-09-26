@@ -8,9 +8,9 @@ import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2, validat
 import { commandFixtureV2 } from './showCommandsV2/fixtures'
 import { addShowRoutingLayout, createDefaultShow, removeShowBoundaryTransition, updateShowBoundaryTransition } from './showModel'
 import { DEMOS, resolveStockPatternId } from '@/pixelblaze/stock/patterns'
-import { appendShowLayoutInterval, duplicateShowLayoutInterval, projectShowLayoutIntervals } from './showLayoutIntervals'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
-import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
+import type { ShowRecord } from './personalContentRecords'
 it('orders exact persisted occurrence coverage and definition sharing without editing children', () => {
  const { record } = showV2LayoutEditorFixture(), model = buildShowV2LayoutEditorModel(record)
  expect(model.occurrences.map(x => [x.id,x.startMs,x.endMs,x.isInitial,x.shared])).toEqual([[record.composition.layoutOccurrences[0].id,0,5000,true,true],['later-layout',5000,31000,false,true]])
@@ -67,39 +67,7 @@ it('names a Make Unique copy after its source definition with v1 uniqueness (#10
  expect(showV2MakeUniqueLayoutName(record, 'missing')).toBeNull()
 })
 function twoSceneDuplicateV1Show(): ShowRecord {
- const show = createDefaultShow('show-layout-duplicate-timing', 'Layout duplicate timing', 1)
- const sourceCell = show.cells[0]
- const composition: ShowCompositionV1 = {
-  version: 1,
-  patternInstances: [{
-   id: 'instance-1',
-   pattern: { ...sourceCell.pattern },
-   patternName: sourceCell.patternName,
-   time: { timeScale: 1, timeOffsetMs: 0 },
-  }],
-  scenes: [{
-   sceneId: show.scenes[0].id,
-   zones: [{
-    zoneId: show.zones[0].id,
-    main: [{
-     id: 'placement-1',
-     instanceId: 'instance-1',
-     startMs: 0,
-     durationMs: show.scenes[0].durationMs,
-     view: { brightness: 1, phase: 0, mirror: false },
-    }],
-    overlays: [],
-   }],
-  }],
- }
- const base = {
-  ...show,
-  scenes: [{ ...show.scenes[0], durationMs: 30_000 }],
-  cells: [{ ...sourceCell, sceneId: show.scenes[0].id, sceneSpan: 1 }],
-  transitions: [],
-  composition,
- }
- return appendShowLayoutInterval(base, { durationMs: 5_000, layoutId: 'layout-1' })
+ return frozenV1Output<ShowRecord>('showV2LayoutEditorModel.test.ts::twoSceneDuplicateV1Show::1')
 }
 function duplicateTiming(record: ShowRecordV2): { showEndMs: number; occurrences: unknown[]; clips: unknown[] } {
  return {
@@ -110,8 +78,7 @@ function duplicateTiming(record: ShowRecordV2): { showEndMs: number; occurrences
 }
 it.each([false, true])('duplicates withContent=%s with v1 timing after conversion (#1066 slice 8a)', (withContent) => {
  const base = twoSceneDuplicateV1Show()
- const intervalId = projectShowLayoutIntervals(base)[0].id
- const v1Next = duplicateShowLayoutInterval(base, intervalId, { withContent })
+ const v1Next = frozenV1Output<ShowRecord>(`showV2LayoutEditorModel.test.ts::duplicate withContent=${withContent}::1`)
  expect(v1Next).not.toBe(base)
  // v1 duplicate-with-content leaves an explicit `propertyTracks: undefined` key that JSON persistence erases; convert the stored shape.
  const convertedNext = convertShowRecordV1ToV2(JSON.parse(JSON.stringify(v1Next)))
@@ -211,8 +178,7 @@ function appendOracle(sourceLayoutId: string | undefined): void {
   const base = installationV1()
   const before = convertCells(base)
   const withLayout = addShowRoutingLayout(base, undefined, sourceLayoutId)
-  const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
-  const appended = appendShowLayoutInterval(withLayout, { layoutId, durationMs: 5000 })
+  const appended = frozenV1Output<ShowRecord>(`showV2LayoutEditorModel.test.ts::appendOracle-${sourceLayoutId ?? 'default'}::1`)
   expect(appended).not.toBe(withLayout)
   const expected = convertCells(appended)
   const convertedSourceId = sourceLayoutId === undefined

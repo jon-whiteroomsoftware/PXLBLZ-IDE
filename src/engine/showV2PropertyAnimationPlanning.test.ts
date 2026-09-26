@@ -6,7 +6,7 @@ import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 import { createDefaultShow } from './showModel'
-import { addShowPropertyTrack } from './showPropertyAnimation'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { projectShowEditorInspectorPresentationV2 } from './showEditorInspectorPresentation'
 import {
   planShowV2PropertyAnimationChange,
@@ -420,7 +420,7 @@ describe('matches v1 then convert', () => {
       { id: 'v1-k1', timeMs: 0, value: initialValue, easing: { curve: 'linear' as const } },
       { id: 'v1-k2', timeMs: sceneDurationMs, value: initialValue, easing: { curve: 'linear' as const } },
     ]
-    const v1Composition = addShowPropertyTrack(show, show.composition!, sceneId, { id: 'v1-track', target, keyframes })
+    const v1Composition = frozenV1Output<NonNullable<ShowRecord['composition']>>(`showV2PropertyAnimationPlanning.test.ts::checkOracle-${sceneId}-${target.kind}::1`)
     expect(v1Composition.scenes.find(scene => scene.sceneId === sceneId)?.propertyTracks).toHaveLength(1)
     const v1Converted = convertShowRecordV1ToV2({ ...show, composition: v1Composition })
     if (v1Converted.status !== 'converted') throw new Error(JSON.stringify(v1Converted.issues))

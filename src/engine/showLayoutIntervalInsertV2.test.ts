@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addShowRoutingLayout, createDefaultShow, showRecordToCompileRecipe } from './showModel'
-import { insertShowLayoutInterval } from './showLayoutIntervals'
+import { frozenV1Output } from '../test/v1AuthoringOracles'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { compileShow } from './showCompiler'
@@ -207,7 +207,7 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
     const withCopy = addShowRoutingLayout(base, undefined, 'layout-1')
     const copyId = withCopy.routingLayouts[1].id
     const copyName = withCopy.routingLayouts[1].name
-    const v1After = insertShowLayoutInterval(withCopy, { layoutId: copyId, durationMs: 5000, atMs: 3000 })
+    const v1After = frozenV1Output<ShowRecord>('showLayoutIntervalInsertV2.test.ts::insert-3000::1')
     const convAfter = convertShowRecordV1ToV2(v1After)
     expect(convAfter.status).toBe('converted')
     if (convAfter.status !== 'converted') return
@@ -266,9 +266,8 @@ describe('Zone Layout Insert here v2 owner (#1066 slice 8b-2a)', () => {
   it('oracle t=15000 inside scene-2 matches v1 Insert apart from accepted representation and marker ripple', async () => {
     const base = researchBase()
     const withCopy = addShowRoutingLayout(base, undefined, 'layout-1')
-    const copyId = withCopy.routingLayouts[1].id
     const copyName = withCopy.routingLayouts[1].name
-    const v1After = insertShowLayoutInterval(withCopy, { layoutId: copyId, durationMs: 5000, atMs: 15000 })
+    const v1After = frozenV1Output<ShowRecord>('showLayoutIntervalInsertV2.test.ts::insert-15000::1')
     const convAfter = convertShowRecordV1ToV2(v1After)
     expect(convAfter.status).toBe('converted')
     if (convAfter.status !== 'converted') return

@@ -5,7 +5,7 @@ import type { ShowRecord } from '../engine/personalContentRecords'
 import { personalBaseShow } from '../agent-harness/baseline/fixtures'
 import { stockPatternSource } from '../agent-harness/shows/stockCatalogue'
 import { projectFlatShowToCompositionV1, replaceShowPatternInstance } from '../engine/showCompositionModel'
-import { duplicateShowLayoutInterval, projectShowLayoutIntervals } from '../engine/showLayoutIntervals'
+import { appendShowLayoutInterval, duplicateShowLayoutInterval, insertShowLayoutInterval, projectShowLayoutIntervals } from '../engine/showLayoutIntervals'
 import { buildShowCompositionFreezeCases } from '../engine/showCompositionFreeze'
 import { showBoundaryClipIdentity } from '../engine/showClipIdentity'
 import { projectShowTimelineViewModel, showTimelineSelectionKey } from '../engine/showTimelineViewModel'
@@ -15,9 +15,15 @@ import { buildShowV2LayoutEditorModel } from '../engine/showV2LayoutEditorModel'
 import { showV2ViewModelCorpus } from './showV2ViewModelCorpus'
 import { V1_STOCK_SHOWS } from './v1StockShowsFixture'
 import { DEMOS, resolveStockPatternId } from '../pixelblaze/stock/patterns'
-import { createDefaultShow, createShowWithOutputContract, addShowZone, extendShowCell, projectShowTimeline, splitShowAtTime } from '../engine/showModel'
+import { createDefaultShow, createShowWithOutputContract, addShowRoutingLayout, addShowZone, extendShowCell, projectShowTimeline, splitShowAtTime } from '../engine/showModel'
 import { createInstallationShowOutputContract } from '../engine/showOutputContract'
 import { frozenV1Output } from './v1AuthoringOracles'
+import { convertibleV1Show, transitionV1Show } from './showV2TracerFixture'
+import { resizeBoundaryShow } from '../agent-harness/baseline/fixtures'
+import { applyShowGroupPropertyAnimationChange, type ShowPropertyAnimationChange } from '../engine/showPropertyAnimationEditorModel'
+import { addShowPropertyTrack } from '../engine/showPropertyAnimation'
+import { completeShowGroupSelection, createShowGroupFromSelection, duplicateShowGroupOccurrence, insertShowGroupLayerTransition, resizeShowGroupLayerTransition, validateShowGroupSelection } from '../engine/showGroupModel'
+import type { ShowCompositionV1 } from '../engine/personalContentRecords'
 
 type LiveThunk = () => unknown
 const live = new Map<string, LiveThunk>()
@@ -179,9 +185,207 @@ add('ShowEditorV2Tracer.test.tsx::whole output boundary::1', () => {
   return showBoundaryClipIdentity(source, 'scene-2')
 })
 
+// Retiring v1 edit owners: construct the same inputs as their v2 parity consumers.
+function groupBefore(withTrack = false): ShowRecord {
+  const source = convertibleV1Show()
+  source.scenes[0].durationMs = 30000
+  source.composition!.durationMs = 30000
+  source.composition!.scenes[0].zones[0].overlays = [{ id: 'ov1', name: 'ov', placements: [] }]
+  const inst = { ...structuredClone(source.composition!.patternInstances[0]), id: 'g-inst' }
+  source.composition!.groupDefinitions = [{
+    id: 'def-1', name: 'D', patternInstances: [inst],
+    placements: [
+      { id: 'g-a', instanceId: 'g-inst', layerOffset: 0, startMs: 0, durationMs: 4000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+      { id: 'g-b', instanceId: 'g-inst', layerOffset: 0, startMs: 4000, durationMs: 3000, opacity: 1, view: { mirror: false, phase: 0, brightness: 1 } },
+    ],
+    ...(withTrack ? { propertyTracks: [{
+      id: 'trk', target: { kind: 'placement-opacity', placementId: 'g-b' },
+      keyframes: [
+        { id: 'k1', timeMs: 4000, value: 0.2, easing: { curve: 'linear' } },
+        { id: 'k2', timeMs: 4500, value: 0.8, easing: { curve: 'linear' } },
+      ],
+    }] } : {}),
+  }]
+  source.composition!.groupOccurrences = [
+    { id: 'occ-1', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 0, baseLayer: 1, translationX: 0, translationY: 0 },
+    { id: 'occ-2', definitionId: 'def-1', sceneId: 'scene-a', zoneId: 'zone', startMs: 10000, baseLayer: 1, translationX: 0, translationY: 0 },
+  ]
+  return source
+}
+
+function groupPropertyChange(change: ShowPropertyAnimationChange, withTrack: boolean): ShowCompositionV1 {
+  const show = groupBefore(withTrack)
+  let count = 0
+  return applyShowGroupPropertyAnimationChange(show, show.composition!,
+    { kind: 'group', definitionId: 'def-1', occurrenceId: 'occ-1' }, structuredClone(change), () => `new-${++count}`)
+}
+const groupPropertyCases: Array<[string, ShowPropertyAnimationChange, boolean]> = [
+  ['add-track', { kind: 'add-track', target: { kind: 'placement-opacity', placementId: 'g-b' }, initialValue: 1, keyframes: [
+    { timeMs: 4000, value: 0.2, easing: { curve: 'linear' } }, { timeMs: 4500, value: 0.8, easing: { curve: 'linear' } },
+  ] }, false],
+  ['add-keyframe', { kind: 'add-keyframe', trackId: 'trk', keyframe: { timeMs: 4250, value: 0.5, easing: { curve: 'linear' } } }, true],
+  ['timeMs', { kind: 'update-keyframe', trackId: 'trk', keyframeId: 'k2', changes: { timeMs: 4600 } }, true],
+  ['value', { kind: 'update-keyframe', trackId: 'trk', keyframeId: 'k2', changes: { value: 0.9 } }, true],
+  ['easing', { kind: 'update-keyframe', trackId: 'trk', keyframeId: 'k2', changes: { easing: { curve: 'quadratic', direction: 'in-out' } } }, true],
+  ['delete-keyframe', { kind: 'delete-keyframe', trackId: 'trk', keyframeId: 'k1' }, true],
+  ['delete-track', { kind: 'delete-track', trackId: 'trk' }, true],
+]
+for (const [caseName, change, withTrack] of groupPropertyCases) {
+  add(`showV2GroupPropertyAnimationPlanning.test.ts::checkGroupOracle-${caseName}::1`, () => groupPropertyChange(change, withTrack))
+}
+
+const layerTransition = { id: 'lt-1', fromPlacementId: 'g-a', toPlacementId: 'g-b', kind: 'crossfade' as const,
+  durationMs: 1000, easing: { curve: 'linear' as const }, crossfadePolicy: 'live-live' as const }
+function insertGroupTransition(show: ShowRecord): ShowCompositionV1 {
+  return insertShowGroupLayerTransition({ scenes: show.scenes, zones: show.zones }, structuredClone(show.composition!),
+    { occurrenceId: 'occ-1', transition: layerTransition })
+}
+function resizeGroupTransition(show: ShowRecord, durationMs: number): ShowCompositionV1 {
+  return resizeShowGroupLayerTransition({ scenes: show.scenes, zones: show.zones },
+    structuredClone(insertGroupTransition(show)), { occurrenceId: 'occ-1', transitionId: 'lt-1', durationMs })
+}
+add('showGroupEditsV2.test.ts::g4a insert track::1', () => insertGroupTransition(groupBefore(true)))
+add('showGroupEditsV2.test.ts::g4a resize track 2500::1', () => resizeGroupTransition(groupBefore(true), 2500))
+add('showGroupEditsV2.test.ts::g4a resize track 0::1', () => resizeGroupTransition(groupBefore(true), 0))
+add('showGroupEditsV2.test.ts::g4a insert no-track::1', () => insertGroupTransition(groupBefore()))
+function modifiedTrackGroup(): ShowRecord {
+  const show = groupBefore(true)
+  const keys = show.composition!.groupDefinitions![0].propertyTracks![0].keyframes
+  keys[0].timeMs = 4000
+  keys[1].timeMs = 6900
+  return show
+}
+add('showGroupEditsV2.test.ts::g4a insert modified-track::1', () => insertGroupTransition(modifiedTrackGroup()))
+add('showGroupEditsV2.test.ts::g4a resize modified-track 0::1', () => resizeGroupTransition(modifiedTrackGroup(), 0))
+add('showV2GroupOccurrenceEditorModel.test.ts::g4b2c insert::1', () => insertGroupTransition(groupBefore()))
+
+function groupedFixture(id: string): ShowRecord {
+  const show = resizeBoundaryShow(id)
+  const view = { mirror: false, phase: 0, brightness: 1 }
+  show.composition!.patternInstances.push({ id: 'instance-overlay', pattern: { kind: 'stock', id: 'CometLoom' },
+    patternName: 'Overlay pulse', time: { timeScale: 1, timeOffsetMs: 0 } })
+  const zone = show.composition!.scenes[0].zones[0]
+  zone.main = [{ id: 'clip-main', instanceId: 'resize-instance', startMs: 0, durationMs: 5_000, view }]
+  zone.overlays = [{ id: 'overlay-1', name: 'Overlay 1', placements: [
+    { id: 'clip-overlay', instanceId: 'instance-overlay', startMs: 0, durationMs: 5_000, opacity: 1, view },
+  ] }]
+  const selection = completeShowGroupSelection(show.composition!, ['clip-main', 'clip-overlay'])
+  const plan = validateShowGroupSelection(show.composition!, selection)
+  if (!plan.enabled) throw new Error('selection not enabled')
+  const created = createShowGroupFromSelection(show.composition!, { selection, definitionId: 'def-1', occurrenceId: 'occ-1', name: 'Group' })
+  const composition = duplicateShowGroupOccurrence(created, { occurrenceId: 'occ-1', newOccurrenceId: 'occ-2', startMs: 5_000 })
+  return { ...show, composition }
+}
+add('showGroupEditsV2.test.ts::q6GroupedBefore::1', () => groupedFixture('g2dur-oracle'))
+add('showV2GroupOccurrenceEditorModel.test.ts::g2bGroupedBefore::1', () => groupedFixture('g2b-oracle'))
+
+function singleScenePropertyShow(): ShowRecord {
+  const show = convertibleV1Show()
+  show.composition!.patternInstances[0].controlTargets = { gain: 0.5 }
+  return show
+}
+function twoScenePropertyShow(): ShowRecord {
+  const show = transitionV1Show('crossfade')
+  const composition = show.composition!
+  const [out, incoming] = composition.scenes[0].zones[0].main
+  show.scenes = [
+    { id: 'scene-a', name: 'Outgoing', durationMs: 3000 },
+    { id: 'scene-b', name: 'Incoming', durationMs: 3000 },
+  ]
+  composition.scenes = [
+    { sceneId: 'scene-a', zones: [{ zoneId: 'zone', main: [{ ...out, startMs: 0, durationMs: 3000 }], overlays: [] }] },
+    { sceneId: 'scene-b', zones: [{ zoneId: 'zone', main: [{ ...incoming, startMs: 0, durationMs: 3000 }], overlays: [] }] },
+  ]
+  const { fromPlacementId: _from, toPlacementId: _to, ...settings } = composition.transitions![0]
+  show.transitions = [{ ...settings, afterSceneId: 'scene-a', durationMs: 1000 }]
+  composition.durationMs = 7000
+  delete composition.transitions
+  composition.patternInstances.find(instance => instance.id === 'in-instance')!.controlTargets = { gain: 0.5 }
+  return show
+}
+function propertyTrackOracle(show: ShowRecord, sceneId: string,
+  target: Parameters<typeof addShowPropertyTrack>[3]['target'], durationMs: number, value: number): ShowCompositionV1 {
+  return addShowPropertyTrack(show, show.composition!, sceneId, { id: 'v1-track', target, keyframes: [
+    { id: 'v1-k1', timeMs: 0, value, easing: { curve: 'linear' } },
+    { id: 'v1-k2', timeMs: durationMs, value, easing: { curve: 'linear' } },
+  ] })
+}
+add('showV2PropertyAnimationPlanning.test.ts::checkOracle-scene-a-placement-view::1', () =>
+  propertyTrackOracle(singleScenePropertyShow(), 'scene-a', { kind: 'placement-view', placementId: 'clip', property: 'brightness' }, 1000, 1))
+add('showV2PropertyAnimationPlanning.test.ts::checkOracle-scene-a-instance-control::1', () =>
+  propertyTrackOracle(singleScenePropertyShow(), 'scene-a', { kind: 'instance-control', instanceId: 'instance', exportName: 'gain' }, 1000, 0.5))
+add('showV2PropertyAnimationPlanning.test.ts::checkOracle-scene-b-placement-view::1', () =>
+  propertyTrackOracle(twoScenePropertyShow(), 'scene-b', { kind: 'placement-view', placementId: 'in', property: 'brightness' }, 3000, 1))
+add('showV2PropertyAnimationPlanning.test.ts::checkOracle-scene-b-instance-control::1', () =>
+  propertyTrackOracle(twoScenePropertyShow(), 'scene-b', { kind: 'instance-control', instanceId: 'in-instance', exportName: 'gain' }, 3000, 0.5))
+
+function duplicateLayoutBase(): ShowRecord {
+  const show = createDefaultShow('show-layout-duplicate-timing', 'Layout duplicate timing', 1)
+  const sourceCell = show.cells[0]
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [{ id: 'instance-1', pattern: { ...sourceCell.pattern }, patternName: sourceCell.patternName,
+      time: { timeScale: 1, timeOffsetMs: 0 } }],
+    scenes: [{ sceneId: show.scenes[0].id, zones: [{ zoneId: show.zones[0].id, main: [{
+      id: 'placement-1', instanceId: 'instance-1', startMs: 0, durationMs: show.scenes[0].durationMs,
+      view: { brightness: 1, phase: 0, mirror: false },
+    }], overlays: [] }] }],
+  }
+  return { ...show, scenes: [{ ...show.scenes[0], durationMs: 30_000 }],
+    cells: [{ ...sourceCell, sceneId: show.scenes[0].id, sceneSpan: 1 }], transitions: [], composition }
+}
+add('showV2LayoutEditorModel.test.ts::twoSceneDuplicateV1Show::1', () =>
+  appendShowLayoutInterval(duplicateLayoutBase(), { durationMs: 5_000, layoutId: 'layout-1' }))
+for (const withContent of [false, true]) {
+  add(`showV2LayoutEditorModel.test.ts::duplicate withContent=${withContent}::1`, () => {
+    const base = appendShowLayoutInterval(duplicateLayoutBase(), { durationMs: 5_000, layoutId: 'layout-1' })
+    return duplicateShowLayoutInterval(base, projectShowLayoutIntervals(base)[0].id, { withContent })
+  })
+}
+for (const sourceLayoutId of [undefined, 'layout-1']) {
+  add(`showV2LayoutEditorModel.test.ts::appendOracle-${sourceLayoutId ?? 'default'}::1`, () => {
+    vi.setSystemTime(new Date(1_750_000_000_000))
+    const base = createDefaultShow('show-append-oracle', 'Append oracle', 1_750_000_000_000)
+    const withLayout = addShowRoutingLayout(base, undefined, sourceLayoutId)
+    const layoutId = withLayout.routingLayouts[withLayout.routingLayouts.length - 1].id
+    return appendShowLayoutInterval(withLayout, { layoutId, durationMs: 5000 })
+  })
+}
+
+function insertLayoutBase(withSplit: boolean): ShowRecord {
+  const show = createDefaultShow('research', 'Research', 1)
+  show.scenes = [{ ...show.scenes[0], durationMs: 10000 }, { ...show.scenes[1], durationMs: 10000 }]
+  show.composition = {
+    version: 1,
+    patternInstances: [{ id: 'instance-1', pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 } }],
+    scenes: [
+      { sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [{ id: 'clip-a', instanceId: 'instance-1', startMs: 0,
+        durationMs: 10000, view: { brightness: 1, phase: 0, mirror: false } }], overlays: [] }] },
+      { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [{ id: 'clip-b', instanceId: 'instance-1', startMs: 0,
+        durationMs: 10000, view: { brightness: 1, phase: 0, mirror: false } }], overlays: [] }] },
+    ],
+    markers: [{ id: 'm-early', timeMs: 1000, name: 'Early' },
+      { id: 'm-late', timeMs: 15000, name: 'Late', color: '#f59e0b' }],
+  }
+  if (withSplit) show.scenes[0].routingTargets = { splitPosition: 0.3 }
+  return show
+}
+for (const [atMs, withSplit] of [[3000, true], [15000, false]] as const) {
+  add(`showLayoutIntervalInsertV2.test.ts::insert-${atMs}::1`, () => {
+    const withCopy = addShowRoutingLayout(insertLayoutBase(withSplit), undefined, 'layout-1')
+    return insertShowLayoutInterval(withCopy, { layoutId: withCopy.routingLayouts[1].id, durationMs: 5000, atMs })
+  })
+}
+add('ShowEditor.test.tsx::repeated routing interval controls::1', () => {
+  const base = addShowRoutingLayout(createDefaultShow('show-routing-interval-identities', 'Routing interval identities', 1000), 'Alternate')
+  const once = appendShowLayoutInterval(base, { layoutId: base.routingLayouts[1].id, durationMs: 4_000 })
+  return appendShowLayoutInterval(once, { layoutId: base.routingLayouts[1].id, durationMs: 5_000 })
+})
+
 const fixturePath = 'src/test/fixtures/v1CompositionOracles.json.gz'
 const provenance = {
-  source: 'src/engine/showCompositionModel.ts, showLayoutIntervals.ts, showModel.ts, showCompositionFreeze.ts, showTimelineViewModel.ts, showClipIdentity.ts',
+  source: 'src/engine/showCompositionModel.ts, showLayoutIntervals.ts, showModel.ts, showCompositionFreeze.ts, showTimelineViewModel.ts, showClipIdentity.ts, showGroupModel.ts, showPropertyAnimation.ts, showPropertyAnimationEditorModel.ts',
   commit: 'c0a608ed',
   issue: '#1042',
   note: 'Return values frozen before deletion in #1042 4-5c2.',
