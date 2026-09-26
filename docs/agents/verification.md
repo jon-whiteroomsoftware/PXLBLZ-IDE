@@ -65,9 +65,9 @@ WRSP 0.20.0; see its `docs/reference/process-release-0.20.0.md`.
 from one in-memory graph, so long ranges no longer hang, and `review:push`
 prints progress to stderr (WRSP #136). `.husky/pre-push` now runs
 `npm run lint` before the approval check (WRSP #138). Host suite environments
-and timing records (WRSP #142, #143) need the runner daemon upgraded to 0.20.0
-as a separate host step; until then, the `WRSP_HOST_*` defaults in "Runner
-worker sizing" apply. The review policy fingerprint, receipt format,
+and timing records (WRSP #142, #143) run on the runner daemon, upgraded to
+0.20.0 on 2026-09-26. The host has no `suite-env.json` until M5 calibration
+(WRSP #144), so the `WRSP_HOST_*` defaults in "Runner worker sizing" apply. The review policy fingerprint, receipt format,
 staged-test selection, and runtime dependencies are unchanged.
 
 ## WRSP 0.19.0 adoption (#1145)
