@@ -914,8 +914,8 @@ validator issue.
 
 **Output contract.** Every Show declares `installation` (an exact pixel count
 and output map) or `portable-2d` (a reference count and map plus a
-variable-resolution promise), capped at 2,000 pixels. The kind never changes
-after creation. `showInstallationCoverage.ts` requires every output index to be
+variable-resolution promise), capped at 2,000 pixels. `set_output_contract` can replace
+either kind with the other. `showInstallationCoverage.ts` requires every output index to be
 assigned exactly once before delivery, reporting missing, overlapping, and
 out-of-range indices separately; its interval sweep scales with the number of
 authored ranges, not pixels. `showPortableCompatibility.ts` requires logical
@@ -1086,8 +1086,10 @@ checked sample-for-sample against the preview. `showClipPlacementPad.ts`
 normalizes pointer coordinates through the rendered bounds, so resizing the
 pad never changes a stored result.
 
-**Stage.** The Stage runs the same compiled source the Controller would
-receive. `showPreparedStageV2.ts` validates the record and its dependencies,
+**Stage.** The Stage runs the prepared Show artifact. A push sends that
+artifact through the target Controller profile's passes, if it has any, so the
+Controller can receive different source; a Show never gets a renderer adapter.
+`showPreparedStageV2.ts` validates the record and its dependencies,
 lowers it with `prepareShowV2ForCompile`, and compiles through the shared
 artifact cache; see [prepared Stage](contracts/show-v2-prepared-stage.md). The
 Stage renders in Fast or Precise fidelity, takes its clock from Show transport
