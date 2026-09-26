@@ -1,9 +1,10 @@
 import { expect, test } from './fixtures/authenticated'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import type { Locator, Page } from '@playwright/test'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 import { controllerProfileArtifactSignature } from '../src/engine/controllerProfilePassRecipe'
 import { artifactHash } from '../src/engine/artifactStamp'
+import { parseEpe } from '../src/engine/epeImport'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import { studioOperationRetryLabelFor } from '../src/store/studioOperationStore'
 
@@ -2168,4 +2169,47 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   expect(valuePositions.length).toBeGreaterThan(2)
   expect(Math.max(...valuePositions) - Math.min(...valuePositions)).toBeLessThan(1)
   if (process.env.CONTROLLER_PROOF_DIR) await page.screenshot({ path: `${process.env.CONTROLLER_PROOF_DIR}/controller-power-fallback.png` })
+})
+
+test.describe('browser-triggered .epe downloads (#972)', () => {
+  test('the Pattern download carries the current source and a stable identity', async ({ page, request }) => {
+    const pattern = {
+      id: 'e2e-972-epe',
+      name: 'EPE Download Bench',
+      src: 'export function render(index) { hsv(index / pixelCount, 1, 0.5) }',
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    const created = await request.post('/api/patterns', { data: pattern })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+    await page.goto(`studio/patterns/${pattern.id}`)
+
+    const firstDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Pattern actions' }).click()
+    await page.getByRole('menuitem', { name: 'Download .epe' }).click()
+    const firstDownload = await firstDownloadPromise
+    expect(firstDownload.suggestedFilename()).toBe('epe-download-bench.epe')
+    const firstText = await readFile((await firstDownload.path())!, 'utf8')
+    const firstParsed = parseEpe(firstText)
+    expect(firstParsed.name).toBe(pattern.name)
+    expect(firstParsed.stamp).toMatchObject({ kind: 'pattern', id: pattern.id })
+    expect(firstParsed.stamp!.hash).toBe(artifactHash(firstParsed.src))
+    expect(firstParsed.src).toContain('hsv(index / pixelCount, 1, 0.5)')
+    const firstId = JSON.parse(firstText).id
+
+    const editor = page.locator('.monaco-editor').first()
+    await replaceEditorSource(page, editor, 'export function render(index) { hsv(index / pixelCount, 1, 0.25) }')
+    await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
+
+    const secondDownloadPromise = page.waitForEvent('download')
+    await page.getByRole('button', { name: 'Pattern actions' }).click()
+    await page.getByRole('menuitem', { name: 'Download .epe' }).click()
+    const secondDownload = await secondDownloadPromise
+    const secondText = await readFile((await secondDownload.path())!, 'utf8')
+    const secondParsed = parseEpe(secondText)
+    expect(secondParsed.src).toContain('0.25)')
+    expect(secondParsed.src).not.toContain('1, 0.5)')
+    expect(secondParsed.stamp!.hash).toBe(artifactHash(secondParsed.src))
+    expect(JSON.parse(secondText).id).toBe(firstId)
+  })
 })

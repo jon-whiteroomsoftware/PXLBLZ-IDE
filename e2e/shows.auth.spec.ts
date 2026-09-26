@@ -9,6 +9,8 @@ import { showRemoveClipFixture } from '../src/test/showRemoveClipFixture'
 import { createShowWithOutputContract } from '../src/engine/showModel'
 import type { ShowClipAppearanceValueV2, ShowClipV2, ShowRecordV2 } from '../src/engine/showCompositionV2'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '../src/engine/showOutputContract'
+import { artifactHash } from '../src/engine/artifactStamp'
+import { parseEpe } from '../src/engine/epeImport'
 import { findStoredShowV2, listStoredShowsV2, seedShowV2, storedShowV2RevisionMatchesAnchor, waitForStoredShowV2, waitForV2BarrierSave } from './support/showBackingRecords'
 
 test.describe('authenticated Show authoring', () => {
@@ -2375,6 +2377,18 @@ test.describe('authenticated Show authoring', () => {
       && show.outputContract.pixelCount === 256
       && show.zoneLayouts[0]?.zones[0]?.ranges[0]?.end === 255
     ))
+
+    const showId = new URL(page.url()).pathname.split('/').at(-1)!
+    const downloadPromise = page.waitForEvent('download')
+    await (await getShowAction(page, 'Download .epe')).click()
+    const download = await downloadPromise
+    const text = await readFile((await download.path())!, 'utf8')
+    const parsed = parseEpe(text)
+    expect(parsed.stamp).toMatchObject({ kind: 'show', id: showId })
+    expect(parsed.stamp!.showOutputContract).toMatchObject({ kind: 'installation', pixelCount: 256 })
+    expect(parsed.stamp!.hash).toBe(artifactHash(parsed.src))
+    expect(parsed.src).toMatch(/export function render/)
+    expect(download.suggestedFilename()).toMatch(/\.epe$/)
   })
 
   test('locks a measured output map to its fixed count and reloads the Installation contract', async ({ page }) => {
