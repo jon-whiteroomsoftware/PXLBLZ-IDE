@@ -282,7 +282,9 @@ were checked on 2026-09-10. Hosted provisioning and deployment remain unqualifie
   assert response-level authorization, simultaneous claims and Answers, account
   independent agent/control throttling, browser liveness and delivery after agent
   exhaustion, external discovery/movement, and cleanup after capability
-  loss/deletion, service disable and allowlist removal. They make no inference calls.
+  loss/deletion and service disable. They also keep the legacy
+  `AGENT_ACCOUNT_ALLOWLIST` binding set and prove that an account outside it
+  keeps access: the binding plays no part in admission. They make no inference calls.
 
 Focused relay/OAuth workerd tests cover live tool routing, grant retirement and
 local Forget. Browser admission tests cover stock drafts, waiting cancellation,

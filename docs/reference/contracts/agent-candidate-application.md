@@ -216,13 +216,20 @@ sharing semantics does not give them this request lifecycle or narrow context.
 The browser serializes its own submissions while manual editing continues. Pending
 full-Show requests conservatively refuse any intervening Show or source-context
 change. Final activity placement and any input outside the enumerated registered
-families remain unqualified; focus alone does not retire a request. The service still
-serializes loopback requests across clients and supplies no hosted connection,
-OAuth, allowlist or budget owner. Transport failure terminates private work without
+families remain unqualified; focus alone does not retire a request. This diagnostic
+service serializes loopback requests across clients and has no hosted connection,
+OAuth or budget owner of its own. Production agent editing gets those from the
+Worker: see [rendezvous](agent-rendezvous.md),
+[OAuth and MCP discovery](agent-oauth-discovery.md) and the
+[built-in service](agent-builtin-service.md). Transport failure terminates private work without
 claiming a model success or paying for automatic retry.
 
 The diagnostic turn requires an explicit completion object:
 `{ intent: 'apply' | 'ask' | 'refuse' | 'incomplete', reply?: string }`.
+This shape belongs to the diagnostic harness only. The production built-in
+agent's `finish_turn` takes a strict `{ outcome, message }` object with the
+same four values and a required message
+([`builtinTools.ts`](../../../src/worker/agent/builtinTools.ts)).
 Both `finish_turn` and the final operation's `finish_turn_reply` accept that
 object. Explicit `finish_turn` also accepts an optional top-level `session_id`
 transport field: a supplied value must be a string matching the current session,

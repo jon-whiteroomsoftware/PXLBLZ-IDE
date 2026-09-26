@@ -29,7 +29,8 @@ is never displayed as an edit result or logged.
 
 The provider receives text and canonical local Show command schemas. Commands
 run against a session-only private candidate through the shared executor;
-`finish_turn` alone requests admission. Admission rechecks current Show revision,
+`finish_turn` alone requests admission; it takes a strict
+`{ outcome: 'apply' | 'ask' | 'refuse' | 'incomplete', message }` object. Admission rechecks current Show revision,
 metadata, and manual input ownership, then performs one history adoption and
 personal save, or changes only the current stock draft. The drawer projects
 those receipts rather than treating provider prose as proof of saving.

@@ -349,15 +349,16 @@ Production Worker tests prove signed/account-bound consent, safe sign-in
 continuation and replay refusal, Cancel, forged
 identity/redirect/resource/S256 refusals, failed exchanges without code
 consumption, static and all supported DCR authentication modes, metadata,
-initialization, the full canonical catalogue, and service/allowlist changes
-followed by successful revocation, concurrent nonce capacity and grant capacity
+initialization, the full canonical catalogue, service changes followed by
+successful revocation, external grants that stay usable when the legacy
+allowlist binding changes (admission ignores it), concurrent nonce capacity and grant capacity
 without earlier-family revocation. A real Chromium form test uses a local
 workerd listener and a cross-origin client callback. Adapter tests prove TTL and deletion-safe
 pagination rather than assuming KV emulation is upstream-qualified.
 
 Browser qualification uses the managed isolated runtime and synthetic identity.
 The serve-only Cloudflare plugin accepts five nonsecret process binding
-overrides: service enable, allowlist, OAuth origin, static clients, and a
+overrides: service enable, the legacy allowlist (which admission ignores), OAuth origin, static clients, and a
 literal-loopback-only isolated-runtime origin. These never enter Vite client
 definitions and do not modify/copy canonical `.dev.vars` secrets.
 The local proof is HTTP loopback. Hosted TLS and two independent real-client
