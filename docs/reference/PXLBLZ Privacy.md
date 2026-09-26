@@ -1,6 +1,6 @@
 # PXLBLZ Privacy
 
-Last updated: September 10, 2026
+Last updated: September 26, 2026
 
 White Room Software operates the PXLBLZ web application. This policy explains
 what the web app stores, why it stores it, and how to request a copy or deletion
@@ -38,12 +38,17 @@ When you use the Pixelblaze agent, PXLBLZ sends your request and the Show
 information needed for the operation to OpenAI. This can include authored Show
 content and source information returned by the editor's tools.
 
-An external agent client can request the editor information exposed by its
-connection and submit edits to the attached Show. That client's privacy policy
-also applies to information it receives. PXLBLZ stores authorization records
-needed to identify and revoke access, and service accounting records needed to
-enforce usage limits. A private working copy stays in the attached browser
-session; accepted personal edits use normal account storage.
+An external agent client, such as Claude Code, Codex, or Claude.ai, can read
+the editor information its connection exposes and submit edits to the Show it is
+connected to. That client's own privacy policy applies to whatever it receives.
+
+For agent editing, PXLBLZ stores the authorization records needed to identify a
+connected client and revoke its access, the name the client registered, and
+usage records needed to enforce message and rate limits. Authorization records
+expire on their own: access tokens after minutes, refresh tokens after a day of
+disuse, and client registrations after 90 days. An agent's work in progress
+stays in your browser session until it is accepted; accepted edits to your own
+Shows are saved like any other edit.
 
 ## Cookies and analytics
 
@@ -64,8 +69,8 @@ Analytics. Google's handling of analytics data is described in
 
 PXLBLZ uses:
 
-- Cloudflare Workers and D1 to serve the app and store account
-  and workspace data;
+- Cloudflare Workers, D1, and Durable Objects to serve the app, store account
+  and workspace data, and coordinate agent connections and usage limits;
 - GitHub or Google for the login provider you select;
 - Google Analytics for the coarse product analytics described above; and
 - OpenAI for requests made through the Pixelblaze agent.

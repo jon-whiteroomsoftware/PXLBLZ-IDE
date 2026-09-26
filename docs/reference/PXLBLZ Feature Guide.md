@@ -16,50 +16,35 @@ feature is for, where to find it, and where the deeper guides pick up.
 
 # Part 1 — Gallery, Studio, Docs
 
-The Gallery header's **Studio** action opens **Quadrille** in Shows with preview
-playback running, including after the Studio welcome/sign-in flow. It does not
-restore a previous Show. Explicit Pattern and Show links retain their targets;
-ordinary Show opening remains paused.
-
 ## 1. Gallery
 
-`/gallery` is the front door: the built-in Pattern catalogue, with the
-Gallery Shows set among the Patterns as marquee bands. A band is a Show's
-stage at its natural proportions — wide for an installation, square for a
-portable Show — with a caption beside it: title, byline, premise, and loop
-length; a thin bar along the bottom tracks how far through the loop it is.
-The first thing on the page is a Show, and the others are spread down the
-grid; the **Shows** directory lists only them. A band opens the Show's own
-page (`/s/<slug>`) with the stage at full size and its chapters as an arc: the
-Show's named passages, each with how long it runs. The caption beside a band
-names the chapter the loop is currently inside. A Show with no named chapters
-shows no arc and no caption; nothing is invented to fill the space.
+`/gallery` is the front door: the built-in Pattern catalogue running live, with
+the Gallery Shows set among the Patterns as marquee bands. A band plays a
+Show's Stage at its natural proportions, wide for an installation and square
+for a portable Show. Beside it, a caption gives the title, byline, premise,
+loop length, and the chapter currently playing. A band opens the Show's own
+page (`/s/<slug>`), with the Stage at full size and its chapters laid out as an
+arc. The **Shows** directory lists only the Shows.
 
-Every Pattern card opens on a chosen keyframe of its Pattern, and the cards
-nearest your pointer run the real preview engine from that moment, within a
-pixel budget (a Show at 2,000 pixels takes the room of about two Patterns); move the mouse and the animation follows it, while cards that
-leave the set freeze where they were and pick up again from there. Without a
-pointer (touch), the cards nearest the top of the screen animate; a card with
-keyboard focus always does. The density control in the header shows two, three,
-or four cards per row and is remembered on this browser; 1D Patterns render as
-wide strips. Browse by folder, dimension, or name. Each Pattern has a shareable
-detail page (`/p/<slug>`) with a large live preview, the Pattern's own
-controls, and read-only source, displayed with the map and look its author
-intended.
+Pattern cards open on a chosen keyframe of their Pattern. The cards nearest
+your pointer run the real preview engine, so the animation follows the mouse
+around the grid; on a touch screen, the cards nearest the top animate instead.
+The density control in the header fits two, three, or four cards per row.
+Browse by folder, dimension, or name. Each Pattern has a shareable detail page
+(`/p/<slug>`) with a large live preview, the Pattern's controls, and read-only
+source, shown with the map and look its author intended. **Open in Studio**
+takes it from there: read the code, clone it, or send it to a Controller.
 
-From a detail page, **Open in Studio** loads the Pattern to read or clone its
-code, or connect a Controller and use **Run** or **Save**. Public Gallery,
-detail, Docs, and API Reference pages have no Controller controls and start
-no Controller discovery or extension handshake.
-
-Two folders are intentionally quiet: **Test Patterns** (diagnostics) and
-**Luma Sources** (grayscale keying ingredients for Shows) are available in
-Studio but stay out of the public Gallery.
+The public pages (Gallery, Pattern and Show pages, Docs, and API) never touch
+your Controllers. They have no Controller controls and start no discovery or
+extension handshake. Two built-in folders stay out of the public Gallery but
+are available in Studio: **Test Patterns** (diagnostics) and **Luma Sources**
+(grayscale keying ingredients for Shows).
 
 ## 2. Studio
 
 `/studio` is your working environment. The place control beside the wordmark
-chooses among six Studio areas, each with stable routes:
+switches among six Studio areas, each with its own stable route:
 
 | Place | What opens |
 |---|---|
@@ -70,65 +55,56 @@ chooses among six Studio areas, each with stable routes:
 | Mixins | Reusable pass-engine transformation source |
 | Libraries | Reusable Pattern functions and shared state |
 
-The place menu remembers the entity open in each Studio area and shows its
-name below that area. It also groups the public **Docs** and **API** workspaces
-under Reference. Most places use three panes: the entity list opens and creates
-within the selected place, the center edits, and the right pane shows context
-such as a Pattern preview, map wiring check, or library API reference. Shows
-use the center workspace differently on desktop: the full-width timeline sits
-above an aspect-correct Stage preview and its controls.
+The place control remembers what you had open in each area and also lists the
+public **Docs** and **API** workspaces under Reference. Each place has a
+one-letter shortcut; the
+[Keyboard Shortcuts](PXLBLZ Keyboard Shortcuts.md) guide lists them.
 
-The list header gives its width to controls, with the pin at the right.
-Patterns, Shows, and Maps have a permanent search field; Escape clears its
-query, and leaving the field clears it as well. Patterns and Maps put the
-All / 1D / 2D / 3D dimension pills and catalogue count on a second row. While
-searching or filtering, the count shows matches out of the full catalogue;
-Shows displays that row only while searching. Creation and import actions
-remain in each list's existing buttons and Add menu.
+Most places use three panes: the entity list for opening and creating, the
+editor in the center, and context on the right, such as a Pattern preview, a
+map's wiring check, or a library's API reference. Shows use the space
+differently: a full-width timeline sits above the Stage preview and its
+controls.
 
-The entity list starts pinned beside the workspace. Its pin remembers a
-separate choice for Patterns, Shows, Maps, Controllers, Mixins, and Libraries.
-Unpin it to leave a narrow place tab at the workspace edge. Hover there for
-300 ms, click, or use Tab and Enter to slide the list over the workspace without
-moving or resizing what is under it. Leaving before the hover delay cancels
-opening, and dragging across the tab never opens the list. Hover leaves keyboard
-focus where it was. Opening and closing use matching 225 ms slides, disabled when
-reduced motion is enabled.
-Choosing an entity, pressing Escape, clicking outside, or leaving the list for
-a moment closes the overlay. A rename, search, menu, dialog, or in-list drag
-holds it open until that work finishes. At 980 px and below the list always uses
-the edge tab and overlay so the editor keeps the available width.
+Patterns, Shows, and Maps have a search field at the top of the list, and
+Patterns and Maps add All / 1D / 2D / 3D filters with a match count. The list
+starts pinned beside the workspace. Unpin it and it tucks behind a narrow tab
+at the workspace edge; hover or click the tab and the list slides out over the
+workspace without disturbing what is underneath. Each place remembers its own
+pin choice. In a window 980 px wide or narrower the list always tucks, so the
+editor keeps the width.
 
-Personal content lives in folders with drag reordering and search that sees
-into collapsed branches. The only permanent deletion in the rail is emptying
-the Trash, and it asks first. Below your content sit the built-in catalogues,
-including a folder of ZRanger1's published community Patterns, and every new
-workspace starts with an editable **Start Here** example of each kind.
+Personal content lives in folders with drag reordering, and search finds
+things inside collapsed folders. Emptying the Trash is the only permanent
+deletion in the list, and it asks first. Below your content sit the built-in
+catalogues, including a folder of ZRanger1's published community Patterns. A
+new workspace starts with an editable **Start Here** Pattern, map, Mixin, and
+Library to take apart.
 
 Two habits worth learning on day one: the center-pane title is the rename
-control, and **Space** toggles preview playback anywhere outside a text field,
-including while the place control or entity-list tab has focus. Press **Enter**
-to open either control.
-Controller names are the deliberate exception: Rename appears only while that
-profile's physical Controller is live, because the device—not the profile—is
-the source of truth.
+control, and **Space** plays or pauses the preview anywhere outside a text
+field. Controllers are the one exception to renaming. **Rename** appears only
+while that Controller is live, because the name belongs to the device, not the
+profile.
+
+The Gallery's **Studio** button opens Shows with **Quadrille** playing, which
+is a good first look at what a Show can do.
 
 ### Sign-in and your workspace
 
 Studio uses GitHub or Google sign-in; logins that share a verified email open
 the same workspace. Your content is stored in the cloud, not the browser.
-Signed out, Gallery, docs, and public previews work without personal storage.
-Sign in to Studio to author and connect a Controller. If a save or delete
-ever fails to reach the workspace, Studio tells you where you did it instead
-of failing silently.
+Signed out, the Gallery, docs, and public previews all work; sign in to author
+and to connect a Controller. If a save or delete ever fails to reach your
+workspace, Studio says so where you made the change instead of failing
+silently.
 
 ## 3. Docs and API reference
 
 **Docs** and **API** under Reference in the place menu open public reference
 workspaces without entering Studio, and both deep-link (`/docs/<id>`,
-`/reference/<library>`).
-From Studio, the API Reference adds **My libraries**, generated from the `//`
-doc comments in your own code.
+`/reference/<library>`). From Studio, the API reference adds **My libraries**,
+generated from the `//` doc comments in your own code.
 
 ---
 
@@ -155,12 +131,13 @@ again.
 Controls come from code. Export `sliderSpeed(v)` and a slider appears; the
 same convention makes toggles and color pickers, and every `export var` shows
 in the var watcher, updating each frame. Numeric fields across Studio share
-one control: type an exact value, or drag the grip for a transient
+one control: type an exact value, or drag the grip for a temporary
 high-resolution slider, with units that mean what they say: percentages,
-multipliers, seconds, degrees or turns.
+multipliers, seconds, degrees, or turns.
 
-Built-in Patterns open read-only; **Clone** makes an editable copy and keeps
-the source manifest header: name, provenance, and what each control changes.
+Built-in Patterns open read-only; **Clone into Patterns** makes an editable
+copy and keeps the source manifest header: name, provenance, and what each
+control changes.
 
 ## 5. Preview
 
@@ -169,27 +146,23 @@ field in 1D, 2D, or 3D, with orbit, zoom, and glow. Pixelblaze hardware
 computes in 16.16 fixed-point while browsers use float64, so there are two
 renderers:
 
-- **Fast** — ordinary float math, the everyday editing mode.
-- **Precise** — emulates the device's fixed-point overflow and quantization,
+- **Fast**: ordinary float math, the everyday editing mode.
+- **Precise**: emulates the device's fixed-point overflow and quantization,
   catching the ports that look fine on a laptop and break on hardware.
 
-The settings deck is split by what hardware could carry. **PIXELBLAZE**
-settings (map, modeled pixel count, Fill/Contain fit) describe
-what the Pattern computes against; **PREVIEW** settings (renderer, playback
-speed, light size, diffusion, solidity) are purely how the browser draws it.
+The settings are split by what the hardware could carry. **Pixelblaze**
+settings (map, modeled pixel count, Fill/Contain fit) describe what the
+Pattern computes against. **Preview** settings (renderer, playback speed,
+light size, diffusion, interior opacity) only change how the browser draws it.
 Most settings are remembered per Pattern, and none of them ride along when
 you send to a Controller.
 
-In Studio, the right-aligned controls run from Reset through Display (when available), brightness, and Play/Pause. Reset appears to the left without moving the other controls. Brightness uses a sun icon, a short linear slider, and a read-only percentage. **Controls** opens by default;
-**Pixelblaze**, **Preview**, and **Variables** fold to one-line readouts.
-Each section remembers its open state per Studio mode across reloads. The
-folded Map chip remains interactive. Expanded fields align in two columns,
-falling to one column in a narrow preview pane.
-
-Variables remain in their panel. Expanding sections takes space from the
-preview without restarting the Pattern. Gallery Pattern details retain their
-existing expanded controls and brightness within Pixelblaze. The controls scroll when their expanded
-height leaves less than the minimum preview space.
+Below the preview, **Controls** starts open, while **Pixelblaze**,
+**Preview**, and **Variables** fold to one-line summaries. Each remembers
+whether you left it open. Brightness, Reset, and Play/Pause stay in the
+header row. Expanding a section borrows height from the preview without
+restarting the Pattern, and the sections scroll once the preview reaches its
+minimum size.
 
 ![Preview state stays in the browser; only explicit Run, Save, and Send map actions reach the Controller](../images/preview-deck-boundary.svg)
 
@@ -228,21 +201,26 @@ A **Library** is a namespace of functions and shared state, called as
 `SDF.circle(...)`; compilation flattens only the functions you actually use
 into the final artifact. Six ship read-only (`SDF`, `Anim`, `Color`, `Coord`,
 `Noise`, `Shader`), personal libraries compile through every Pattern path,
-and `//` comments above functions become editor help and API Reference pages.
+and `//` comments above functions become editor help and API reference pages.
 
 A **mixin** transforms a Pattern without editing it: **inject** adds source,
 **intercept** wraps output calls such as `hsv`, and **bind** connects a
-normalized input to a function or variable. Controller-specific pins and
-limits belong to Controller profiles, so mixins stay generic and reusable.
+normalized input to a function or variable. Six stock mixins show each kind at
+work, from `pot-binding` and `hw-brightness` to `power-cap` and
+`night-scheduler`. Controller-specific pins and limits belong to Controller
+profiles, so mixins stay generic and reusable.
 
 ## 8. Files
 
-- **Copy Code** and **Download** emit one flat, tree-shaken `.js` artifact;
-  preview settings never leak into it.
+- **Copy code** copies one flat, tree-shaken Pattern with every library call
+  it needs built in. **Download .epe** saves the same code as a Pixelblaze
+  export file, preview image included. Preview settings never leak into
+  either.
 - **Import `.epe`** brings a Pattern in, restoring a matching preferred map
   when it can.
-- Show exports are standalone generated Patterns that any Pixelblaze tool
-  can use.
+- A Show downloads the same way, as one generated Pattern that any Pixelblaze
+  tool can use, or exports as a `.pxlshow` file that keeps it editable
+  (section 17).
 
 ---
 
@@ -258,41 +236,32 @@ actions. Nothing crosses to hardware as a side effect.
 
 Live access goes through the PXLBLZ Chrome extension, because an HTTPS page
 cannot open a Controller's LAN WebSocket on its own. The Controller bar and
-**Connect** are Studio-only. Pick a discovered Controller or enter an IP from
-Studio's top-right menu; several can stay connected with one active. Visiting
-the Gallery or another public route hides the bar without disconnecting;
-returning to Studio shows the existing connection. First-time access
-waits for approval in the helper, then connects without reloading the page. A
-declined or expired grant returns to the disconnected state so you can try again.
+**Connect** live in Studio only. Pick a discovered Controller or enter an IP
+from Studio's top-right menu; several can stay connected with one active. The
+first time, the extension asks you to approve access, then connects without
+reloading the page. Visiting the Gallery or another public page hides the bar
+without disconnecting.
 
 The live panel shows what the device says right now: brightness, FPS, IP,
 pixel count, the running Pattern's controls and watched variables, and power
 telemetry when the Pattern exposes it. Brightness and control changes are
-live and volatile; a pixel count change is a deliberate saved write.
+live and temporary; a pixel count change is a deliberate saved write.
 **Play/Pause** freezes or resumes the Controller's renderer without touching
 flash.
 
-The panel keeps high-value state visible without making every reading compete
-for height. Brightness sits beside the running Pattern name. **Pixelblaze**,
-**Controls**, **Power**, and **Variables** fold independently and remember their
-state per Studio mode across reloads. Controls starts open; the other sections
-start folded with one-line readouts. The 400 px popover aligns labels and
-controls in two fields per row, switching to one below 360 px. Power keeps
-its limiter, recent duty, and estimated draw in the header; expand
-it for the complete telemetry and estimation assumptions. A grey **limiting**
-label means idle and amber means the cap is intervening. The label follows a
-three-poll majority so a single noisy report does not flash the state. When the
-Controller is actively shuffling or playing a playlist, the corresponding
-read-only icon appears first in the panel header; its tooltip warns that the
-sequencer can replace a manual Pattern switch at the next interval.
+The panel folds the same way the preview does: **Controls** starts open, and
+**Pixelblaze**, **Power**, and **Variables** fold to one-line summaries.
+Power's summary keeps the limiter, recent duty, and estimated draw in view. A
+grey **limiting** label means the cap is idle; amber means it is holding
+output down. If the Controller is shuffling or playing a playlist, an icon in
+the panel header says so, because the sequencer can replace a manual switch
+at its next interval.
 
-The action row's **Switch** menu changes only what the Controller runs. It lists
-saved Patterns alphabetically, marks the running one, and keeps a run-only
-Pattern pinned as **unsaved · running** when it is not part of the saved
-inventory. Large inventories gain a filter. A successful choice is also saved
-as the Controller's boot Pattern; the menu stays open with the device's reason
-if the change cannot be confirmed. Shuffle and playlist remain authoritative,
-so their header indicator stays visible after a manual switch.
+The **Switch** menu changes only what the Controller runs. It lists saved
+Patterns alphabetically, marks the running one, and pins a run-only Pattern
+as **unsaved · running** when it is not in the saved inventory. A successful
+switch also becomes the Controller's boot Pattern. If the device cannot
+confirm the change, the menu stays open with its reason.
 
 One flag worth knowing: firmware silently drops a map whose pixel count
 disagrees with the device, so the panel calls out the mismatch with an amber
@@ -301,14 +270,9 @@ disagrees with the device, so the panel calls out the mismatch with an amber
 ## 10. Controller profiles
 
 A profile is durable configuration for one physical Controller, keyed by its
-device id and editable even offline. The profile shows its MAC address alongside IP and firmware so identically named Controllers can be distinguished. It is where hardware knowledge lives:
-
-The profile name is not an offline alias. While the matched Controller is live,
-rename it from the center title or its rail action; PXLBLZ writes the physical
-device, reads the new name back, and only then updates the panel, rail, and
-durable profile. A failed device write leaves the old name in place and reports
-the failure where you made the edit. The confirmed name survives reconnect and
-reboot because it is Controller configuration.
+device id and editable even offline. It shows the MAC address alongside IP
+and firmware, so identically named Controllers can be told apart. It is where
+hardware knowledge lives:
 
 - **Inputs.** Describe a potentiometer or button once (pin, signal,
   smoothing) and route it to hardware brightness or to any Pattern's
@@ -321,19 +285,21 @@ reboot because it is Controller configuration.
   PXLBLZ does not pretend to be an ammeter; plan the physical power system
   for real.
 - **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
-  from everything else on the device. The running row has a green marker;
-  managed rows show which profile features were baked into the artifact and
-  use a status dot for current, stale, syncing, queued, failed, or unknown
-  state. Hover or focus a row to reveal its actions. **Run** switches the
-  Controller without opening or changing a Studio Pattern; foreign source
-  remains importable. **Delete** removes an inactive saved Pattern after a
-  confirmation; the running row must be switched first. Deleting a managed
-  row keeps its Studio Pattern and re-arms **Save**, while deleting an Other
-  Pattern warns that PXLBLZ has no recovery copy unless you import it first.
-  **Keep Patterns up to date** rewrites only managed artifacts after an edit
-  that changes generated code. It keeps Patterns and Portable Shows current;
-  Installation Shows are sent only explicitly from the editor, because the
-  Controller's installed map cannot be verified atomically at write time.
+  from everything else on the device. The running row has a green marker, and
+  managed rows show which profile features were baked in and whether the
+  copy on the device is current, stale, syncing, queued, or failed. **Run**
+  switches the Controller without opening anything in Studio. **Delete**
+  removes a saved Pattern that is not running, after a confirmation; deleting
+  one PXLBLZ did not create warns that there is no recovery copy unless you
+  import it first. **Keep Patterns up to date** rewrites managed Patterns and
+  Portable Shows after an edit that changes their generated code.
+  Installation Shows are sent only explicitly from the editor, because PXLBLZ
+  cannot verify the Controller's installed map at the moment it writes.
+
+A profile's name is the device's name. While the Controller is live, rename it
+from the center title; PXLBLZ writes the new name to the device, reads it
+back, and only then updates the profile. If the device refuses, the old name
+stays and the error appears where you made the edit.
 
 Two built-in diagnostics earn their keep here: **AnalogWiggleFinder** finds
 which analog pin a pot is on, and **View generated artifact** shows exactly
@@ -341,22 +307,17 @@ what the profile inserted, wrapped, or bound.
 
 ## 11. Run and Save
 
-The Studio Controller popover is the Run and Save surface for the visible
-Pattern or Show. Its subject names the content being sent; entity headers keep
-authoring and export actions. Pattern renderer warnings can offer a recommended
-map; Show warnings explain target compatibility. Canceling a warning sends
-nothing. Keyboard users can Tab to the Controller pill, press Enter to open it,
-and reach Run and Save with readable reasons when gated. Escape cancels pending
-confirmation.
+**Run** and **Save** live in the Controller popover at Studio's top right, and
+they act on whatever Pattern or Show is open. The popover names what it is
+about to send. If something needs your attention first, such as a map that
+suits the Pattern better or a Show that does not fit this Controller, it says
+so, and canceling sends nothing.
 
 **Run** compiles with the Controller's own compiler and loads transient
 bytecode; **Save** writes a durable Pattern and activates it. The two track
-dirty state independently — a clean Run does not pretend you saved — and
-failures surface as visible alerts with a reason.
-
-Both verbs act on the open Studio Pattern or Show. **Switch** beside them acts on the
-Controller's saved inventory instead: it neither opens that Pattern in Studio
-nor changes the Run or Save dirty state.
+changes separately, so a clean Run does not pretend you saved, and failures
+appear as visible alerts with a reason. **Switch**, beside them, acts on the
+Controller's saved inventory instead and leaves both alone.
 
 A Controller has one shared map slot, so **Send map to Controller** is its
 own confirm-first action, re-baked for the device's pixel count, never a
@@ -387,10 +348,10 @@ Pattern can possibly hold all of this.
 - **Installation** fixes one pixel count and output map for a known physical
   build, unlocking physical zone ranges and Controller targeting.
 
-The choice stays visible in the timeline header, and Show setup supports
-outputs through 2,000 pixels. With a Controller profile selected in the rail,
-**New show from profile** seeds an Installation Show from that device's
-imported map and pixel count.
+The choice stays visible in the timeline header, and Shows support outputs of
+up to 2,000 pixels. With a Controller profile selected in the list, **New show
+from profile** seeds an Installation Show from that device's imported map and
+pixel count.
 
 ## 13. The timeline
 
@@ -401,34 +362,29 @@ constantly:
 
 - **Space** plays and pauses, **A** rewinds, **1/2/3** set playback speed;
   click or drag the ruler to seek. Seeking replays deterministically from
-  Show start, so it is exact — never approximate.
+  the start of the Show, so it is exact, never approximate.
 - **Add Clip** places a Pattern at the playhead; double-click empty Layer
-  time to choose one there. Drag to move, Option-drag to duplicate, edges to
-  resize, **Split** to divide at the playhead. Split uses the selected Clip;
-  with none selected, it uses the first direct Clip under the playhead in
-  keyboard traversal order (start time, Zone, Layer, then identity). It is
-  unavailable in gaps and at boundaries where that Clip cannot be split.
-- Drags land on the tick grid and snap magnetically to Clip, Marker, and
-  playhead boundaries; Alt suspends snapping for one gesture, Shift gives
-  fixed fine steps.
-- An end resize stops at available same-Layer capacity. Exact Duration entries
-  refuse a range that does not fit. If the Show changes during a resize drag,
-  release discards that stale drag; start again on the current timeline.
-- Every commit is one undo step (Cmd/Ctrl+Z), session-only.
-- Select anything (a Clip, Group, Transition, Zone, or the Show itself)
-  and its floating Entity Detail Panel opens with exactly that entity's
-  fields. Escape peels one surface per press.
+  time to choose one there. Drag to move, Option-drag to duplicate, drag edges
+  to resize. **Split** divides the selected Clip at the playhead, or the Clip
+  under the playhead when nothing is selected.
+- Drags land on the tick grid and snap to Clip, Marker, and playhead
+  boundaries; Alt suspends snapping for one gesture, and Shift gives fixed
+  fine steps. A resize stops where the next Clip on the same Layer begins.
+- Every edit is one Undo step (Cmd/Ctrl+Z). Undo history lasts for the
+  session.
+- Select anything (a Clip, Group, Transition, Zone, or the Show itself) and a
+  floating detail panel opens with exactly that thing's fields. Escape closes
+  one surface per press.
 
 Marquee-select Clips and **Group** them into one movable occurrence across
 Layers. **Duplicate** creates linked copies that share edits until **Make
 Unique** breaks the link.
 
 A **Marker** is a named point on the timeline. It guides your eye and nothing
-else: playback, Clips and Transitions never depend on one. A Marker can also be
-a **chapter**, which is how a Show names its passages for the Gallery, its
-public page and the Live caption. Chapters read in time order, and two chapters
-at the same moment stay separate. Markers you add are ordinary guides; they do
-not become chapters on their own.
+else: playback, Clips, and Transitions never depend on one. A Marker can also
+be a **chapter**, which is how a Show names its passages for the Gallery, its
+public page, and the Live strip. Markers you add are ordinary guides until you
+make them chapters.
 
 ## 14. Clips
 
@@ -439,16 +395,20 @@ take an independent copy with **Make Pattern Independent**.
 
 Presentation belongs to the Clip: **Live**, **Freeze** (hold the entry
 frame), **Strobe**, **Blink**, or **Stutter** (quantize the shared clock so
-linked Clips step together). Every Clip also owns **Opacity**: Main fades
-toward black, while higher Layers source-over composite against the content
-below. **Brightness** adjusts the Pattern view before that composition. 2D Clips add
-a **Transform** (position, rotation, scale), an optional **Aperture** mask
+linked Clips step together). Every Clip also owns **Opacity**: on the
+**Main** Layer it fades toward black, while higher Layers composite over the
+content below. **Brightness** adjusts the Pattern before that composition. 2D Clips
+add a **Transform** (position, rotation, scale), an optional **Aperture** mask
 from the shape catalogue, and an ordered **Effect stack**: transforms,
 distortions, address policies, and color Effects such as Luma key, Chroma
 key, and Vignette, each searchable with cost notes and presets. Two policies
 trade fidelity for measured double-digit FPS wins on hardware: **Freeze at
 entry** and **Refresh**, which re-evaluates a quarter of the pixels per
 frame.
+
+One Effect belongs to the whole Show rather than a Clip. **Trails**, under
+**Show output** in the Show's details, blends each frame with the one before
+it, and **Retention** sets how much of the previous frame survives.
 
 ## 15. Transitions and animation
 
@@ -458,256 +418,242 @@ variant previews it on the Stage before you commit, each exposes only its
 legal fields, and costs are explicit: a feathered reveal evaluates both
 Patterns only inside the band.
 
-Deleting a Clip removes its attached Transitions and Clip-owned Property
-tracks. Surviving Clips, Layouts, Markers, and Show End keep their global
-times, so the vacated interval remains blank unless other content covers it.
-If an attached Transition carries Property ramps that need preservation, the
-edit requires an exact projection plan or refuses without an Undo or save entry.
+Deleting a Clip removes its attached Transitions and the animation tracks it
+owns. Everything else keeps its place in time, so the vacated interval stays
+blank unless other content covers it.
 
-Property animation uses saved tracks with an explicit target, activation
-interval, and Show-global keyframes; a Transition may carry an explicit
-Property ramp over its own window. Animation speed, brightness, opacity,
-Transform, exported sliders, and split position appear as sparklines beneath
-their Zones. The
+Property animation uses saved tracks with an explicit target, an active
+interval, and keyframes at Show times; a Transition may carry its own ramp
+over its window. Animated speed, brightness, opacity, Transform, exported
+sliders, and split position appear as sparklines beneath their Zones. The
 diamond beside any animatable field creates or reopens its ramp, and the
 Clip's **Animations** overview is the one place to see and remove every
 track.
 
-Connected MCP agents can create two-key or multi-key tracks for opacity,
-brightness, phase, Transform, Viewport, Effect parameters, Pattern controls,
-and Pattern time scale. They can also revise a track atomically: moving or
-swapping keys, changing values or easing, and adding or deleting keys in one
-request. Saved Property tracks use Show-global key times and an explicit
-activation interval.
-
 ## 16. Zones and routing
 
-A new Show starts as one full-output Zone with no extra chrome; the
-**Zones** rail appears when you want routing structure. Zone **Layouts**
+A new Show starts as one full-output Zone with no extra chrome. When you want
+routing structure, the **Zones** button above the timeline's Zone column opens
+the **Zone Map**, where you define Zones and their Layouts. **Layouts** also
 live on the timeline and label stretches of the ruler, and the boundary
 between Layouts is a routing switch with its own duration and easing: a
 Show can rearrange its stage mid-flight while every Pattern keeps playing.
 
-What zones mean follows the output contract. Installation Layouts assign
+What Zones mean follows the output contract. Installation Layouts assign
 physical pixel ranges, with coverage validated exactly. Portable Layouts use
 normalized routing modes (Stripes, Grid, Checker, Rings, Pinwheel, Wave, or
 an animatable Split) that hold on any compatible surface.
 
-The **Stage** is the whole Show rendered over its output geometry and driven by
-Show transport. On desktop it fills the bottom-right corner of a strip below
-the timeline. A narrow rail beside the canvas holds playback and the Zone-outline
-and selected-Clip-outline toggles. Zone guides follow the current Zone Layout.
-The selected Clip outline appears during that Clip's interval and shows its
-authored transformed content bounds. Both guides are session-only. The Preview heading keeps overall browser brightness available when folded or expanded, using the same compact slider and percentage as the Pattern and Controller panels. It adjusts browser rendering without changing authored Clip brightness or Controller output. Preview, Zones, Stage, and Source code form one
-left-aligned controls column on the bottom-left, capped at 480 px, with spare
-width left as a gap before the preview rail. Each header summarizes its
-folded section. Preview begins open; the other sections begin folded, and
-PXLBLZ remembers each section independently for Shows. A fresh layout gives the
-preview at least half the available workspace, or more when the timeline is short,
-within compact pane limits. Drag the horizontal divider to enlarge the preview,
-or focus it and use **Up/Down**. The timeline can shrink to its transport controls;
-its rows scroll inside the top pane. A subtle fade along the bottom edge indicates
-more content below and disappears when you reach the bottom.
+The **Stage** is the whole Show rendered over its output geometry and driven
+by the Show's transport. On desktop it sits in a strip below the timeline,
+with a narrow rail beside it holding playback and two outline toggles: Zone
+guides that follow the current Layout, and an outline of the selected Clip's
+content while that Clip plays. To its left, **Preview**, **Zones**, **Stage**,
+and **Source code** fold to one-line summaries; Preview starts open. Its
+brightness slider changes only how bright the browser draws, never the
+authored Show or the Controller's output.
 
-PXLBLZ remembers the chosen split. Later lane changes preserve it, and window
-resizing preserves its proportion within the pane height limits. A narrow window
-fits the Stage inside the available preview area without forcing the divider down.
-While
-paused, the Stage redraws the frozen picture throughout resizing without
-advancing Show time. Light size and Diffusion update while paused in both the
-Show and Pattern previews. Their sliders release focus after pointer adjustment;
-Space plays or pauses, including when a slider has keyboard focus. Arrow keys
-still adjust a keyboard-focused slider. The controls
-retain at least 200 px beside the rail and scroll when expanded content exceeds
-the strip height. The lower strip stays visible at narrow widths. Growing or shrinking the window
-preserves the timeline/strip proportions within their size limits.
+Drag the divider between the timeline and the strip to give either one more
+room, or focus it and use **Up/Down**; PXLBLZ remembers the split. A paused
+Stage keeps its frame while you resize, and light size and diffusion update
+even while paused.
 
 ## 17. Cost, sending, and sharing
 
-The Source code section beside the Stage reports delivered source size,
-memory words, and running Pattern copies. Expand it for the byte-level inventory.
-Warnings, blockers, and successful-send status remain visible below the section.
-Run/Save failures appear in the Controller popover. The same Source code
-section remains in the lower strip at narrow widths; Studio does not render
-the old compile footer or source-inventory popup. Every Pattern row
-distinguishes three things in plain language:
-**configured uses** are separately configured versions of that Pattern in the
-Show, **copies in delivered code** are the copies the compiler kept in the
-generated Pixelblaze Pattern, and **timeline placements** are the Clips that
-place those uses on the Stage. A Clip spanning a Zone Layout switch remains
-one placement on the timeline.
+Your own Shows save automatically as you edit. If a save fails, the edit is
+rolled back and Studio says so rather than leaving you with changes that exist
+only in the browser. Undo history lasts for the session; reopening a Show
+starts a fresh history.
 
-Those counts do not say how many run at once. **Pattern copies running** gives
-the maximum number that can run simultaneously. **Busiest LED** says how many
-Pattern color calculations can contribute to one LED: its normal count and,
-when different, the higher count reached while visuals overlap. Effects add
-work to a Pattern result but do not add another Pattern color calculation.
-Compiler-owned blank routing does not appear as a running Pattern.
+The **Source code** section beside the Stage reports the delivered source
+size, memory words, and how many Pattern copies can run at once. Expand it for
+the byte-level inventory. Warnings and blockers stay visible below it, and
+Run and Save failures appear in the Controller popover.
 
-Each Pattern row then reads as an equation: one compiled copy, any additional
-compiled copies, and the source generated for Show settings and placements add
-up to the Pattern total. Identical measured copies may use repeated-cost
-notation; unequal copies show a truthful aggregate. Shared Show infrastructure,
-routing, Effects and Transitions, score data, provenance, and Controller
-transforms remain separate rows or delivery layers. The inventory presents
-measurements without guessing which creative change should come next. Limits
-are enforced with a named cause while editing and preview continue.
+Every Pattern row in the inventory separates three counts that are easy to
+confuse. **Configured uses** are separately configured versions of that
+Pattern in the Show. **Copies in delivered code** are the copies the compiler
+kept in the generated Pattern. **Timeline placements** are the Clips that put
+those uses on the Stage. None of them says how many run at once: **Pattern
+copies running** gives that maximum, and **Busiest LED** says how many Pattern
+calculations can contribute to one LED, including the higher count reached
+while visuals overlap.
 
-Sending mirrors ordinary Patterns: **View code**, **Run**, **Save**, and
-**Export `.epe`**. After an edit, Run and Save disable until the fresh
-artifact is ready, so a stale Show can never be sent.
+Each row then reads as an equation: the compiled copies plus the source
+generated for Show settings and placements add up to the Pattern's total.
+Shared Show infrastructure, routing, Effects and Transitions, and Controller
+transforms appear as their own rows. The inventory reports measurements and
+leaves the creative choices to you. When a limit is exceeded, it names the
+cause while editing and preview carry on.
 
-**Export Show file** shares the authored choreography itself: a `.pxlshow`
-bundles the Show, every personal Pattern it reaches, and any custom output
-map, so another PXLBLZ library can inspect it, import it, and continue
-editing.
+Sending mirrors ordinary Patterns. The **Show actions** menu has **View code**
+and **Download .epe**, and the Controller popover has **Run** and **Save**.
+After an edit, Run and Save wait until the fresh Pattern is ready, so a stale
+Show can never be sent.
 
-### Agent editing
-
-Open an editable Show while signed in, then open the right-edge Agent drawer.
-**Use the Pixelblaze agent** connects the built-in agent to this Show for every
-signed-in account; write an edit request in
-the composer. Personal Show edits save to your account; built-in Show edits
-remain session drafts. Successful edits use ordinary Undo history. Each submitted request stays in one
-activity entry. A quiet **Thinking** response appears below it while the agent works,
-then the same response becomes a saving, draft, success, or failure message. Saved
-commands use a terminal icon; other activity stays unmarked and uses one muted text
-treatment. Clip resize confirmations name the Pattern and show the new length and
-timeline range in seconds. Reduced motion preferences disable the Thinking animation;
-status text remains visible.
-
-The composer shows the server-owned remaining count and relative reset above the
-input. The built-in agent admits 30 submitted messages per account per UTC day;
-one message is counted when its first provider dispatch is admitted. Internal
-rounds and qualified local Retry do not count again. Personal exhaustion, the
-shared daily API budget, and persistent service unavailability have separate
-explanations. Each keeps the draft and disables Send. The UTC reset instant is
-shown in local time.
-
-**Connect your agent with MCP** opens untimed setup with the canonical endpoint.
-Choose Claude Code, Codex, Claude.ai, or Other to copy the matching command or
-endpoint; the canonical endpoint stays available separately. Authorize the
-application in the browser. Setup does not make the Show connectable. Select **Ready to
-connect** when the client is ready; that makes this window available for two
-minutes. If an incoming call appears, choose **Answer** within 30 seconds or
-**Not now** to decline. Only one agent connection can use your account at a time;
-every editable Show displays an existing external connection. Select **Reconnect**
-to bring it to another editor for the same Show, or **Bring agent here** for a
-different Show. The click may replace a live editor connection; opening a Show
-never moves it automatically. The previous editor reports that the agent moved.
-External conversations
-stay in the external client; connection setup depends on the client. **Back**
-returns from unconnected setup to the chooser. Once either agent is connected,
-**Change agent** disconnects this window and returns to the chooser without
-forgetting external authorization. Switching remains disabled until active,
-saving, or unknown work resolves.
-
-Once connected, an external agent can list the stock and personal Pattern
-identities accepted by Show commands, including their exported control metadata,
-and the existing Controller-profile identities with any last-known pixel count.
-
-A small green dot beside the owned agent name indicates the ordinary connected
-state. Contact loss and active work keep their existing text status instead.
-
-Connected agents can address Main or a numbered overlay Layer when adding and
-moving Clips. Overlay numbering starts at zero for the topmost Layer. They can
-also move a complete overlay Layer to a final front-to-back position, or remove
-one after reassigning every Clip, Group binding, and Transition participant
-that refers to it. Layer changes in one request use the result of each
-preceding command, so a newly inserted Layer can be filled, reordered, and
-later referenced in the same edit.
-
-For collection authoring, `create_clips` creates several fully configured Clips,
-`create_layers` creates ordered overlay Layers with optional Clips, and
-`update_clips` patches properties or applies final-valid simultaneous swaps,
-resizes, and Layer moves. Each call is atomic and contributes one activity entry;
-shared Pattern-instance edits report every affected linked Clip. The
-[versioned Clip and Layer reference](agent-clip-layer-authoring.md) lists the
-complete property vocabulary, exact timing rules, clearing behavior, limits,
-and examples.
-
-Edits remain private until the editor accepts them. A conflicting manual change
-can prevent an agent result from applying. If one command is refused, its bounded
-issue appears on the same working activity entry while the private candidate and
-earlier accepted commands remain intact. The agent can correct that command,
-commit the accepted private work, or cancel it; the live Show does not change
-until commit adoption. Activity adds no completed or unread result for that
-interim issue. Activity distinguishes final saved edits, changes applied to a
-draft, refused work and cancellation. Losing contact does not prove failure:
-known save outcomes remain visible, and **Restore contact** checks the existing
-operation without replaying it. When the editor refuses an invalid complete
-candidate, the final result can identify a specific safe validation issue,
-such as a Clip timing or Layer reference that must be repaired.
-
-The activity transcript remains visible while choosing, connecting, disconnecting,
-or switching between the built-in and MCP agents. New and changing activity always
-moves the activity pane to its latest entry without moving keyboard focus or the page.
-
-Canonical agent edits can set a Clip's static opacity, Content Transform, and
-Aperture frame or silhouette. Partial edits retain omitted values across the
-Clip's held appearance keys; changing the silhouette removes settings specific
-to the previous shape. Selected-time edits hold until the next key. Whole-Clip
-edits that overwrite varied appearance ask for confirmation, and moves,
-trims, splits, and copies preserve or restrict the surviving keys.
-
-A supported single exact Clip resize can offer **Retry** against current state.
-Retry creates a new activity, preserves the earlier failure and any unsent draft,
-and performs no new inference. For other failures, make a new request; ask an
-external agent to retry in its own client. Failed activity remains visible; the
-built-in and external activity streams have no Dismiss action.
-
-**Disconnect** ends this window's connection. For an external connection, the
-drawer menu's **Forget this agent** also revokes that agent's authorization.
-Losing the advertised capability or leaving the Show retires pending private
-work; an already-applied personal save
-continues. Disconnect and Forget still require the exact owning window; only the
-explicit external Reconnect/Bring action replaces another editor's binding.
-If the server loses the live connection's in-memory delivery ledger, the editor
-shows that generation retiring instead of guessing whether a command ran. The
-external client reconnects and reads the Show again before starting a new edit;
-unapplied private work is cancelled and an already-applied save continues.
-The built-in testing service uses Luna Fast mode, a 30-message personal daily
-allowance, and a $10 daily allowance shared across signed-in accounts. Availability
-and both allowances are controlled by the server. See [Agent service limits](contracts/agent-builtin-service.md)
-and [connection lifecycle](contracts/agent-rendezvous.md) for the detailed rules.
-[Privacy](PXLBLZ Privacy.md) explains what the built-in service and external
-clients receive.
+**Export Show file…** shares the authored choreography itself: a `.pxlshow`
+bundles the Show, every personal Pattern it uses, and any custom output map,
+so another PXLBLZ workspace can import it and keep editing.
 
 ## 18. Built-in Shows to learn from
 
-The Shows rail ships learning material beneath your own: **Learn** lessons
-that add one idea at a time, **Showcases** cataloguing every Effect,
-Transition, animation, and easing, finished **Portable Shows** (the Coronal
-Mass Ejection remix, Quadrille), and map-specific **Installations** (the
-2,000-pixel Redline; Overture, a 128 BPM opening night for the Proscenium
-arch stage; Totality, a solar eclipse on the 490-pixel Eclipse Dome; and Black
-Sun, a 120 BPM black hole on the same dome).
-Edit them freely: changes live in a session draft,
-**Reset** or reload restores the shipped version, and **Clone** keeps your
-variant.
+The Shows list ships learning material beneath your own:
 
-The **Lesson pill** beside the title opens a **Reading card**: hover to read,
-click to pin, or use Enter or Space while the pill has keyboard focus. Escape
-closes the card and returns focus to the pill. The card explains what the Show
-demonstrates, what to look for, and two things to try, with a link to its guide.
-It floats above the timeline without shrinking the Stage preview.
+- 17 **Learn** lessons, each adding one idea to the last.
+- 19 **Showcases** that catalogue every Effect, Transition, animation easing,
+  Aperture shape, and Zone Layout.
+- Two finished **Portable Shows**: the Coronal Mass Ejection remix and
+  Quadrille.
+- Four map-specific **Installations**: the 2,000-pixel Redline; Overture, a
+  128 BPM opening night for the Proscenium arch stage; Totality, a solar
+  eclipse on the 490-pixel Eclipse Dome; and Black Sun, a 120 BPM black hole
+  on the same dome.
 
-The card's **Live strip** switch shows or hides one 32 px row above the
-timeline, remembered per Show. The strip follows the current reference example
-as the Show plays. Without a reference guide it follows chapter Markers when
-the Show has more than one chapter Marker. Otherwise it names the most recently
-started Clip on the first Zone's bottom Layer, showing its Pattern name and
-Clip counter even through gaps. **Try with Pattern** runs another Pattern through
-the same choreography: one slot has an inline chooser; several slots share a
-**Patterns** chip that opens their choosers and Reset. The strip's × hides it.
-At narrow widths, the pill becomes an icon and the strip keeps the narration
-name, counter, and compact chooser on one row.
+Edit them freely. Changes live in a session draft, **Reset** or a reload
+restores the shipped version, and **Clone** keeps your variant.
+
+The **Lesson** pill beside the title opens a reading card: what the Show
+demonstrates, what to look for, and two things to try, with a link to its
+guide. Hover to read, click to pin. The card's **Live strip** switch adds a
+narrow row above the timeline that narrates the Show as it plays, following
+the current example, chapter, or Clip. **Try with Pattern** runs another
+Pattern through the same choreography, which is the fastest way to see what
+the Show itself is doing.
 
 ---
 
-# Part 5 — Boundaries
+# Part 5 — Editing Shows with an agent
 
-## 19. What PXLBLZ deliberately does not do
+An agent can edit the Show you have open. Describe the change in words ("put
+the fire Pattern on a new Layer for the last eight seconds and fade it in"),
+and the agent turns it into the same edits you would make by hand. It works
+through the Show editor rather than around it, so every agent edit follows the
+editor's rules and lands in ordinary Undo history.
+
+Two kinds of agent can do this. The built-in **Pixelblaze agent** lives inside
+PXLBLZ; you type to it in the Agent drawer. Your own agent, such as Claude Code,
+Codex, Claude.ai, or any other client that supports remote MCP, connects
+from outside, and you keep talking to it wherever you already do.
+
+## 19. The Agent drawer
+
+The Agent drawer sits on the right edge of the Show editor. It appears when
+you are signed in and the agent service is available. Click the edge tab,
+or focus it and press **Enter**, to open the drawer. Pin it to keep it beside
+the timeline. The drawer starts with a choice: **Use the Pixelblaze agent** or
+**Connect your agent with MCP**.
+
+The built-in agent is the quick way in. Choose it, type a request in **Ask for
+an edit…**, and press **Send**. Above the message box, a counter shows how many
+messages you have left today and when the count resets.
+
+Everything either agent does appears under **Activity**. Each request gets one
+entry. While the agent works, the entry reads **Thinking**. When it finishes,
+the entry describes each change, or explains why nothing changed. Entries for
+saved changes carry a small terminal icon. **Show MCP calls** in the drawer
+menu (**⋯**) adds the raw commands under each entry. It's useful when you want
+to see exactly what the agent asked the editor to do.
+
+Edits to your own Shows save to your account like any other edit. Built-in
+Shows stay session drafts, exactly as they do when you edit them by hand.
+**Change agent** disconnects this window and returns to the choice; it is
+unavailable while an edit is still in flight.
+
+## 20. Connecting your own agent
+
+**Connect your agent with MCP** walks through three steps:
+
+1. **Add the endpoint.** Pick your client. PXLBLZ shows a ready-to-copy
+   command for Claude Code or Codex. For Claude.ai, it shows where to paste the
+   endpoint (Customize → Connectors → Add custom connector). **Other** gives
+   you the bare endpoint.
+2. **Authorize access.** The first time your client connects, it opens a
+   browser tab where you sign in to PXLBLZ and approve the connection. The
+   approval page names your account and the application asking for access.
+3. **Connect this Show.** Click **Ready to connect**, then tell your agent
+   "Connect to my Show in PXLBLZ." The window stays open for two minutes. When
+   the agent calls, the drawer asks you to **Answer** or choose **Not now**,
+   and gives you thirty seconds to decide.
+
+Steps 1 and 2 happen once per client. After that, connecting to a Show is
+just step 3. If a client goes unused for more than a day, expect it to ask you
+to authorize again.
+
+Your account holds one external agent connection at a time. Open a different
+Show and the drawer shows where the agent is connected. **Bring agent here**
+moves it to this Show, and **Reconnect** moves it to this window when the
+connection is to the same Show in another tab. The old window notes that the
+agent moved. Opening a Show never moves the agent on its own.
+
+**Disconnect** ends the connection but keeps your client authorized, so it can
+come back with step 3. **Forget this agent**, in the drawer menu, also revokes
+the authorization. If a client cannot connect at all, check that it supports
+remote MCP with OAuth; the client's own error message usually says which part
+failed.
+
+## 21. How agent edits land
+
+An agent can work on almost anything in the Show's timeline. It can add, move,
+resize, split, and remove Clips. It can rearrange Layers and Groups, add and
+tune Transitions and Effects, and animate properties with keyframes. It can
+also edit Layouts, Markers, and Show End. It sees the Show itself, the stock and
+personal Patterns you could place (with their controls), and your Controller
+profiles. It cannot edit Pattern source, create or delete Shows, or send
+anything to a Controller; **Run** and **Save** stay with you.
+
+An agent's work stays private until it is complete. The agent builds its
+change in a private copy of the Show, checks each step against the editor's
+rules, and then commits the whole thing at once. You see nothing half-finished
+on the timeline. If one step is refused, for example because a Clip would
+overlap another, the agent sees why. It can then fix that step, commit the
+work that succeeded, or cancel. If you are in the middle of a drag or an edit
+of your own, the entry reads **Waiting for you to finish** until you are done.
+If your change conflicts with the agent's, the agent's change is not applied.
+
+A committed edit is one Undo step. Activity then reports the outcome in plain
+words: saved, applied to a draft, not applied, rolled back, or cancelled. If
+contact with the service drops mid-edit, PXLBLZ does not guess: the entry
+says the outcome is unknown and **Restore contact** checks what actually
+happened without running anything twice.
+
+Nothing retries on its own. For the built-in agent, send a new message. For an
+external agent, ask it to try again in its own client; the drawer's failure
+note says the same. Disconnecting, forgetting the agent, or leaving the Show
+cancels any private work that has not been committed. A save that has already
+started still finishes.
+
+The [Agent Authoring Reference](agent-clip-layer-authoring.md) lists what an
+agent can set on Clips, Layers, Effects, and animation, for anyone writing
+prompts or building an agent against PXLBLZ.
+
+## 22. Limits, cost, and privacy
+
+The built-in agent runs on OpenAI's GPT-5.6 Luna and costs you nothing. It is
+metered in three ways:
+
+- **30 messages per account per day.** A message counts once, however much
+  work it takes. The day follows UTC, and the counter shows the reset in your
+  local time.
+- **Four new requests per minute**, to keep one account from monopolizing the
+  service.
+- **A shared daily budget** across all accounts. If everyone's requests
+  together use it up, the built-in agent pauses for everyone until the reset.
+
+When a limit is reached, the drawer says which one (**Daily message limit
+reached**, **Daily API budget reached**, or **Pixelblaze agent unavailable**)
+and keeps your unsent message. An external agent has no PXLBLZ allowance; you
+pay for it wherever you already pay for your client.
+
+The built-in agent sends your request, the Show, and the editor information it
+reads to OpenAI, with response storage turned off. An external agent receives
+whatever it reads through its connection, and that client's own privacy terms
+apply. [PXLBLZ Privacy](PXLBLZ Privacy.md) has the details.
+
+---
+
+# Part 6 — Boundaries
+
+## 23. What PXLBLZ deliberately does not do
 
 - Manage Wi-Fi, LED chipset, timezone, Output Expander setup, or other
   Controller settings. Use the Pixelblaze web UI.
@@ -719,7 +665,7 @@ name, counter, and compact chooser on one row.
 - Publish personal Patterns to public Gallery URLs.
 - Synchronize a Show across several Controllers.
 
-## 20. Known preview limits
+## 24. Known preview limits
 
 - Pattern execution runs on the browser main thread. A syntactically valid
   infinite loop can freeze the tab; clean compilation is not a watchdog.
@@ -731,7 +677,7 @@ name, counter, and compact chooser on one row.
   deliberate output-history exception, and wall-clock, network, and sensor
   history cannot be recreated from Show time alone.
 
-## 21. Choose the next document by the job
+## 25. Choose the next document by the job
 
 | I want to… | Go here |
 |---|---|

@@ -95,9 +95,13 @@ The pipeline runs in the browser every time you edit a Show:
 
 ![The Show pipeline: saved choreography lowers through routing, scheduling, and specialization into one Pixelblaze Pattern](../images/show-pipeline.svg)
 
-1. **Lowering.** The saved Show (Scenes, Zone Layouts, clips, boundaries,
-   property curves) becomes a compile recipe: which Pattern instances exist,
-   which Scenes activate them, and what every boundary does.
+1. **Lowering.** The saved Show (Clips on Layers, Zone Layouts, Transitions,
+   animation tracks) becomes a compile recipe: which Pattern instances exist,
+   when each one is active, and what every boundary does. Internally the
+   compiler cuts the timeline into **Scenes**: stretches during which the set
+   of active Clips does not change. You never author a Scene, but the rest of
+   this guide talks about them, because they are the unit the compiler
+   optimizes.
 2. **Member isolation.** Each Pattern instance is renamed so its variables and
    functions can't collide with any other member or with the Show's own
    machinery. Your Patterns are combined verbatim, not rewritten: a member
@@ -110,7 +114,7 @@ The pipeline runs in the browser every time you edit a Show:
    only when the branch chain would be genuinely deeper than the table is
    expensive.
 4. **Scheduling.** A generated `beforeRender` advances the Show clock, works
-   out the active Scene and boundary, updates property ramps and Effect
+   out which Clips and boundaries are active, updates property ramps and Effect
    parameters once per frame, and advances each active Pattern instance
    exactly once, even when several placements show the same instance.
 5. **Specialization.** The compiler then removes every piece of work it can
@@ -290,10 +294,11 @@ crossfade boundary costs roughly 20 device-budget points: the same Show landed a
 *feel* of a transition without that price, staggered phase-glide tracks deliver
 it as score data instead of as compiled crossfade machinery.
 
-Two related facts fall out of the same measurements. Effects are stateless per
-frame (there are no trails or persistence in the toolkit) so structural variety
-comes from the distort family re-rendering a shared instance rather than from
-accumulation. And `paint()`/`setPalette()` members translate through their own
+Two related facts fall out of the same measurements. Clip Effects are
+stateless per frame, so structural variety comes from the distort family
+re-rendering a shared instance rather than from accumulation. The one
+exception is the Show-wide **Trails** output Effect, which deliberately
+blends each frame with the last. And `paint()`/`setPalette()` members translate through their own
 palette path, so placement phase does **not** affect them; that is
 firmware-faithful, because paint is an RGB lookup rather than an HSV emission.
 
@@ -381,9 +386,9 @@ The program's working rules, in the order they earn their keep:
 
 ## Seeing it yourself
 
-The creator-facing consequences are inspectable per Show. The compile bar under
-the timeline reports delivered source, VM words, and support-envelope warnings.
-Hovering the **Show source** figure opens an exact byte-level inventory of the
+The creator-facing consequences are inspectable per Show. The **Source code**
+section beside the Stage reports delivered source, VM words, and
+support-envelope warnings; expand it for an exact byte-level inventory of the
 generated artifact. Each Pattern row separates one compiled copy from
 Show-specific settings and placement source, then distinguishes configured
 uses, copies in the delivered code, and timeline placements. A separate figure

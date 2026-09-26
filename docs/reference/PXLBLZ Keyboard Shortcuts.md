@@ -43,7 +43,7 @@ and press `Escape` to close it and return focus to the control.
 | `X` | Mixins |
 | `L` | Libraries |
 | `D` | Docs |
-| `R` | API Reference |
+| `R` | API |
 
 These unmodified one-key shortcuts work outside editable fields and focused
 local controls. They do not claim letters while you type in Monaco, rename an
@@ -55,6 +55,9 @@ editor. Opening from the keyboard moves focus into list search, and
 closing or choosing an entity returns focus to the opener. The 22-pixel edge
 tab also opens with a click or `Enter`; `Space` remains Preview or Show
 playback.
+
+In the Show editor, the Agent drawer's tab on the right edge works the same
+way: focus it and press `Enter` to open the drawer, and `Escape` to close it.
 
 ## Preview
 

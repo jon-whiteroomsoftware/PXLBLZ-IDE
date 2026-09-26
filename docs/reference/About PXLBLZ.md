@@ -46,9 +46,9 @@ design, operation, and releases.
 
 ## Accounts, data, and Controllers
 
-The Gallery, documentation, API reference, preview, and live Controller access
-are public. Studio uses GitHub or Google sign-in when you want a durable personal
-workspace.
+The Gallery, Pattern and Show pages, documentation, and API reference work
+without an account. Studio uses GitHub or Google sign-in: it holds your personal
+workspace, and it is where you connect Controllers and agents.
 
 Personal Patterns, maps, mixins, libraries, Shows, and Controller profiles are
 stored in Cloudflare D1 and scoped to your account. Small device and session

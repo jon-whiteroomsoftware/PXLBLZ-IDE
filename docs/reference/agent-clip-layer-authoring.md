@@ -1,85 +1,104 @@
-# Agent Clip and Layer authoring
+# Agent Authoring Reference
 
-The versioned Clip/Layer authoring vocabulary is generated from
-[`bulkAuthoring.ts`](../../src/engine/showCommands/bulkAuthoring.ts). Runtime
-validation, production and diagnostic MCP schemas, built-in function schemas,
-and reference material therefore share one field definition.
+This page is for anyone writing prompts for a PXLBLZ agent or building one
+against the MCP server. It explains how an agent edit is structured and the
+few rules that most often decide whether a command succeeds. For connecting
+an agent and what you see in the editor, read Part 5 of the
+[Feature Guide](PXLBLZ Feature Guide.md).
 
-Connected agents can read the complete generated resources at:
+The built-in Pixelblaze agent and external MCP clients use the same command
+set, validated by the same code as the editor's own controls. Anything a
+command refuses, the editor would have refused too.
 
-- `pxlblz://schemas/clip-layer-authoring/v1` for JSON Schema 2020-12;
-- `pxlblz://docs/clip-layer-authoring/v1` for semantics, defaults, clearing
-  rules, ownership, result details, and executable examples.
+## The shape of an edit
 
-The production server introduction names both resources. Each bulk tool also
-publishes its nested input shape independently because an MCP client decides
-whether server instructions or resources enter model context. These resources
-describe visible authoring inputs; persisted Show records continue to use the
-separate Show data model and export schemas.
+An agent reads before it writes. `read_show` returns the connected Show,
+`list_patterns` the stock and personal Patterns it can place (with their
+exported controls), `list_controller_profiles` your Controller profiles, and
+`list_commands` the full command catalogue with input shapes.
 
-## Prepared v2 vocabulary
+Changes happen inside one private operation:
 
-The v2 authoring vocabulary is generated from
-[`authoringReference.ts`](../../src/engine/showCommandsV2/authoringReference.ts)
-over the same field fragments the v2 descriptors and runtime validation use. It
-is prepared, not activated: a connected agent sees the v1 resources above until
-the coordinated cutover in #1039, and the v2 pair only under the explicit
-`catalogue: 'v2'` option.
+1. `begin_edit` captures the Show and opens a private working copy. It takes a
+   one-line `intent`, which appears in the editor's Activity so the person
+   can see what the agent is attempting.
+2. Commands such as `create_clips`, `update_clips`, `insert_transition`, or
+   `add_property_tracks` change the working copy. Each is checked
+   immediately. A refused command reports why, with a code, the offending
+   field, and, when an id failed to resolve, the nearest valid ids. Earlier
+   commands in the operation stay applied.
+3. `commit_edit` offers the whole result to the editor, which revalidates it
+   and applies it as one Undo step. `cancel_edit` discards it.
+   `get_outcome` reports what finally happened: saved, applied to a draft,
+   refused, cancelled, or unknown after lost contact.
 
-- `pxlblz://schemas/clip-layer-authoring/v2` for JSON Schema 2020-12;
-- `pxlblz://docs/clip-layer-authoring/v2` for identity addressing, timing,
-  the appearance `apply` selector, Effect and Aperture parameter names, the
-  animation target union and executable examples.
+A command that asks for something already true returns `unchanged` rather
+than failing, so an agent can repeat a step safely.
 
-### ClipSpec and ClipPatch
+## Identities and time
 
-`ClipSpec` places one Clip at an exact global interval: `zone_id`, `layer_id`,
-`start_ms`, `duration_ms` and a structured `pattern` reference. `instance`
-carries decision D3: `"sole"` (the default) reuses the one existing runtime for
-that Pattern source, creates the first when none exists, and refuses with
-candidate identities when several exist; `"new"` creates the first runtime and
-refuses when one already exists; any other value is an explicit existing
-`instance_id`. `entry_policy` is `continue` or `restart`, where `restart` resets
-the whole Pattern instance at that Clip's first contribution and every Clip
-sharing the runtime observes it. `zone_sample_mode` is `independent` or `span`.
-`appearance` seeds the first held key, including its Effect stack, and
-`instance_properties` writes Pattern-instance controls, time and evaluation.
+Commands address everything by stable id: `clip_id`, `layer_id`, `zone_id`,
+and so on. Nothing is addressed by list position or by "the Clip at 12
+seconds". Times are whole milliseconds on the Show's global timeline, and an
+interval includes its start and excludes its end, so a Clip at `start_ms:
+4000, duration_ms: 2000` ends exactly where one starting at 6000 begins.
+Collection commands accept 1 to 128 items.
 
-`ClipPatch` updates one Clip by `clip_id`. Placement goes through the Clip
-temporal owner, so a Transition-connected Clip translates its whole connected
-component rigidly and a resized edge ripples connected successors while
-Transition identity and settings stay fixed. Moving a Clip to another Zone or
-Layer has no landed v2 owner intent and refuses with a typed `unsupported`
-code rather than writing the field behind the owner's back.
+## Placing and changing Clips
 
-### The appearance apply selector
+`create_clips` places Clips from a `ClipSpec`: `zone_id`, `layer_id`,
+`start_ms`, `duration_ms`, and a `pattern` reference. Three optional fields
+matter most:
 
-Appearance is a keyed timeline, so an appearance patch says where it lands.
-`{ "scope": "whole-clip" }` writes every held key; `{ "scope": "at-time",
-"at_ms": N }` writes the held key covering that global time, inserting a fresh
-key when the time has no key and leaving later keys with their own values. The
-selected time must sit inside the Clip's nominal bar; its exclusive end and
-outside-bar Transition contribution times refuse. The five Effect stack
-commands take the same selector.
+- `instance` decides which running copy of the Pattern the Clip uses.
+  `"sole"` (the default) reuses the one existing copy of that Pattern, creating
+  it if there is none, and refuses with the candidate ids if there are several.
+  `"new"` creates a fresh copy. An explicit `instance_id` shares that copy.
+  Clips that share a copy share its state, so motion continues across them.
+- `entry_policy` is `continue` or `restart`. `restart` resets the Pattern
+  when the Clip begins, and every Clip sharing that copy sees the reset.
+- `appearance` sets the Clip's opacity, Transform, Aperture, and Effect stack
+  from the start; `instance_properties` sets the Pattern's controls and speed.
 
-### Effects and Aperture shape parameters
+`update_clips` changes existing Clips by `clip_id`, including moving them to
+another Zone or Layer, subject to the usual overlap checks. Clips joined by a
+Transition move together, and resizing an edge ripples the Clips connected
+after it while the Transition stays intact. `create_layers` adds overlay
+Layers, optionally with Clips already on them.
 
-An Effect is authored as `{ kind, parameters }` rather than a per-kind schema
-variant, and the Aperture shape parameters travel in `shape_parameters` for the
-same reason: the twenty-two-variant Effects union alone was 38 KB of the v1
-`tools/list`. Both records are validated by the appearance owner against exactly
-the ranges the manual inspector applies, and the v2 reference resource carries
-the generated per-kind and per-shape parameter tables.
+## Appearance over time
 
-### Animation targets
+A Clip's appearance is a series of held keys, so an appearance change has to
+say where it lands. `{ "scope": "whole-clip" }` changes every key.
+`{ "scope": "at-time", "at_ms": N }` changes the key in effect at that time,
+inserting a new key if none starts there and leaving later keys alone. The
+time must fall inside the Clip. The Effect stack commands take the same
+selector.
 
-`add_property_tracks` takes a typed target whose `kind` names one of the nine
-target forms through short Clip-scoped names: `opacity`, `view-brightness`,
-`view-phase`, `transform-position-x`, `transform-position-y`,
-`transform-rotation`, `transform-scale-x`, `transform-scale-y`, `aperture-x`,
-`aperture-y`, `aperture-width`, `aperture-height`, `effect`, `control`,
-`time-scale`, `layout-split-position` and `show-repeat-scale`. Activation
-defaults to the Clip span for Clip targets, the union of user spans for
-Pattern-instance targets, the interval for a Layout split position and the whole
-Show for repeat scale. Retained curve descriptors are engine-owned and no
-command authors them.
+Effects are written as `{ kind, parameters }` and Aperture shapes as a shape
+plus `shape_parameters`, checked against exactly the ranges the editor's
+inspector allows.
+
+## Animation
+
+`add_property_tracks` animates one target with keyframes. Clip targets use
+short names: `opacity`, `view-brightness`, `view-phase`,
+`transform-position-x`, `transform-position-y`, `transform-rotation`,
+`transform-scale-x`, `transform-scale-y`, `aperture-x`, `aperture-y`,
+`aperture-width`, and `aperture-height`. Beyond those, `effect` animates an
+Effect parameter, `control` a Pattern control, `time-scale` a Pattern's
+speed, `layout-split-position` a split Layout, and `show-repeat-scale` the
+whole Show. A Clip track is active over its Clip by default.
+`edit_property_keyframes` moves, swaps, adds, or removes keys in one step.
+
+## Full schemas
+
+A connected agent can read the complete, generated reference as MCP
+resources:
+
+- `pxlblz://schemas/clip-layer-authoring/v2`: JSON Schema for every input.
+- `pxlblz://docs/clip-layer-authoring/v2`: defaults, clearing rules, the
+  per-Effect and per-shape parameter tables, and worked examples.
+
+Both are generated from the same field definitions the commands validate
+against, so they cannot drift from what the server accepts.
