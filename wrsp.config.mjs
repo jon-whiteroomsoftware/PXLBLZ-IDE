@@ -231,11 +231,9 @@ export default {
         name: 'show-authoring-contract',
         exact: ['src/test/showAuthoringContract.ts'],
         tests: [
-          'src/engine/showAuthoringMatrix.test.ts',
-          'src/engine/showTimelineClipAuthoring.test.ts',
+          'src/test/showAuthoringContract.test.ts',
           'src/engine/showCompositionModel.test.ts',
           'src/engine/showClipInspectorModel.test.ts',
-          'src/engine/showLayerTransitionAuthoring.test.ts',
           'src/store/showStore.test.ts',
         ],
       },
