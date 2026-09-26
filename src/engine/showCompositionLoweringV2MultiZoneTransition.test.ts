@@ -76,7 +76,8 @@ const TIMELINE_MS = [16_000, 29_984, 30_000, 30_496, 31_008, 31_984, 32_000, 45_
 const UNSUPPORTED_SAMPLING = {
   code: 'unsupported-zone-sampling',
   path: 'composition.clips',
-  message: 'This multi-Zone arrangement requires span Clip sampling before compilation.',
+  message: 'This multi-Zone arrangement cannot be compiled yet.',
+  detail: 'This multi-Zone arrangement requires span Clip sampling before compilation.',
 }
 
 function addZone(record: ShowRecordV2, zone: typeof SECOND_ZONE | typeof THIRD_ZONE): ShowRecordV2 {
@@ -320,7 +321,8 @@ describe('what the widened admission still refuses', () => {
       issues: [{
         code: 'unsupported-layout-occurrences',
         path: 'composition.layoutOccurrences',
-        message: 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.',
+        message: 'Layer Transitions with several Layout occurrences cannot be compiled in this arrangement yet.',
+        detail: 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.',
       }],
     })
   })

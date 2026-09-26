@@ -303,8 +303,8 @@ it('refuses a Layer Transition whose window crosses a section edge in a mixed re
     status: 'refused',
     issues: expect.arrayContaining([expect.objectContaining({
       code: 'unsupported-transition-participants',
-      message: 'A Layer Transition must sit inside one section of a Show with whole-output boundaries.',
+      message: 'These Transitions cannot be compiled in this arrangement yet.',
+      detail: 'A Layer Transition must sit inside one section of a Show with whole-output boundaries.',
     })]),
   })
 })
-

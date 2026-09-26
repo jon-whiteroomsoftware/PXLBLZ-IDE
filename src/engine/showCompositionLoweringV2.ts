@@ -56,6 +56,8 @@ export interface ShowV2CompilePreparationIssue {
   code: ShowV2CompilePreparationIssueCode
   path: string
   message: string
+  /** Compiler-internal diagnosis for maintainers; never shown to users. */
+  detail?: string
 }
 
 export interface ShowV2CompileProvenance {
@@ -117,7 +119,7 @@ export function prepareShowV2ForCompile(
     const issues = validateShowComposition(lowered.show, lowered.show.composition)
     if (issues.length > 0) return {
       status: 'refused',
-      issues: issues.map(issue => ({ code: 'compiler-ineligible', path: `compileRecipe.composition.${issue.path}`, message: issue.message })),
+      issues: issues.map(issue => ({ code: 'compiler-ineligible', path: 'composition', message: 'This timing cannot be compiled yet.', detail: `${issue.path}: ${issue.message}` })),
     }
   }
   const recipe = showRecordToCompileRecipe(lowered.show, lowered.lookup)
@@ -172,7 +174,7 @@ export function prepareShowV2ForCompile(
   const representedInstances = recipe.clips.filter(clip => !clip.compilerOwnedEmpty)
     .map(clip => lowered.lookup.instanceIdByCellId?.[clip.id] ?? clip.id).sort()
   if (JSON.stringify(representedInstances) !== JSON.stringify(expectedInstances)) {
-    return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'existing compiler recipe cannot represent every used Pattern instance exactly once.') }
+    return { status: 'refused', ...refuse('unsupported-runtime-sharing', 'composition.clips', 'A Pattern instance is used in a way the Show compiler cannot represent yet.', 'existing compiler recipe cannot represent every used Pattern instance exactly once.') }
   }
   const restart = deriveShowRestartEventsV2(context.record)
   if (restart.status === 'refused') {
@@ -217,7 +219,8 @@ export function prepareShowV2ForCompile(
           clipIndex >= 0 ? `composition.clips[${clipIndex}]` : 'composition.clips',
           instanceId
             ? `Restart cannot restore Pattern instance "${instanceId}": ${detail}`
-            : `Restart could not prepare the compiled Pattern artifact: ${detail}`,
+            : 'Restart could not prepare the compiled Pattern artifact.',
+          instanceId ? undefined : detail,
         ),
       }
     }
@@ -298,7 +301,7 @@ function resolveAndLowerShowV2(
   const resolved = resolveShowV2CompileContext(compileRecord, { ...lookup, byPatternInstanceId: sources })
   if ('issues' in resolved) return resolved
   if (hasClipRamps && resolved.route !== 'continuous-flat') {
-    return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'A Transition speed or brightness ramp compiles only on the flat route.')
+    return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'A Transition speed or brightness ramp is not supported in this arrangement yet.', 'A Transition speed or brightness ramp compiles only on the flat route.')
   }
   let lowered: LoweredShowCompositionV2
   try {
@@ -307,13 +310,13 @@ function resolveAndLowerShowV2(
   } catch (error) {
     // Validation admits the record but lowering cannot represent it: fail
     // closed with a typed refusal rather than an uncaught throw (#1068).
-    // The message preserves the lowering diagnosis for the repair owner.
+    // The detail preserves the lowering diagnosis for the repair owner.
     const message = error instanceof Error ? error.message : String(error)
-    return refuse('unsupported-transition-participants', 'composition.transitions', message)
+    return refuse('unsupported-transition-participants', 'composition.transitions', 'These Transitions cannot be compiled in this arrangement yet.', message)
   }
   const sceneIds = new Set(lowered.show.scenes.map(scene => scene.id))
   if (lowered.show.transitions.some(transition => transition.kind === 'routing' && !sceneIds.has(transition.afterSceneId))) {
-    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior.')
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'A Layout switch cannot be placed at this time without changing routing.', 'A Layout switch must attach to an emitted compiler hold end; this time cannot be represented without losing routing behavior.')
   }
   return { context: resolved, lowered }
 }
@@ -335,8 +338,9 @@ function refuse(
   code: ShowV2CompilePreparationIssueCode,
   path: string,
   message: string,
+  detail?: string,
 ): { issues: ShowV2CompilePreparationIssue[] } {
-  return { issues: [{ code, path, message }] }
+  return { issues: [{ code, path, message, ...(detail !== undefined ? { detail } : {}) }] }
 }
 
 type RoutingPropertyRamps = NonNullable<ShowRecipe['routingPropertyRamps']>
@@ -401,7 +405,7 @@ function resolveShowV2CompileContext(
   // that fully contains its window (#1080 class 3).
   const wholeOutput = composition.transitions.some(transition => transition.wholeOutput !== undefined)
   if (composition.groupDefinitions.length > 0 || composition.groupOccurrences.length > 0) {
-    return refuse('unsupported-groups', 'composition.groupDefinitions', 'lowering requires Group materialization evidence before compilation.')
+    return refuse('unsupported-groups', 'composition.groupDefinitions', 'This Group cannot be compiled yet.', 'lowering requires Group materialization evidence before compilation.')
   }
   const divergentClips = composition.clips.filter(clip => clip.appearance.keys.some(key => !structurallyEqualAppearanceV2(key.value, clip.appearance.keys[0].value)))
   if (composition.transitions.length > 0 && divergentClips.length > 0 && composition.propertyTracks.some(track => {
@@ -410,20 +414,20 @@ function resolveShowV2CompileContext(
     if ('instanceId' in target) return divergentClips.some(clip => clip.instanceId === target.instanceId)
     return false
   })) {
-    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
+    return refuse('unsupported-transition-property-track', 'composition.propertyTracks', 'A property track targeting this Clip cannot be compiled next to a Transition yet.', 'A property track targeting a multi-key Clip requires the #1037 projection owner.')
   }
   if (composition.transitions.some(transition => !transition.wholeOutput && transition.participants.length !== 1)) {
-    return refuse('unsupported-transition-participants', 'composition.transitions', 'lowering requires one participant per Transition until shared-scope parity is proved.')
+    return refuse('unsupported-transition-participants', 'composition.transitions', 'A Transition with more than one participant cannot be compiled yet.', 'lowering requires one participant per Transition until shared-scope parity is proved.')
   }
   if (hasCoincidentPositiveTransitionWindows(record)) {
-    return refuse('unsupported-transition-overlap', 'composition.transitions', 'lowering cannot compile coincident positive Transition windows without independent render targets.')
+    return refuse('unsupported-transition-overlap', 'composition.transitions', 'Transitions whose windows overlap in time cannot be compiled yet.', 'lowering cannot compile coincident positive Transition windows without independent render targets.')
   }
   if (composition.transitions.some(transition => transition.propertyRamps.some(ramp => {
     const scalar = ramp.target.kind === 'show-repeat-scale' || ramp.target.kind === 'layout-occurrence-split-position'
     if (scalar) return !transition.wholeOutput || ramp.participantId !== undefined
     return !isShowTransitionClipValueRampV2(ramp) || transition.wholeOutput !== undefined
   }))) {
-    return refuse('unsupported-transition-property-ramp', 'composition.transitions', 'lowering requires Transition property-ramp compiler evidence before compilation.')
+    return refuse('unsupported-transition-property-ramp', 'composition.transitions', "This Transition's property ramp cannot be compiled yet.", 'lowering requires Transition property-ramp compiler evidence before compilation.')
   }
   if (participantWindowBlockedV2(record)) {
     // Section-scoped activation is lowered into the compiler's existing derived
@@ -440,6 +444,7 @@ function resolveShowV2CompileContext(
       return refuse(
         'unsupported-transition-property-track',
         'composition.propertyTracks',
+        `A property track or held appearance change cannot start or end inside Transition "${blocked.transitionId}" (${blocked.startMs}–${blocked.endMs} ms) yet.`,
         `section-scoped property activation or held appearance requires a derived section boundary inside Transition "${blocked.transitionId}" window [${blocked.startMs}, ${blocked.endMs}); the existing compiler cannot split a participant Transition across derived Scenes.`,
       )
     }
@@ -456,14 +461,14 @@ function resolveShowV2CompileContext(
   }
   const repeatTracks = composition.propertyTracks.filter(track => track.target.kind === 'show-repeat-scale')
   if (repeatTracks.length > 1 && repeatTracks.every(track => isHeldRepeatScaleTrack(track, composition.showEndMs))) {
-    return refuse('unsupported-property-target', 'composition.propertyTracks', 'Only one global held repeat-scale target is admitted.')
+    return refuse('unsupported-property-target', 'composition.propertyTracks', 'Only one Show-wide repeat-scale animation is supported.', 'Only one global held repeat-scale target is admitted.')
   }
   for (const [index, track] of composition.propertyTracks.entries()) {
     if (!('clipId' in track.target)) continue
     const clipId = track.target.clipId
     const clip = composition.clips.find(candidate => candidate.id === clipId)!
     if (track.activeStartMs >= clip.startMs + clip.durationMs || track.activeStartMs + track.activeDurationMs <= clip.startMs) {
-      return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `property track "${track.id}" activation does not intersect its target Clip.`)
+      return refuse('unsupported-track-activation', `composition.propertyTracks[${index}]`, `Property track "${track.id}" is not active during its target Clip.`, `property track "${track.id}" activation does not intersect its target Clip.`)
     }
   }
   // Restart scheduling exists in the routed Scene emitter. A record that is
@@ -473,10 +478,10 @@ function resolveShowV2CompileContext(
   const unsupportedRoutedSampling = showV2UnsupportedRoutedSampling(record)
   const flatEligible = showV2FlatLoweringEligible(record)
   if (flatEligible && !wholeOutput && composition.transitions.length > 0 && composition.layoutOccurrences.length > 1) {
-    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.')
+    return refuse('unsupported-layout-occurrences', 'composition.layoutOccurrences', 'Layer Transitions with several Layout occurrences cannot be compiled in this arrangement yet.', 'Independent Clip sampling with Layer Transitions and multiple Layout occurrences requires lossless routing preparation proof.')
   }
   if (unsupportedRoutedSampling && !flatEligible) {
-    return refuse('unsupported-zone-sampling', 'composition.clips', 'This multi-Zone arrangement requires span Clip sampling before compilation.')
+    return refuse('unsupported-zone-sampling', 'composition.clips', 'This multi-Zone arrangement cannot be compiled yet.', 'This multi-Zone arrangement requires span Clip sampling before compilation.')
   }
   const sectionedParticipantRoute = !flatEligible && !wholeOutput
     && composition.transitions.length > 0 && hasSectionScopedTrackActivationV2(record)
@@ -486,6 +491,7 @@ function resolveShowV2CompileContext(
       return refuse(
         'unsupported-track-activation',
         `composition.propertyTracks[${unsupportedTrackIndex}]`,
+        `Property track "${composition.propertyTracks[unsupportedTrackIndex].id}" cannot stay active across a change of Clip or appearance yet.`,
         `property track "${composition.propertyTracks[unsupportedTrackIndex].id}" activation crosses a derived Clip/appearance section.`,
       )
     }

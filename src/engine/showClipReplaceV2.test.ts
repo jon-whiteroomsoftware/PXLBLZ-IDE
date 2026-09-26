@@ -336,7 +336,7 @@ describe('ordinary Clip-scoped Pattern replacement', () => {
     forced.composition.patternInstances[0].controlTargets = { sliderLevel: 0.2 }
     forced.composition.propertyTracks = forced.composition.propertyTracks.filter(track => track.id !== 'lost')
     expect(validateShowRecordV2(forced)).toEqual([])
-    expect(prepared(forced)).toMatchObject({ status: 'refused', issues: [{ code: 'compiler-ineligible', message: expect.stringContaining('sliderLost') }] })
+    expect(prepared(forced)).toMatchObject({ status: 'refused', issues: [{ code: 'compiler-ineligible', message: 'This timing cannot be compiled yet.', detail: expect.stringContaining('sliderLost') }] })
     const result = editShowClipV2(source, intent(source))
     expect(result).toMatchObject({ status: 'refused', code: 'compiler-ineligible', affectedClipIds: [], affectedInstanceIds: [], affectedTrackIds: [], affectedKeyframeIds: [], removedIds: [], discardedControlTargets: [] })
     if (result.status !== 'refused') return

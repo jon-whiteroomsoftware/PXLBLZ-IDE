@@ -340,7 +340,7 @@ describe('grammar tools over MCP (#17)', () => {
     })
     expect(refusedIsError).toBe(true)
     expect(refused.issues[0].code).toBe('result-invalid')
-    expect(refused.issues[0].message).toContain('section-scoped property activation')
+    expect(refused.issues[0].message).toContain('A property track or held appearance change cannot start or end inside Transition')
     expect(refused.issues[0].remedy).toContain('rollback_edit')
 
     // Fix inside the still-open transaction, add a real edit, and commit.

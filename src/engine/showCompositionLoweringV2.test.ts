@@ -1538,7 +1538,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
 
     expect(() => lowerShowCompositionV2ForCompile(record, {
       byCellId: {}, byPatternInstanceId: { instance: SOURCE, 'out-b': SOURCE, 'in-b': SOURCE },
-    })).toThrow('independent render targets')
+    })).toThrow('Transitions whose windows overlap in time cannot be compiled yet.')
   })
 
   it.each(['fast', 'fidelity'] as const)('preserves divergent Clip appearance through a positive Transition in %s mode', (fidelity) => {
@@ -1604,7 +1604,7 @@ describe('lowerShowCompositionV2ForCompile', () => {
         participants: [{ id: 'participant', zoneId: 'zone', layerId: 'layer:zone:main', fromClipId: 'from', toClipId: 'to' }],
         propertyRamps: [{ target: { kind: 'clip-opacity', clipId: 'to' }, from: 0 }],
       }]
-    }, 'property-ramp'],
+    }, "This Transition's property ramp cannot be compiled yet."],
   ])('refuses unproved %s instead of dropping it', (_name, change, message) => {
     const record = convertedRecord()
     change(record)
@@ -1884,61 +1884,61 @@ it('refuses a sub-100 ms exact-window incoming ramp v1 would lengthen (#1080 cla
   expect(prepared.issues).toContainEqual(expect.objectContaining({ code: 'unsupported-transition-property-track' }))
 })
 
-describe('Transition speed and brightness ramps (#1091 B1)', () => {
-  function rampProbeV1() {
-    const show = createDefaultShow('ramp-probe', 'Ramp probe', 1)
-    show.scenes = [
-      { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
-      { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
-      { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
-    ]
-    const zoneId = show.zones[0].id
-    const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
-    const adaptations = [
-      { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-      { mirror: false, phase: 0, brightness: 0.5, timeScale: 2 },
-      { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
-    ]
-    show.cells = show.scenes.map((scene, index) => ({
-      id: `cell-${index + 1}`,
-      zoneId,
-      sceneId: scene.id,
-      sceneSpan: 1,
-      pattern: { kind: 'stock' as const, id: patterns[index] },
-      patternName: patterns[index],
-      adaptations: adaptations[index],
-      restartOnEntry: false,
-    }))
-    show.transitions = [
-      {
-        id: 'xfade',
-        afterSceneId: 'scene-1',
-        kind: 'crossfade',
-        durationMs: 1000,
-        easing: { curve: 'linear' },
-        crossfadePolicy: 'live-live',
-        propertyTransitions: {
-          timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
-          brightness: { fromByCellId: { 'cell-2': 0.2 } },
-        },
+function rampProbeV1() {
+  const show = createDefaultShow('ramp-probe', 'Ramp probe', 1)
+  show.scenes = [
+    { id: 'scene-1', name: 'Scene 1', durationMs: 4000 },
+    { id: 'scene-2', name: 'Scene 2', durationMs: 4000 },
+    { id: 'scene-3', name: 'Scene 3', durationMs: 4000 },
+  ]
+  const zoneId = show.zones[0].id
+  const patterns = ['TestPattern1D', 'CometLoom', 'CellularAutomata1D']
+  const adaptations = [
+    { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+    { mirror: false, phase: 0, brightness: 0.5, timeScale: 2 },
+    { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+  ]
+  show.cells = show.scenes.map((scene, index) => ({
+    id: `cell-${index + 1}`,
+    zoneId,
+    sceneId: scene.id,
+    sceneSpan: 1,
+    pattern: { kind: 'stock' as const, id: patterns[index] },
+    patternName: patterns[index],
+    adaptations: adaptations[index],
+    restartOnEntry: false,
+  }))
+  show.transitions = [
+    {
+      id: 'xfade',
+      afterSceneId: 'scene-1',
+      kind: 'crossfade',
+      durationMs: 1000,
+      easing: { curve: 'linear' },
+      crossfadePolicy: 'live-live',
+      propertyTransitions: {
+        timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 400, easing: { curve: 'sine', direction: 'in-out' } },
+        brightness: { fromByCellId: { 'cell-2': 0.2 } },
       },
-      { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
-    ]
-    return show
-  }
+    },
+    { id: 'cut', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+  ]
+  return show
+}
 
-  function probeLookup(show: ReturnType<typeof rampProbeV1>) {
-    return { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[cell.pattern.id]])) }
-  }
+function probeLookup(show: ReturnType<typeof rampProbeV1>) {
+  return { byCellId: Object.fromEntries(show.cells.map(cell => [cell.id, DEMOS[cell.pattern.id]])) }
+}
 
-  function stockV2Lookup(record: { composition: { patternInstances: Array<{ id: string; pattern: { id: string } }> } }) {
-    return {
-      byCellId: {},
-      byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])),
-      stageDimension: 2 as const,
-    }
+function stockV2Lookup(record: { composition: { patternInstances: Array<{ id: string; pattern: { id: string } }> } }) {
+  return {
+    byCellId: {},
+    byPatternInstanceId: Object.fromEntries(record.composition.patternInstances.map(instance => [instance.id, DEMOS[resolveStockPatternId((instance.pattern as { id: string }).id)]])),
+    stageDimension: 2 as const,
   }
+}
 
+describe('Transition speed and brightness ramps (#1091 B1)', () => {
   it('lowers a converted probe on the flat route with v1 normalized descriptors', () => {
     const source = rampProbeV1()
     const converted = convertShowRecordV1ToV2(source, probeLookup(source))
@@ -1971,7 +1971,8 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
     if (prepared.status !== 'refused') return
     expect(prepared.issues).toContainEqual(expect.objectContaining({
       code: 'unsupported-transition-property-ramp',
-      message: 'A Transition speed or brightness ramp compiles only on the flat route.',
+      message: 'A Transition speed or brightness ramp is not supported in this arrangement yet.',
+      detail: 'A Transition speed or brightness ramp compiles only on the flat route.',
     }))
   })
 
@@ -1990,7 +1991,8 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
     if (prepared.status !== 'refused') return
     expect(prepared.issues).toContainEqual(expect.objectContaining({
       code: 'unsupported-transition-participants',
-      message: 'lowering requires one participant per Transition until shared-scope parity is proved.',
+      message: 'A Transition with more than one participant cannot be compiled yet.',
+      detail: 'lowering requires one participant per Transition until shared-scope parity is proved.',
     }))
   })
 
@@ -2014,7 +2016,8 @@ describe('Transition speed and brightness ramps (#1091 B1)', () => {
     if (prepared.status !== 'refused') return
     expect(prepared.issues).toContainEqual(expect.objectContaining({
       code: 'unsupported-transition-participants',
-      message: 'lowering requires one participant per Transition until shared-scope parity is proved.',
+      message: 'A Transition with more than one participant cannot be compiled yet.',
+      detail: 'lowering requires one participant per Transition until shared-scope parity is proved.',
     }))
   })
 
@@ -2133,7 +2136,7 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     const prepared = prepareShowV2ForCompile(after, lookupFor(after), { libraries: LIBRARIES })
     expect(prepared.status).toBe('refused')
     if (prepared.status === 'refused') expect(prepared.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'compiler-ineligible', message: 'Keyframe time must stay inside its Scene.' }),
+      expect.objectContaining({ code: 'compiler-ineligible', path: 'composition', message: 'This timing cannot be compiled yet.', detail: expect.stringContaining('Keyframe time must stay inside its Scene.') }),
     ]))
   })
 
@@ -2145,7 +2148,7 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     const prepared = prepareShowV2ForCompile(after, lookupFor(after), { libraries: LIBRARIES })
     expect(prepared.status).toBe('refused')
     if (prepared.status === 'refused') expect(prepared.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'compiler-ineligible', message: 'Keyframe time must stay inside its Scene.' }),
+      expect.objectContaining({ code: 'compiler-ineligible', path: 'composition', message: 'This timing cannot be compiled yet.', detail: expect.stringContaining('Keyframe time must stay inside its Scene.') }),
     ]))
   })
 
@@ -2267,13 +2270,52 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     // Recorded on the lowering before #1103.
     expect(prepareShowV2ForCompile(record, lookupFor(record), { libraries: LIBRARIES })).toEqual({ status: 'refused', issues: [{
       code: 'compiler-ineligible',
-      path: `compileRecipe.composition.scenes[0].propertyTracks[3].keyframes[${keyIndex}].timeMs`,
-      message: 'Keyframe time must stay inside its Scene.',
+      path: 'composition',
+      message: 'This timing cannot be compiled yet.',
+      detail: `scenes[0].propertyTracks[3].keyframes[${keyIndex}].timeMs: Keyframe time must stay inside its Scene.`,
     }] })
   })
 
   it('keeps the generated source of a record whose pieces already fit', () => {
     // Pinned on the code before #1103; the retained-exact path keeps these bytes.
     expect(generatedHash(animationRecord())).toBe('d9e47d72dfbf825418f1185135204992b56de22b0a8d401a30da0a77bbb8949d')
+  })
+
+  it('keeps compiler vocabulary out of user-facing preparation refusals (#1043)', () => {
+    const source = rampProbeV1()
+    const converted = convertShowRecordV1ToV2(source, probeLookup(source))
+    expect(converted.status).toBe('converted')
+    if (converted.status !== 'converted') return
+    const multiParticipant = structuredClone(converted.record)
+    const transition = multiParticipant.composition.transitions.find(candidate => candidate.id === 'xfade')!
+    transition.participants.push({ ...structuredClone(transition.participants[0]), id: 'participant-2' })
+    transition.propertyRamps = []
+
+    const beforeKey = splitBoundaryRecord()
+    beforeKey.composition.propertyTracks.find(candidate => candidate.id === 'track-inst')!
+      .keyframes.push({ id: 'authored-tail', timeMs: 31000, value: 1, easing: { curve: 'linear' } })
+    const splitTail = splitAt16000(beforeKey)
+
+    const beforeActivation = splitBoundaryRecord()
+    beforeActivation.composition.propertyTracks.find(candidate => candidate.id === 'track-inst')!.activeDurationMs = 40000
+    const activeBeyondTail = splitAt16000(beforeActivation)
+
+    const preparations = [
+      prepareShowV2ForCompile(multiParticipant, stockV2Lookup(multiParticipant), { libraries: LIBRARIES }),
+      prepareShowV2ForCompile(splitTail, lookupFor(splitTail), { libraries: LIBRARIES }),
+      prepareShowV2ForCompile(activeBeyondTail, lookupFor(activeBeyondTail), { libraries: LIBRARIES }),
+    ]
+    for (const prepared of preparations) {
+      expect(prepared.status).toBe('refused')
+      if (prepared.status !== 'refused') continue
+      expect(prepared.issues.length).toBeGreaterThan(0)
+      for (const issue of prepared.issues) {
+        expect(issue.message).not.toMatch(/\b(Scenes?|sections?|lowering|compileShow|compileRecipe)\b/i)
+        expect(issue.path).not.toMatch(/^compileRecipe/)
+        expect(issue.path).toMatch(/^composition/)
+      }
+    }
+    const keyPreparation = preparations[1]
+    if (keyPreparation.status === 'refused') expect(keyPreparation.issues.some(issue => issue.detail?.includes('Scene'))).toBe(true)
   })
 })
