@@ -1086,9 +1086,10 @@ checked sample-for-sample against the preview. `showClipPlacementPad.ts`
 normalizes pointer coordinates through the rendered bounds, so resizing the
 pad never changes a stored result.
 
-**Stage.** The Stage runs the prepared Show artifact. A push sends that
-artifact through the target Controller profile's passes, if it has any, so the
-Controller can receive different source; a Show never gets a renderer adapter.
+**Stage.** The Stage runs the prepared Show artifact. A push can send
+different source: `showControllerArtifact.ts` adds a renderer adapter when the
+Controller's map dimension needs one, and delivery applies the target
+Controller profile's passes.
 `showPreparedStageV2.ts` validates the record and its dependencies,
 lowers it with `prepareShowV2ForCompile`, and compiles through the shared
 artifact cache; see [prepared Stage](contracts/show-v2-prepared-stage.md). The
