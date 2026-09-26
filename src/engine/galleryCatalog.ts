@@ -126,6 +126,7 @@ export const LUMA_DEMOS = [
   'LumaWeave',
   'LumaSpiral',
   'LumaMarquee',
+  'LumaCells',
 ]
 
 // Minimal patterns - one per render dimensionality - for visually verifying

@@ -44,16 +44,19 @@ describe('issue #540 Pattern field/shading census', () => {
     // Recensused after retiring Doom Fire v1 (#63): a convolution buffer,
     // never a candidate, so the denominator drops to 104 and the verdict
     // holds.
+    // LumaCells (#1135) adds a per-cell hash over the same crest core, a
+    // reviewed negative, so the denominator returns to 105 and the verdict
+    // holds.
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 104,
-      reviewedCount: 104,
+      patternCount: 105,
+      reviewedCount: 105,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 104, 10)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 105, 10)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

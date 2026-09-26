@@ -28,6 +28,7 @@ const FAMILY = [
   'LumaWeave',
   'LumaSpiral',
   'LumaMarquee',
+  'LumaCells',
 ] as const
 
 // Shared ontology: identical exported control names wherever a control appears.
@@ -299,6 +300,50 @@ describe('Luma family motion contract (#819)', () => {
       }
       expect(worst, `${name} step ${step}`).toBeLessThan(0.45)
       previous = current
+    }
+  })
+
+  it('LumaCells pulses its cells in a scattered order, not a travelling wave', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaCells')
+    handle.controls.sliderLoopInterval(enc(0.6))
+    handle.controls.sliderSpacing(enc(0.3))
+    advance(0)
+    // Default Spacing 0.3 is a pitch of 0.12; row 64 (y = 0.5) is unshifted,
+    // so its cell centres sit at x = 0.5 + (k + 0.5) * pitch.
+    const pitch = 0.03 + 0.3 * 0.3
+    const centres = [-4, -3, -2, -1, 0, 1, 2, 3].map((k) => 0.5 + (k + 0.5) * pitch)
+    const sample = (x: number, y: number) => {
+      handle.render2D(enc(0), enc(x), enc(y))
+      return shim.capturedPixel()[0]
+    }
+    const peakStep = centres.map(() => ({ step: -1, value: -1 }))
+    for (let step = 0; step < 60; step++) {
+      centres.forEach((x, cell) => {
+        const value = sample(x, 0.5 + pitch / 2)
+        if (value > peakStep[cell].value) peakStep[cell] = { step, value }
+      })
+      advance(100)
+    }
+    const peaks = peakStep.map((peak) => peak.step)
+    // Every cell reaches full brightness once per loop...
+    for (const peak of peakStep) expect(peak.value).toBeGreaterThan(0.9)
+    // ...at scattered times: many distinct moments, in no spatial order.
+    expect(new Set(peaks).size).toBeGreaterThanOrEqual(6)
+    const ascending = [...peaks].sort((a, b) => a - b)
+    expect(peaks).not.toEqual(ascending)
+    expect(peaks).not.toEqual([...ascending].reverse())
+  })
+
+  it('LumaCells keeps a dark lane between neighbouring cells', () => {
+    const { handle, enc, advance, shim } = makeHarness('LumaCells')
+    handle.controls.sliderWidth(enc(1))
+    advance(0)
+    advance(33)
+    const pitch = 0.03 + 0.3 * 0.3
+    const y = 0.5 + pitch / 2
+    for (let k = -3; k <= 3; k++) {
+      handle.render2D(enc(0), enc(0.5 + k * pitch), enc(y))
+      expect(shim.capturedPixel()[0], `boundary ${k}`).toBeLessThan(0.02)
     }
   })
 

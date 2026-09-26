@@ -283,6 +283,15 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLean: 'Bulb asymmetry — centered is symmetric, either end trails a full sawtooth comet tail.',
     toggleInvert: 'Swaps figure and ground — bright bulbs on black, or dark gaps in a lit run.',
   },
+  LumaCells: {
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop pulses every cell exactly once.',
+    sliderDirection: 'Left third runs time backward, middle holds still, right third runs forward.',
+    sliderSpacing: 'Cell size — fine grain to a few large cells.',
+    sliderWidth: 'Share of each cell\'s cycle spent lit, and so the share of cells lit at once.',
+    sliderFeather: 'Pulse softness — hard blinks at zero, smooth swells wide open.',
+    sliderLean: 'Pulse asymmetry — slow swell and sudden drop at one end, sudden flash and slow decay at the other.',
+    toggleInvert: 'Swaps figure and ground — bright cells on black, or dark cells in a lit lattice.',
+  },
   Kishimisu: {
     rgbPickerPaletteA: 'Palette base colour — the midpoint the gradient cycles around.',
     rgbPickerPaletteB: 'Palette contrast — how far the colours swing from the base.',
@@ -560,7 +569,7 @@ const LUMA_LOOP_SECONDS: ControlSecondsPresentation = { scale: 10, minSeconds: 0
 
 export const CONTROL_SECONDS_PRESENTATIONS: Record<string, Record<string, ControlSecondsPresentation>> =
   Object.fromEntries(
-    ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral', 'LumaMarquee']
+    ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral', 'LumaMarquee', 'LumaCells']
       .map((name) => [name, { sliderLoopInterval: LUMA_LOOP_SECONDS }]),
   )
 
