@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1155",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-remix-quadrille",
+  "operation": "Re-driven on 26236755, where hover and focus are tracked separately. Quadrille (Fast), stopped, headed Chromium, 1600x1000 @2x, against the issue runtime serving this commit. 30 playhead steps with the pointer away from Split: 8 long animation frames, 14 ms blocking. Then with the pointer hovering Split and keyboard focus on the playhead: 28 long animation frames, 2,480 ms blocking; Split refused (aria-disabled=true). Then 10 s of playback with the pointer away: 597 rAF frames, 1 long animation frame of 77 ms, 0 ms blocking.",
+  "captures": [".wrsp/ui-proof/1155-split-armed-hover-or-focus.png"],
+  "capturedAtCommit": "262367556f708298e2d417475663691d9850cc9a"
+}
