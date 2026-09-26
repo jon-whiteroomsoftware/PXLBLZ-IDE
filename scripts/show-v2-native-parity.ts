@@ -20,7 +20,7 @@ import { prepareShowV2ForCompile } from '@/engine/showCompositionLoweringV2'
 import { validateShowRecordV2, type ShowRecordV2 } from '@/engine/showCompositionV2'
 import { convertShowRecordV1ToV2 } from '@/engine/showRecordV1ToV2'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { V1_STOCK_SHOWS } from '@/test/v1StockShowsFixture'
+import { V1_STOCK_SHOWS, v1StockShowById } from '@/test/v1StockShowsFixture'
 import { STOCK_SHOWS_V2, stockShowV2ById } from '@/pixelblaze/stock/showsV2'
 import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
 import { runtimeParity, sha256, stableJson, type RuntimeParity } from './show-v2-parity'
@@ -163,6 +163,10 @@ type NativeComparison = {
 }
 
 export async function main(): Promise<void> {
+  // The corpus is the Shows the legacy catalogue shipped, which #1040 compares.
+  // Native-only Shows added since (#1134) are outside this evidence and carry
+  // their own tests (Jon, 2026-09-25).
+  const legacyBacked = STOCK_SHOWS_V2.filter(record => v1StockShowById(record.id))
   const records = V1_STOCK_SHOWS.map(compareEntry)
   const report = {
     schemaVersion: 1,
@@ -176,7 +180,7 @@ export async function main(): Promise<void> {
       runtime: { comparison: 'native-prepared versus converted-prepared, one lowering route each', modes: ['fast', 'fidelity'], mapPoints: 8 },
       note: 'RuntimeParity residual labels read source = native and converted = converted-legacy.',
     },
-    corpus: { stock: { expected: 40, observed: V1_STOCK_SHOWS.length, native: STOCK_SHOWS_V2.length } },
+    corpus: { stock: { expected: 40, observed: V1_STOCK_SHOWS.length, native: legacyBacked.length } },
     summary: {
       total: records.length,
       byOutcome: countBy(records.map(record => record.outcome)),
@@ -190,7 +194,7 @@ export async function main(): Promise<void> {
     records,
   }
 
-  if (V1_STOCK_SHOWS.length !== 40 || STOCK_SHOWS_V2.length !== V1_STOCK_SHOWS.length) {
+  if (V1_STOCK_SHOWS.length !== 40 || legacyBacked.length !== V1_STOCK_SHOWS.length) {
     throw new Error('The native and pinned legacy stock censuses disagree; review the catalogue before updating expected counts.')
   }
   const failed = records.filter(record => record.outcome !== 'compared')
