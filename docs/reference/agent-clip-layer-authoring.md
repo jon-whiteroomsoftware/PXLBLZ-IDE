@@ -53,18 +53,22 @@ matter most:
 - `instance` decides which running copy of the Pattern the Clip uses.
   `"sole"` (the default) reuses the one existing copy of that Pattern, creating
   it if there is none, and refuses with the candidate ids if there are several.
-  `"new"` creates a fresh copy. An explicit `instance_id` shares that copy.
-  Clips that share a copy share its state, so motion continues across them.
+  `"new"` creates the first copy and refuses if one already exists. An
+  explicit `instance_id` shares that copy. Clips that share a copy share its
+  state, so motion continues across them; to give a Clip its own copy later,
+  use `make_clip_pattern_independent`.
 - `entry_policy` is `continue` or `restart`. `restart` resets the Pattern
   when the Clip begins, and every Clip sharing that copy sees the reset.
 - `appearance` sets the Clip's opacity, Transform, Aperture, and Effect stack
   from the start; `instance_properties` sets the Pattern's controls and speed.
 
-`update_clips` changes existing Clips by `clip_id`, including moving them to
-another Zone or Layer, subject to the usual overlap checks. Clips joined by a
-Transition move together, and resizing an edge ripples the Clips connected
-after it while the Transition stays intact. `create_layers` adds overlay
-Layers, optionally with Clips already on them.
+`update_clips` changes existing Clips by `clip_id`. It can move a Clip in
+time or to another Zone or Layer, subject to the usual overlap checks. A time
+move carries Transition-connected Clips along with it, and resizing an edge
+ripples the Clips connected after it while the Transition stays intact. A Clip
+at either end of a Transition cannot change Zone or Layer; remove the
+Transition first. `create_layers` adds overlay Layers, optionally with Clips
+already on them.
 
 ## Appearance over time
 
