@@ -4081,6 +4081,7 @@ function ShowTimelineCommands({
 }) {
   const showId = backing.showId
   const positionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
+  const isRunning = usePreviewStore((state) => state.isRunning)
   const splitSelectionV2 = useMemo<ShowEditorTimelineCommandSelectionV2>(() => selection.kind === 'clip'
     ? { kind: 'clip', clipId: selection.clipId }
     : selection.kind === 'multi'
@@ -4116,6 +4117,7 @@ function ShowTimelineCommands({
     targetClipId: splitTargetV2,
     positionMs,
     capture: captureV2ClipEdit?.()?.capture ?? null,
+    suspended: isRunning,
   })
   const splitCapability = { ...splitDryRun, code: 'ready' as const }
   const cloneCapability = commandsV2.clone
