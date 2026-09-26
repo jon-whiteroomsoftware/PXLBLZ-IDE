@@ -218,8 +218,8 @@
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 69157,
-          "sourceSha256": "0cc1fcdd60613401747db630c8ad8320fd1c46871f72c334cae4b74ac720c6b2",
+          "bytes": 69032,
+          "sourceSha256": "f292d1d9e18ec474fcb15541bf6c108c7bcd8b3c1758ff8df1b4ba016c4ea694",
           "stampKind": "show"
         }
       },

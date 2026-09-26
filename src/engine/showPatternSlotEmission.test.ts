@@ -115,8 +115,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // CompassRose casting and twin columns, but its tracks now follow the
     // shipping reference's linear ramps and lower speed values, so both
     // artifacts shrink by the same score data while the exchange holds.
-    expect(baseline.summary.artifactBytes).toBe(79_092)
-    expect(selected.summary.artifactBytes).toBe(52_847)
+    expect(baseline.summary.artifactBytes).toBe(78_966)
+    expect(selected.summary.artifactBytes).toBe(52_721)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
