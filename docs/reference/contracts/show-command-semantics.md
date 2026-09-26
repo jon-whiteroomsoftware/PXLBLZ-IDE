@@ -93,9 +93,12 @@ affected set. The 128-item bound is part of the schema and refuses with
 `batch-too-large` rather than truncating
 ([`registry.ts:252-253`](../../../src/engine/showCommandsV2/registry.ts)).
 
-One successful bulk command returns exactly one aggregate change whose details
-merge every item's affected collections
-([`support.ts:122-124`](../../../src/engine/showCommandsV2/support.ts)). A
+One successful bulk command returns one aggregate change whose details merge
+every item's affected collections
+([`support.ts:122-124`](../../../src/engine/showCommandsV2/support.ts)).
+`create_layers` with Clips is the exception: it returns the Layer change followed
+by the Clip changes, each tagged `create_layers`
+([`layers.ts:145-153`](../../../src/engine/showCommandsV2/layers.ts)). A
 valid full no-op returns the original record and no change, so callers create
 no activity, timestamp, history, adoption, or save entry.
 
@@ -366,9 +369,11 @@ only the edited track's keyframes are sorted
 ([`showPropertyEditsV2.ts:74-89`](../../../src/engine/showPropertyEditsV2.ts)).
 [`commands.test.ts:737`](../../../src/engine/showCommandsV2/commands.test.ts)
 adds tracks for each target kind, edits keyframes and removes by identity. The
-`APT953`, `AK953`, `UK953`, `DK953` and `DPT953` rows in
+`AK953`, `UK953`, `DK953` and `DPT953` rows in
 [the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise the
-same commands through the bridge.
+keyframe and removal commands through the bridge. `APT953` (`add_property_tracks`)
+is registered `pendingV2` as a `test.fixme` for the #1103 delivery-validation
+defect, so no bridge row proves track creation.
 
 ## Clip Effect commands (#953)
 
