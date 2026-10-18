@@ -67,6 +67,28 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 0.22.1 adoption (#1172)
+
+This adoption updates the executable package from 0.21.0. Source release is
+WRSP 0.22.1; see its `docs/reference/process-release-0.22.1.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.22.1, tag `v0.22.1` |
+| Source | `f4246d64f7dac1811f8f243a9732be8709c51e7f` |
+| Tarball | `vendor/whiteroom-software-process-0.22.1.tgz` |
+| SHA256 | `3abf3f94edc804531083948b0631d447882b45a5a98498a7676b35cda3a02ad8` |
+
+The agent-side `commit-hooks-gate.sh` now also denies, in worker sessions,
+the remaining ways to commit with hooks disabled: `git -c core.hooksPath=…`,
+a leading `HUSKY=0`, and `git config` writes to `core.hooksPath` (WRSP
+#167). The package's `hooks/prepare-commit-msg` adds `X-Session-Id` before
+an existing `X-Authored-Model`, so the model trailer stays last (WRSP
+#149). This repository has no `.husky/prepare-commit-msg`; whether to add
+one is open in #1172. Package `engines` and dependencies, the review policy
+fingerprint, receipt format and staged-test selection are unchanged, and
+the release has no runner changes.
+
 ## WRSP 0.21.0 adoption (#1169)
 
 This adoption updates the executable package from 0.20.0. Source release is
