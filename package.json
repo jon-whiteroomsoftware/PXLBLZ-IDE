@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "check:node": "wrsp-check-node && node scripts/check-node-floor.mjs",
+    "check:node": "wrsp-check-node",
     "dev": "vite",
     "dev:main": "npm run check:node && tsx scripts/dev-runtime.ts main",
     "dev:issue": "npm run check:node && tsx scripts/dev-runtime.ts start",
@@ -143,7 +143,7 @@
     "capture:shows": "npm run check:node && tsx scripts/with-suite-lock.ts capture:shows -- tsx scripts/run-authenticated-playwright.ts e2e/capture-shows.auth.spec.ts --workers=1"
   },
   "engines": {
-    "node": "^22.13.0 || >=24"
+    "node": "^22.13.0 || ^24.0.0 || >=26"
   },
   "repository": {
     "type": "git",

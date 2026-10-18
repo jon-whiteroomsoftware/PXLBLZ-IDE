@@ -86,8 +86,10 @@ approvals under the earlier fingerprint keep their authority. WRSP #162
 registers `claude-haiku-5-5` and `gpt-6.1-sol` and reseeds the tiers; the seed
 reaches the operator file only through `wrsp-agents tiers apply`, after every
 consumer on the host runs 0.21.0 (WRSP #173). WRSP #170 retires Morph, and
-WRSP #161 drops Node 20 and 25 from the package's engine range; this
-repository's range and the host's Node 24 stay compatible. The package adds
+WRSP #161 drops Node 20 and 25 from the package's engine range, which now
+matches this repository's own floor: `engines` follows it, and the repo-owned
+`scripts/check-node-floor.mjs` (#899) is retired, leaving `wrsp-check-node` as
+the `check:node` gate. The package adds
 the `smol-toml` runtime dependency. Receipt format and staged-test selection
 are unchanged.
 
