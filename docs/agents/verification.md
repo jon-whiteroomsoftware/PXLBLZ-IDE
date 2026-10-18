@@ -67,6 +67,30 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 0.21.0 adoption (#1169)
+
+This adoption updates the executable package from 0.20.0. Source release is
+WRSP 0.21.0; see its `docs/reference/process-release-0.21.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.21.0, tag `v0.21.0` |
+| Source | `50243a033999aab888326f22c6bcab370b77bd96` |
+| Tarball | `vendor/whiteroom-software-process-0.21.0.tgz` |
+| SHA256 | `6f4c1d2e1c85ac3e31848cc0d371ef3156ecb8b8692c5e564bbea2be46b0c5a4` |
+
+`review:candidate` now selects reviewers at run time from the installed
+`~/.agents/tiers.yaml`: `eng-lead` ranked, `principal` explicit (WRSP #156).
+The reviewer catalog left the review policy fingerprint, which changes;
+approvals under the earlier fingerprint keep their authority. WRSP #162
+registers `claude-haiku-5-5` and `gpt-6.1-sol` and reseeds the tiers; the seed
+reaches the operator file only through `wrsp-agents tiers apply`, after every
+consumer on the host runs 0.21.0 (WRSP #173). WRSP #170 retires Morph, and
+WRSP #161 drops Node 20 and 25 from the package's engine range; this
+repository's range and the host's Node 24 stay compatible. The package adds
+the `smol-toml` runtime dependency. Receipt format and staged-test selection
+are unchanged.
+
 ## WRSP 0.20.0 adoption (#1154)
 
 This adoption updates the executable package from 0.19.0. Source release is
@@ -349,11 +373,11 @@ These host changes are distributed separately from the executable tarball.
 
 ## Execution workers
 
-Execution workers follow `~/.agents/execution-policy.md`: Astra Low, then Sol
-High, then Fable High when unavailable. Opus is excluded from implementation.
-Each launch names its exact model and effort. Availability fallback records its
-reason; a worker that does not converge requires diagnosis and a changed
-approach, with deliberate Astra Medium escalation where justified. Model or
+Execution workers follow the tiers in `~/.agents/execution-policy.md`,
+rendered from `~/.agents/tiers.yaml`. Each launch names its exact model and
+effort. Availability fallback records its reason; a worker that does not
+converge requires diagnosis and a changed approach, with deliberate escalation
+to a named tier or pair where justified. Model or
 context changes preserve the candidate lineage and review breaker. Permission
 refusals stop the affected action.
 
@@ -448,11 +472,13 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-The reviewer tier is Opus 5.5 High, Sol 6 High, Astra Low, then
-Fable Medium (WRSP 0.15.0). A single-family candidate tries only the opposite
-family's reviewers in that order: GPT authorship tries Opus then Fable; Claude
-authorship tries Sol then Astra. A valid review with findings stops the route for repair. Unavailable
-or unusable reviewers advance to the next eligible model; exhaustion fails.
+Since WRSP 0.21.0 the ranked reviewers are the members of the `eng-lead` tier
+in the installed `~/.agents/tiers.yaml`, read at run time in member order;
+`principal` supplies the explicitly selectable pairs (WRSP #156). A
+single-family candidate tries only the opposite family's `eng-lead` members,
+and refuses when there are none. A valid review with findings stops the route
+for repair. Unavailable or unusable reviewers advance to the next eligible
+model; exhaustion fails.
 Mixed-family ranges need splitting, and unsignalled authorship stays unverified.
 
 An explicit choice applies to one invocation:

@@ -271,22 +271,24 @@ naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled and cannot claim verified cross-family coverage.
-By default, WRSP ranks reviewers Opus 5.5 High, Sol 6 High, Astra Low,
-then Fable Medium (WRSP 0.15.0), selecting only the opposite family for single-family authored work.
+WRSP 0.21.0 reads the ranked reviewers from the `eng-lead` tier of the
+installed `~/.agents/tiers.yaml`, in member order, and the explicitly
+selectable pairs from `principal` (WRSP #156). It selects only the opposite
+family for single-family authored work.
 For Jon-authorized same-family review, follow the explicit scoped exception in
 `docs/agents/verification.md` (WRSP 0.12.0 adoption).
-GPT-authored ranges try Opus then Fable; Claude-authored ranges try Sol then
-Astra. A valid review with findings stops for repair; exhausting eligible models
-fails. Mixed-family candidates need splitting.
+A valid review with findings stops for repair; exhausting eligible models
+fails, and so does an `eng-lead` tier with no reviewer outside the author
+family. Mixed-family candidates need splitting.
 Native approvals retain their actual reviewer, effort and policy provenance;
 later model/policy changes do not revoke exact approved ranges. Status and push
 still require contiguous coverage ending in a clean approval. Explicit native
 reviewer selection and historical migration details live in
 `docs/agents/verification.md`. Runtime permission to use a provider is separate.
 Read `~/.agents/execution-policy.md` before launching execution workers or
-choosing fallback or reasoning escalation. It governs Astra Low, Sol High,
-then Fable High availability selection, diagnosed Astra Medium escalation,
-and preservation of the candidate lineage and non-convergence breaker.
+choosing fallback or reasoning escalation. Its tiers govern availability
+selection and escalation, and it preserves the candidate lineage and
+non-convergence breaker.
 Execution selection remains separate from ranked cross-family review.
 
 Haiku is retired. Never launch it for implementation, review, classification,
