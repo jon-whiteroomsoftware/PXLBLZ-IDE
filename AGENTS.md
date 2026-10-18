@@ -291,8 +291,9 @@ selection and escalation, and it preserves the candidate lineage and
 non-convergence breaker.
 Execution selection remains separate from ranked cross-family review.
 
-Haiku is retired. Never launch it for implementation, review, classification,
-or fallback work (Jon, 2026-09-04).
+Haiku 5.5 runs only where `~/.agents/tiers.yaml` names it (`locator`, `batch`),
+and never past 100K context. Never use it for review or implementation (Jon,
+2026-10-18).
 
 Concentrate coverage on pure engine logic; keep component tests light and add
 Playwright coverage for cross-layer flows.
