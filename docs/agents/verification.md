@@ -84,8 +84,9 @@ the remaining ways to commit with hooks disabled: `git -c core.hooksPath=…`,
 a leading `HUSKY=0`, and `git config` writes to `core.hooksPath` (WRSP
 #167). The package's `hooks/prepare-commit-msg` adds `X-Session-Id` before
 an existing `X-Authored-Model`, so the model trailer stays last (WRSP
-#149). This repository has no `.husky/prepare-commit-msg`; whether to add
-one is open in #1172. Package `engines` and dependencies, the review policy
+#149). `.husky/prepare-commit-msg` is a byte-identical copy of the package
+hook (Jon, 2026-10-18); a copied hook does not update itself, so each WRSP
+bump recopies it. Package `engines` and dependencies, the review policy
 fingerprint, receipt format and staged-test selection are unchanged, and
 the release has no runner changes.
 

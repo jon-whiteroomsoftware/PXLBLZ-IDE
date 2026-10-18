@@ -1,0 +1,33 @@
+#!/bin/sh
+# Observational session join; every failure leaves Git free to commit.
+warn_session() { printf '%s\n' 'WRSP: session trailer unavailable; attribution will use reader fallback.' >&2; }
+claude_id=${CLAUDE_CODE_SESSION_ID:-}
+codex_id=${CODEX_THREAD_ID:-${CODEX_SESSION_ID:-}}
+if [ -n "$claude_id" ] && [ -n "$codex_id" ]; then
+  warn_session
+  exit 0
+fi
+if [ -n "$claude_id" ]; then
+  session_value=claude:$claude_id
+elif [ -n "$codex_id" ]; then
+  session_value=codex:$codex_id
+else
+  exit 0
+fi
+case "$session_value" in
+  *[!a-zA-Z0-9._:-]*) warn_session; exit 0 ;;
+esac
+# An existing session trailer leaves the message unchanged, so amends are stable.
+if git -c trailer.separators=: interpret-trailers --parse "$1" 2>/dev/null | grep -qi '^x-session-id:'; then
+  exit 0
+fi
+if ! git -c trailer.separators=: interpret-trailers --in-place --if-exists doNothing --if-missing add --trailer "X-Session-Id: $session_value" "$1"; then
+  warn_session
+  exit 0
+fi
+# WRSP #149: X-Authored-Model stays the last trailer.
+model=$(git -c trailer.separators=: interpret-trailers --parse "$1" 2>/dev/null | grep -i '^x-authored-model:' | tail -n 1 | sed 's/^[^:]*: *//')
+if [ -n "$model" ] && ! git -c trailer.separators=: interpret-trailers --in-place --if-exists replace --where end --trailer "X-Authored-Model: $model" "$1"; then
+  warn_session
+fi
+exit 0
