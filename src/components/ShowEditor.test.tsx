@@ -3011,6 +3011,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     expect(within(clips[1]).queryByText('75%')).not.toBeInTheDocument()
     expect(within(clips[1]).queryByText('defaults')).not.toBeInTheDocument()
     expect(clips[1].querySelector('.show-clip-summary-inline svg')).toBeInTheDocument()
+    expect(clips[0].querySelector('.show-clip-summary-inline')).toHaveClass('text-ellipsis', 'whitespace-nowrap', 'overflow-hidden')
+    expect(clips[0].querySelector('.show-clip-summary-section')).not.toHaveClass('min-w-max')
   })
 
   it('moves a composition Clip by dragging its unified Layer and restores Detail (#580)', async () => {

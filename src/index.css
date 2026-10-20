@@ -517,18 +517,21 @@
 }
 
 /* Clips progressively shed copy before they shed meaning. At narrow scene
-   widths the second row becomes the same category glyphs used by Entity Detail. */
+   widths the second row becomes the same category glyphs used by Entity Detail.
+   The subtitle is one line of inline text and icons that ends in an ellipsis
+   rather than letting sections overlap (#1156). */
 .show-timeline-clip {
   container-type: inline-size;
+}
+
+.show-clip-summary-inline svg {
+  display: inline-block;
+  vertical-align: -1px;
 }
 
 @container (max-width: 125px) {
   .show-timeline-clip .show-clip-summary-copy {
     display: none;
-  }
-
-  .show-timeline-clip .show-clip-summary-section {
-    min-width: 0;
   }
 }
 

@@ -97,6 +97,47 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Generated pattern - Property Animation')).toBeVisible()
   })
 
+  test('keeps every Clip chip subtitle on one non-overlapping line that ellipsizes (#1156)', async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 })
+    await page.goto('studio/shows/stock-show-showcase-redline-installation')
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect(page.locator('.show-timeline-clip .show-clip-summary-inline').first()).toBeVisible()
+
+    const chips = await page.evaluate(() => Array.from(document.querySelectorAll('.show-timeline-clip')).flatMap((chip) => {
+      const row = chip.querySelector<HTMLElement>('.show-clip-summary-inline')
+      if (!row) return []
+      const rowBox = row.getBoundingClientRect()
+      const leaves = Array.from(row.querySelectorAll('svg, span'))
+        .filter((element) => element.tagName === 'svg' || (element.children.length === 0 && element.textContent?.trim()))
+        .map((element) => ({ element, box: element.getBoundingClientRect() }))
+        .filter(({ box }) => box.width > 0 && box.left < rowBox.right && box.right > rowBox.left)
+      let overlaps = 0
+      for (let i = 0; i < leaves.length; i++) {
+        for (let j = i + 1; j < leaves.length; j++) {
+          const a = leaves[i]
+          const b = leaves[j]
+          if (a.element.contains(b.element) || b.element.contains(a.element)) continue
+          // Chrome's ellipsized span box includes the "…" glyph and overlaps the hidden next leaf by under 2px; real overprint is wider (#1156).
+          if (Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left) > 2
+            && Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top) > 0.5) overlaps++
+        }
+      }
+      return [{
+        name: chip.querySelector('.show-clip-pattern-name')?.textContent,
+        overlaps,
+        truncated: row.scrollWidth > row.clientWidth + 0.5,
+        textOverflow: getComputedStyle(row).textOverflow,
+        rowHeight: rowBox.height,
+      }]
+    }))
+
+    expect(chips.length).toBeGreaterThan(0)
+    expect(chips.filter((chip) => chip.overlaps > 0)).toEqual([])
+    expect(chips.every((chip) => chip.textOverflow === 'ellipsis')).toBe(true)
+    expect(chips.some((chip) => chip.truncated)).toBe(true)
+    expect(chips.every((chip) => chip.rowHeight <= 13)).toBe(true)
+  })
+
   test('keeps built-in Show Reset aligned with session-only edits (#363, #619)', async ({ page }) => {
     const showWrites: string[] = []
     page.on('request', (request) => {
