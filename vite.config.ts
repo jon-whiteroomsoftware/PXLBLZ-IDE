@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { defaultExclude, defineConfig, type ViteUserConfig } from 'vitest/config'
 import { playwright } from '@vitest/browser-playwright'
 import path from 'path'
+import { join } from 'node:path'
 import fs from 'fs'
 import { execFileSync } from 'child_process'
 import { assertVitestProjectIdentity } from './scripts/vitest-project-identity.js'
@@ -16,6 +17,7 @@ const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
 const vitestWorkerName = 'WRSP_HOST_VITEST_WORKERS'
 const vitestWorkerCount = readWorkerCount(process.env, vitestWorkerName, 4)
+const runnerOutputDirectory = process.env.WRSP_RUNNER_OUTPUT_DIR
 // A project-level exclude replaces Vitest's defaults. Preserve those defaults,
 // then reject nested tool worktrees before their source or dependencies leak in.
 const TEST_DISCOVERY_EXCLUDES = [
@@ -288,6 +290,11 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
     test: {
       globals: true,
       maxWorkers: vitestWorkerCount,
+      // The runner reads vitest-report.json from its output directory for per-test durations (#1171).
+      ...(runnerOutputDirectory ? {
+        reporters: ['default', 'json'],
+        outputFile: { json: join(runnerOutputDirectory, 'vitest-report.json') },
+      } : {}),
       projects: testProjects,
     },
   }

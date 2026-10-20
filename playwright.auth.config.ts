@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { join } from 'node:path'
 import { authenticatedPlaywrightWorkerCount } from './scripts/authenticated-playwright-user'
 
 // Authenticated smoke owns its port. One worker-dev Vite process (#901)
@@ -14,8 +15,13 @@ export default defineConfig({
   testMatch: '**/*.auth.spec.ts',
   fullyParallel: true,
   workers: authenticatedPlaywrightWorkerCount,
+  // The runner reads playwright-report.json from its output directory for per-test durations (#1171).
   reporter: process.env.WRSP_RUNNER_OUTPUT_DIR
-    ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    ? [
+        ['list'],
+        ['json', { outputFile: 'playwright-report/results.json' }],
+        ['json', { outputFile: join(process.env.WRSP_RUNNER_OUTPUT_DIR, 'playwright-report.json') }],
+      ]
     : 'list',
   globalSetup: './e2e/auth.global-setup.ts',
   // All workers share one in-process Worker, so /api/me and personal content

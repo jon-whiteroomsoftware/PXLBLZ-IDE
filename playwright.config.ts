@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test'
+import { join } from 'node:path'
 import { readWorkerCount } from './scripts/worker-count-env'
 
 // E2E config. Specs live in e2e/ (kept out of the Vitest unit suite — see vite.config.ts).
@@ -31,8 +32,13 @@ export default defineConfig({
   testIgnore: '**/*.auth.spec.ts',
   fullyParallel: true,
   workers: readWorkerCount(process.env, 'WRSP_HOST_PLAYWRIGHT_PUBLIC_WORKERS', 4),
+  // The runner reads playwright-report.json from its output directory for per-test durations (#1171).
   reporter: process.env.WRSP_RUNNER_OUTPUT_DIR
-    ? [['list'], ['json', { outputFile: 'playwright-report/results.json' }]]
+    ? [
+        ['list'],
+        ['json', { outputFile: 'playwright-report/results.json' }],
+        ['json', { outputFile: join(process.env.WRSP_RUNNER_OUTPUT_DIR, 'playwright-report.json') }],
+      ]
     : 'list',
   globalSetup: './e2e/public.global-setup.ts',
   use: {
