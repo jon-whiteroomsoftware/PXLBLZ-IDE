@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1156",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-showcase-redline-installation",
+  "operation": "Opened Redline Installation as the local developer session in Playwright Chromium (DPR 2) and clicked the ruler to seek to 17.7 s. Captured the Show timeline at 1600x1000 on base 0dd11633 (before: overprinted subtitles such as 100%*50%1875t) and at this commit (after: one ellipsized line per chip), a close-up of the narrowest Clips, and the timeline at a 1100 px window.",
+  "captures": [".wrsp/ui-proof/1156-before-redline-18s.png", ".wrsp/ui-proof/1156-after-redline-18s.png", ".wrsp/ui-proof/1156-after-narrow-clip.png", ".wrsp/ui-proof/1156-after-narrow-window.png"],
+  "capturedAtCommit": "beffcb6f2b9f47a9c3ea2385eb61d95a256135e2"
+}
