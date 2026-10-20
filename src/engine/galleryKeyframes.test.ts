@@ -8,11 +8,13 @@ import {
 import {
   GALLERY_KEYFRAME_FORMAT_VERSION,
   buildGalleryKeyframe,
+  galleryKeyframeArtifactCurrent,
   galleryKeyframeKey,
   galleryKeyframeMatches,
   restoreGalleryKeyframe,
   scoreKeyframe,
   selectGalleryKeyframe,
+  type GalleryKeyframeArtifact,
 } from './galleryKeyframes'
 import type { MapPoint } from './maps/types'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -94,6 +96,32 @@ describe('galleryKeyframeKey', () => {
     expect(galleryKeyframeMatches({ version: 0, key } as never, key)).toBe(false)
     expect(galleryKeyframeMatches(artifact, 'other')).toBe(false)
     expect(galleryKeyframeMatches(null, key)).toBe(false)
+  })
+
+  it('treats an artifact as current only when every identity field matches, ignoring score and snapshot', () => {
+    const fresh = {
+      version: GALLERY_KEYFRAME_FORMAT_VERSION,
+      name: 'n',
+      key: 'k',
+      randomSeed: 1,
+      pixelCount: 4,
+      posterTimeMs: 1000,
+      score: 0.5,
+      snapshot: {},
+    } as GalleryKeyframeArtifact
+    expect(galleryKeyframeArtifactCurrent({ ...fresh, score: 0.9, snapshot: { other: 1 } as never }, fresh)).toBe(true)
+    for (const override of [
+      { version: 0 },
+      { name: 'm' },
+      { key: 'j' },
+      { randomSeed: 2 },
+      { pixelCount: 5 },
+      { posterTimeMs: 2000 },
+    ]) {
+      expect(galleryKeyframeArtifactCurrent({ ...fresh, ...override }, fresh)).toBe(false)
+    }
+    expect(galleryKeyframeArtifactCurrent(null, fresh)).toBe(false)
+    expect(galleryKeyframeArtifactCurrent(undefined, fresh)).toBe(false)
   })
 })
 

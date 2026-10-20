@@ -59,6 +59,20 @@ export function galleryKeyframeMatches(artifact: GalleryKeyframeArtifact | null 
   return Boolean(artifact) && artifact!.version === GALLERY_KEYFRAME_FORMAT_VERSION && artifact!.key === key
 }
 
+/** True when a committed artifact still identifies the same capture as a fresh build, so the generator keeps its bytes (#1130). */
+export function galleryKeyframeArtifactCurrent(
+  existing: GalleryKeyframeArtifact | null | undefined,
+  fresh: GalleryKeyframeArtifact,
+): boolean {
+  return existing != null &&
+    existing.version === fresh.version &&
+    existing.name === fresh.name &&
+    existing.key === fresh.key &&
+    existing.randomSeed === fresh.randomSeed &&
+    existing.pixelCount === fresh.pixelCount &&
+    existing.posterTimeMs === fresh.posterTimeMs
+}
+
 /**
  * How representative a frame is as a still: lit coverage times spatial
  * contrast. All-dark scores 0; a flat wash scores low; a lit frame with
