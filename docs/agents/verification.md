@@ -67,6 +67,32 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 0.23.0 adoption (#1173)
+
+This adoption updates the executable package from 0.22.1. Source release is
+WRSP 0.23.0; see its `docs/reference/process-release-0.23.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 0.23.0, tag `v0.23.0` |
+| Source | `411b0a8d7ca01f3de575953807707bf0bcd884b2` |
+| Tarball | `vendor/whiteroom-software-process-0.23.0.tgz` |
+| SHA256 | `490e661db013654894249774e580bf2d891ab19f91be7505d7ce3ece930c172d` |
+
+The package gains two bins, `wrsp-session-role` (supervisor session grants
+and the host-wide role gate, WRSP #197) and `wrsp-ledger-ssh` (the Agent
+Mini ledger key's forced command, WRSP #192), and one runtime dependency,
+`markdown-it` 15.0.3, for the dashboard's Files page (WRSP #199); the
+lockfile adds it with `linkify-it`, `mdurl`, `punycode.js`, `uc.micro` and
+a nested `argparse`. The agent-side role gate now also judges Codex
+`apply_patch` bodies by their target headers, file edits, named deploy
+tools and process kills (WRSP #197, #214), and the agent-host install's
+`--telemetry` flag turns on harness telemetry export on the Agent Mini only
+(WRSP #128). The package's `hooks/` are unchanged since 0.22.1, so the
+`.husky/` copies stay as they are. Package `engines`, the review policy
+fingerprint, receipt format and staged-test selection are unchanged, and the
+release has no runner daemon changes.
+
 ## WRSP 0.22.1 adoption (#1172)
 
 This adoption updates the executable package from 0.21.0. Source release is
