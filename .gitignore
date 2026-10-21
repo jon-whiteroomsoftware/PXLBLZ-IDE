@@ -22,3 +22,6 @@ test/perf-harness/.compiler-cache/
 
 # Durable partial output of the #911 preview-tax probe
 test/perf-harness/issue911-preview-tax.partial.json
+
+# Claude Code bridge session worktrees (#1176)
+.claude/worktrees/
