@@ -7,7 +7,7 @@ import { expectStoredPersonalSource, seedPersonalSourceRecord, storedPersonalSou
 
 const SEEDED = ['// Seeded level.', 'function level(v) { return 0 }'].join('\n')
 const EDITED = ['// Authored level gain.', 'function level(gain) { return gain }'].join('\n')
-const BROKEN = ['// Broken level draft.', 'function level(gain) { return gain }', 'level(1)'].join('\n')
+const BROKEN = ['level(1)', '// Broken level draft.', 'function level(gain) { return gain }'].join('\n')
 const REPAIRED = ['// Repaired level amount.', 'function level(amount) { return amount }'].join('\n')
 const SYNC_TICK_MS = 4000 // src/components/Editor.tsx:12
 
@@ -194,7 +194,7 @@ test('authenticated Studio discards a broken personal Library draft and its Patt
   await page.goto(`studio/libraries/${libraryId}`)
   const editor = page.locator('.monaco-editor').first()
   await expect(editor.locator('.view-lines')).toBeVisible()
-  const brokenSeeded = ['// Broken level draft.', 'function level(v) { return 0 }', 'level(1)'].join('\n')
+  const brokenSeeded = ['level(1)', '// Broken level draft.', 'function level(v) { return 0 }'].join('\n')
   await replaceMultilineEditorSource(page, editor, brokenSeeded)
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
   await expect(page.getByTestId('preview-pane').getByText('Broken level draft.', { exact: true })).toBeVisible()
