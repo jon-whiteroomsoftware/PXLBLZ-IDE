@@ -41,6 +41,7 @@ async function pixels(page: Page) {
 async function openConsumer(page: Page, patternId: string): Promise<void> {
   await page.goto(`studio/patterns/${patternId}?capture`)
   await expect(page.locator('.monaco-editor .view-lines')).toBeVisible()
+  await expect(page.locator('.monaco-editor').first().locator('.view-lines')).toContainText('.level(1)')
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
   const transport = page.getByTestId('preview-pane')
   const play = transport.getByRole('button', { name: 'Run', exact: true })
@@ -54,9 +55,7 @@ async function openConsumer(page: Page, patternId: string): Promise<void> {
 async function hoverLevel(page: Page): Promise<Locator> {
   const editor = page.locator('.monaco-editor').first()
   const level = editor.locator('.view-lines span').filter({ hasText: /^level$/ }).first()
-  if (await level.count() === 0) {
-    throw new Error(`BRIEF GAP: no exact level span; rendered spans: ${JSON.stringify(await editor.locator('.view-lines span').allTextContents())}`)
-  }
+  await expect(level).toBeVisible()
   await level.hover()
   return page.locator('.monaco-hover').filter({ hasText: 'level(' })
 }
