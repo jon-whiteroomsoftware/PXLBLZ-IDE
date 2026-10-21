@@ -347,7 +347,7 @@ import ShowSourceOutletContext from '@/components/ShowSourceOutlet'
 import { ShowStripSection } from '@/components/ShowStripSection'
 import { useAnchoredOverlayPosition } from '@/components/useAnchoredOverlayPosition'
 import { FieldActivityContext, createFieldActivityScope, useFieldActivity } from './ui/field-activity'
-import { captureShowStageEditV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
+import { captureShowStageEditV2, retargetShowV2GestureCaptureV2, showV2ClipRestartAvailabilityV2, type ShowPreparedStageEditCaptureV2 } from '@/engine/showPreparedStageV2'
 import { buildShowEpeExportV2 } from '@/engine/showEpeExportV2'
 import type { ShowCompositionV2ValidationCode, ShowRecordV2 } from '@/engine/showCompositionV2'
 import { showSelectionExistsV2 } from '@/engine/showSelectionExistenceV2'
@@ -1405,15 +1405,16 @@ export function ShowEditor({
     baseRevision: number
     intent: ShowClipTemporalIntentV2
   }): Promise<ShowV2CommitResult> => {
+    const capture = retargetShowV2GestureCaptureV2(input.capture, preparedV2CaptureRef.current)
     const outcome = await admitShowV2PilotClipTemporal({
       showId,
       baseRevision: input.baseRevision,
-      capture: input.capture,
+      capture,
       intent: input.intent,
       onAdopted: () => {},
       isCurrent: () => editorAliveRef.current
-        && preparedV2CaptureRef.current === input.capture
-        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+        && preparedV2CaptureRef.current === capture
+        && useShowStore.getState().showV2Pilots[showId] === capture.record,
     })
     return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
@@ -1422,15 +1423,16 @@ export function ShowEditor({
     baseRevision: number
     intent: ShowV2PilotClipSharingIntent
   }): Promise<ShowV2CommitResult> => {
+    const capture = retargetShowV2GestureCaptureV2(input.capture, preparedV2CaptureRef.current)
     const outcome = await admitShowV2PilotClipSharingEdit({
       showId,
       baseRevision: input.baseRevision,
-      capture: input.capture,
+      capture,
       intent: input.intent,
       onAdopted: () => {},
       isCurrent: () => editorAliveRef.current
-        && preparedV2CaptureRef.current === input.capture
-        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+        && preparedV2CaptureRef.current === capture
+        && useShowStore.getState().showV2Pilots[showId] === capture.record,
     })
     return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
@@ -1556,15 +1558,16 @@ export function ShowEditor({
     baseRevision: number
     intent: ShowV2PilotTransitionResizeIntent
   }): Promise<ShowV2CommitResult> => {
+    const capture = retargetShowV2GestureCaptureV2(input.capture, preparedV2CaptureRef.current)
     const outcome = await admitShowV2PilotTransitionResize({
       showId,
       baseRevision: input.baseRevision,
-      capture: input.capture,
+      capture,
       intent: input.intent,
       onAdopted: () => {},
       isCurrent: () => editorAliveRef.current
-        && preparedV2CaptureRef.current === input.capture
-        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+        && preparedV2CaptureRef.current === capture
+        && useShowStore.getState().showV2Pilots[showId] === capture.record,
     })
     return outcome.status === 'refused' ? outcome : outcome.status === 'applied'
   }, [showId])
@@ -1857,15 +1860,16 @@ export function ShowEditor({
     baseRevision: number
     intent: ShowV2PilotSetShowEndRequest['intent']
   }) => {
+    const capture = retargetShowV2GestureCaptureV2(input.capture, preparedV2CaptureRef.current)
     const outcome = await admitShowV2PilotSetShowEnd({
       showId,
       baseRevision: input.baseRevision,
-      capture: input.capture,
+      capture,
       intent: input.intent,
       onAdopted: () => {},
       isCurrent: () => editorAliveRef.current
-        && preparedV2CaptureRef.current === input.capture
-        && useShowStore.getState().showV2Pilots[showId] === input.capture.record,
+        && preparedV2CaptureRef.current === capture
+        && useShowStore.getState().showV2Pilots[showId] === capture.record,
     })
     return outcome
   }, [showId])

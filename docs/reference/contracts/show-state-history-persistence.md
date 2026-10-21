@@ -150,6 +150,18 @@ editor's reference-Pattern-slot restoration wrapper and the ordinary store updat
 so one changed commit owns one history/save and the existing failure recovery.
 They do not create or retire an agent session, or use narrow Layer admission.
 
+## Timeline gesture re-targeting
+
+Clip temporal (move, trim, extend, split, re-placement), Clip sharing (Option-drag
+copy, Clone), connected transition resize and Show End gestures commit against the
+route's current prepared capture when it holds the same Show record as the
+gesture's capture (#1181). A replaced Pattern, Library, map or Controller profile
+list therefore never refuses such a gesture; its dependencies are read fresh at
+commit, and a fresh preparation that fails refuses without writing. A changed Show
+record or revision still refuses as stale. Edits that commit dependency-derived
+content as previewed (Clip and Group replacement, Add Clip, instance properties)
+and inspector, menu and Marker edits keep the exact-capture rule.
+
 ## Personal saves and recovery
 
 Full-record saves are queued per Show within this client. A later save starts

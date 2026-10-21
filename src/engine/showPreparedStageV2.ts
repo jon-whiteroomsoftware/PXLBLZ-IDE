@@ -101,6 +101,14 @@ export function captureShowStageEditV2(record: ShowRecordV2, dependencies: ShowP
   return { record, dependencies, prepared, inputCapture }
 }
 
+// A timeline gesture's intent is a Show-level edit. When the route rebuilt its
+// capture over the same Show record (a dependency list was replaced mid-gesture),
+// commit against the current capture so dependencies are read fresh; any other
+// difference keeps the gesture's own capture, which admission refuses as stale (#1181).
+export function retargetShowV2GestureCaptureV2<C extends { readonly record: unknown }>(gesture: C, current: C | null | undefined): C {
+  return current && current !== gesture && current.record === gesture.record ? current : gesture
+}
+
 /** All semantic data is captured once; original references identify the admission snapshot only. */
 export function prepareShowStageV2(record: ShowRecordV2, dependencies: ShowPreparedStageDependenciesV2): ShowPreparedStageResultV2 {
   return captureShowStageEditV2(record, dependencies).prepared
