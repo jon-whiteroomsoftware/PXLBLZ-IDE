@@ -70,6 +70,8 @@ async function downloadEpeSrc(page: Page): Promise<string> {
 }
 
 test('authenticated Studio edits, reloads, guards and repairs a personal Library and its consuming Pattern', async ({ page, request }) => {
+  test.setTimeout(90_000)
+  // Three consumer opens, two .epe downloads and an 8.5 s autosave wait exceed the 30 s default.
   const token = Date.now()
   const ns = `K${token}`
   const libraryId = `library-authoring-${token}`
@@ -118,15 +120,13 @@ test('authenticated Studio edits, reloads, guards and repairs a personal Library
   await expect(hover).toBeVisible()
   await expect(hover).toContainText(`${ns}.level(gain)`)
   await expect(hover).toContainText('Authored level gain.')
+  await test.info().attach('library-consumer-hover-edited.png', { body: await page.screenshot(), contentType: 'image/png' })
   await expect.poll(async () => (await pixels(page)).maxChannel).toBeGreaterThan(baseline.maxChannel)
   await expect.poll(async () => (await pixels(page)).checksum).not.toBe(baseline.checksum)
   const editedPixels = await pixels(page)
   const editedEpeSrc = await downloadEpeSrc(page)
   expect(editedEpeSrc, `BRIEF GAP: flattened edited .epe source: ${editedEpeSrc}`).toContain('return gain')
   expect(editedEpeSrc).not.toContain('return 0')
-  hover = await hoverLevel(page)
-  await expect(hover).toBeVisible()
-  await test.info().attach('library-consumer-hover-edited.png', { body: await page.screenshot(), contentType: 'image/png' })
 
   await page.goto(`studio/libraries/${libraryId}`)
   await expect(editor.locator('.view-lines')).toBeVisible()
@@ -169,13 +169,11 @@ test('authenticated Studio edits, reloads, guards and repairs a personal Library
   await expect(hover).toContainText(`${ns}.level(amount)`)
   await expect(hover).toContainText('Repaired level amount.')
   await expect(hover).not.toContainText('Authored level gain.')
+  await test.info().attach('library-consumer-hover-repaired.png', { body: await page.screenshot(), contentType: 'image/png' })
   await expect.poll(async () => (await pixels(page)).maxChannel).toBeGreaterThan(baseline.maxChannel)
   const repairedPixels = await pixels(page)
   const repairedEpeSrc = await downloadEpeSrc(page)
   expect(repairedEpeSrc, `BRIEF GAP: flattened repaired .epe source: ${repairedEpeSrc}`).toContain('return amount')
-  hover = await hoverLevel(page)
-  await expect(hover).toBeVisible()
-  await test.info().attach('library-consumer-hover-repaired.png', { body: await page.screenshot(), contentType: 'image/png' })
   await test.info().attach('library-source-record.json', {
     body: JSON.stringify({ libraryId, patternId, ns, saved: EDITED, reloadedEditor, invalidEditorAfterCancel, storedAfterCancel, repairedStored, repairedReloadedEditor, baseline, editedPixels, repairedPixels, editedEpeSrc, repairedEpeSrc }, null, 2),
     contentType: 'application/json',
