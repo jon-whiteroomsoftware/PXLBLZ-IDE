@@ -67,6 +67,44 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.1.0 adoption (#1179)
+
+This adoption updates the executable package from 0.23.0, skipping 1.0.0.
+Source release is WRSP 1.1.0; see its `docs/reference/process-release-1.0.0.md`
+and `docs/reference/process-release-1.1.0.md`.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.1.0, tag `v1.1.0` |
+| Source | `68e1cdbabd9612aaaeda9829a4319fe3d03deb71` |
+| Tarball | `vendor/whiteroom-software-process-1.1.0.tgz` |
+| SHA256 | `dfe7cca2e9a1b9062760b9f8a6b07cee0a5eb45d912c2cb4a592c9f5657514ad` |
+
+1.0.0 replaces execution tiers with named roles in `~/.agents/roles.yaml`
+and renames worker, coordinator and supervisor to builder, developer and
+eng lead (WRSP #240); review ranks reviewers from the installed `reviewer`
+role. 1.1.0 adds the agent-host suite gate: `vite.config.ts` loads
+`wrspSuiteGate()`, so plain `npm test` and full `vitest run` refuse on the
+Agent Mini and full suites run through `npx wrsp-runner test <tip>`, while
+filtered runs there are capped at 2 workers (WRSP #256). The
+explicit-`--config` mutation and agent-diagnostics runs stay ungated.
+Pre-push now refuses agent sessions that are not this repository's eng
+lead (WRSP #244). The package gains the bins `wrsp-observer`, `wrsp-poll`,
+`wrsp-screenshot-inbox` and `wrsp-screenshot-send`; none is removed or
+renamed, so no script changes.
+
+Three hooks are recopied byte-identical into `.husky/`: `commit-msg`
+(WRSP #236) replaces PXLBLZ's own issue-reference hook and refuses a
+subject that does not start with `#<n>`, or any commit while
+`core.commentChar` is unset, `#` or `auto` (set it with
+`git config --local core.commentChar ';'`); `prepare-commit-msg` gains
+the staged-handoff session join (WRSP #217); and `coordinator-reminder.sh`
+is newly adopted, run first from `.husky/pre-commit` as a reminder that
+always exits 0. The review policy fingerprint
+(`ae2e1bd97a670a3836a669f4dcaa1b2e63325a9c9f55142975bc9a91d872cd5d`) and
+receipt format are unchanged, so earlier receipts and runner evidence stay
+valid.
+
 ## WRSP 0.23.0 adoption (#1173)
 
 This adoption updates the executable package from 0.22.1. Source release is
@@ -523,10 +561,10 @@ construction finishes a size and completeness preflight before launching a
 reviewer. Missing, incomplete, or oversized input remains a non-approval; the
 packet is never truncated to fit the transport.
 
-Since WRSP 0.21.0 the ranked reviewers are the members of the `eng-lead` tier
-in the installed `~/.agents/tiers.yaml`, read at run time in member order;
-`principal` supplies the explicitly selectable pairs (WRSP #156). A
-single-family candidate tries only the opposite family's `eng-lead` members,
+Since WRSP 1.0.0 the ranked reviewers are the members of the `reviewer` role
+in the installed `~/.agents/roles.yaml`, read at run time in member order;
+its `explicitPairs` supply the explicitly selectable pairs (WRSP #240). A
+single-family candidate tries only the opposite family's `reviewer` members,
 and refuses when there are none. A valid review with findings stops the route
 for repair. Unavailable or unusable reviewers advance to the next eligible
 model; exhaustion fails.

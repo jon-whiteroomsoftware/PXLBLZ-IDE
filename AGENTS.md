@@ -8,7 +8,7 @@ and reference docs for current product and architecture detail.
 
 For Scene retirement (#1032–#1045), read
 `docs/plans/scene-retirement-specification.md` before editing or reviewing.
-Record its commit and your assigned proof rows in the issue claim; every worker
+Record its commit and your assigned proof rows in the issue claim; every builder
 dispatch includes that specification. It supersedes the older Scene-retirement
 plans for current design, while as-built contracts remain current until adoption.
 
@@ -101,11 +101,11 @@ Preserve these invariants:
   `git merge --ff-only`; never rewrite or cherry-pick approved commits.
 - For a slice that touches a gate-covered flow, run focused behavioral checks
   during implementation and record the cases and results in the issue. The
-  final-suite coordinator runs all required committed-tip suites before landing;
+  final-suite developer runs all required committed-tip suites before landing;
   use `docs/agents/verification.md` for suite ownership and evidence requirements.
   An `X-E2E:` trailer or changed spec describes work; neither proves a suite ran.
-- Keep dependent work stacked until its reviewed base lands. The coordinating
-  agent owns approval, landing, issue updates, and worktree cleanup.
+- Keep dependent work stacked until its reviewed base lands. The developer
+  owns approval, landing, issue updates, and worktree cleanup.
 - A candidate that changes a UI path named in `wrsp-ui-proof.json` (component
   TSX, `src/App.tsx`, stylesheets) requires fresh committed browser proof before
   approval. Ordinary review requires it before reviewer launch. Explicit
@@ -146,6 +146,12 @@ or installed) and before the first commit. Git resolves `core.hooksPath`
 (`.husky/_`) inside each worktree, and husky generates that directory only
 during `npm ci`; without it, commits silently run no hooks
 (whiteroom-software-process#137). `npx husky` needs no network.
+
+The copied `.husky/commit-msg` (WRSP #236) refuses every commit while
+`core.commentChar` is unset, `#` or `auto`, because git would strip a
+`#<issue>` subject as a comment. Set it once per clone with
+`git config --local core.commentChar ';'`; the local config is shared by
+every worktree, and `npm run preflight -- worktree` sets it when unset.
 
 Run `npm run preflight -- worktree` before the first edit in a new worktree
 and `npm run preflight -- port <n>` before starting any server outside the
@@ -189,6 +195,7 @@ npm run dev:issue -- --issue <number> --description "<description>" --profile <s
 npm run dev:status
 npm run dev:release -- --issue <number>
 npx husky                                # install git hooks in a new worktree
+git config --local core.commentChar ';'  # once per clone; the commit-msg hook refuses '#'
 npm run preflight -- worktree            # refuse the shared checkout
 npm run preflight -- port <port>         # name the owner of an occupied port
 npm run preflight -- blocker gh-auth --host   # host verdict only from an unsandboxed shell
@@ -218,7 +225,7 @@ npm run agent:baseline:fixtures  # baseline fixture exports before/after one scr
 ```
 
 Run required committed-tip suites with `npx wrsp-runner test <tip>` before
-landing. One coordinator owns that submission after the final rebase and
+landing. One developer owns that submission after the final rebase and
 corrections; other agents report focused results and outstanding checks.
 Inspect failures, fix, commit, and re-test the new tip. Matching completed
 records are reused; resume known jobs after collection failure before submitting
@@ -271,27 +278,27 @@ naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
 `X-Authored-Model: gpt-6-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled and cannot claim verified cross-family coverage.
-WRSP 0.21.0 reads the ranked reviewers from the `eng-lead` tier of the
-installed `~/.agents/tiers.yaml`, in member order, and the explicitly
-selectable pairs from `principal` (WRSP #156). It selects only the opposite
+WRSP 1.x reads the ranked reviewers from the installed `reviewer` role in
+`~/.agents/roles.yaml`, in member order, and the explicitly selectable pairs
+from that role's `explicitPairs` (WRSP #240). It selects only the opposite
 family for single-family authored work.
 For Jon-authorized same-family review, follow the explicit scoped exception in
 `docs/agents/verification.md` (WRSP 0.12.0 adoption).
 A valid review with findings stops for repair; exhausting eligible models
-fails, and so does an `eng-lead` tier with no reviewer outside the author
-family. Mixed-family candidates need splitting.
+fails, and so does a `reviewer` role with no member outside the author family.
+Mixed-family candidates need splitting.
 Native approvals retain their actual reviewer, effort and policy provenance;
 later model/policy changes do not revoke exact approved ranges. Status and push
 still require contiguous coverage ending in a clean approval. Explicit native
 reviewer selection and historical migration details live in
 `docs/agents/verification.md`. Runtime permission to use a provider is separate.
-Read `~/.agents/execution-policy.md` before launching execution workers or
-choosing fallback or reasoning escalation. Its tiers govern availability
+Read `~/.agents/execution-policy.md` before launching execution builders or
+choosing fallback or reasoning escalation. Its roles govern availability
 selection and escalation, and it preserves the candidate lineage and
 non-convergence breaker.
 Execution selection remains separate from ranked cross-family review.
 
-Haiku 5.5 runs only where `~/.agents/tiers.yaml` names it (`locator`, `batch`),
+Haiku 5.5 runs only where `~/.agents/roles.yaml` names it (`locator`, `batch`),
 and never past 100K context. Never use it for review or implementation (Jon,
 2026-10-18).
 
@@ -358,7 +365,7 @@ check the local D1 schema first.
   and one purpose label per work item; reuse suitable issues before creating.
   Load canonical shared skills from `~/.agents/skills/`, not local copies.
   `📦 implemented` means identified commits claim the issue's full scope; the
-  coordinator applies and removes it, and it never implies review, landing,
+  developer applies and removes it, and it never implies review, landing,
   release, or closure. Attach a `Proof:`
   line before closing an implementation issue with Jon's explicit authorization;
   `npm run check:issue-proof` audits for it.

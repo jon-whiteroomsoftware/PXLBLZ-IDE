@@ -1,25 +1,49 @@
 #!/bin/sh
 # Observational session join; every failure leaves Git free to commit.
 warn_session() { printf '%s\n' 'WRSP: session trailer unavailable; attribution will use reader fallback.' >&2; }
-claude_id=${CLAUDE_CODE_SESSION_ID:-}
-codex_id=${CODEX_THREAD_ID:-${CODEX_SESSION_ID:-}}
-if [ -n "$claude_id" ] && [ -n "$codex_id" ]; then
-  warn_session
-  exit 0
-fi
-if [ -n "$claude_id" ]; then
-  session_value=claude:$claude_id
-elif [ -n "$codex_id" ]; then
-  session_value=codex:$codex_id
-else
-  exit 0
-fi
-case "$session_value" in
-  *[!a-zA-Z0-9._:-]*) warn_session; exit 0 ;;
-esac
 # An existing session trailer leaves the message unchanged, so amends are stable.
 if git -c trailer.separators=: interpret-trailers --parse "$1" 2>/dev/null | grep -qi '^x-session-id:'; then
   exit 0
+fi
+# WRSP #217: a worker's staged handoff names its session; it applies only to the exact tree and HEAD recorded,
+# so the first commit moves HEAD and retires it.
+session_value=
+handoff=$(git rev-parse --git-path wrsp-staged-session 2>/dev/null)
+if [ -n "$handoff" ] && [ -r "$handoff" ]; then
+  handoff_session= handoff_tree= handoff_head= handoff_extra=
+  read -r handoff_session handoff_tree handoff_head handoff_extra < "$handoff" 2>/dev/null
+  case "$handoff_session" in
+    claude:?*|codex:?*)
+      case "${handoff_session#*:}" in
+        *[!a-zA-Z0-9._:-]*) ;;
+        *)
+          if [ -n "$handoff_tree" ] && [ -n "$handoff_head" ] && [ -z "$handoff_extra" ] \
+            && [ "$handoff_tree" = "$(git write-tree 2>/dev/null)" ] \
+            && [ "$handoff_head" = "$(git rev-parse -q --verify HEAD 2>/dev/null || echo none)" ]; then
+            session_value=$handoff_session
+          fi
+          ;;
+      esac
+      ;;
+  esac
+fi
+if [ -z "$session_value" ]; then
+  claude_id=${CLAUDE_CODE_SESSION_ID:-}
+  codex_id=${CODEX_THREAD_ID:-${CODEX_SESSION_ID:-}}
+  if [ -n "$claude_id" ] && [ -n "$codex_id" ]; then
+    warn_session
+    exit 0
+  fi
+  if [ -n "$claude_id" ]; then
+    session_value=claude:$claude_id
+  elif [ -n "$codex_id" ]; then
+    session_value=codex:$codex_id
+  else
+    exit 0
+  fi
+  case "$session_value" in
+    *[!a-zA-Z0-9._:-]*) warn_session; exit 0 ;;
+  esac
 fi
 if ! git -c trailer.separators=: interpret-trailers --in-place --if-exists doNothing --if-missing add --trailer "X-Session-Id: $session_value" "$1"; then
   warn_session

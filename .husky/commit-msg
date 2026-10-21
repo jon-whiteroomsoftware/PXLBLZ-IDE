@@ -1,12 +1,37 @@
-COMMIT_MSG=$(cat "$1")
+#!/bin/sh
+# WRSP #236: refuse a commit whose subject is missing, has no #<issue> reference, or would be stripped as a comment.
 
-# Skip merge, fixup, and squash commits
-echo "$COMMIT_MSG" | grep -qE "^(Merge |fixup!|squash!)" && exit 0
-
-if ! echo "$COMMIT_MSG" | grep -qE '#[0-9]+'; then
-  echo ""
-  echo "❌ Commit message must reference at least one GitHub issue (#N)."
-  echo "   Example: \"Add login page (closes #42)\""
-  echo ""
-  exit 1
+if cc=$(git config --get core.commentChar); then
+  shown="\"$cc\""
+  [ -n "$cc" ] || cc='#'
+else
+  shown=unset
+  cc='#'
 fi
+case "$cc" in
+  '#'|auto)
+    printf '%s\n' "WRSP commit-msg (#236): refused. core.commentChar is $shown, so git strips a \"#<issue>\" subject as a comment whenever an editor opens the message." >&2
+    printf '%s\n' 'Run `git config --local core.commentChar '\'';'\''` (wrsp-preflight worktree sets it), then commit again.' >&2
+    exit 1
+    ;;
+esac
+
+subject=$(tr -d '\r' < "$1" | while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in ("$cc"*) continue ;; esac
+  if printf '%s\n' "$line" | grep -Eq '^[[:space:]]*$'; then continue; fi
+  printf '%s\n' "$line"
+  break
+done)
+[ -n "$subject" ] || exit 0
+if printf '%s\n' "$subject" | grep -Eq '^((fixup|squash|amend)! )*#[0-9]+([[:space:]]|$)'; then
+  exit 0
+fi
+if printf '%s\n' "$subject" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]*:[[:space:]]'; then
+  printf '%s\n' "WRSP commit-msg (#236): refused. The message starts with the trailer \"$subject\", so its subject line is missing." >&2
+  printf '%s\n' 'git strips lines that start with core.commentChar when an editor opens a message, which removes a "#<issue>" subject under the default "#".' >&2
+  printf '%s\n' 'Restore the subject and commit again (git commit -F <file>).' >&2
+else
+  printf '%s\n' "WRSP commit-msg (#236): refused. The subject \"$subject\" does not start with an issue reference \"#<n>\"." >&2
+  printf '%s\n' 'Start the subject with the issue number, for example "#236 Keep commit subjects".' >&2
+fi
+exit 1

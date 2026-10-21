@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 // projects; Vite's own overloads reject the promise-returning form here.
 import { defaultExclude, defineConfig, type ViteUserConfig } from 'vitest/config'
 import { playwright } from '@vitest/browser-playwright'
+import { wrspSuiteGate } from '@whiteroom/software-process/vitest-suite-gate'
 import path from 'path'
 import { join } from 'node:path'
 import fs from 'fs'
@@ -239,6 +240,8 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
       // `npm run db:migrate:local` and the in-process Worker read the same
       // database.
       ...workerDevPlugins,
+      // WRSP #256: refuses full Vitest suites on agent-host; run them with wrsp-runner test <tip>.
+      wrspSuiteGate(),
     ],
     server: {
       port,
