@@ -27,8 +27,8 @@ describe('visual baseline fixtures', () => {
   })
 
   it('pins Pattern maps and sources without random calls', () => {
-    expect(RECOMMENDED_SETTINGS.PendulumWave).toMatchObject({ shapeId: 'line', pixelCount: 256 })
-    expect(RECOMMENDED_SETTINGS.EasedSweep).toMatchObject({ mapId: 'wide', surfaceId: 'flat', pixelCount: 256, normalize: 'contain' })
+    expect(RECOMMENDED_SETTINGS.FastPaletteBlending).toMatchObject({ shapeId: 'line', pixelCount: 256 })
+    expect(RECOMMENDED_SETTINGS.Caustics).toMatchObject({ mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill' })
     for (const fixture of VISUAL_BASELINE_FIXTURES.filter(fixture => fixture.kind === 'pattern')) {
       const source = readFileSync(new URL(`../src/pixelblaze/stock/patterns/${fixture.target}.js`, import.meta.url), 'utf8')
       expect(source).not.toMatch(/\brandom\s*\(/)
@@ -59,14 +59,16 @@ describe('visual baseline fixtures', () => {
       hold >= transition.wholeOutput!.startMs + transition.durationMs)).toBe(true)
   })
 
-  it('places the installation transition at a Cut and its hold away from clip boundaries', () => {
+  it('places the installation transition just after a Cut and its hold away from clip boundaries', () => {
     const fixture = VISUAL_BASELINE_FIXTURES.find(fixture => fixture.id === 'show-installation')!
     const clips = stockShowV2ById(fixture.target)!.composition.clips
     const t = fixture.frames.find(frame => frame.label === 'transition')!.startMs
-    expect(t).toBe(7000)
-    expect(clips.some(clip => clip.startMs === t && clips.some(previous =>
-      previous.zoneId === clip.zoneId && previous.startMs + previous.durationMs === t &&
+    const cutMs = 7000
+    expect(clips.some(clip => clip.startMs === cutMs && clips.some(previous =>
+      previous.zoneId === clip.zoneId && previous.startMs + previous.durationMs === cutMs &&
       previous.instanceId !== clip.instanceId))).toBe(true)
+    expect(t).toBeGreaterThan(cutMs)
+    expect(t).toBeLessThanOrEqual(cutMs + 100)
     const hold = fixture.frames.find(frame => frame.label === 'hold')!.startMs
     expect(clips.every(clip => clip.startMs !== hold && clip.startMs + clip.durationMs !== hold)).toBe(true)
   })

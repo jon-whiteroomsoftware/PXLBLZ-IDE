@@ -98,11 +98,10 @@ export async function preparePatternCapture(page: Page, setup: PatternCaptureSet
   // The preview loop rebuilds in a React effect; give it a beat, then make
   // sure no compile/runtime error is covering the canvas.
   await page.waitForTimeout(750)
-  const overlayError = await page
-    .locator('[data-testid="preview-pane"] .text-red-400')
-    .first()
-    .textContent()
-    .catch(() => null)
+  // count() never waits; textContent() would wait for an absent overlay until
+  // the caller's timeout (forever under the test runner's actionTimeout 0).
+  const overlay = page.locator('[data-testid="preview-pane"] .text-red-400').first()
+  const overlayError = await overlay.count() > 0 ? await overlay.textContent() : null
   if (overlayError) throw new Error(`pattern failed to load: ${overlayError.trim()}`)
 
   // The chrome-stripping CSS reaches the canvas via a ResizeObserver → React

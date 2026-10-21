@@ -22,14 +22,14 @@ export const VISUAL_BASELINE_FPS = 60
 export const VISUAL_BASELINE_COMPARISON = { threshold: 0.05, maxDiffPixels: 0 } as const
 export const VISUAL_BASELINE_FIXTURES: readonly VisualBaselineFixture[] = [
   {
-    id: 'pattern-1d', kind: 'pattern', dimension: '1D', target: 'PendulumWave',
-    route: 'studio/patterns/PendulumWave', map: 'line, 256 pixels (RECOMMENDED_SETTINGS)',
+    id: 'pattern-1d', kind: 'pattern', dimension: '1D', target: 'FastPaletteBlending',
+    route: 'studio/patterns/FastPaletteBlending', map: 'line, 256 pixels (RECOMMENDED_SETTINGS)',
     seed: 'none: source calls no random()', fidelity: 'fast',
     frames: [{ label: 'still', startMs: 3000, note: 'The 1D Pattern at three seconds.' }],
   },
   {
-    id: 'pattern-2d', kind: 'pattern', dimension: '2D', target: 'EasedSweep',
-    route: 'studio/patterns/EasedSweep', map: 'wide, flat, 256 pixels, contain (RECOMMENDED_SETTINGS)',
+    id: 'pattern-2d', kind: 'pattern', dimension: '2D', target: 'Caustics',
+    route: 'studio/patterns/Caustics', map: 'plane, flat, 1024 pixels, fill (RECOMMENDED_SETTINGS)',
     seed: 'none: source calls no random()', fidelity: 'fast',
     frames: [{ label: 'still', startMs: 3000, note: 'The 2D Pattern at three seconds.' }],
   },
@@ -48,7 +48,7 @@ export const VISUAL_BASELINE_FIXTURES: readonly VisualBaselineFixture[] = [
     seed: 'stableShowSeed(showId)', fidelity: 'fast',
     frames: [
       { label: 'hold', startMs: 3500, note: 'Inside the opening hold, away from clip boundaries.' },
-      { label: 'transition', startMs: 7000, note: 'The Cut where Stage and Columns swap Patterns.' },
+      { label: 'transition', startMs: 7050, note: 'Three frames after the 7000 ms Cut where Stage and Columns swap Patterns; the runtime presents the Cut from 7016.7 ms.' },
     ],
   },
 ]
