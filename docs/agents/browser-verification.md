@@ -70,6 +70,60 @@ JSON; mirror `defaultControllerProfile`.
 Audit overflow by walking `scrollWidth > clientWidth` under the relevant
 `data-testid` rather than eyeballing screenshots.
 
+## Controller surfaces without hardware
+
+In development, `?controllerScenario=<name>` on any app URL replaces the
+extension-backed provider with a fake live Controller, `Scenario Controller`
+at `192.0.2.10` (#766). The Controller panel and the live Controller profile
+then open with no Pixelblaze, no extension and no cookies from your own
+browser. The code lives in `src/dev/controllerScenario.ts`.
+
+| Scenario | What the panel and profile show |
+| --- | --- |
+| `matched` | Stock map `Ring`, 2D, 256 points, 256 px |
+| `matched-long-name` | A personal map with a 73-character name, 64 points |
+| `map-unknown` | `Unknown map`, 64 points |
+| `map-loading` | `Reading map...` while live (the profile shows pixels `Unknown`) |
+| `map-absent` | `No installed map` |
+| `map-error` | `Map unavailable` |
+| `count-mismatch` | `Ring` with the `256≠300` mismatch chip, 300 px |
+| `firmware-update` | The firmware update banner in the panel; `Update available` on the profile |
+
+Every scenario also carries three Pattern controls (speed, mirror, hue), the
+power summary and one Variable, so those sections render with content.
+
+To capture, start a runtime for your issue
+(`npm run dev:issue -- --issue <n> ... --profile shared`), then open a fresh
+browser context with the issue's synthetic session cookie
+(`npm run dev:session -- --issue <n>`). Load
+`/PXLBLZ-IDE/studio/controllers?controllerScenario=<name>`. The pill appears
+once the fake connects. Opening the panel (button `Toggle Scenario Controller
+panel`; it also opens from the keyboard with focus and Enter) moves the route
+to the auto-created live profile. Without the session cookie the panel still
+works, but Studio requires sign-in for the profile page.
+
+The scenario is memory-only. Personal content, Controller metadata and the
+`pixelblaze-controller` persist entry go to in-memory stores for the page
+lifetime. Nothing reaches D1 or localStorage, and reloading without the flag
+returns the ordinary app. The flag is read once at startup, so a scenario
+lasts until a full reload, even after an in-app navigation drops the query. An unknown
+name logs `[controller scenario] Unknown scenario ...`, with every valid name,
+to the console and keeps the extension-backed provider.
+
+The fake exists only in development. `src/main.tsx` imports the module inside
+`if (import.meta.env.DEV)`, so production builds drop it. To prove that on a
+production build:
+
+```bash
+npm run build && npm run check:controller-scenario-exclusion
+```
+
+The check scans `dist/` for the scenario sentinel, global, query name, class
+name and console prefix. It then loads a `vite preview` of the build with
+`?controllerScenario=matched` in Chromium. It passes only if
+`window.__pxlblzControllerScenario` stays undefined and no scenario line is
+logged.
+
 ## Recording UI proof for the review gate
 
 Ordinary review of a candidate that changes a path named in
