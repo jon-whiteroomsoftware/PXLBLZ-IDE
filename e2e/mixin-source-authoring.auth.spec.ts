@@ -40,14 +40,15 @@ test('authenticated Studio saves, reloads, guards and repairs personal Mixin sou
   await expect.poll(() => renderedEditorLines(editor)).toBe(EDITED)
   const reloadedEditor = await renderedEditorLines(editor)
   expect(await storedPersonalSource(request, 'mixins', id)).toBe(EDITED)
-  await expect(page.getByText('GAIN', { exact: true })).toBeVisible()
+  // The provenance pane (preview-pane) lists header params; the editor also renders GAIN as a token.
+  await expect(page.getByTestId('preview-pane').getByText('GAIN', { exact: true })).toBeVisible()
 
   await replaceMultilineEditorSource(page, editor, BROKEN)
   // Header validation drives both compile-status and the provenance errors:
   // src/engine/mixins.ts:44-99; src/components/MixinProvenancePane.tsx:48-59.
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'broken')
   await expect(page.getByTestId('save-status')).toHaveAttribute('data-state', 'wont-save')
-  await expect(page.getByText('Mixin header needs @target')).toBeVisible()
+  await expect(page.getByTestId('preview-pane').getByText('Mixin header needs @target')).toBeVisible()
   // two autosave ticks: a broken buffer must not be written
   await page.waitForTimeout(SYNC_TICK_MS * 2 + 500)
   expect(await storedPersonalSource(request, 'mixins', id)).toBe(EDITED)
@@ -74,7 +75,7 @@ test('authenticated Studio saves, reloads, guards and repairs personal Mixin sou
   const repairedReloadedEditor = await renderedEditorLines(editor)
   const repairedStored = await storedPersonalSource(request, 'mixins', id)
   expect(repairedStored).toBe(REPAIRED)
-  await expect(page.getByText('LEVEL', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('preview-pane').getByText('LEVEL', { exact: true })).toBeVisible()
   await test.info().attach('mixin-source-record.json', {
     body: JSON.stringify({ id, saved: EDITED, reloadedEditor, invalidEditorAfterCancel, storedAfterCancel, repairedStored, repairedReloadedEditor }, null, 2),
     contentType: 'application/json',
