@@ -228,6 +228,12 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
   }
   const focusAppliedEffect = (effectId?: string) => {
     window.setTimeout(() => {
+      const container = effectId
+        ? detailRef.current?.querySelector<HTMLElement>(`[data-show-clip-summary-target="effect:${effectId}"]`)
+        : detailRef.current?.querySelector<HTMLElement>('[data-testid="show-effect-mirror"]')
+      const active = document.activeElement
+      // Blurring a field cancels a draft typed before the save resolves (#1182).
+      if (container && active instanceof HTMLElement && active !== container && container.contains(active)) return
       const target = effectId
         ? detailRef.current?.querySelector<HTMLElement>(`[data-show-effect-id="${effectId}"]`)
         : detailRef.current?.querySelector<HTMLElement>('[data-testid="show-effect-mirror"] button')

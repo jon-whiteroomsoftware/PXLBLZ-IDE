@@ -810,6 +810,55 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Add Effect' })).toHaveFocus())
   })
 
+  it('keeps a field the user entered in a new Effect focused when its save resolves (#1182)', async () => {
+    let resolveSave!: () => void
+    const onPatch = vi.fn<ShowClipEntityDetailProps['onPatch']>(() => new Promise<void>((resolve) => { resolveSave = resolve }))
+    const props = commonProps('scene-main', onPatch)
+    const { rerender } = render(<ShowClipEntityDetail {...props} />)
+    showTab('Effects')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+
+    const effect = onPatch.mock.calls[0][0].effects!.slice(-1)[0]
+    rerender(<ShowClipEntityDetail {...props} value={{ ...props.value, effects: [effect] }} />)
+    // Let the palette's close focus finish before the user enters the new field.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    const amount = screen.getByRole('textbox', { name: 'Amount' })
+    amount.focus()
+    fireEvent.change(amount, { target: { value: '0.2' } })
+
+    resolveSave()
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(amount).toHaveFocus()
+    expect(amount).toHaveValue('0.2')
+    expect(screen.getByRole('button', { name: 'More actions for Ripple Effect' })).not.toHaveFocus()
+  })
+
+  it('moves focus to a new Effect\'s actions when its save resolves and focus is elsewhere (#1182)', async () => {
+    let resolveSave!: () => void
+    const onPatch = vi.fn<ShowClipEntityDetailProps['onPatch']>(() => new Promise<void>((resolve) => { resolveSave = resolve }))
+    const props = commonProps('scene-main', onPatch)
+    const { rerender } = render(<ShowClipEntityDetail {...props} />)
+    showTab('Effects')
+    fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+
+    const effect = onPatch.mock.calls[0][0].effects!.slice(-1)[0]
+    rerender(<ShowClipEntityDetail {...props} value={{ ...props.value, effects: [effect] }} />)
+
+    resolveSave()
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'More actions for Ripple Effect' })).toHaveFocus())
+  })
+
   it('bounds the tab body and gives Add Effect one intentional scroll surface (#659)', () => {
     const props = commonProps('scene-main')
     render(<ShowClipEntityDetail {...props} />)

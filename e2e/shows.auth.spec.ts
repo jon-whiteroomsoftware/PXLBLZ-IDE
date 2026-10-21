@@ -1574,10 +1574,6 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
-    // Workaround for #1182, not the intended contract: once the add's save
-    // resolves, the panel moves focus to the new Effect's actions button, and
-    // that blur discards a draft typed before it. Type only after the move.
-    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeFocused()
     await stack.getByRole('textbox', { name: 'Amount' }).fill('0.2')
     await stack.getByRole('textbox', { name: 'Amount' }).press('Enter')
 
