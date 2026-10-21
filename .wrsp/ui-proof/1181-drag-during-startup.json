@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1181",
+  "route": "/PXLBLZ-IDE/studio/shows/playwright-drag-modifiers-<id>",
+  "operation": "Repo Playwright fallback (no in-app browser in this Claude session). Studio's startup GET /api/patterns was held, a Shift-drag of the Modifier Order Rings Clip onto the overlay Layer began, and the held list was released mid-drag before the drop. The drop committed: a version-2 save moved the Clip, with no 'The Show changed; try again.' refusal. Captured after the save was observed.",
+  "captures": [".wrsp/ui-proof/1181-drag-during-startup.png"],
+  "capturedAtCommit": "12869f160f2ad56fdf81e52ba8a17a4f15a572ac"
+}

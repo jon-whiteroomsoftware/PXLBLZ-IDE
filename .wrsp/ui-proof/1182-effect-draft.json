@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1182",
+  "route": "/PXLBLZ-IDE/studio/shows/<new installation show>",
+  "operation": "Repo Playwright fallback (no in-app browser in this Claude session). A Ripple Effect was added to a Clip with its save PUT held, 0.2 was typed into Amount, and then the save was released. Focus stayed in Amount and the draft stayed dirty (first capture). Enter committed it, so the Clip summary reads Amount 0.2 (second capture).",
+  "captures": [".wrsp/ui-proof/1182-effect-draft-kept.png", ".wrsp/ui-proof/1182-effect-draft-committed.png"],
+  "capturedAtCommit": "12869f160f2ad56fdf81e52ba8a17a4f15a572ac"
+}
