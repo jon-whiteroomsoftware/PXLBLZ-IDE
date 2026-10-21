@@ -97,10 +97,13 @@ To capture, start a runtime for your issue
 browser context with the issue's synthetic session cookie
 (`npm run dev:session -- --issue <n>`). Load
 `/PXLBLZ-IDE/studio/controllers?controllerScenario=<name>`. The pill appears
-once the fake connects. Opening the panel (button `Toggle Scenario Controller
-panel`; it also opens from the keyboard with focus and Enter) moves the route
-to the auto-created live profile. Without the session cookie the panel still
-works, but Studio requires sign-in for the profile page.
+once the fake connects. The button `Toggle Scenario Controller panel` opens
+the panel, by mouse or by keyboard (focus and Enter). Open the live profile
+from any route through the panel header link `Open Scenario Controller
+profile`. On `/studio/controllers` with no profile selected, opening the panel
+also moves the route to the auto-created live profile (`ControllerBar.tsx`).
+Without the session cookie the panel still works, but Studio requires sign-in
+for the profile page.
 
 The scenario is memory-only. Personal content, Controller metadata and the
 `pixelblaze-controller` persist entry go to in-memory stores for the page
