@@ -16,6 +16,7 @@
     "dev:session": "npm run check:node && tsx scripts/local-session-cookie.ts",
     "build": "npm run check:node && tsc -b && vite build",
     "check:playwright": "node scripts/check-playwright-browser.mjs",
+    "check:controller-scenario-exclusion": "npm run check:node && tsx scripts/check-controller-scenario-exclusion.ts",
     "check:e2e-coverage": "wrsp-check-e2e-coverage",
     "check:e2e-locators": "wrsp-check-e2e-locators",
     "check:layout-gate": "wrsp-check-layout-gate",
