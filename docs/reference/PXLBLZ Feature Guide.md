@@ -123,10 +123,12 @@ such.
 
 Saving is automatic and honest. A small cloud glyph appears while autosave is
 stuck: amber while the code has errors (fix them and saving resumes), red
-while saves are failing (the editor retries until one lands). Broken code is
-kept too: navigate away mid-edit and Studio stores exactly what you typed,
-restoring it when you return, with the preview covered until the code runs
-again.
+while saves are failing (the editor retries until one lands). Broken Pattern
+code is kept too: navigate away mid-edit and Studio stores exactly what you
+typed, restoring it when you return, with the preview covered until the code
+runs again. Maps, mixins, and libraries save only clean source: navigating
+away from broken source asks whether to cancel and keep editing, or to
+discard the broken edits and return to the last saved version.
 
 Controls come from code. Export `sliderSpeed(v)` and a slider appears; the
 same convention makes toggles and color pickers, and every `export var` shows

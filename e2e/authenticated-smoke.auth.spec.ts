@@ -7,11 +7,9 @@ import { artifactHash } from '../src/engine/artifactStamp'
 import { parseEpe } from '../src/engine/epeImport'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import { studioOperationRetryLabelFor } from '../src/store/studioOperationStore'
+import { MONACO_TEXTBOX_NAME, replaceEditorSource } from './support/editorSource'
 
 if (process.env.PXLBLZ_DRAWER_MOTION_VIDEO) test.use({ video: 'on' })
-
-/** Monaco names its own input textarea; this label is not produced by live source. */
-const MONACO_TEXTBOX_NAME = 'Editor content'
 
 function placeTrigger(page: Page): Locator {
   return page.getByTestId('top-bar').locator('[aria-haspopup="listbox"]')
@@ -20,32 +18,6 @@ function placeTrigger(page: Page): Locator {
 async function choosePlace(page: Page, name: string): Promise<void> {
   await placeTrigger(page).click()
   await page.getByRole('listbox', { name: 'Places' }).getByRole('option', { name: new RegExp(`^${name}`) }).click()
-}
-
-/** Replace the complete Monaco model through its public keyboard surface. */
-async function replaceEditorSource(page: Page, editor: Locator, source: string): Promise<void> {
-  const input = editor.getByRole('textbox', { name: MONACO_TEXTBOX_NAME })
-  const viewLines = editor.locator('.view-lines')
-  // textContent preserves the one-line model text without layout-only wraps;
-  // Monaco renders ordinary spaces as NBSPs inside view-lines.
-  const renderedSource = async () => (await viewLines.textContent() ?? '').replaceAll('\u00a0', ' ')
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await viewLines.click()
-    await expect(editor).toHaveClass(/focused/)
-    await expect(input).toBeFocused()
-    // Playwright's Chromium keyboard surface uses Control+A for Monaco's
-    // select-all command even when the runner host is macOS.
-    await input.press('Control+KeyA')
-    // Typing an opening bracket over a selection can auto-surround the old
-    // source. Delete first so every caller starts from an empty model.
-    await input.press('Backspace')
-    if (await renderedSource() === '') break
-  }
-
-  await expect.poll(renderedSource).toBe('')
-  await page.keyboard.type(source)
-  await expect.poll(renderedSource).toBe(source)
 }
 
 test('exposes functional Show access without a query parameter', async ({ page }) => {
