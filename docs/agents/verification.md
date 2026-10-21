@@ -67,6 +67,28 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.2.0 adoption (#1180)
+
+This adoption updates the executable package from 1.1.0. See WRSP
+`docs/reference/process-release-1.2.0.md` at the tag.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.2.0, tag `v1.2.0` |
+| Source | `51b193068285fbdd3ef3bac4814396d7f8a890fc` |
+| Tarball | `vendor/whiteroom-software-process-1.2.0.tgz` |
+| SHA256 | `37446a42f3822ad541a53143afbe16118f4e62cbe07d80c1b36ca942388564bd` |
+
+No copied hook, package export or `wrsp.config.mjs` key changed, and the
+review and push gates behave as in 1.1.0. The package adds the bin
+`wrsp-land` (WRSP #275), exposed here as `npm run land -- <tip>`: it lands
+under the review lock but checks no receipts, so confirm coverage with
+`npm run review:status -- <base> <tip>` first. `review:status` does not peel
+annotated tags (WRSP #279); pass commit shas. Host-side, launches require
+`--role-id` and install retires `~/.agents/tiers.yaml` (WRSP #243), and
+`wrsp-wait.sh` accepts `runner:<jobId>` handles, which need
+`WRSP_RUNNER_BIN` set to the `wrsp-runner` bin path (WRSP #281).
+
 ## WRSP 1.1.0 adoption (#1179)
 
 This adoption updates the executable package from 0.23.0, skipping 1.0.0.
@@ -462,11 +484,11 @@ These host changes are distributed separately from the executable tarball.
 
 ## Execution workers
 
-Execution workers follow the tiers in `~/.agents/execution-policy.md`,
-rendered from `~/.agents/tiers.yaml`. Each launch names its exact model and
-effort. Availability fallback records its reason; a worker that does not
-converge requires diagnosis and a changed approach, with deliberate escalation
-to a named tier or pair where justified. Model or
+Execution workers follow the roles in `~/.agents/execution-policy.md`,
+rendered from `~/.agents/roles.yaml`. Each launch names its role id and exact
+model and effort. Availability fallback records its reason; a worker that does
+not converge requires diagnosis and a changed approach, with deliberate
+escalation to a named role or pair where justified. Model or
 context changes preserve the candidate lineage and review breaker. Permission
 refusals stop the affected action.
 

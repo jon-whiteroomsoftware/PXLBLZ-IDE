@@ -211,6 +211,7 @@ npm run check:issue-proof -- --since-days <n>   # audit closed issues for named,
 npm run review:candidate -- <base> <tip> [--test-design <json>]
 npm run review:status -- [<base> <tip>]
 npm run review:push         # verify exact approvals for outgoing refs
+npm run land -- <tip>       # lander: land under the review lock; it checks no receipts, so run review:status first
 npm run build
 npm run test:e2e
 npm run check:playwright
