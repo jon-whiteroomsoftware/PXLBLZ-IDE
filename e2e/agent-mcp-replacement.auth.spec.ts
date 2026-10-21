@@ -196,6 +196,13 @@ function assertSamples(capture: CaptureEvidence, colors: readonly [Rgba, Rgba]):
   expect(samples.map(sample => sample.rgba), `${capture.name} at ${capture.timeMs} ms; canvas ${capture.width}x${capture.height}`).toEqual(colors)
 }
 
+/** A remounted Stage canvas stays at its 1x1 initial viewport until its ResizeObserver commits (#1177). */
+async function waitForSizedStageCanvas(page: Page): Promise<void> {
+  const canvas = page.getByTestId('show-stage-canvas-frame').locator('canvas')
+  await expect.poll(() => canvas.evaluate((element: HTMLCanvasElement) => element.width > 1 && element.height > 1),
+    { message: 'Stage canvas sized past its 1x1 initial viewport' }).toBe(true)
+}
+
 function captureHarness(page: Page, testInfo: TestInfo, prefix: string) {
   const testIdHash = createHash('sha256').update(testInfo.testId).digest('hex').slice(0, 16)
   const runDirectory = join(process.cwd(), 'playwright-report', 'agent-mcp',
@@ -218,6 +225,7 @@ function captureHarness(page: Page, testInfo: TestInfo, prefix: string) {
   const capture = async (label: string, timeMs: number): Promise<CaptureEvidence> => {
     const start = performance.now()
     await expect(page.getByTestId('show-stage-canvas-frame')).toHaveAttribute('aria-busy', 'false')
+    await waitForSizedStageCanvas(page)
     const result = await page.evaluate(async ({ startMs, namePrefix }) => (window as CaptureWindow).__pxlblzShow!.captureSequence({ frames: 1, fps: 1000, startMs, prefix: namePrefix }), {
       startMs: timeMs, namePrefix: `${prefix}-${label}`,
     })
