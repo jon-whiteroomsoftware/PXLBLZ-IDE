@@ -786,7 +786,10 @@ Files named `*.layout.test.ts` or `*.layout.test.tsx` run only in the
 `chromium-layout` project. That project uses Vitest Browser Mode with the
 Playwright provider and headless Chromium; it imports the production
 `src/index.css` entrypoint and waits for `document.fonts.ready` before tests
-measure anything. Run it directly with `npm run test:layout`. The unfiltered
+measure anything. Run individual layout files locally with
+`npx vitest run --project chromium-layout <file>`; the whole project, like
+`npm run test:layout`, counts as a full suite and refuses on agent-host
+(WRSP #256), so run it through `npx wrsp-runner test <tip>`. The unfiltered
 `npm test` command also discovers this project, so the required `full-vitest`
 runner suite includes real-browser layout coverage while ordinary component
 tests stay in the faster `jsdom` project. Run `npm run check:playwright` before
