@@ -71,6 +71,13 @@ export function createRemoteControllerMetadataStorage(
 }
 
 let activeStorage: ControllerMetadataStorage = demoControllerMetadataStorage
+let pinnedStorage: ControllerMetadataStorage | null = null
+
+/** Dev-only (#766): hold `storage` active across later initialize calls. */
+export function pinControllerMetadataStorage(storage: ControllerMetadataStorage | null): void {
+  pinnedStorage = storage
+  if (storage) activeStorage = storage
+}
 let pushRecordsRevision = 0
 const pushRecordsRevisionListeners = new Set<() => void>()
 
@@ -83,6 +90,7 @@ export function setControllerMetadataStorage(storage: ControllerMetadataStorage)
 }
 
 export function resetControllerMetadataStorage(): void {
+  pinnedStorage = null
   activeStorage = demoControllerMetadataStorage
 }
 
@@ -106,6 +114,10 @@ export function resolveControllerMetadataStorageMode(
 export async function initializeControllerMetadataStorage(
   options: ControllerMetadataStorageInitOptions = {},
 ): Promise<ControllerMetadataStorage> {
+  if (import.meta.env.DEV && pinnedStorage) {
+    activeStorage = pinnedStorage
+    return activeStorage
+  }
   if (options.storage) {
     activeStorage = options.storage
     return activeStorage

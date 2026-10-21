@@ -15,8 +15,21 @@ import { windowRelayTransport } from './engine/windowRelayTransport'
 const transport = windowRelayTransport()
 setControllerProviderFactory(() => new ExtensionControllerProvider({ transport }))
 
-createRoot(document.getElementById('root')!).render(
+const root = createRoot(document.getElementById('root')!)
+const render = () => root.render(
   <StrictMode>
     <App />
   </StrictMode>,
 )
+
+// Dev-only Controller scenarios (#766): `?controllerScenario=<name>` replaces the
+// extension-backed factory above with a memory-only fake. The DEV branch and its
+// dynamic import are dropped from production builds.
+if (import.meta.env.DEV) {
+  import('./dev/controllerScenario')
+    .then((m) => { m.applyControllerScenarioFromSearch(window.location.search) })
+    .catch((err: unknown) => { console.error('[controller scenario] setup failed', err) })
+    .finally(render)
+} else {
+  render()
+}

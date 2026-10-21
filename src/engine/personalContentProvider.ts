@@ -138,6 +138,13 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
 }
 
 let activeProvider: PersonalContentProvider = demoPersonalContentProvider
+let pinnedProvider: PersonalContentProvider | null = null
+
+/** Dev-only (#766): hold `provider` active across later initialize calls. */
+export function pinPersonalContentProvider(provider: PersonalContentProvider | null): void {
+  pinnedProvider = provider
+  if (provider) activeProvider = provider
+}
 
 export function getPersonalContentProvider(): PersonalContentProvider {
   return activeProvider
@@ -148,6 +155,7 @@ export function setPersonalContentProvider(provider: PersonalContentProvider): v
 }
 
 export function resetPersonalContentProvider(): void {
+  pinnedProvider = null
   activeProvider = demoPersonalContentProvider
 }
 
@@ -171,6 +179,10 @@ export function resolvePersonalContentProviderMode(
 export async function initializePersonalContentProvider(
   options: PersonalContentProviderInitOptions = {},
 ): Promise<PersonalContentProvider> {
+  if (import.meta.env.DEV && pinnedProvider) {
+    activeProvider = pinnedProvider
+    return activeProvider
+  }
   if (options.provider) {
     activeProvider = options.provider
     return activeProvider
