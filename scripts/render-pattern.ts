@@ -25,6 +25,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { chromium, type Cookie } from '@playwright/test'
+import { preparePatternCapture, prepareShowCapture, type CaptureSequenceOutcome, type PxlblzCaptureApi } from './render-capture-page'
 import { parseRenderArgs, ffmpegArgs, type RenderConfig } from './render-pattern-lib'
 
 const CAPTURES_DIR = '/tmp/pxlblz-captures'
@@ -33,54 +34,6 @@ const RENDERS_DIR = '/tmp/pxlblz-renders'
 // replaces the previewed source without touching pattern records. Pass --demo
 // alongside --file to mount a demo whose map matches the file (e.g. a sphere).
 const FILE_MODE_BOOTSTRAP_DEMO = 'PlasmaNebula'
-
-interface CaptureSequenceCall {
-  frames: number
-  fps: number
-  prefix: string
-  startMs: number
-  onProgress?(saved: number, total: number): void
-}
-type CaptureSequenceOutcome = { frames: number; failures: { name: string; error: string }[] }
-
-interface PxlblzCaptureApi {
-  setPreview(patch: Record<string, unknown>): void
-  loadSource(code: string): void
-  getPreviewSource(): string
-  captureSequence(opts: CaptureSequenceCall): Promise<CaptureSequenceOutcome>
-}
-
-interface PxlblzShowCaptureApi {
-  showId: string
-  loopDurationMs(): number
-  setPreview(patch: Record<string, unknown>): void
-  captureSequence(opts: CaptureSequenceCall): Promise<CaptureSequenceOutcome>
-}
-
-const HIDE_IDE_CHROME_CSS = `
-  [data-testid="top-bar"], [data-testid="left-pane"], [data-testid="editor-pane"] { display: none !important; }
-  [data-testid="preview-pane"] { display: flex !important; width: 100vw !important; min-width: 0 !important; }
-`
-
-// The Show route has no preview pane (#967): the Stage is a strip under the
-// timeline inside editor-pane, its canvas frame beside a controls rail. Lift
-// the strip over the viewport, drop the rail, and let the frame's own
-// aspect-ratio style set its height from the full viewport width, so the
-// canvas fits by width rather than by the strip's height (#1142).
-const SHOW_STAGE_CANVAS = '[data-testid="show-stage-canvas-frame"] canvas'
-const HIDE_SHOW_CHROME_CSS = `
-  [data-testid="top-bar"], [data-testid="left-pane"], [data-testid="show-timeline-pane"],
-  [data-testid="agent-chat-panel"] { display: none !important; }
-  [data-testid="show-stage-strip"] {
-    position: fixed !important; inset: 0 !important; z-index: 2147483647 !important;
-    width: 100vw !important; height: 100vh !important;
-  }
-  [data-testid="show-stage-preview"] > :not([data-testid="show-stage-canvas-frame"]) { display: none !important; }
-  [data-testid="show-stage-canvas-frame"] {
-    align-self: flex-start !important; width: 100vw !important; max-width: none !important;
-    height: auto !important; border: 0 !important;
-  }
-`
 
 function fail(message: string): never {
   console.error(`render-pattern: ${message}`)
@@ -171,70 +124,15 @@ async function renderFrames(config: RenderConfig): Promise<number> {
     await page.routeWebSocket(/./, () => undefined)
     await page.goto(url, { waitUntil: 'domcontentloaded' })
 
-    // Strip the IDE chrome so the preview (and its canvas, whose width tracks
-    // the container) owns the whole viewport width.
-    await page.addStyleTag({ content: config.show ? HIDE_SHOW_CHROME_CSS : HIDE_IDE_CHROME_CSS })
-
     // Awaited inside the try so the finally does not close the browser early.
-    if (config.show) return await renderShowFrames(page, config, frames, url)
+    if (config.show) return await renderShowFrames(page, config, frames)
 
-    await page.waitForFunction(
-      () => Boolean((window as unknown as { __pxlblz?: unknown }).__pxlblz) &&
-        Boolean(document.querySelector('[data-testid="preview-pane"] canvas')),
-      undefined,
-      { timeout: 30_000 },
-    ).catch(() => fail(
-      `preview did not come up for "${demo}" — check the demo name and that the route loaded (${url}).`,
-    ))
-
-    // Deterministic start: the demo auto-plays on load, so wall-clock rAF ticks
-    // have already advanced the virtual clock by an arbitrary amount. Pause,
-    // then toggle previewSource ('' → target) to rebuild the loop on a fresh
-    // clock — every run's frame K then sits at exactly K * (1000/fps) virtual
-    // ms from pattern t=0.
-    const source = config.file
-      ? fs.readFileSync(config.file, 'utf8')
-      : await page.evaluate(() =>
-        (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz.getPreviewSource())
-    await page.evaluate(({ code, diffusion, lightSize }) => {
-      const api = (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz
-      api.setPreview({ isRunning: false })
-      // Store overrides land before the rebuild below, which reads them when
-      // wiring the fresh renderer.
-      if (diffusion !== null) api.setPreview({ diffusion })
-      if (lightSize !== null) api.setPreview({ lightSize })
-      api.loadSource('')
-      // Defer the reload a macrotask so React commits the teardown first.
-      return new Promise<void>((resolve) => {
-        setTimeout(() => {
-          api.loadSource(code)
-          resolve()
-        }, 50)
-      })
-    }, { code: source, diffusion: config.diffusion, lightSize: config.lightSize })
-    // The preview loop rebuilds in a React effect; give it a beat, then make
-    // sure no compile/runtime error is covering the canvas.
-    await page.waitForTimeout(750)
-    const overlayError = await page
-      .locator('[data-testid="preview-pane"] .text-red-400')
-      .first()
-      .textContent()
-      .catch(() => null)
-    if (overlayError) fail(`pattern failed to load: ${overlayError.trim()}`)
-
-    // The chrome-stripping CSS reaches the canvas via a ResizeObserver → React
-    // state → loop-rebuild chain that can lag under load; gate on the canvas
-    // actually reaching the requested width so no frame captures small.
-    await page.waitForFunction(
-      (expected) => {
-        const canvas = document.querySelector('[data-testid="preview-pane"] canvas') as HTMLCanvasElement | null
-        return Boolean(canvas && canvas.width >= expected - 4)
-      },
-      config.width,
-      { timeout: 15_000 },
-    ).catch(() => fail(
-      `canvas never reached the requested ${config.width}px width — the IDE-chrome override did not apply.`,
-    ))
+    await preparePatternCapture(page, {
+      width: config.width,
+      source: config.file ? fs.readFileSync(config.file, 'utf8') : undefined,
+      diffusion: config.diffusion,
+      lightSize: config.lightSize,
+    }, `"${demo}"`).catch((error) => fail(error instanceof Error ? error.message : String(error)))
 
     await exposeProgress(page)
 
@@ -283,38 +181,12 @@ async function renderShowFrames(
   page: import('@playwright/test').Page,
   config: RenderConfig,
   frames: number,
-  url: string,
 ): Promise<number> {
-  await page.waitForFunction(
-    (selector) => Boolean(window.__pxlblzShow) && Boolean(document.querySelector(selector)),
-    SHOW_STAGE_CANVAS,
-    { timeout: 30_000 },
-  ).catch((error: unknown) => fail(
-    `stage preview did not come up for Show "${config.show}" — check the show id and that the route loaded (${url}). ${String(error)}`,
-  ))
-  if (config.diffusion !== null || config.lightSize !== null) {
-    // The stage preview reads the same preview store as the Pattern preview.
-    await page.evaluate(({ diffusion, lightSize }) => {
-      window.__pxlblzShow!.setPreview({
-        ...(diffusion !== null ? { diffusion } : {}),
-        ...(lightSize !== null ? { lightSize } : {}),
-      })
-    }, { diffusion: config.diffusion, lightSize: config.lightSize })
-  }
-  // With the frame lifted to the viewport the canvas fills --width to within
-  // fit rounding (a 1:1 Stage measured 1200 and 1199 at 1200); the slack
-  // absorbs that.
-  await page.waitForFunction(
-    ({ selector, expected }) => {
-      const canvas = document.querySelector(selector) as HTMLCanvasElement | null
-      return Boolean(canvas && canvas.width >= expected - 24)
-    },
-    { selector: SHOW_STAGE_CANVAS, expected: config.width },
-    { timeout: 15_000 },
-  ).catch(() => fail(
-    `stage canvas never reached the requested ${config.width}px width — the IDE-chrome override did not apply.`,
-  ))
-  const loopMs = await page.evaluate(() => window.__pxlblzShow!.loopDurationMs())
+  const { loopMs } = await prepareShowCapture(page, {
+    width: config.width,
+    diffusion: config.diffusion,
+    lightSize: config.lightSize,
+  }, `Show "${config.show}"`).catch((error) => fail(error instanceof Error ? error.message : String(error)))
   const startMs = config.startSeconds * 1000
   const endMs = startMs + config.seconds * 1000
   console.log(`show loop ${(loopMs / 1000).toFixed(1)}s; recording ${(startMs / 1000).toFixed(2)}s → ${(endMs / 1000).toFixed(2)}s`)
@@ -337,13 +209,6 @@ async function renderShowFrames(
   }, { frames, fps: config.fps, prefix: config.name, startMs })
   assertNoSinkFailures(result)
   return frames
-}
-
-declare global {
-  interface Window {
-    __pxlblz?: PxlblzCaptureApi
-    __pxlblzShow?: PxlblzShowCaptureApi
-  }
 }
 
 function assembleVideo(config: RenderConfig, frames: number): void {
