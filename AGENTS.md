@@ -207,6 +207,7 @@ npm run test:mutation:show-authoring # targeted Show authoring fault-sensitivity
 npm run check:ui-proof -- <base> <tip>   # UI proof gate for a range (also enforced by review:candidate)
 npm run check:artifact-oracle            # exported .pxlshow and .epe reopened through their importers
 npm run check:layout-gate                # layout canary through the configured browser runner
+npm run check:visual-baselines           # rendered canvas vs Jon-approved references; approval rules in docs/agents/browser-verification.md
 npm run check:issue-proof -- --since-days <n>   # audit closed issues for named, attached proof (report only)
 npm run review:candidate -- <base> <tip> [--test-design <json>]
 npm run review:status -- [<base> <tip>]

@@ -364,3 +364,38 @@ also verifies that SPA navigation preserves the three distinct connections.
 Authentication, route, count, identity or readiness mismatch refuses proof.
 Bounded readiness waits cover normal startup; after roughly three failed probes
 on one obstacle, retain observed state and surface the next decision.
+
+## Visual baselines for rendered output (#970)
+
+`npm run check:visual-baselines` compares the rendered Pattern and Show canvas
+against approved reference images. It runs four pinned fixtures in real
+Chromium (`e2e/visual-baselines.auth.spec.ts`, table in
+`scripts/visual-baseline-fixtures.ts`): a 1D Pattern, a 2D Pattern, the
+Quadrille portable Show and the 301 Installation Show. Each Show contributes a
+hold frame and a transition frame. Frames come from the same `?capture`
+`captureSequence` path as `npm run render`. The page setup lives in
+`scripts/render-capture-page.ts` and both use it. The spec intercepts the
+`/__capture` sink and compares each whole PNG with `toMatchSnapshot` at zero
+differing pixels (per-pixel threshold 0.05). Repeated renders on one host are
+byte-identical, so any difference is a real change. It is a named command,
+not a push gate; a full run takes about 25 s on Agent Mini, including the
+isolated server start.
+
+The references are `e2e/visual-baselines.auth.spec.ts-snapshots/*-chromium-darwin.png`.
+They are valid only for the host and Chromium build that rendered them; a
+Chromium upgrade that shifts rasterisation needs a fresh approval round.
+
+- **Never bless a baseline yourself.** The command passes
+  `--update-snapshots=none`, so a run never writes a reference. A missing or
+  changed reference fails and leaves `<name>-actual.png` (plus `-expected.png`
+  and `-diff.png` when a reference exists) under `test-results/`.
+- **Approval.** Publish the actual, expected and diff images with the pinned
+  parameters (each test attaches `<fixture>-<frame>-parameters.json`) on a
+  Files page for Jon. Commit new references only after Jon approves those
+  exact images, and record the approval and the image hashes on the issue.
+- **Update.** After approval, copy each approved `-actual.png` to its
+  reference path, then rerun the command; it must pass unchanged. Change the
+  fixture table and its Vitest invariants (`scripts/visual-baseline-fixtures.test.ts`)
+  in the same commit as any re-pin.
+- A failure is a finding before it is a baseline update: name what changed
+  (engine, stock content, capture path or Chromium) first.
