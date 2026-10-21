@@ -1376,6 +1376,10 @@ test.describe('authenticated Show authoring', () => {
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`studio/shows/${id}`)
+    // Workaround for #1181, not the intended contract: a startup load landing
+    // mid-drag makes the editor refuse the drop as stale. Start the gesture
+    // only after startup has settled.
+    await waitForStudioStartup(page)
     const source = page.getByRole('button', { name: 'Select Modifier Order Rings' })
     const overlay = page.locator('[data-show-layer-kind="overlay"]').first()
     const movePreview = page.getByTestId('show-clip-move-preview')
@@ -1570,6 +1574,10 @@ test.describe('authenticated Show authoring', () => {
 
     const stack = await openClipEffects(page, 'TestPattern1D')
     await addEffect(page, stack, 'ripple', 'Ripple')
+    // Workaround for #1182, not the intended contract: once the add's save
+    // resolves, the panel moves focus to the new Effect's actions button, and
+    // that blur discards a draft typed before it. Type only after the move.
+    await expect(stack.getByRole('button', { name: 'More actions for Ripple Effect' })).toBeFocused()
     await stack.getByRole('textbox', { name: 'Amount' }).fill('0.2')
     await stack.getByRole('textbox', { name: 'Amount' }).press('Enter')
 
@@ -3303,6 +3311,21 @@ async function openClipEffects(page: Page, patternName: string): Promise<Locator
     .getByRole('region', { name: 'Clip Effects' })
   await expect(stack).toBeVisible()
   return stack
+}
+
+/**
+ * Wait until Studio's startup loads have all landed (#1106). Startup replaces
+ * the pattern, library, map and controller lists after the editor mounts, and
+ * a replacement during a gesture makes the editor refuse the drop as stale
+ * (#1181). The libraries organization is the last startup load
+ * (src/components/PatternList.tsx).
+ */
+async function waitForStudioStartup(page: Page): Promise<void> {
+  await expect.poll(() => page.evaluate(async () => {
+    const load = (path: string) => import(path)
+    const { useEntityOrganizationStore } = await load('/PXLBLZ-IDE/src/store/entityOrganizationStore.ts')
+    return useEntityOrganizationStore.getState().loaded.libraries
+  })).toBe(true)
 }
 
 /** Add one Effect through the palette, searching by name rather than position. */
