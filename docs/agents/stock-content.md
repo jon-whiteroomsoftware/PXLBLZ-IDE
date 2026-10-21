@@ -22,7 +22,7 @@ npm run gallery:keyframes -- Name    # one Pattern
 npm run gallery:keyframes -- --force    # rewrite every artifact, even unchanged ones
 ```
 
-A run leaves an artifact's committed bytes alone when its key, seed, map size and poster time are unchanged; use `--force` after changing snapshot capture or restore without changing compiled code (#1130).
+A run leaves an artifact's committed bytes alone when its key, seed, map size and poster time are unchanged; use `--force` after changing snapshot capture or restore without changing compiled code (#1130). The generator refuses to run unless the Node major matches `.node-version` (`fnm use`): snapshots depend on the engine's `Math` functions, and Node 24's `Math.pow` differs from Node 22's (#1174).
 
 `src/pixelblaze/stock/galleryKeyframes.test.ts` fails when any public Pattern
 or Gallery Show is missing a keyframe or its key is stale (Show artifacts are

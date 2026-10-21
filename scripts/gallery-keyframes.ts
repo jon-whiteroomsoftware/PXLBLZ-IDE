@@ -8,15 +8,23 @@
 // so review diffs stay small; the browser inflates with DecompressionStream). Edit
 // src/pixelblaze/stock/keyframeOverrides.ts to pin a Pattern's poster time.
 // Unchanged artifacts keep their committed bytes; --force rewrites them all, for example after a change to snapshot capture or restore that leaves compiled code unchanged.
+// Runs only under the Node major pinned in .node-version: snapshots depend on the engine's Math (#1174).
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { createServer } from 'vite'
+import { keyframeNodeRefusal } from './gallery-keyframes-node'
 
 const ROOT = resolve(new URL('..', import.meta.url).pathname)
 const OUT_DIR = join(ROOT, 'src/pixelblaze/stock/keyframes')
 
 async function main(): Promise<void> {
+  const refusal = keyframeNodeRefusal(readFileSync(join(ROOT, '.node-version'), 'utf8'), process.versions.node)
+  if (refusal !== null) {
+    console.error(refusal)
+    process.exitCode = 1
+    return
+  }
   const names = process.argv.slice(2).filter((arg) => !arg.startsWith('-'))
   const force = process.argv.includes('--force')
   const server = await createServer({

@@ -132,7 +132,7 @@ holes, and non-finite numbers. Artifacts live in
 points, seed, and format version, and are loaded lazily
 (`stock/galleryKeyframes.ts`) on a card's first activation; a stale or missing
 key degrades to the per-card opening offset. `npm run gallery:keyframes`
-regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`), keeping the committed bytes of any artifact whose identity is unchanged (`--force` rewrites all);
+regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`), keeping the committed bytes of any artifact whose identity is unchanged (`--force` rewrites all); it runs only under the Node major pinned in `.node-version`, because snapshots depend on the engine's `Math` functions (#1174);
 `keyframeOverrides.ts` pins a Pattern's poster time. A test asserts every
 public Gallery Pattern and Gallery Show has a current keyframe.
 
