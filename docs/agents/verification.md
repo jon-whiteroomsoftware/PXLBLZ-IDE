@@ -24,12 +24,18 @@ the packet representation introduced there,
 [WRSP 0.5.1 review policy](#wrsp-051-review-policy-960) for reviewer routing,
 and [WRSP 0.5.0 consumer guards](#wrsp-050-consumer-guards-940) for guard history.
 
-### Runner suite overlap (WRSP #42, #1146)
+### Runner suite overlap (WRSP #42, #1146, WRSP #295)
 
-`full-vitest` is in group `vitest`; the six required Playwright suites are in
-group `playwright`. With host capacity 2, the runner may run full Vitest
-alongside one browser suite, while browser suites stay mutually serial. A
-validated qualified remote job, checked by `qualifiedRemoteExecution()` and
+The Test Mini runs one job at a time: its capacity is 1, by Jon's decision
+after the capacity-2 trial, so the required suites run strictly serially.
+[WRSP #295](https://github.com/jon-whiteroomsoftware/whiteroom-software-process/issues/295)
+was closed as not planned on that basis. `wrsp.config.mjs` still declares
+`full-vitest` in group `vitest` and the six required Playwright suites in group
+`playwright`. Those groups take effect only if capacity is raised: then the
+runner may run full Vitest alongside one browser suite, while browser suites
+stay mutually serial.
+
+A validated qualified remote job, checked by `qualifiedRemoteExecution()` and
 the label map in `scripts/with-suite-lock.ts`, runs without the repository
 suite lock. Laptop and unqualified runs keep that lock. The `chromium-layout`
 project runs one file at a time so it does not stack on a browser job. The
