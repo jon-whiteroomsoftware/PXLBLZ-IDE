@@ -563,7 +563,7 @@ Astra Low override. The classifier was retired in #1140.
 | Before starting in a worktree | `npm run preflight -- worktree` and `npm run preflight -- port <n>` | Refuse substantive work in the shared checkout; report a port's owner before a dev server claims it. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
 | Before landing (ordinary review) | `npm run review:candidate -- <base> <tip> [--test-design <json>]` | Enforce the UI proof gate for the range, then review one explicit candidate range and record an immutable approval for a valid pass. `npm run check:ui-proof -- <base> <tip>` runs the proof gate alone. |
-| Final committed tip, before landing | `npx wrsp-runner test <tip>` | One coordinator executes the required full Vitest and three browser suites declared in `wrsp.config.mjs`; matching completed records are reused. |
+| Final committed tip, before landing | `npx wrsp-runner test <tip>` | One coordinator executes the required full Vitest and six Playwright suites declared in `wrsp.config.mjs`; matching completed records are reused. |
 | Before each push | `npm run lint`, `npm run review:push`, `npm run check:artifact-oracle`, and `wrsp-check-test-evidence <tip>` through `.husky/pre-push` | Refuse a lint failure in seconds, require exact approval coverage, prove exported Show deliverables reopen, and consume matching evidence for all required runner suites. |
 | Periodic sweep | `npm run check:issue-proof -- --since-days <n>` | Audit recently closed issues for a named and attached proof. A report, not a hook. |
 
@@ -579,7 +579,7 @@ concurrently, but final review and landing form a serialized admission queue:
    full suites, preserving job ids and results. Other agents do not submit the
    same candidate concurrently; the runner queues jobs but does not merge them.
 4. Run `npm run review:candidate -- <main-sha> <candidate-tip>` with required proof.
-5. If the candidate passes, land it immediately with `git merge --ff-only`.
+5. If the candidate passes, inspect `npm run review:status -- <main-sha> <candidate-tip>`, then land it from the clean shared checkout on main with `npx wrsp-land <candidate-tip>`, or hand it to the assigned lander.
 6. Remove the landed worktree and branch.
 
 A repair or rebase changes the exact tip and requires fresh full evidence.

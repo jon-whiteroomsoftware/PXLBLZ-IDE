@@ -109,9 +109,10 @@ Builds (#921): every push to `main` checks out the pushed tip, runs
 
 Publication belongs solely to the granted eng lead, after the existing
 [review, exact-tip runner evidence and authority checks](../agents/verification.md)
-and eng-lead operations requirements. Freeze the clean reviewed checkout and
-its tip throughout this procedure. The helper only reads remote main and
-GitHub checks; it cannot push, deploy or change issue state.
+and eng-lead operations requirements. Use a clean detached worktree at the
+reviewed publication tip and keep that checkout at the same commit throughout
+this procedure. Reviews and landings may continue on main. The helper only
+reads remote main and GitHub checks; it cannot push, deploy or change issue state.
 
 <!-- publication-completion-command -->
 ```sh
@@ -160,9 +161,7 @@ and [Cloudflare Build ID and Script details](https://developers.cloudflare.com/w
 
 Closure remains manual and requires Jon's explicit authorization and the exact
 verified report: cite full intended SHA, remote SHA, service, check URL, build
-ID and Version ID where present. The helper never closes an issue. #1201's
-disposable-remote proof and historical observations do not complete the real
-already-authorized next publication; it remains pending until performed.
+ID and Version ID where present. The helper never closes an issue.
 
 ### Manual fallback
 
@@ -176,7 +175,7 @@ npx wrangler deploy
 ```
 
 The helper recognizes Workers Builds records, not manual deploys. Manual proof
-must cite the exact Worker, commit, version and build record; a Pages check
+must cite the exact Worker, full commit, Version ID and deployment record; a Pages check
 cannot turn that proof into a verified helper report.
 
 `cf:build` bakes `VITE_BASE_PATH=/` and `VITE_GA_MEASUREMENT_ID` into the
