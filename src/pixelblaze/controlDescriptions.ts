@@ -206,6 +206,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderTwist: 'Strength of the line distortion.',
     sliderReflections: 'Number of kaleidoscopic reflection segments.',
   },
+  Koi3D: {
+    sliderLoopInterval: 'Exact lap length in seconds, up to 20; tempo changes preserve position.',
+    sliderSize: 'Body radius from 0.04 to 0.12 normalized units; 75% bridges the Middle ring tube gaps.',
+    sliderHue: 'Body colour around the hue wheel; the default 12% is gold.',
+    sliderHeight: 'Lap height from 0 to 0.7 normalized y, with a small vertical sway.',
+  },
   TubeRain3D: {
     sliderSpeed: 'Downward travel speed along world y.',
     sliderDensity: 'Fraction of complete drops admitted, from dry to downpour.',

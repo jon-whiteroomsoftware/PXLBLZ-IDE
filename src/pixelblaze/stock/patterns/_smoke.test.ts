@@ -333,6 +333,12 @@ describe('demo smoke tests', () => {
     })
   }
 
+  it.each(['fast', 'fidelity'] as const)('Koi3D.js bundles and runs in %s mode', (mode) => {
+    const result = runDimensionedDemo('Koi3D.js', mode, 0.75)
+    expect(result.allFinite).toBe(true)
+    expect(result.anyLit).toBe(true)
+  })
+
   it.each(['fast', 'fidelity'] as const)('TubeRain3D.js bundles, runs, and lights pixels in %s mode', (mode) => {
     const result = runDimensionedDemo('TubeRain3D.js', mode)
     expect(result.anyLit).toBe(true)

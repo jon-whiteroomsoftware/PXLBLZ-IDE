@@ -40,8 +40,11 @@ your Controllers. They have no Controller controls and start no discovery or
 extension handshake. Three built-in folders stay out of the public Gallery but
 are available in Studio: **Test Patterns** (diagnostics), **Luma Sources**
 (grayscale keying ingredients for Shows), and **Show Ingredients**.
-Show Ingredients holds single-purpose Show sources such as NeonTube, one
-uniform tube whose Health control a Show keys to make a lamp ignite, fail and recover.
+Show Ingredients holds single-purpose Show sources: NeonTube, one uniform tube
+whose Health control a Show keys to make a lamp ignite, fail and recover, plus
+TubeRain3D and Koi3D. LumaPlane3D supplies level or tilted grayscale planes in
+Luma Sources. The Cloudburst chandelier map presents 48 vertical tubes in three
+staggered rings for these 3D ingredients.
 
 ## 2. Studio
 

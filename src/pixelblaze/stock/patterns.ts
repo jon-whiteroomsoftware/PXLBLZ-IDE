@@ -92,6 +92,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   LumaStripes: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaPlane3D: { mapId: 'cloudburst-chandelier', pixelCount: 960, normalize: 'contain', brightness: 1, lightSize: 0.7, diffusion: 0.4 },
   TubeRain3D: { mapId: 'cloudburst-chandelier', pixelCount: 960, normalize: 'contain', brightness: 1, lightSize: 0.7, diffusion: 0.4 },
+  Koi3D: { mapId: 'cloudburst-chandelier', pixelCount: 960, normalize: 'contain', brightness: 1, lightSize: 0.7, diffusion: 0.4 },
   LumaChevron: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaRings: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },
   LumaPinwheel: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.75, diffusion: 0.6 },

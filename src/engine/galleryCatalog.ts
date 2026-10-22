@@ -133,7 +133,7 @@ export const LUMA_DEMOS = [
 // Show ingredients outside the Luma family (#1196): single-purpose sources a
 // Show tints and keys. Like the Luma family they live in the rail but never in
 // the gallery.
-export const SHOW_INGREDIENT_DEMOS = ['NeonTube', 'TubeRain3D']
+export const SHOW_INGREDIENT_DEMOS = ['NeonTube', 'TubeRain3D', 'Koi3D']
 
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.
