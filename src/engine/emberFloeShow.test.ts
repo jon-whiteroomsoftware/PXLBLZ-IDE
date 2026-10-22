@@ -39,11 +39,11 @@ const delivered = parseEpe(epe.text).src
 const mapPoints = bundle.presentation.layout.mapPoints
 const cells = mapPoints.map(({ sample }) => [Math.round(sample[0] * (GRID - 1)), Math.round(sample[1] * (GRID - 1))] as const)
 
-function runtime() {
+function runtime(fidelity: 'fast' | 'fidelity' = 'fast') {
   return createFastReplayRuntime({
     code: delivered, fxCode: artifact.fxCode, metadata: artifact.metadata,
     dimension: nativeDimension(artifact.metadata.renderFns),
-  }, { mapPoints, randomSeed: 7, fidelity: 'fast' })
+  }, { mapPoints, randomSeed: 7, fidelity })
 }
 const frameAt = (timeMs: number): Rgb[] => runtime().advanceTo(timeMs, { stepMs: 33 }).pixels
 
@@ -112,6 +112,21 @@ describe('Ember & Floe portable show (#1199)', () => {
     expect(validateShowRecordV2(reopened.show)).toEqual([])
     expect([reopened.patterns, reopened.maps, reopened.libraries]).toEqual([[], [], []])
   })
+
+  it('holds five blobs in Precise mode until the white hit, then blazes to eight (#1197)', () => {
+    const replay = runtime('fidelity')
+    const failures: { timeMs: number; count: number }[] = []
+    for (let t = 1_000; t <= 49_900; t += 100) {
+      const result = replay.advanceTo(t, { stepMs: 33 })
+      // c0 is clip-ember, the first clip.
+      const count = Number(result.exports.__pxlblz_show_c0_numPoints) / 65536
+      if (count !== 5) failures.push({ timeMs: t, count })
+    }
+    const firstFailure = failures[0]
+    expect(firstFailure?.count ?? 5, `${firstFailure?.timeMs ?? 49_900} ms`).toBe(5)
+    const result = replay.advanceTo(50_100, { stepMs: 33 })
+    expect(Number(result.exports.__pxlblz_show_c0_numPoints) / 65536, '50100 ms').toBe(8)
+  }, 120_000)
 
   describe('rendered score', () => {
     const frames = new Map<number, Rgb[]>()
