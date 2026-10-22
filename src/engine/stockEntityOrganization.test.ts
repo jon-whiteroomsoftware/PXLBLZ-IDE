@@ -95,6 +95,8 @@ describe('built-in entity organization', () => {
         { kind: 'entity', entityId: 'stock-show-installation-black-sun' },
         // #1196 recensus: +After Hours (Installations 4 → 5)
         { kind: 'entity', entityId: 'stock-show-installation-after-hours' },
+        // #1200 recensus: +Cloudburst (Installations 5 → 6)
+        { kind: 'entity', entityId: 'stock-show-installation-cloudburst' },
       ] },
     ])
     expect(new Set(collectEntityIds(organization.nodes)).size).toBe(STOCK_SHOW_CATALOGUE.length)

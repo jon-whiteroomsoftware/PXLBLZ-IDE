@@ -1,9 +1,55 @@
 # Cloudburst: Visual Direction Packet and Visual Performance Plan
 
-Design for #1193 (parent #1191). Nothing here is as-built. The build is a
-separate `work:implementation` child. Its map and Patterns can start now; its
-Show record waits until #1198 gives a 3D Installation Stage a real 3D output
-path. Jon delegated his approval gates on
+## Current status (#1200)
+
+Cloudburst is built as the stock Installation Show
+`stock-show-installation-cloudburst` (`cloudburstInstallationV2` in
+`src/pixelblaze/stock/showsV2.ts`), Installations order 6, on the 960-LED
+`cloudburst-chandelier` map. #1198 has landed: a 3D Installation Stage now
+delivers a render3D member's xyz, so the Show renders.
+
+- **Score B** ([decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6337003222)):
+  three shared instances (TubeRain3D, LumaPlane3D, Koi3D) over three physical
+  Zones (Inner, Middle, Outer). Cool rain; four held teal levels, each rise and
+  the drain one 625 ms beat; the last rise at 30 s covers every ring. There is
+  no white. One gold koi swims a full ten seconds (40-50 s) on the Middle ring.
+- **Accepted water-key deviation.** The water Clips' luma key (target 0,
+  tolerance 0.20, softness 0.05) is an accepted deviation (decision
+  6337003222). Its margin is raw dry luma below 0.20 and submerged luma above
+  0.25 in every applicable Zone, in Fast and Precise. No threshold tuning.
+- **Coda: row 8.** Inner rain coda Clip 55.000-59.375 s, Speed 0.12 (the main
+  speed throughout), Density 0.0575. The premise is exactly "the last drops
+  fall through the empty dark": one to three complete Inner-tube drops, at
+  most two at once; each head enters at the top and each tail leaves the
+  bottom before the Clip closes
+  ([R decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6339423482),
+  [final ruling](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6339784729)).
+  Fast and Precise may differ in count and tubes: the delivered replay
+  measures one drop in Fast (tube 1) and two in Precise (tubes 4 and 1), at
+  30 and 60 fps.
+- **Drain tolerance.** Darkness begins one frame after the drain key, at
+  50.625 + 1/fps seconds at the replay's rate (#1204). From there every frame is
+  exactly black until the first coda light, at least 2.5 s later. The
+  TubeRain3D head-entry fix is separate (#1206).
+- **Measured artifact.** 62,179 compiled bytes, 64,278 delivered source bytes
+  (the reopened EPE source is identical), 136 persistent globals, 2,892
+  words, no blockers; all under the 68,384 B proxy, 256 globals and 10,240
+  words.
+- **Proof.** `src/engine/cloudburstShow.test.ts` judges the exported EPE
+  through `parseEpe` and the fast replay on the real map. The exported
+  [`cloudburst.pxlshow`](../proof/cloudburst-show/cloudburst.pxlshow) and
+  [`cloudburst.epe`](../proof/cloudburst-show/cloudburst.epe) live in
+  `docs/proof/cloudburst-show/`, with Stage captures.
+- **Unmeasured.** Hardware bytecode, physical frame rate and physical colour.
+
+Everything below is the #1193 design record, kept as history. Its two
+lightning hits and its exactly-one-drop coda are superseded proposals: score B
+has no white, and the coda follows the R rulings above.
+
+## Design record
+
+Design for #1193 (parent #1191). The build was a separate
+`work:implementation` child (#1200). Jon delegated his approval gates on
 2026-10-21, as relayed by the eng lead and recorded on #1193, so the
 [decisions](#decisions-at-jons-gates) below are the principal engineer's
 recommendations recorded as decisions.
@@ -23,8 +69,9 @@ carry it:
 
 The epic's draft voices fail on this map, as measured in the
 [probe record](#probe-record): CrystalRain3D, TempestVolume3D and ShoalScatter3D.
-The build is blocked today. The Show compiler has no 3D output dimension, so a
-render3D voice on a 3D Stage compiles to black with no refusal (#1198).
+At design time the build was blocked: the Show compiler had no 3D output
+dimension, so a render3D voice on a 3D Stage compiled to black with no refusal
+(#1198, since fixed).
 
 ## Visual Direction Packet
 

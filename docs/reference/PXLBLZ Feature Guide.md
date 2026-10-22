@@ -512,11 +512,17 @@ The Shows list ships learning material beneath your own:
 - Four finished **Portable Shows**: the Coronal Mass Ejection remix, Quadrille,
   Ember & Floe, where fire and ice hold a front line, and Phase, whose two
   striped voices drift and snap into agreement over a 72 s loop.
-- Five map-specific **Installations**: the 2,000-pixel Redline; Overture, a
+- Six map-specific **Installations**: the 2,000-pixel Redline; Overture, a
   128 BPM opening night for the Proscenium arch stage; Totality, a solar
   eclipse on the 490-pixel Eclipse Dome; and Black Sun, a 120 BPM black hole
   on the same dome. After Hours plays a failing roadside FOOD sign on its own
-  442-LED neon sign map.
+  442-LED neon sign map. Cloudburst, the first Show on a 3D Stage, lets cool
+  rain fall through a 960-LED chandelier of three hanging rings while still
+  teal water rises in four held levels; the last rise covers every ring. There is
+  no white. A gold koi swims ten seconds round the Middle ring, the water
+  drains in one beat, and in the coda the last drops fall through the empty
+  dark: one to three drops, at most two at once, down Inner tubes. The
+  TubeRain3D head-entry fix is separate (#1206).
 
 Edit them freely. Changes live in a session draft, **Reset** or a reload
 restores the shipped version, and **Clone** keeps your variant.

@@ -95,6 +95,7 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   afterHoursInstallationV2(),
   emberFloePortableV2(),
   phaseV2(),
+  cloudburstInstallationV2(),
 ]
 
 export function stockShowV2ById(id: string | null | undefined): ShowRecordV2 | undefined {
@@ -2696,6 +2697,78 @@ function phaseV2(): ShowRecordV2 {
       chapter('scene-marker:anchor', 0, 'Anchor'), chapter('scene-marker:phase', bar(2), 'Phase'),
       chapter('scene-marker:count', bar(10), 'Count'), chapter('scene-marker:clap', bar(18), 'Clap'),
       chapter('scene-marker:unison', bar(27), 'Unison'),
+    ],
+  })
+}
+
+// Cloudburst (#1200, design #1193, decision B): rain falls through a 960-LED
+// chandelier of 48 hanging tubes while a level teal waterline rises in four
+// held, one-beat steps at 96 BPM. Three shared instances keep one rain clock,
+// one waterline and one koi across the three rings. There is no white. The
+// water Clips stay at full opacity throughout: their luma key (target 0,
+// tolerance 0.2, softness 0.05) removes the dim zero-Offset plane, which would
+// otherwise leave the bottom LEDs half lit, and keeps the submerged teal opaque.
+// Invert keeps its source default of 0: the compiler sets only public sliders.
+// Rain Clips end under the water to save an evaluation per pixel; the shared
+// rain clock keeps running through the gap. The coda (row 8, R rulings on
+// #1200) reopens the Inner rain for 55-59.375 s at Density 0.0575 so the last
+// drops fall through the empty dark: one to three complete Inner-tube drops, at
+// most two at once, each ending before the Clip closes. The delivered replay
+// measures one drop in Fast and two in Precise.
+function cloudburstInstallationV2(): ShowRecordV2 {
+  const end = 60_000
+  const HOLD: ShowStructuredEasing = { curve: 'hold', at: 1 }
+  const codaMs = 55_000
+  const codaEndMs = 59_375
+  const mainSpeed = 0.12
+  const codaDensity = 0.0575
+  type Key = [number, number, ShowStructuredEasing?]
+  const track = (id: string, target: Parameters<typeof propertyTrack>[1], startMs: number, durationMs: number, keys: Key[]) =>
+    propertyTrack(id, target, startMs, durationMs, keys.map(([time, value, easing], n) => propertyKey(`${id}-${n}`, time, value, easing ?? HOLD)))
+  const zones = physicalZones(['Inner', 'Middle', 'Outer'], [160, 320, 480])
+  const rings = ['inner', 'middle', 'outer']
+  const keyBlack = (id: string): ShowClipEffect => ({ id, kind: 'luma-key', target: 0, tolerance: 0.03, softness: 0.08 })
+  const water = (ring: string): ShowClipEffect[] => [
+    { id: `water-${ring}-teal`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 0, highlightG: 0.45, highlightB: 0.5 },
+    { id: `water-${ring}-key`, kind: 'luma-key', target: 0, tolerance: 0.2, softness: 0.05 },
+  ]
+  const rainStarts = [0, 5_000, 10_000]
+  return nativeShowV2({
+    id: 'stock-show-installation-cloudburst', name: 'Cloudburst Installation',
+    stageMapId: 'cloudburst-chandelier', outputContract: installationOutputContract('cloudburst-chandelier', 960),
+    executionModel: 'deterministic-loop', showEndMs: end, zones,
+    zoneLayouts: [physicalLayout('layout-chandelier', 'Chandelier', zones, [[[0, 159]], [[160, 479]], [[480, 959]]])],
+    layoutOccurrences: [occurrence(1, 'layout-chandelier', 0, end)],
+    layers: zones.flatMap(zone => [mainLayer(zone.id, 'Rain'), overlayLayer(zone.id, 1, 'Water'), overlayLayer(zone.id, 2, 'Koi')]),
+    patternInstances: [
+      instance('rain', 'TubeRain3D', 1, { sliderHue: 0.6, sliderSaturation: 0.55, sliderLength: 0.6, sliderSpeed: mainSpeed, sliderDensity: 0.15 }),
+      instance('water', 'LumaPlane3D', 1, {
+        sliderDirection: 0.5, sliderSpacing: 1, sliderWidth: 0.5, sliderFeather: 0.04, sliderLean: 0.5,
+        sliderTilt: 0, sliderAzimuth: 0, sliderOffset: 0,
+      }),
+      instance('koi', 'Koi3D', 1, { sliderLoopInterval: 0.5, sliderSize: 0.75, sliderHue: 0.12, sliderHeight: 0.5 }),
+    ],
+    clips: [
+      ...rings.map((ring, n) => clip(`rain-${ring}`, 'rain', zones[n].id, mainLayerId(zones[n].id), rainStarts[n], 30_625 - rainStarts[n])),
+      clip('rain-coda', 'rain', zones[0].id, mainLayerId(zones[0].id), codaMs, codaEndMs - codaMs),
+      ...rings.map((ring, n) => clip(`water-${ring}`, 'water', zones[n].id, overlayLayerId(zones[n].id, 1), 0, end, { effects: water(ring) })),
+      ...rings.map((ring, n) => clip(`koi-${ring}`, 'koi', zones[n].id, overlayLayerId(zones[n].id, 2), 40_000, 10_000, { opacity: 0, effects: [keyBlack(`koi-${ring}-key`)] })),
+    ],
+    propertyTracks: [
+      track('rain-density', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderDensity' }, 0, end,
+        [[0, 0.15], [5_000, 0.5], [10_000, 0.85], [codaMs, codaDensity], [codaEndMs, 0.15]]),
+      // Each rise and the drain take one 625 ms beat; every level between holds.
+      track('water-offset', { kind: 'instance-control', instanceId: 'water', exportName: 'sliderOffset' }, 0, end, [
+        [0, 0], [15_000, 0, CUBIC_OUT], [15_625, 0.03], [20_000, 0.03, CUBIC_OUT], [20_625, 0.0925], [25_000, 0.0925, CUBIC_OUT],
+        [25_625, 0.155], [30_000, 0.155, CUBIC_OUT], [30_625, 0.358], [50_000, 0.358, CUBIC_IN], [50_625, 0], [60_000, 0],
+      ]),
+      ...rings.map(ring => track(`koi-${ring}-opacity`, { kind: 'clip-opacity', clipId: `koi-${ring}` }, 40_000, 10_000,
+        [[40_000, 0, SINE_IN_OUT], [42_500, 1], [47_500, 1, SINE_IN_OUT], [50_000, 0]])),
+    ],
+    markers: [
+      chapter('m-drizzle', 0, 'Drizzle'), chapter('m-downpour', 5_000, 'Downpour'), chapter('m-rising', 15_000, 'Rising'),
+      chapter('m-last-rise', 30_000, 'Last rise'), chapter('m-submerged', 30_625, 'Submerged'), chapter('m-koi', 40_000, 'Koi'),
+      chapter('m-drain', 50_000, 'Drain'), chapter('m-last-drop', 50_625, 'Last drops'),
     ],
   })
 }

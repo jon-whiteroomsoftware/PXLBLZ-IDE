@@ -3264,6 +3264,29 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       defaultOpen: false,
     },
   },
+  {
+    id: 'stock-show-installation-cloudburst',
+    name: 'Cloudburst Installation',
+    track: 'installation',
+    collection: 'installations',
+    level: null,
+    order: 6,
+    lesson: 'Cloudburst',
+    description: 'Cool rain falls through a dark chandelier while still teal water rises in four held steps, the last rise covering every ring. A gold koi swims ten seconds round the Middle ring, the water drains in one beat, and the last drops fall through the empty dark. No white.',
+    zonesOpenByDefault: true,
+    note: {
+      label: 'Installations',
+      title: 'Cloudburst Installation',
+      purpose: 'Cool rain falls through a dark chandelier while still teal water rises in four held steps, the last rise covering every ring. A gold koi swims ten seconds round the Middle ring, the water drains in one beat, and the last drops fall through the empty dark. No white.',
+      notice: 'A 60-second Installation Show for 48 hanging tubes and 960 LEDs. Three shared Pattern instances keep the rain, level waterline and koi continuous across the rings. The coda lets one to three drops, at most two at once, fall through Inner tubes.',
+      prompts: [
+        'Scrub to Rising and compare the level edge across the three rings.',
+        'Watch the stillness at Submerged, then the gold koi at 40 seconds.',
+      ],
+      guide: { documentId: 'show-visual-toolkit', heading: 'property-animation', label: 'Read property animation' },
+      defaultOpen: false,
+    },
+  },
 ]
 
 export function stockShowCatalogueById(id: string): StockShowCatalogueEntry | undefined {
