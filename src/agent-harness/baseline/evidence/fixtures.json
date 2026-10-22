@@ -163,8 +163,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 34930,
-          "sourceSha256": "da45e3712141b5d2e815ee062700a5581385752a96d1f536448b1a87a0ebcf04",
+          "bytes": 34132,
+          "sourceSha256": "e4b340559cbe50d20a816ce76adc9c6f9f8963022074fa4def9807bf5016fc5d",
           "stampKind": "show"
         }
       },
@@ -189,8 +189,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 40216,
-          "sourceSha256": "b9b0303a56c044bcdb80144bd9defef1e8202750db62397b06114c6b5d89a841",
+          "bytes": 39152,
+          "sourceSha256": "681fcb9b0ef3b69f0d850ffe54f033e7764f7c89f0a631e7a01649141899d502",
           "stampKind": "show"
         },
         "recordSha256": "8012ca5d09200e4daf52975e7e19def474f8f01bd6d377e5fa908640b2f472ae",
@@ -218,8 +218,8 @@
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 69032,
-          "sourceSha256": "f292d1d9e18ec474fcb15541bf6c108c7bcd8b3c1758ff8df1b4ba016c4ea694",
+          "bytes": 68616,
+          "sourceSha256": "0b5a99e302234dc0daab91ab3164fa362b66815b6d6686b8d9a4e5fcad1c368c",
           "stampKind": "show"
         }
       },
