@@ -1201,6 +1201,16 @@ faster. Three guarantees constrain future work:
 - Lossy rewrites (integer `pow` lowering, approximate transcendentals, spatial
   hold-and-lerp) are off by default and never used at the Exact stop.
 
+**Emitted time units.** The Show clock `__pxlblz_show_elapsed_s` and every
+time value the compiler emits for Property tracks and ramps are in seconds:
+section-local time (including the lowered `localTimeOffsetMs`), keyframe
+constants, segment divisors, retained-curve offsets, and ramp elapsed time.
+Milliseconds would pass the Pixelblaze 16.16 limit of 32,767 after 32.767 s
+of section-local time and wrap under Precise preview and on hardware (#1197).
+Seconds give a 32,767 s horizon at 1/65536 s resolution, so whole-millisecond
+keyframes stay distinct. Pattern `delta` arguments remain milliseconds, as
+firmware supplies them.
+
 Acorn proofs gate the aggressive paths: render purity for output reuse,
 guaranteed output for clear elision, and provable allocation sizes for the
 member census. An unprovable size blocks with a remedy rather than a guess.
