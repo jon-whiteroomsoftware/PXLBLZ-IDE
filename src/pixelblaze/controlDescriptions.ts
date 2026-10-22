@@ -283,6 +283,10 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLean: 'Bulb asymmetry — centered is symmetric, either end trails a full sawtooth comet tail.',
     toggleInvert: 'Swaps figure and ground — bright bulbs on black, or dark gaps in a lit run.',
   },
+  NeonTube: {
+    sliderHealth: '1 holds the tube dead steady and 0 keeps it dark; between, it fails in bursts, off for about (1 - Health) of the time.',
+    sliderSeed: 'Picks a different, repeatable failure texture.',
+  },
   LumaCells: {
     sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop pulses every cell exactly once.',
     sliderDirection: 'Left third runs time backward, middle holds still, right third runs forward.',

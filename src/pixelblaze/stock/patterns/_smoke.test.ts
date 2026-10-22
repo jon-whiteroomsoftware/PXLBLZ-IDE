@@ -333,6 +333,19 @@ describe('demo smoke tests', () => {
     })
   }
 
+  it.each(['fast', 'fidelity'] as const)('NeonTube.js bundles in %s mode with its two controls', (mode) => {
+    const src = readFileSync(join(here, 'NeonTube.js'), 'utf8')
+    const { code, fxCode, metadata } = bundle(src, LIBRARIES)
+    expect(metadata.renderFns.hasRender).toBe(true)
+    expect(metadata.controls.map((control) => control.exportName).sort()).toEqual(['sliderHealth', 'sliderSeed'])
+    const config = { ...planeShimConfig({ rows: 1, cols: 60 }), getVirtualTime: () => 0 }
+    const shim = mode === 'fidelity' ? createFxShim(config) : createShim(config)
+    const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
+    handle.beforeRender(shim.encodeScalar(33))
+    handle.render(shim.encodeScalar(0))
+    expect(shim.capturedPixel().every((value) => value > 0.99)).toBe(true)
+  })
+
   // Dimensionality test patterns: one render fn each, no controls. Guard that
   // each bundles, lights pixels via its dispatch path, and exposes only the
   // expected render fn so the 1D / 2D / 3D verify-by-eye demos stay honest.

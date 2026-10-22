@@ -47,16 +47,17 @@ describe('issue #540 Pattern field/shading census', () => {
     // LumaCells (#1135) adds a per-cell hash over the same crest core, a
     // reviewed negative, so the denominator returns to 105 and the verdict
     // holds.
+    // #1196 recensus: +NeonTube (corpus and reviewed +1; candidates and stop verdict unchanged).
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 105,
-      reviewedCount: 105,
+      patternCount: 106,
+      reviewedCount: 106,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 105, 10)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 106, 10)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

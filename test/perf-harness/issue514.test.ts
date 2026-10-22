@@ -20,9 +20,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // LumaCells (#1135) joins the Luma family array-free and inside the
     // residual budget, so each summary count moves by +1 and the rejections
     // hold.
-    expect(report.summary.stockPatternCount).toBe(102)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(62)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(97)
+    // #1196 recensus: +NeonTube (corpus, array-free and fitting +1; rejections unchanged).
+    expect(report.summary.stockPatternCount).toBe(103)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(63)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(98)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',

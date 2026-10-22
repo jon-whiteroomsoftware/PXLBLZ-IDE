@@ -129,6 +129,11 @@ export const LUMA_DEMOS = [
   'LumaCells',
 ]
 
+// Show ingredients outside the Luma family (#1196): single-purpose sources a
+// Show tints and keys. Like the Luma family they live in the rail but never in
+// the gallery.
+export const SHOW_INGREDIENT_DEMOS = ['NeonTube']
+
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.
 export const TEST_PATTERNS = [
@@ -150,6 +155,7 @@ const GROUPED_DEMOS = new Set([
   ...RADIAL_DEMOS,
   ...LIVING_1D_DEMOS,
   ...LUMA_DEMOS,
+  ...SHOW_INGREDIENT_DEMOS,
   ...TEST_PATTERNS,
 ])
 
@@ -167,12 +173,13 @@ export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
   { label: '3D', names: demoSectionNames(THREE_D_DEMOS) },
   { label: 'Living 1D', names: demoSectionNames(LIVING_1D_DEMOS) },
   { label: 'Luma Sources', names: demoSectionNames(LUMA_DEMOS) },
+  { label: 'Show Ingredients', names: demoSectionNames(SHOW_INGREDIENT_DEMOS) },
   { label: 'Test Patterns', names: demoSectionNames(TEST_PATTERNS) },
 ]
 
 // Utility sections: present in the pattern rail, absent from the gallery.
 // These are ingredients and diagnostics, not finished pieces.
-const NON_GALLERY_SECTIONS = new Set(['Test Patterns', 'Luma Sources'])
+const NON_GALLERY_SECTIONS = new Set(['Test Patterns', 'Luma Sources', 'Show Ingredients'])
 
 const GALLERY_SECTIONS = DEMO_SECTIONS.filter((section) => !NON_GALLERY_SECTIONS.has(section.label))
 
