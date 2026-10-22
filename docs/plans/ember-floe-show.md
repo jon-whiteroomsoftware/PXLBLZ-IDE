@@ -19,7 +19,7 @@ hit, and fire owns everything. Then ice rises underneath in a soft horizontal
 shoreline and thaws the Stage back to cold, which is where the loop begins.
 
 The Show uses two existing ZRanger1 Patterns (MetaballsOfFire2D and IceFloes2D),
-one Clip each for the whole Show, seven Zone Layouts in eight occurrences, two
+one Clip each for the whole Show, six Zone Layouts in seven occurrences, two
 split-position tracks and one windowed white color-map. It needs no new Pattern.
 The prototype compiles to 48,439 B against the 68,384 B activation proxy, and
 passes the flash limit in every second.
@@ -301,7 +301,7 @@ keeps the stepped front, an increasing front length, the detonation and the glid
   feather 0.35).
 - **Front track:** a `layout-occurrence-split-position` track on occurrence 1,
   with 12 held keys (`hold`, `at: 1`).
-- **Shoreline track:** the same kind on occurrence 8, with four sine keys (1, 0.5,
+- **Shoreline track:** the same kind on occurrence 7, with four sine keys (1, 0.5,
   0.5, 0).
 - **Detonation:** a solid color-map on the Ember Clip, (0.75, 0.75, 0.75), whose
   amount track is active only for 50.00-51.25 s: 1 at 50 s, decaying on a cubic
