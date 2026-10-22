@@ -1149,6 +1149,14 @@ each pixel through the active layout. The composition's `executionModel` is
 `continuous` or `deterministic-loop`; the latter resets member state at the
 Show End wrap.
 
+A 3D Installation Stage exports both `render3D` and the compatible `render2D`
+entrypoint, and prefers each member's `render3D` renderer. Physical routing
+preserves Stage-normalized xyz before private Pattern coordinate transforms;
+2D members receive the transformed leading x/y. Independent sampling retains
+each Zone's local index and pixelCount; span sampling uses the merged selected
+Zones' index and pixelCount. Both retain Stage xyz. The delivered artifact
+remains plain Pixelblaze source.
+
 **Resources.** `showVmResourceLedger.ts` models the Pixelblaze virtual
 machine: a 10,240-word array pool (each array's four-word header included) and
 a separate 256-global limit, grouped by owner. Exceeding either, or the
@@ -1259,6 +1267,11 @@ with scale 1 an exact identity branch. Time offset, stepped clock, shutter,
 and mirror or phase are part of member compatibility. Time scale zero holds
 Pattern time at zero; negative time is unsupported because stateful Patterns
 cannot run backwards.
+
+On a 3D Stage, the existing sample remap and coordinate Effects still operate
+on x/y, in the same order around View mirror and member transforms. They add
+no repeat-scale policy for z. Stage sampling retains the existing sample-from-pos
+behavior; map sample coordinates and preview positions remain separate concerns.
 
 **Routing.** Installation layouts keep arbitrary inclusive LED ranges; the
 first match wins and uncovered pixels render black with a warning. Portable

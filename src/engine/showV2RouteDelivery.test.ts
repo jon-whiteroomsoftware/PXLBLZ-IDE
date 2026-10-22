@@ -9,6 +9,9 @@ import {
 } from './showV2RouteDelivery'
 import { showV2GroupEditorFixture } from '@/test/showV2GroupEditorFixture'
 import { propertyEditGroupRecord } from '@/test/showV2PropertyEditsFixture'
+import { show3DInstallationFixture } from '@/test/show3DInstallationFixture'
+import { createFastReplayRuntime } from './fastReplay'
+import { nativeDimension } from './loadPattern'
 
 function prepared() {
   const { record, dependencies } = showV2GroupEditorFixture()
@@ -138,14 +141,31 @@ describe('the v2 route delivery model', () => {
     })
   })
 
-  it('delivers the same 3D-only Pattern in an Installation Show', () => {
-    const { record, dependencies } = showV2GroupEditorFixture()
-    dependencies.patterns[0].src = 'export var gain = .4\nexport function sliderGain(v) { gain = v }\nexport function render3D(index, x, y, z) { rgb(gain, y, z) }'
-    record.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 16, resolution: 'fixed' }
-    const capture = captureShowStageEditV2(record, dependencies)
-    if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
-    expect(buildShowV2RouteArtifacts(capture.prepared.bundle).status).toBe('ready')
-  })
+  for (const mapped of [true, false]) {
+    it(`delivers 3D-only Installation pixels ${mapped ? 'on the Stage map' : 'with the defined no-map fallback'}`, () => {
+      const { record, dependencies, points } = show3DInstallationFixture('export function render3D(i,x,y,z){rgb(x,y,z)}', 'independent')
+      if (!mapped) {
+        record.stageMapId = null
+        record.outputContract = { version: 1, kind: 'installation', outputMapId: null, pixelCount: 960, resolution: 'fixed' }
+        dependencies.maps = []; dependencies.stageMap = null
+      }
+      const capture = captureShowStageEditV2(record, dependencies)
+      if (capture.prepared.status !== 'ready') throw new Error(JSON.stringify(capture.prepared))
+      const { artifact } = capture.prepared.bundle
+      const delivery = buildShowV2RouteArtifacts(capture.prepared.bundle)
+      if (delivery.status !== 'ready') throw new Error(delivery.message)
+      const source = parseEpe(delivery.artifacts.epe.text).src
+      for (const fidelity of ['fast', 'fidelity'] as const) {
+        const runtime = createFastReplayRuntime({ code: source, fxCode: artifact.fxCode, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns) }, { mapPoints: points, randomSeed: 1198, fidelity })
+        const { pixels } = runtime.renderCurrentFrame()
+        expect(pixels).toHaveLength(960)
+        pixels.forEach((pixel, i) => pixel.forEach((channel, c) => {
+          const expected = mapped ? points[i].sample[c] : c === 0 ? (i % 320) / 319 : 0.5
+          expect(channel).toBeCloseTo(expected, fidelity === 'fast' ? 7 : 3)
+        }))
+      }
+    })
+  }
 
   it('refuses a Portable Show whose only 3D-only use is a materialized Group runtime', () => {
     const record = propertyEditGroupRecord()

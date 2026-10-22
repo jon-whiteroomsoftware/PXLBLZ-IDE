@@ -2059,7 +2059,7 @@ interface ResolvedRoute {
   pixelCount: number
 }
 
-type ShowOutputDimension = 1 | 2
+type ShowOutputDimension = 1 | 2 | 3
 
 interface ResolvedRoutingLayout {
   id: string
@@ -2602,8 +2602,9 @@ export function compileShow(
     )),
   )
   const boundedBlend = portalBlend || wipeBlend || dissolveBlend
-  const memberOutputDimension = showOutputDimensionForMembers(members)
-  const needsInstalledMapZ = members.some((member) => (
+  const memberOutputDimension: ShowOutputDimension = expandedRecipe.stageDimension === 3 ? 3 : showOutputDimensionForMembers(members)
+  const stageCoordinates = expandedRecipe.stageDimension === 3
+  const needsInstalledMapZ = stageCoordinates || members.some((member) => (
     member.hasRender2D && memberNeeds3DCoordinateTransform(member)
   ))
   const hasEnabledViewport = expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
@@ -2614,9 +2615,9 @@ export function compileShow(
   // Stage map the Viewport downgrades to the frame's centre line instead of
   // refusing (see the 1D viewport coordinates below).
   const viewportPromotesTo2D = hasEnabledViewport && expandedRecipe.stageDimension === 2
-  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve || viewportPromotesTo2D ? 2 : memberOutputDimension
-  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
-  const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
+  const sequenceOutputDimension: ShowOutputDimension = stageCoordinates ? 3 : sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve || viewportPromotesTo2D ? 2 : memberOutputDimension
+  const transitionOutputDimension: ShowOutputDimension = stageCoordinates ? 3 : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
+  const routedOutputDimension: ShowOutputDimension = stageCoordinates ? 3 : routingLayouts?.some((layout) => layout.logical)
     ? 2
     : expandedRecipe.routedSceneSequence
       ? sequenceOutputDimension
@@ -2996,7 +2997,7 @@ export function compileShow(
     ? injectSampleRemappingUpdate(emittedWithGaugeRuntime)
     : emittedWithGaugeRuntime
   const emittedWithInstalledMapZ = needsInstalledMapZ
-    ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping)
+    ? promoteShowRendererToInstalledMap3D(emittedWithSampleRemapping, stageCoordinates)
     : emittedWithSampleRemapping
   // #928: hoist frame constants, then #929: fold trivial wrappers - the last
   // generated-code passes before compaction, so they see every emitter's
@@ -3061,7 +3062,7 @@ export function compileShow(
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const sourceInventory = buildShowSourceInventory(code, compacted.names, members)
-  const compiledOutputDimension = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
+  const compiledOutputDimension: ShowOutputDimension = stageCoordinates ? 3 : expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? expandedRecipe.routedSceneSequence ? routedOutputDimension : sequenceOutputDimension
       : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
         ? 2
@@ -3356,7 +3357,7 @@ export function compileShow(
       + members.reduce((count, member) => (
         count + memberCoordinateTransformScalarGlobals(member)
       ), 0)
-      + (needsInstalledMapZ ? 1 : 0)
+      + (stageCoordinates ? 3 : needsInstalledMapZ ? 1 : 0)
       + members.reduce((count, member) => {
         if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
         const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
@@ -4603,7 +4604,7 @@ ${indentBlock(emitPortalRenderBlock(from, to, transition), 4)}
 function emitSceneSequenceShowCode(
   members: CompiledMember[],
   sequence: ShowSceneSequenceRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   renderTargetPixelCount: number,
   selectedRenderTargetCandidates: ReadonlySet<string>,
   scalarFields: SelectedScalarField[] = [],
@@ -4735,7 +4736,7 @@ ${scene.member.prefix}_emit()`
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
   ${schedulerBranches}
 }`,
-    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+    `export function ${outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'} {
   if (__pxlblz_show_transition >= 0) {
     ${transitionBranches}
   } else {
@@ -4759,7 +4760,7 @@ interface RoutedSceneSequenceEmissionOptions {
     propertyRamps?: ShowRoutingPropertyRampsRecipe
   }
   output: {
-    dimension: 1 | 2
+    dimension: ShowOutputDimension
     pixelCount?: number
     renderTargetPixelCount?: number
   }
@@ -5901,11 +5902,11 @@ ${setupForPlacements(
   }
   const unrolledStackWrappers = internedStackWrappers
   const unrolledTransitionSegments = segments.filter((segment) => segment.kind === 'transition')
-  const transitionHelperParameters = outputDimension === 2
+  const transitionHelperParameters = outputDimension !== 1
     ? 'index, x, y, __pxlblz_show_snapshot_writing'
     : 'index, __pxlblz_show_snapshot_writing'
   const snapshotWritingArgument = usesSnapshot ? '__pxlblz_show_snapshot_writing' : '0'
-  const transitionHelperArguments = outputDimension === 2
+  const transitionHelperArguments = outputDimension !== 1
     ? `index, x, y, ${snapshotWritingArgument}`
     : `index, ${snapshotWritingArgument}`
   // #717: transition helpers intern by body. After stack-wrapper interning,
@@ -6200,7 +6201,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
 ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${hiddenContinuityCall ? `\n  ${hiddenContinuityCall}` : ''}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
-    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+    `export function ${outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
   rgb(0, 0, 0)
 }`,
@@ -6519,7 +6520,7 @@ function emitSharedPhysicalCutSceneRender(
     placements: ResolvedRoutedScenePlacement[]
     propertyTracks?: ShowPropertyAnimationTrack[]
   }>,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   sceneLocalTimeExpression: (sceneIndex: number) => string,
   outputPixelCount?: number,
   renderKernelSpecialization = false,
@@ -6588,8 +6589,11 @@ function emitSharedPhysicalCutSceneRender(
         '}',
       ]
     })),
-    ...(outputDimension === 2
-      ? [
+    ...(outputDimension !== 1
+      ? outputDimension === 3 ? [
+          `var __pxlblz_show_route_local_x = ${SHOW_INSTALLED_MAP_X}`,
+          `var __pxlblz_show_route_local_y = ${SHOW_INSTALLED_MAP_Y}`,
+        ] : [
           'var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)',
           'var __pxlblz_show_route_local_y = __pxlblz_show_route_height == 1 ? 0.5 : floor(__pxlblz_show_route_local_index / __pxlblz_show_route_width) / (__pxlblz_show_route_height - 1)',
         ]
@@ -6794,8 +6798,10 @@ ${indentBlock(configurationChain, 4)}
   }
 }
 var __pxlblz_show_route_local_index = index - __pxlblz_show_latch_base
-${outputDimension === 2
-    ? `var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)
+${outputDimension !== 1
+    ? outputDimension === 3 ? `var __pxlblz_show_route_local_x = ${SHOW_INSTALLED_MAP_X}
+var __pxlblz_show_route_local_y = ${SHOW_INSTALLED_MAP_Y}
+` : `var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)
 var __pxlblz_show_route_local_y = __pxlblz_show_route_height == 1 ? 0.5 : floor(__pxlblz_show_route_local_index / __pxlblz_show_route_width) / (__pxlblz_show_route_height - 1)
 `
     : ''}${latchedRenderPlan}`
@@ -6834,7 +6840,7 @@ ${indentBlock(zoneBranches, 2)}
 
 function emitInternedSharedPhysicalSceneZonePlan(
   placement: ResolvedRoutedScenePlacement,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   coordinateField?: SelectedCoordinateField,
 ): { configuration: string; render: string } {
   const member = placement.member
@@ -6847,7 +6853,7 @@ function emitInternedSharedPhysicalSceneZonePlan(
         '__pxlblz_show_route_local_y',
         'index',
       )
-    : outputDimension === 2
+    : outputDimension !== 1
       ? `${member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
     : `${member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
   const capture = emitRoutedPlacementCapture(placement, captureCall)
@@ -6890,7 +6896,7 @@ if (__pxlblz_show_coord_owner != __pxlblz_show_coord_target && ${physicalIndex} 
 function emitSharedPhysicalSceneZoneStack(
   placements: ResolvedRoutedScenePlacement[],
   zoneIndex: number,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   reuseByConsumerId: ReadonlyMap<string, SelectedPatternOutputReuseGroup> = new Map(),
@@ -6904,7 +6910,7 @@ function emitSharedPhysicalSceneZoneStack(
         `${placement.member.prefix}_b = ${emitShowRenderTargetRead(reuse.renderTarget, 'b', '__pxlblz_show_route_local_index')}`,
       ].join('\n')
     }
-    return outputDimension === 2
+    return outputDimension !== 1
       ? `${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
       : `${placement.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
   }
@@ -6934,7 +6940,7 @@ function emitSharedPhysicalSceneZoneStack(
     outputDimension,
     propertyTracks,
     localTimeExpression,
-    outputDimension === 2
+    outputDimension !== 1
       ? { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', index: 'index' }
       : {
           // #1080: 1D downgrade x is the zone-local index over
@@ -7039,7 +7045,7 @@ function emitRoutedInstancePropertyTrackAssignments(
 function emitRoutedScenePlacements(
   layouts: ShowRoutingLayoutRecipe[],
   placements: ResolvedRoutedScenePlacement[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   directSinks?: RoutedDirectSinkContext,
@@ -7056,7 +7062,7 @@ function emitRoutedSceneTransition(
   fromPlacements: ResolvedRoutedScenePlacement[],
   toPlacements: ResolvedRoutedScenePlacement[],
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
@@ -7425,7 +7431,7 @@ function logicalScenePlacementDomain(
 function emitPhysicalScenePlacements(
   layout: ShowRoutingLayoutRecipe,
   placements: ResolvedRoutedScenePlacement[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   directSinks?: RoutedDirectSinkContext,
@@ -7452,7 +7458,7 @@ function emitPhysicalSceneTransition(
   fromPlacements: ResolvedRoutedScenePlacement[],
   toPlacements: ResolvedRoutedScenePlacement[],
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
@@ -7775,12 +7781,12 @@ function routedSceneCompositeMember(
 function emitRoutedSceneStackWrapper(
   stack: ResolvedRoutedScenePlacement[],
   prefix: string,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   includeClear = false,
 ): string {
-  const captureCall = (placement: ResolvedRoutedScenePlacement) => outputDimension === 2
+  const captureCall = (placement: ResolvedRoutedScenePlacement) => outputDimension !== 1
     ? `${placement.member.prefix}_renderCapture2D(index, x, y)`
     : `${placement.member.prefix}_renderCapture(index)`
   // #905: a single statically opaque, unmasked, keyless placement writes its
@@ -7800,7 +7806,7 @@ function emitRoutedSceneStackWrapper(
           captureCall(solo),
           propertyTracks,
           localTimeExpression,
-          outputDimension === 2 ? { x: 'x', y: 'y', index: 'index' } : undefined,
+          outputDimension !== 1 ? { x: 'x', y: 'y', index: 'index' } : undefined,
         )
         return [
           ...rendered.prelude,
@@ -7817,7 +7823,7 @@ function emitRoutedSceneStackWrapper(
         outputDimension,
         propertyTracks,
         localTimeExpression,
-        outputDimension === 2
+        outputDimension !== 1
           ? { x: 'x', y: 'y', index: 'index' }
           : {
               // #1080: 1D downgrade x is the wrapper index over the wrapper's
@@ -7832,7 +7838,7 @@ function emitRoutedSceneStackWrapper(
 ${prefix}_r = ${prefix}_capture_r
 ${prefix}_g = ${prefix}_capture_g
 ${prefix}_b = ${prefix}_capture_b`
-  const captureFunction = outputDimension === 2
+  const captureFunction = outputDimension !== 1
     ? `function ${prefix}_renderCapture2D(index, x, y) {
 ${indentBlock(capture, 2)}
 }`
@@ -7871,7 +7877,7 @@ function emitPhysicalSceneZoneStack(
   zone: ControllerZone,
   zoneIndex: number,
   placements: ResolvedRoutedScenePlacement[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
   directSinks?: RoutedDirectSinkContext,
@@ -7923,8 +7929,8 @@ function emitPhysicalSceneZoneStack(
       `}`,
     ].join('\n')
   }
-  const localCoordinates = outputDimension === 2
-    ? routedSceneZoneCoordinates(local, pixelCount, zoneIndex)
+  const localCoordinates = outputDimension !== 1
+    ? routedSceneZoneCoordinates(local, pixelCount, zoneIndex, outputDimension)
     : undefined
   const capture = emitRoutedPlacementStackCapture(
     placements,
@@ -7940,7 +7946,7 @@ function emitPhysicalSceneZoneStack(
     outputDimension,
     propertyTracks,
     localTimeExpression,
-    outputDimension === 2
+    outputDimension !== 1
       ? {
           index: 'index',
           x: `__pxlblz_show_scene_zone_${zoneIndex}_x`,
@@ -8908,7 +8914,7 @@ function emitPhysicalSceneZoneStackTransition(
   fromStack: ResolvedRoutedScenePlacement[],
   toStack: ResolvedRoutedScenePlacement[],
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
@@ -8944,7 +8950,7 @@ function emitPhysicalSceneZoneTransition(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   fromMembers: CompiledMember[] = [from],
   toMembers: CompiledMember[] = [to],
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
@@ -8965,24 +8971,22 @@ function emitPhysicalSceneZoneTransition(
   const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
   const toLocalX = sameDomain ? localX : `__pxlblz_show_scene_zone_${zoneIndex}_to_x`
   const toLocalY = sameDomain ? localY : `__pxlblz_show_scene_zone_${zoneIndex}_to_y`
-  const width = Math.max(1, Math.ceil(Math.sqrt(fromPixelCount)))
-  const height = Math.max(1, Math.ceil(fromPixelCount / width))
-  const toWidth = Math.max(1, Math.ceil(Math.sqrt(toPixelCount)))
-  const toHeight = Math.max(1, Math.ceil(toPixelCount / toWidth))
-  const coordinatePrelude = outputDimension === 2
+  const fromCoordinates = physicalCoordinateExpressions(outputDimension, fromPixelCount, fromLocal)
+  const toCoordinates = physicalCoordinateExpressions(outputDimension, toPixelCount, toLocal)
+  const coordinatePrelude = outputDimension !== 1
     ? [
-        `  var ${localX} = ${width === 1 ? '0.5' : `(${fromLocal} % ${width}) / ${width - 1}`}`,
-        `  var ${localY} = ${height === 1 ? '0.5' : `floor(${fromLocal} / ${width}) / ${height - 1}`}`,
+        `  var ${localX} = ${fromCoordinates.x}`,
+        `  var ${localY} = ${fromCoordinates.y}`,
         ...(sameDomain ? [] : [
-          `  var ${toLocalX} = ${toWidth === 1 ? '0.5' : `(${toLocal} % ${toWidth}) / ${toWidth - 1}`}`,
-          `  var ${toLocalY} = ${toHeight === 1 ? '0.5' : `floor(${toLocal} / ${toWidth}) / ${toHeight - 1}`}`,
+          `  var ${toLocalX} = ${toCoordinates.x}`,
+          `  var ${toLocalY} = ${toCoordinates.y}`,
         ]),
       ]
     : []
-  const fromCapture = outputDimension === 2
+  const fromCapture = outputDimension !== 1
     ? `${from.prefix}_renderCapture2D(${fromLocal}, ${localX}, ${localY})`
     : `${from.prefix}_renderCapture(${fromLocal})`
-  const toCapture = outputDimension === 2
+  const toCapture = outputDimension !== 1
     ? `${to.prefix}_renderCapture2D(${toLocal}, ${toLocalX}, ${toLocalY})`
     : `${to.prefix}_renderCapture(${toLocal})`
   const transitionBlock = transitionAppliesToZone(transition, zoneName)
@@ -9036,7 +9040,7 @@ function emitSceneTransitionWithCaptures(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   fromCapture: string,
   toCapture: string,
   localCoordinates: { index: string; x: string; y: string },
@@ -9072,12 +9076,12 @@ function routedSceneMemberCapture(
   member: CompiledMember,
   localIndex: string,
   pixelCount: number,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   zoneIndex: number,
   coordinates?: RoutedSceneZoneCoordinates,
 ): string {
   if (outputDimension === 1) return `${member.prefix}_renderCapture(${localIndex})`
-  const local = coordinates ?? routedSceneZoneCoordinates(localIndex, pixelCount, zoneIndex)
+  const local = coordinates ?? routedSceneZoneCoordinates(localIndex, pixelCount, zoneIndex, outputDimension)
   return `${coordinates ? '' : `${local.lines.join('\n')}\n`}${member.prefix}_renderCapture2D(${localIndex}, ${local.x}, ${local.y})`
 }
 
@@ -9091,17 +9095,17 @@ function routedSceneZoneCoordinates(
   localIndex: string,
   pixelCount: number,
   zoneIndex: number,
+  outputDimension: ShowOutputDimension,
 ): RoutedSceneZoneCoordinates {
-  const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
-  const height = Math.max(1, Math.ceil(pixelCount / width))
+  const coordinates = physicalCoordinateExpressions(outputDimension, pixelCount, localIndex)
   const localX = `__pxlblz_show_scene_zone_${zoneIndex}_x`
   const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
   return {
     x: localX,
     y: localY,
     lines: [
-      `var ${localX} = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}`,
-      `var ${localY} = ${height === 1 ? '0.5' : `floor(${localIndex} / ${width}) / ${height - 1}`}`,
+      `var ${localX} = ${coordinates.x}`,
+      `var ${localY} = ${coordinates.y}`,
     ],
   }
 }
@@ -9153,7 +9157,7 @@ function emitSceneSequenceTransitionBlock(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   scalarField?: SelectedScalarField,
   captures: TransitionCaptureCalls = {
     from: memberRenderCapture(from, outputDimension),
@@ -9487,7 +9491,7 @@ function showWipePositionExpression(
   transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'wipeVariant' | 'wipeMode' | 'orientation' | 'count' | 'centerX' | 'centerY' | 'phase' | 'clockwise'>,
   outputDimension: ShowOutputDimension,
 ): string {
-  return showWipeMaskPositionExpression(transition, outputDimension)
+  return showWipeMaskPositionExpression(transition, outputDimension === 1 ? 1 : 2)
 }
 
 function emitFadeThroughColorRenderBlock(
@@ -9522,8 +9526,8 @@ function emitFadeThroughColorRenderBlock(
 }`
 }
 
-function memberRenderCapture(member: CompiledMember, outputDimension: 1 | 2): string {
-  return outputDimension === 2
+function memberRenderCapture(member: CompiledMember, outputDimension: ShowOutputDimension): string {
+  return outputDimension !== 1
     ? `${member.prefix}_renderCapture2D(index, x, y)`
     : `${member.prefix}_renderCapture(index)`
 }
@@ -9900,7 +9904,7 @@ function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
 function emitRouteShowCode(
   members: CompiledMember[],
   routes: ResolvedRoute[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   outputPixelCount?: number,
 ): string {
   return [
@@ -9917,7 +9921,7 @@ function emitRoutingLayoutShowCode(
   layouts: ResolvedRoutingLayout[],
   switches: ShowRoutingSwitchRecipe[],
   loopDurationMs: number,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   representation: 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates',
   formula?: GeneratedRoutingFormula,
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
@@ -10009,7 +10013,7 @@ ${representation === 'coordinate-predicates'
   const progressiveRender = hasProgressiveTransfer
     ? `  var __pxlblz_show_route_render_layout = __pxlblz_show_route_layout
   if (__pxlblz_show_route_progress < 1) {
-    var __pxlblz_show_route_position = ${outputDimension === 2 ? 'clamp(x, 0, 1)' : 'index / max(1, pixelCount - 1)'}
+    var __pxlblz_show_route_position = ${outputDimension !== 1 ? 'clamp(x, 0, 1)' : 'index / max(1, pixelCount - 1)'}
     if (__pxlblz_show_route_reverse) __pxlblz_show_route_position = 1 - __pxlblz_show_route_position
     if (__pxlblz_show_route_position >= __pxlblz_show_route_progress) __pxlblz_show_route_render_layout = __pxlblz_show_route_from_layout
   }
@@ -10031,7 +10035,7 @@ ${selectLines.join('\n')}
 ${propertyAssignments ? `${propertyAssignments}\n` : ''}${countBlocks.join('\n')}
 ${advanceLines.join('\n')}
 }`,
-    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+    `export function ${outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'} {
 ${progressiveRender}${renderBody}
   rgb(0, 0, 0)
 }`,
@@ -10071,7 +10075,7 @@ function emitRoutingPropertyAssignments(propertyRamps: ShowRoutingPropertyRampsR
 function emitLogicalRoutingRender(
   layout: ResolvedRoutingLayout,
   indent: string,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
 ): string {
   const logical = layout.logical
   if (!logical) return emitRouteRenderBody(layout.routes, indent, outputDimension)
@@ -10080,7 +10084,7 @@ function emitLogicalRoutingRender(
   const routeBlocks = logical.zoneNames.map((zoneName, zoneIndex) => {
     const route = layout.routes.find((candidate) => candidate.zone.name === zoneName)
     if (!route) return ''
-    const render = outputDimension === 2
+    const render = outputDimension !== 1
       ? `${route.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
       : `${route.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
     return `${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
@@ -10154,7 +10158,7 @@ export function emitPackedRoutingTable(layouts: PackedRoutingLayoutShape[]): str
 }
 function emitPackedRoutingRender(
   layouts: ResolvedRoutingLayout[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   renderLayoutName: string,
 ): string {
   return emitPackedRoutingRenderDecode(
@@ -10168,7 +10172,7 @@ function emitPackedRoutingRender(
 function emitFormulaRoutingRender(
   layouts: ResolvedRoutingLayout[],
   formula: GeneratedRoutingFormula,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   renderLayoutName: string,
 ): string {
   return emitFormulaRoutingRenderDecode(
@@ -10179,9 +10183,16 @@ function emitFormulaRoutingRender(
     )).join('\n'),
   )
 }
-function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: 1 | 2): string {
-  const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, '__pxlblz_show_route_local')
-  const render = outputDimension === 2
+/** Physical routing changes index ownership, never a 3D Stage's sample xyz. */
+function physicalCoordinateExpressions(outputDimension: ShowOutputDimension, pixelCount: number, localIndex: string) {
+  return outputDimension === 3
+    ? { x: SHOW_INSTALLED_MAP_X, y: SHOW_INSTALLED_MAP_Y }
+    : zoneLocal2DCoordinateExpressions(pixelCount, localIndex)
+}
+
+function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: ShowOutputDimension): string {
+  const coordinates = physicalCoordinateExpressions(outputDimension, route.pixelCount, '__pxlblz_show_route_local')
+  const render = outputDimension !== 1
     ? [
         `        var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
         `        var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
@@ -10245,9 +10256,11 @@ function injectSampleRemappingUpdate(code: string): string {
   return `${code.slice(0, lineEnd + 1)}  __pxlblz_show_update_sample_remap()\n${code.slice(lineEnd + 1)}`
 }
 
+const SHOW_INSTALLED_MAP_X = '__pxlblz_show_installed_map_x'
+const SHOW_INSTALLED_MAP_Y = '__pxlblz_show_installed_map_y'
 const SHOW_INSTALLED_MAP_Z = '__pxlblz_show_installed_map_z'
 
-export function promoteShowRendererToInstalledMap3D(code: string): string {
+export function promoteShowRendererToInstalledMap3D(code: string, stageCoordinates = false): string {
   const signature = 'export function render2D(index, x, y) {'
   const signatureStart = code.lastIndexOf(signature)
   if (signatureStart < 0) {
@@ -10258,14 +10271,16 @@ export function promoteShowRendererToInstalledMap3D(code: string): string {
   // on 3D maps without relying on cross-dimensional argument spill.
   const innerRenderer = '__pxlblz_show_render_installed_map'
   const promotedCode = `${code.slice(0, signatureStart)}function ${innerRenderer}(index, x, y) {${code.slice(signatureStart + signature.length)}`
-  return `var ${SHOW_INSTALLED_MAP_Z} = 0
+  const xyGlobals = stageCoordinates ? `var ${SHOW_INSTALLED_MAP_X} = 0\nvar ${SHOW_INSTALLED_MAP_Y} = 0\n` : ''
+  const xyAssignments = stageCoordinates ? `  ${SHOW_INSTALLED_MAP_X} = x\n  ${SHOW_INSTALLED_MAP_Y} = y\n` : ''
+  return `${xyGlobals}var ${SHOW_INSTALLED_MAP_Z} = 0
 ${promotedCode}
 export function render2D(index, x, y) {
-  ${SHOW_INSTALLED_MAP_Z} = 0
+${xyAssignments}  ${SHOW_INSTALLED_MAP_Z} = 0
   ${innerRenderer}(index, x, y)
 }
 export function render3D(index, x, y, z) {
-  ${SHOW_INSTALLED_MAP_Z} = z
+${xyAssignments}  ${SHOW_INSTALLED_MAP_Z} = z
   ${innerRenderer}(index, x, y)
 }`
 }
@@ -10287,7 +10302,7 @@ function emitSelectedMemberRendererCall(
   })
   const x = args.x ?? `${args.index} / max(1, ${member.pixelCountName} - 1)`
   const y = args.y ?? '0.5'
-  const z = member.hasRender2D && memberNeeds3DCoordinateTransform(member)
+  const z = outputDimension === 3 || (member.hasRender2D && memberNeeds3DCoordinateTransform(member))
     ? SHOW_INSTALLED_MAP_Z
     : compatibility.renderer === 'render3D' ? '0.5' : '0'
   const rendered = memberCoordinateTransformExpressions(
@@ -11172,7 +11187,8 @@ function buildGeneratedEffectKernelPlan(
         brightnessScale: member.needsBrightnessScale,
       },
       compositionEnvironment: {
-        outputDimension,
+        // These kernels implement XY Effects in either spatial dimension.
+        outputDimension: outputDimension === 1 ? 1 as const : 2 as const,
         contentKey: memberHasContentKey(member),
         coordinateField: member.coordinateFieldCapture,
         staticPlanEffects: member.staticPlanEffects,
@@ -11447,7 +11463,7 @@ ${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX'
   var mappedX = ${effectRuntime?.wrap ? 'effectX - floor(effectX)' : 'clamp(effectX, 0, 1)'}
   var mappedY = ${effectRuntime?.wrap ? 'effectY - floor(effectY)' : 'clamp(effectY, 0, 1)'}
 ${omitClear ? '' : `  ${member.prefix}_clear()
-`}  ${emitSelectedMemberRendererCall(member, 2, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
+`}  ${emitSelectedMemberRendererCall(member, outputDimension, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
 ${emitMemberOutputEffectLines(member, { index: 'index', x: 'effectX', y: 'effectY' })}
 ${freezeCapture}${refreshCapture}${rollingRefreshCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
@@ -11500,12 +11516,12 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
         : sourceIndex
       return `function ${member.prefix}_renderCapture(index) {
 ${freezeReplay}${refreshReplay}${rollingRefreshReplay}${prologue}${ramps}${coords}${omitClear ? '' : `  ${member.prefix}_clear()
-`}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: rendererIndex }) : ''}`
+`}  ${emitSelectedMemberRendererCall(member, 1, { index: rendererIndex })}`
     })() + `
 ${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${member.pixelCountName} - 1)`, y: '0.5' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
-    ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
+    ...(outputDimension !== 1 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
 ${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates) ? '' : member.binding?.uniformMirrorBinding ? `  var mappedIndex = ${member.needsMirrorMapping ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index` : 'index'}
   var mappedX = ${member.needsMirrorMapping ? `${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x` : 'x'}
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}` : `  var mappedIndex = index
@@ -11527,7 +11543,7 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   ${effectRuntime.wrap ? 'mappedX = effectX - floor(effectX)\n  mappedY = effectY - floor(effectY)' : 'mappedX = clamp(effectX, 0, 1)\n  mappedY = clamp(effectY, 0, 1)'}
 ` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
 `}
-  ${emitSelectedMemberRendererCall(member, 2, {
+  ${emitSelectedMemberRendererCall(member, outputDimension, {
     index: identitySamplePath
       ? 'index'
       : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
@@ -11764,25 +11780,25 @@ function emitRender(
 }
 
 function emitOuterRenderer(outputDimension: ShowOutputDimension, body: string): string {
-  const signature = outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'
+  const signature = outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'
   return `export function ${signature} {
 ${body}
 }`
 }
 
 function emitMemberCaptureCall(member: CompiledMember, outputDimension: ShowOutputDimension): string {
-  return outputDimension === 2
+  return outputDimension !== 1
     ? `${member.prefix}_renderCapture2D(index, x, y)`
     : `${member.prefix}_renderCapture(index)`
 }
 
 function emitRouteRender(
   routes: ResolvedRoute[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   outputPixelCount?: number,
 ): string {
   const blocks = emitRouteRenderBody(routes, '', outputDimension, outputPixelCount)
-  return `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+  return `export function ${outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'} {
 ${blocks}
   rgb(0, 0, 0)
 }`
@@ -11791,7 +11807,7 @@ ${blocks}
 function emitRouteRenderBody(
   routes: ResolvedRoute[],
   indent: string,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   outputPixelCount?: number,
 ): string {
   const specialization = routes[0]?.member.exactSpecializations
@@ -11807,15 +11823,15 @@ function emitShortCircuitRouteRenderBody(
   routes: ResolvedRoute[],
   plan: PhysicalRoutingShortCircuitPlan,
   indent: string,
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
 ): string {
   return plan.ranges.map((range, rangeIndex) => {
     const route = routes[range.routeIndex]
     const localIndex = range.localOffset === 0
       ? `index - ${range.start}`
       : `${range.localOffset} + index - ${range.start}`
-    const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, localIndex)
-    const render = outputDimension === 2
+    const coordinates = physicalCoordinateExpressions(outputDimension, route.pixelCount, localIndex)
+    const render = outputDimension !== 1
       ? [
           `  var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
           `  var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
@@ -11833,10 +11849,10 @@ ${route.member.binding?.uniformPixelCountBinding ? '' : `  ${route.member.pixelC
   }).join('\n')
 }
 
-function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): string {
+function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: ShowOutputDimension): string {
   const localName = `${route.member.prefix}_zoneLocalIndex`
-  const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, localName)
-  const render = outputDimension === 2
+  const coordinates = physicalCoordinateExpressions(outputDimension, route.pixelCount, localName)
+  const render = outputDimension !== 1
     ? [
         `    var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
         `    var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
@@ -11857,7 +11873,7 @@ function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): str
 
 function buildMetadata(
   members: CompiledMember[],
-  outputDimension: 1 | 2,
+  outputDimension: ShowOutputDimension,
   trailsSelected = false,
 ): BundleMetadata {
   const showVars = [
@@ -11922,8 +11938,8 @@ function buildMetadata(
     renderFns: {
       hasBeforeRender: true,
       hasRender: outputDimension === 1,
-      hasRender2D: outputDimension === 2,
-      hasRender3D: false,
+      hasRender2D: outputDimension !== 1,
+      hasRender3D: outputDimension === 3,
     },
   }
 }
