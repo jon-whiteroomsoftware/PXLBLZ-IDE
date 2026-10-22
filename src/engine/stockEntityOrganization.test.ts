@@ -86,6 +86,7 @@ describe('built-in entity organization', () => {
         { kind: 'entity', entityId: 'stock-show-remix-coronal-mass-ejection' },
         { kind: 'entity', entityId: 'stock-show-remix-quadrille' },
         { kind: 'entity', entityId: 'stock-show-portable-ember-floe' },
+        { kind: 'entity', entityId: 'stock-show-phase' },
       ] },
       { kind: 'folder', name: 'Installations', children: [
         { kind: 'entity', entityId: 'stock-show-showcase-redline-installation' },

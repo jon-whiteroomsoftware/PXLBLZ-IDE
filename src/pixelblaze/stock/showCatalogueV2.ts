@@ -3240,6 +3240,30 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       defaultOpen: true
     }
   }
+,
+  {
+    id: 'stock-show-phase',
+    name: 'Phase',
+    track: 'portable',
+    collection: 'portable-shows',
+    level: null,
+    order: 3,
+    lesson: 'Phase',
+    description: 'Two copies of one striped figure drift apart and lock together. Amber hides cobalt in unison; disagreement fills the black between them. A 72-second process piece after Steve Reich.',
+    patternSlots: [{ instanceIds: ['anchor'] }, { instanceIds: ['phaser'] }],
+    note: {
+      label: 'Portable Shows',
+      title: 'Phase',
+      purpose: 'Two copies of one striped figure drift apart and lock together. Amber hides cobalt in unison; disagreement fills the black between them. A 72-second process piece after Steve Reich.',
+      notice: 'Phase drifts, Count thins the bars, and Clap turns the drift into one-beat snaps. The final snap lands on the only white unison.',
+      prompts: [
+        'Watch the second player enter at 4.8 seconds, then follow the cobalt that appears as the players separate.',
+        'Compare the half-phase field in Phase with the thin paired bars in Count.',
+      ],
+      guide: { documentId: 'show-visual-toolkit', heading: 'property-animation', label: 'Read property animation' },
+      defaultOpen: false,
+    },
+  },
 ]
 
 export function stockShowCatalogueById(id: string): StockShowCatalogueEntry | undefined {
