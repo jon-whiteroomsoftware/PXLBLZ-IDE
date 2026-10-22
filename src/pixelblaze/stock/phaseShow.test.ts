@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { GALLERY_SHOWS } from '@/engine/galleryShows'
 import { compileShow } from '@/engine/showCompiler'
@@ -8,6 +8,11 @@ import { buildShowFileBundle, parseShowFileBundle, serializeShowFileBundle } fro
 import { stockShowCatalogueById } from './showCatalogueV2'
 import { stockShowV2ById } from './showsV2'
 import { nativeStockSourceLookupV2 } from './showsV2Compile'
+import { runTelemetry } from '@/agent-harness/telemetry/harness'
+import {
+  assertCoverage, assertQuarter, circularError, cobaltCount, cobaltShare, compilePhase, HOLDS,
+  observe, phaseArtifact, plan, proof, saveProof, SEEDS, STEPS,
+} from './phaseShowTestHelpers'
 
 const LINEAR = { curve: 'linear' }
 const SINE = { curve: 'sine', direction: 'in-out' }
@@ -31,6 +36,132 @@ function compile(record: ShowRecordV2) {
 }
 
 describe('Phase (#1205)', () => {
+  afterAll(saveProof)
+
+  it('detects a missing quarter move in an in-memory fixture', async () => {
+    const { record } = await phaseArtifact()
+    const faulty = structuredClone(record)
+    faulty.composition.propertyTracks.find(track => track.id === 'phaser-clock')!.keyframes.splice(1, 3)
+    const observation = observe(compilePhase(faulty), 10800, 1000 / 60)
+    const error = Math.abs(circularError(observation.difference, 0.25))
+    expect(error).toBeCloseTo(0.25, 9)
+    expect(() => assertQuarter(observation, 10800, 0.002)).toThrow()
+    proof.faultSensitivity = { removed: 'first full three-key drift', atMs: 10800, error, detected: true }
+  })
+
+  // Each cadence owns a separate ledger, and every observation starts at t0.
+  // The 60 Hz prefix through 50.1 s measured 57 s. Scaling by total replayed
+  // time predicts 156 s for all holds; 240 s allows loaded-host margin.
+  it.each(STEPS)('holds the planned quarters and raw-Pattern coverage at %s ms in Fast and Precise', async stepMs => {
+    const { artifact, record } = await phaseArtifact()
+    const ledger: Array<ReturnType<typeof plan> & {
+      atMs: number; fastError: number; preciseError: number; phaseResidual: number;
+      fastCoverage: number; preciseCoverage: number; coverageResidual: number;
+    }> = []
+    for (const atMs of HOLDS) {
+      const fast = observe(artifact, atMs, stepMs)
+      const precise = observe(artifact, atMs, stepMs, 'fidelity')
+      const budget = stepMs <= 1000 / 30 ? 0.002 : plan(atMs).budget
+      const fastError = assertQuarter(fast, atMs, budget)
+      const preciseError = assertQuarter(precise, atMs, budget)
+      const phaseResidual = Math.abs(circularError(precise.difference, fast.difference))
+      const coveragePixelDifference = Math.abs(cobaltCount(precise.pixels) - cobaltCount(fast.pixels))
+      const coverageResidual = coveragePixelDifference / fast.pixels.length
+      expect(phaseResidual, JSON.stringify({ stepMs, atMs, phaseResidual })).toBeLessThanOrEqual(0.002)
+      expect(coveragePixelDifference, JSON.stringify({ stepMs, atMs, coverageResidual })).toBeLessThanOrEqual(44)
+      const fastCoverage = assertCoverage(record, fast, atMs, stepMs <= 1000 / 30)
+      const preciseCoverage = assertCoverage(record, precise, atMs, stepMs <= 1000 / 30)
+      ledger.push({ atMs, ...plan(atMs), budget, fastError, preciseError, phaseResidual, fastCoverage, preciseCoverage, coverageResidual })
+    }
+    const worst = (key: keyof typeof ledger[number]) => ledger.reduce((a, b) => Number(a[key]) >= Number(b[key]) ? a : b)
+    proof[`cadence:${stepMs}`] = {
+      observations: ledger,
+      maxima: Object.fromEntries(['fastError', 'preciseError', 'phaseResidual', 'fastCoverage', 'preciseCoverage', 'coverageResidual']
+        .map(key => [key, worst(key as keyof typeof ledger[number])])),
+    }
+  }, 240_000)
+
+  it.each(SEEDS)('holds every quarter and coverage under jitter seed %s, resetting the error budget at wrap', async seed => {
+    const { artifact, record } = await phaseArtifact()
+    const ledger = []
+    for (const atMs of HOLDS) {
+      const observation = observe(artifact, atMs, 125, 'fast', 1936, seed)
+      const error = assertQuarter(observation, atMs, plan(atMs).budget)
+      const coverageResidual = assertCoverage(record, observation, atMs, false)
+      ledger.push({ seed, atMs, ...plan(atMs), error, coverageResidual })
+    }
+    const wrapped = observe(artifact, 82800, 125, 'fast', 1936, seed)
+    const wrapError = assertQuarter(wrapped, 82800, 0.005)
+    proof[`jitter:${seed}`] = {
+      observations: ledger, wrapError,
+      maxError: ledger.reduce((a, b) => a.error >= b.error ? a : b),
+      maxCoverage: ledger.reduce((a, b) => a.coverageResidual >= b.coverageResidual ? a : b),
+    }
+  }, 120_000)
+
+  it.each(STEPS)('repeats both the anchor-only and visible-phaser seam pairs at %s ms', async stepMs => {
+    const { artifact } = await phaseArtifact()
+    const ledger = []
+    for (const atMs of [2400, 10800]) {
+      const first = observe(artifact, atMs, stepMs)
+      const second = observe(artifact, atMs + 72000, stepMs)
+      const phaseResidual = Math.abs(circularError(first.difference, second.difference))
+      const frameResidual = Math.max(...first.frame.map((value, index) => Math.abs(value - second.frame[index])))
+      expect(phaseResidual).toBeLessThanOrEqual(1e-9)
+      expect(frameResidual).toBeLessThanOrEqual(1e-9)
+      ledger.push({ atMs, secondAtMs: atMs + 72000, phaseResidual, frameResidual })
+    }
+    proof[`seam:${stepMs}`] = ledger
+  }, 120_000)
+
+  it('keeps both independent clocks running through the phaser entrance and exit', async () => {
+    const { artifact } = await phaseArtifact()
+    const ledger = []
+    for (const [before, after] of [[4700, 4900], [69500, 69700]]) {
+      const first = observe(artifact, before, 1000 / 60)
+      const second = observe(artifact, after, 1000 / 60)
+      for (const clock of ['anchor', 'phaser'] as const) {
+        const residual = Math.abs(circularError(second[clock] - first[clock], (after - before) / 2400))
+        expect(residual).toBeLessThanOrEqual(1e-9)
+        ledger.push({ clock, before, after, residual })
+      }
+    }
+    proof.entryExitClocks = ledger
+  })
+
+  it.each([256, 1936])('preserves amber/black, cobalt, sparse Count and white signatures at %s pixels', async count => {
+    const { artifact, record } = await phaseArtifact()
+    const ledger = []
+    for (const atMs of [6000, 10800, 15600, 34800, 65000]) {
+      const observation = observe(artifact, atMs, 1000 / 60, 'fast', count)
+      const residual = assertCoverage(record, observation, atMs, true)
+      expect(observation.frame.every(Number.isFinite)).toBe(true)
+      const lit = observation.pixels.filter(pixel => Math.max(...pixel) >= 0.15).length / count
+      const amber = observation.pixels.filter(([r, g, b]) => r >= 0.15 && r > g && g > b).length / count
+      const black = observation.pixels.filter(pixel => Math.max(...pixel) < 0.15).length / count
+      const white = observation.pixels.filter(([r, g, b]) => Math.min(r, g, b) >= 0.15 && Math.max(r, g, b) - Math.min(r, g, b) < 0.01).length / count
+      const cobalt = cobaltShare(observation.pixels)
+      expect(lit).toBeGreaterThan(0)
+      if (atMs === 6000) { expect(amber).toBeGreaterThan(0); expect(black).toBeGreaterThan(0) }
+      if ([10800, 15600, 34800].includes(atMs)) expect(cobalt).toBeGreaterThan(0)
+      if (atMs === 65000) expect(white).toBeGreaterThan(0)
+      ledger.push({ atMs, lit, amber, black, white, cobalt, coverageResidual: residual })
+    }
+    expect(ledger[3].lit).toBeLessThan(ledger[2].lit)
+    expect(ledger[3].black).toBeGreaterThan(ledger[2].black)
+    proof[`signatures:${count}`] = ledger
+  }, 120_000)
+
+  it.each([256, 1936].flatMap(pixelCount => [30, 8, 5].map(fps => ({ pixelCount, fps }))))(
+    'passes the full production flash gate at $pixelCount pixels / $fps fps', async ({ pixelCount, fps }) => {
+      const { artifact } = await phaseArtifact()
+      const report = runTelemetry(artifact.code, artifact.metadata, { durationMs: 72000, pixelCount, fps })
+      const maxPerSecondViolatingFraction = Math.max(...report.flicker.perSecondViolatingFraction)
+      proof[`flicker:${pixelCount}:${fps}`] = { ...report.flicker, maxPerSecondViolatingFraction }
+      expect(report.flicker.pass, JSON.stringify(report.flicker)).toBe(true)
+      expect(maxPerSecondViolatingFraction).toBeLessThan(0.25)
+    }, 120_000,
+  )
   it('ships the portable two-player score with independent instances and no Transitions', () => {
     const record = phase()
     expect(validateShowRecordV2(record)).toEqual([])
