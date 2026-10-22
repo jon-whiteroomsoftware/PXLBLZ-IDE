@@ -14,14 +14,14 @@ Show in which fire and ice share one Stage. Each element keeps its whole world
 inside its own territory, and the front line between them is the drama: war
 moves the front in held steps, and peace moves it smoothly. Intensity is the
 length of the front: a straight line, then a buckled one, then teeth, then a
-checkerboard that doubles twice. At the peak the board detonates in one white
+4 × 4 checkerboard that doubles to 8 × 8. At the peak the board detonates in one white
 hit, and fire owns everything. Then ice rises underneath in a soft horizontal
 shoreline and thaws the Stage back to cold, which is where the loop begins.
 
 The Show uses two existing ZRanger1 Patterns (MetaballsOfFire2D and IceFloes2D),
 one Clip each for the whole Show, seven Zone Layouts in eight occurrences, two
 split-position tracks and one windowed white color-map. It needs no new Pattern.
-The prototype compiles to 53,284 B against the 68,384 B activation proxy, and
+The prototype compiles to 48,439 B against the 68,384 B activation proxy, and
 passes the flash limit in every second.
 
 ## What changed from the draft
@@ -52,10 +52,11 @@ then a Full Stage takeover and a soft split on y) changes in four ways:
 3. **The takeover is a position, not a Layout.** Fire owns everything when the
    front reaches the far edge (split position 1). That keeps one law from first
    ember to blaze, and at position 1 the fire's coordinates are Stage-wide, so
-   the switch to the shoreline is seamless.
+   the fire does not jump when the shoreline begins.
 4. **The loop closes.** The draft ended on the soft split. The refined arc thaws
-   the shoreline to position 0, all ice, which is exactly the opening frame,
-   so the loop seam is invisible.
+   the shoreline to position 0 and returns to the opening's all-ice frame. Both
+   shoreline seams are authored steps, not invisible joins; see
+   [seams](#section-and-transition-strategy).
 
 ## Visual Direction Packet
 
@@ -139,17 +140,21 @@ drifts); those are textures, not verbs.
 | Cold | 0-10 s | Ice alone. On bar 4 (7.5 s) the first ember: a sliver of fire at the left edge. |
 | Front | 10-30 s | The front lurches on each bar: fire gains twice, ice answers once, three times over, from 20% to 60%. The last bar compresses to half-bar steps and stalls at the middle. |
 | Buckle | 30-40 s | The straight front buckles into a shallow zigzag, then into deep teeth at 35 s. |
-| Shatter | 40-50 s | A 2 × 2 checkerboard, then 4 × 4 at 42.5 s, then 8 × 8 at 45 s, where both worlds become confetti. |
+| Shatter | 40-50 s | A 4 × 4 checkerboard, then 8 × 8 at 45 s, where both worlds become confetti. |
 | White hit | 50 s | The board detonates: the whole Stage flashes white and decays to fire over 1.25 s. |
 | Blaze | 50-60 s | Fire owns everything. It has eight blobs now (five before), and they sprawl across the Stage. |
-| Shoreline | 60-80 s | Ice rises from below through a soft horizontal shoreline, gliding to the middle by 70 s, then holds: fire above, ice below. |
-| Thaw | 80-90 s | The shoreline glides up and off the top. Ice takes the Stage, and the loop is back to cold. |
+| Shoreline | 60-80 s | On the 60 s downbeat ice surfaces as a faint glow along the bottom edge: the war's last held step. Then the shoreline glides to the middle by 70 s and holds: fire above, ice below. |
+| Thaw | 80-90 s | The shoreline glides up to the top edge by 88.75 s, leaving a last band of fire glow there. On the loop's downbeat that band goes out, and the Stage is back to cold. |
 
 ### Invariants
 
 - Each element shows only its own texture and colour.
-- War moves the front only in held steps; only peace moves it smoothly.
-- Each escalation lengthens the front; nothing else escalates.
+- War moves the front only in held steps; only peace moves it smoothly. Peace
+  begins and ends on a held step: ice surfacing at 60 s and the last fire going
+  out at the loop.
+- Each escalation lengthens the front; nothing else escalates. Measured as
+  ownership-boundary edges on the 44 × 44 reference: Front 44, Buckle 120,
+  Teeth 238, Shatter 4 264, Shatter 8 616.
 - White appears only at the detonation.
 - Ice never outshines fire.
 - The loop starts and ends on ice alone.
@@ -157,7 +162,9 @@ drifts); those are textures, not verbs.
 ### Permitted variations
 
 The step sizes and order of the war; the beat (80 to 110 BPM); the buckle
-amplitude and tooth count; the checker doublings (2-4-8 or 3-6-12); the
+amplitude and tooth count; the checker sizes, as long as the boundary-edge
+sequence stays increasing (Shatter 2, at 88 edges, is shorter than any Wave
+and cannot follow one); the
 shoreline height (0.4 to 0.6) and feather (0.25 to 0.5); which element is the
 aggressor; the pair of voices, if the replacement keeps one bounded-blobs-on-
 black voice and one full-field voice.
@@ -271,9 +278,9 @@ labelled.
 ### Protected visual purchase
 
 The front line as the subject: a boundary between two worlds that moves in held
-steps, lengthens by doubling, detonates once, and then lies down smoothly. The
+steps, lengthens at every escalation, detonates once, and then lies down smoothly. The
 purchase is the Layout sequence and the split-position tracks. Every fallback
-keeps the stepped front, at least one doubling, the detonation and the glide.
+keeps the stepped front, an increasing front length, the detonation and the glide.
 
 ### Visual grammar
 
@@ -281,7 +288,7 @@ keeps the stepped front, at least one doubling, the detonation and the glide.
 
 | Grammar | Artifact | Verdict |
 | --- | --- | --- |
-| **A. Zone Layout occurrences plus split-position tracks**, with one Clip per voice across the whole Show | 53,284 B measured, one time section per occurrence | **Chosen** |
+| **A. Zone Layout occurrences plus split-position tracks**, with one Clip per voice across the whole Show | 48,439 B measured, one time section per occurrence | **Chosen** |
 | B. One Layer each under a Full Stage Layout, with an animated Aperture or wipe as the front | An Aperture is a rectangle, so no teeth or checker. It needs a key between the Layers, and both voices evaluate on every pixel | Rejected: the front can't change shape, and it doubles the per-pixel work |
 | C. A Luma key source (LumaStripes or LumaChevron) as the front | Teeth and stripes are possible, but both voices evaluate on every pixel, plus the key source | Rejected: the most expensive per pixel, and both worlds lose their territories |
 
@@ -290,7 +297,7 @@ keeps the stepped front, at least one doubling, the detonation and the glide.
   ZRanger1 sources shipped with permission (`docs/agents/stock-content.md`).
 - **Layouts:** Front (Moving Split on x), Buckle (Wave on x: two bands,
   amplitude 0.12, frequency 1.5, phase 0.25), Teeth (Wave: amplitude 0.3,
-  frequency 3), Shatter 2, 4 and 8 (Checker), and Shoreline (Soft Split on y,
+  frequency 3), Shatter 4 and 8 (Checker), and Shoreline (Soft Split on y,
   feather 0.35).
 - **Front track:** a `layout-occurrence-split-position` track on occurrence 1,
   with 12 held keys (`hold`, `at: 1`).
@@ -321,7 +328,7 @@ routed, never its state, so no Clip split or Transition is needed.
 | Ledger | Budget | Planned peak | Evidence or uncertainty |
 | --- | ---: | ---: | --- |
 | Pattern/source bytes | none set | 3,209 + 3,182 B | Existing stock sources |
-| Production artifact bytes | 68,384 B activation proxy (`test/perf-harness/issue514.test.ts`) | 53,284 B (78%) | Measured on the full prototype score |
+| Production artifact bytes | 68,384 B activation proxy (`test/perf-harness/issue514.test.ts`) | 48,439 B (71%) | Measured on the full prototype score |
 | Globals and array words | 256 globals; 10,240 words | 57 globals; 6,048 words (4,192 remaining) | Measured |
 | Render-target words | 3 × (N + 4) | 5,820 at 1,936 pixels | Ledger formula, `src/engine/showVmResourceLedger.ts` |
 | Active Pattern evaluations | none set | 1 per pixel; 2 per pixel only inside the shoreline feather (about 35% of the Stage, 60-90 s) | Routing contract: Soft Split evaluates both sides only inside its feather |
@@ -346,23 +353,32 @@ routed, never its state, so no Clip split or Transition is needed.
 - **Steady state:** one Pattern evaluation per pixel; two inside the feather.
 - **Boundaries:** atomic Layout switches on bars, with no Transitions. Each
   occurrence boundary is a routing change; Pattern state never resets.
-- **Seams:** Front at position 1 hands to the Shoreline at position 1 with
-  identical Stage-wide coordinates. The Shoreline at position 0 hands to the
-  Front at position 0 (the loop) with identical coordinates. Both seams are
-  invisible.
+- **Seams:** Front at position 1 hands to the Shoreline at position 1, and the
+  Shoreline at position 0 hands to the Front at position 0 (the loop), with
+  identical Stage-wide coordinates, so neither voice jumps. Neither seam is
+  invisible. Split position is clamped to [0, 1] (`clamp01` in
+  `src/engine/showModel.ts`), and Soft Split blends the two sides' RGB linearly
+  with `mix = clamp(0.5 + (y - position) / feather, 0, 1)`. So at either
+  endpoint a band of half the feather (17.5% of the Stage at 0.35) still holds
+  up to 50% of the departing or arriving voice. The score makes both
+  appearances authored held steps on a downbeat:
+  - At 60 s, ice surfaces as a glow along the bottom edge.
+  - At the loop, the last fire glow along the top edge goes out.
+  - The thaw reaches 0 at 88.75 s and holds, so that band is still while it
+    waits for the downbeat.
 
 | Occurrence | Layout | Time | Mechanism |
 | --- | --- | --- | --- |
 | 1 | Front | 0-30 s | Held keys: 0 → 0.08 (7.5 s) → 0.2 → 0.32 → 0.24 → 0.4 → 0.52 → 0.44 → 0.6 (25 s) → 0.46 (26.25) → 0.56 (27.5) → 0.5 (28.75) |
 | 2 | Buckle | 30-35 s | Static |
 | 3 | Teeth | 35-40 s | Static |
-| 4, 5, 6 | Shatter 2, 4, 8 | 40, 42.5, 45-50 s | Static |
-| 7 | Front | 50-60 s | Position 1: all fire. The white track runs from 50 to 51.25 s |
-| 8 | Shoreline | 60-90 s | Sine keys 1 → 0.5 (70 s), hold to 80 s, then linear to 0 at 90 s |
+| 4, 5 | Shatter 4, 8 | 40-45, 45-50 s | Static |
+| 6 | Front | 50-60 s | Position 1: all fire. The white track runs from 50 to 51.25 s |
+| 7 | Shoreline | 60-90 s | Sine keys 1 → 0.5 (70 s), hold to 80 s, then linear to 0 at 88.75 s, held to 90 s |
 
 ### Expensive purchases
 
-- **Six extra Layout definitions** (about 15 KB): the escalation itself. The
+- **Five extra Layout definitions** (about 12.5 KB): the escalation itself. The
   protected purchase.
 - **The windowed white color-map** (13.7 KB): the single detonation. Without it
   the Layout change still marks the peak, so it is the first purchase to
@@ -383,9 +399,10 @@ front track. Record the three ledgers, then extend to the full score.
 - **Routing:**
   - the front position at sampled times matches the key table (fire fraction
     of the Stage at 13, 21 and 28.75 s);
-  - the Checker cell counts at 41, 43.5 and 47 s;
-  - Stage-wide coordinates at the 60 s and loop seams, with identical fire or
-    ice frames on both sides of each seam.
+  - the Checker cell counts at 42 and 47 s, and the increasing boundary-edge
+    sequence across Front, Buckle, Teeth and Shatter 4 and 8;
+  - at the 60 s and loop seams, no jump in either voice's coordinates, and
+    the half-feather band held still on each side of the downbeat.
 - **The white hit:** a white frame at 50.0 s, and no white outside
   50.00-51.25 s.
 - **The flash limit** over the full 90 s.
@@ -404,7 +421,9 @@ In order. Each rung keeps the premise.
 1. **The detonation.** Replace the animated white with a static white-heat
    Clip segment (a black-to-white color-map at amount 1 for 1.25 s). This
    saves about 3 KB.
-2. **The doublings.** Shatter 2-8 becomes 2-6. This saves about 2.4 KB.
+2. **The last escalation.** Shatter 8 becomes Shatter 6 (440 edges, still
+   longer than Shatter 4). Bytes are unchanged; this trades confetti for
+   legibility on small panels.
 3. **The buckle.** Drop Buckle and keep Teeth. This saves about 2.5 KB.
 4. **The war.** Use fewer front keys. This saves about 220 B a key.
 
@@ -460,7 +479,8 @@ with an extra blaze key at 89 s, since removed, which cost 168 B):
 | Without the white tracks or Effects | 32,774 | 49 |
 | Without any track or Effect | 25,308 | 55 |
 | White on both Clips, windowed to 50-51.25 s | 61,174 | 65 |
-| **White on the Ember Clip only, windowed (chosen)** | **53,284** | **57** |
+| White on the Ember Clip only, windowed | 53,284 | 57 |
+| **The same without Shatter 2, thaw held from 88.75 s (chosen)** | **48,439** | **57** |
 | Static white-heat Clip segment, one step | 50,334 | 57 |
 | Static white-heat Clip segment, two steps | 64,684 | 57 |
 
@@ -479,6 +499,8 @@ like stray red pixels.
 
 **Storyboard.** The frames are fast-replay output from the production compiler
 on the 44 × 44 plane, not captures from the production route; those belong to
-the build. Image: `docs/plans/images/ember-floe-storyboard.png`.
+the build. They predate the review corrective: the 0:41 frame shows the
+since-cut Shatter 2, and the 1:25 frame shows the thaw before it ended at
+88.75 s. Image: `docs/plans/images/ember-floe-storyboard.png`.
 
 ![Ember & Floe storyboard](images/ember-floe-storyboard.png)
