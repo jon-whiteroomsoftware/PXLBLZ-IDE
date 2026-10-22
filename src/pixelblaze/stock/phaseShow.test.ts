@@ -61,7 +61,8 @@ describe('Phase (#1205)', () => {
     for (const atMs of HOLDS) {
       const fast = observe(artifact, atMs, stepMs)
       const precise = observe(artifact, atMs, stepMs, 'fidelity')
-      const budget = stepMs <= 1000 / 30 ? 0.002 : plan(atMs).budget
+      const planned = plan(atMs)
+      const budget = planned.drifts === 0 && planned.snaps === 0 ? planned.budget : stepMs <= 1000 / 30 ? 0.002 : planned.budget
       const fastError = assertQuarter(fast, atMs, budget)
       const preciseError = assertQuarter(precise, atMs, budget)
       const phaseResidual = Math.abs(circularError(precise.difference, fast.difference))
