@@ -48,16 +48,17 @@ describe('issue #540 Pattern field/shading census', () => {
     // reviewed negative, so the denominator returns to 105 and the verdict
     // holds.
     // #1196 recensus: +NeonTube (corpus and reviewed +1; candidates and stop verdict unchanged).
+    // #1200 recensus: +LumaPlane3D, TubeRain3D, Koi3D (corpus and reviewed +3; candidates and stop verdict unchanged).
     expect(issue540Report.summary).toMatchObject({
-      patternCount: 106,
-      reviewedCount: 106,
+      patternCount: 109,
+      reviewedCount: 109,
       credibleCandidateCount: 7,
       unreviewedIds: [],
       invalidClassificationIds: [],
       proceedWithPrototype: false,
       decision: 'stop-insufficient-incidence',
     })
-    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 106, 10)
+    expect(issue540Report.summary.credibleCandidateRatio).toBeCloseTo(7 / 109, 10)
     expect(candidates).toEqual([
       'Caustics',
       'GyroidGlow3D',

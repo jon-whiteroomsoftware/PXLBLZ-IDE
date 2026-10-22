@@ -21,9 +21,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // residual budget, so each summary count moves by +1 and the rejections
     // hold.
     // #1196 recensus: +NeonTube (corpus, array-free and fitting +1; rejections unchanged).
-    expect(report.summary.stockPatternCount).toBe(103)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(63)
-    expect(report.summary.stockPatternsFittingResidualBudget).toBe(98)
+    // #1200 recensus: +LumaPlane3D, TubeRain3D, Koi3D (corpus +3; array-free +3, fitting +3; rejections unchanged).
+    expect(report.summary.stockPatternCount).toBe(106)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(66)
+    expect(report.summary.stockPatternsFittingResidualBudget).toBe(101)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
       'pattern:AuroraSphere',
