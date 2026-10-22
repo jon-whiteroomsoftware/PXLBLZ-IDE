@@ -93,6 +93,7 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   totalityInstallationV2(),
   blackSunInstallationV2(),
   afterHoursInstallationV2(),
+  emberFloePortableV2(),
 ]
 
 export function stockShowV2ById(id: string | null | undefined): ShowRecordV2 | undefined {
@@ -2530,5 +2531,89 @@ function afterHoursInstallationV2(): ShowRecordV2 {
         id === 'o2' ? [[0, 0], ...short] : [[0, 0], [80_250, 1]])),
     ],
     markers: [chapter('m-warmup', 0, 'Warm-up'), chapter('m-steady', 16_000, 'Steady'), chapter('m-hint', 40_000, 'Hint'), chapter('m-failure', 56_000, 'Failure'), chapter('m-short', 80_000, 'The short'), chapter('m-afterglow', 81_000, 'Afterglow'), chapter('m-out', 92_000, 'Out')],
+  })
+}
+
+// Ember & Floe (#1199, design #1194): fire and ice hold a front line. Two
+// whole-Show Clips keep one clock per world; only the Zone Layout changes, so
+// the front moves in held steps, lengthens at each escalation (Front, Buckle,
+// Teeth, Shatter 4, Shatter 8), detonates once in white, then lies down as a
+// soft Shoreline that thaws back to cold. Every section stays under 30 s
+// (#1197), and the white track is windowed to 1.25 s on the Ember Clip only:
+// active for the whole Show, the colour map compiles to about 177 KB.
+function emberFloePortableV2(): ShowRecordV2 {
+  const end = 90_000
+  const half = PORTABLE_REFERENCE_PIXELS / 2
+  const zones = [
+    { id: 'zone-1', name: 'Ember', nominalPixelCount: half, color: '#f97316' },
+    { id: 'zone-2', name: 'Floe', nominalPixelCount: half, color: '#38bdf8' },
+  ]
+  const both: [string, string] = ['zone-1', 'zone-2']
+  const held: ShowStructuredEasing = { curve: 'hold', at: 1 }
+  const front: ReadonlyArray<readonly [number, number]> = [
+    [0, 0], [7_500, 0.08], [10_000, 0.2], [12_500, 0.32], [15_000, 0.24], [17_500, 0.4],
+    [20_000, 0.52], [22_500, 0.44], [25_000, 0.6], [26_250, 0.46], [27_500, 0.56], [28_750, 0.5],
+  ]
+  // A Soft Split keeps half its feather of the departing voice at either
+  // endpoint, so the thaw lands at 88.75 s and holds still for the downbeat.
+  const shore: ReadonlyArray<readonly [number, number, ShowStructuredEasing]> = [
+    [60_000, 1, SINE_IN_OUT], [70_000, 0.5, held], [80_000, 0.5, LINEAR], [88_750, 0, held],
+  ]
+  const white: ShowClipEffect = { id: 'white', kind: 'color-map', amount: 0, shadowR: 0.75, shadowG: 0.75, shadowB: 0.75, highlightR: 0.75, highlightG: 0.75, highlightB: 0.75 }
+  return nativeShowV2({
+    id: 'stock-show-portable-ember-floe',
+    name: 'Ember & Floe',
+    zones,
+    zoneLayouts: [
+      splitLayout('layout-front', 'Front', zones, 'x'),
+      logicalLayout('layout-buckle', 'Buckle', { kind: 'wave', zoneIds: both, axis: 'x', bands: 2, amplitude: 0.12, frequency: 1.5, phase: 0.25 }),
+      logicalLayout('layout-teeth', 'Teeth', { kind: 'wave', zoneIds: both, axis: 'x', bands: 2, amplitude: 0.3, frequency: 3, phase: 0.25 }),
+      logicalLayout('layout-shatter-4', 'Shatter 4', { kind: 'checker', zoneIds: both, columns: 4, rows: 4 }),
+      logicalLayout('layout-shatter-8', 'Shatter 8', { kind: 'checker', zoneIds: both, columns: 8, rows: 8 }),
+      logicalLayout('layout-shoreline', 'Shoreline', { kind: 'soft-split', zoneIds: both, axis: 'y', feather: 0.35 }),
+    ],
+    stageMapId: 'plane',
+    outputContract: portableOutputContract(),
+    executionModel: 'continuous',
+    showEndMs: end,
+    patternInstances: [
+      instance('ember', 'MetaballsOfFire2D', 1, { sliderNumberOfPoints: 0.25, sliderSpeed: 0.33 }),
+      instance('floe', 'IceFloes2D', 1),
+    ],
+    layers: [mainLayer('zone-1'), mainLayer('zone-2')],
+    clips: [
+      clip('clip-ember', 'ember', 'zone-1', mainLayerId('zone-1'), 0, end, { effects: [white] }),
+      clip('clip-floe', 'floe', 'zone-2', mainLayerId('zone-2'), 0, end, { view: { brightness: 0.7 } }),
+    ],
+    layoutOccurrences: [
+      occurrence(1, 'layout-front', 0, 30_000, { splitPosition: 0 }),
+      occurrence(2, 'layout-buckle', 30_000, 5_000),
+      occurrence(3, 'layout-teeth', 35_000, 5_000),
+      occurrence(4, 'layout-shatter-4', 40_000, 5_000),
+      occurrence(5, 'layout-shatter-8', 45_000, 5_000),
+      occurrence(6, 'layout-front', 50_000, 10_000, { splitPosition: 1 }),
+      occurrence(7, 'layout-shoreline', 60_000, 30_000, { splitPosition: 1 }),
+    ],
+    propertyTracks: [
+      propertyTrack('track-front', { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'layout-occurrence:1' }, 0, 30_000,
+        front.map(([timeMs, value], index) => propertyKey(`front-${index}`, timeMs, value, held))),
+      propertyTrack('track-shore', { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'layout-occurrence:7' }, 60_000, 30_000,
+        shore.map(([timeMs, value, easing], index) => propertyKey(`shore-${index}`, timeMs, value, easing))),
+      propertyTrack('track-hit', { kind: 'clip-effect', clipId: 'clip-ember', effectId: 'white', effectKind: 'color-map', parameterId: 'amount' }, 50_000, 1_250,
+        [propertyKey('hit-0', 50_000, 1, CUBIC_OUT), propertyKey('hit-1', 51_250, 0, held)]),
+      // The blob count re-randomises the blobs, so it changes only under the
+      // white hit; the return to five falls on the loop seam, under ice.
+      propertyTrack('track-blaze', { kind: 'instance-control', instanceId: 'ember', exportName: 'sliderNumberOfPoints' }, 0, end,
+        [propertyKey('blaze-0', 0, 0.25, held), propertyKey('blaze-1', 50_000, 1, held)]),
+    ],
+    markers: [
+      chapter('m-cold', 0, 'Cold'),
+      chapter('m-front', 10_000, 'Front'),
+      chapter('m-buckle', 30_000, 'Buckle'),
+      chapter('m-shatter', 40_000, 'Shatter'),
+      chapter('m-blaze', 50_000, 'Blaze'),
+      chapter('m-shoreline', 60_000, 'Shoreline'),
+      chapter('m-thaw', 80_000, 'Thaw'),
+    ],
   })
 }

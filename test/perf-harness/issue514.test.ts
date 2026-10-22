@@ -62,8 +62,10 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // with the 300-series stage rebuild (#705/#706: the sunflower
     // Installations retired; 302 now scores the Redline stage at the full
     // 2,000-pixel contract, so it joins the census and clears it, while the
-    // 1,000-pixel Proscenium 301 sits outside the render-target question).
-    expect(report.summary.savedShowCount).toBe(38)
+    // 1,000-pixel Proscenium 301 sits outside the render-target question),
+    // and again with Ember & Floe (#1199: a two-Zone portable Show that
+    // clears every budget at 47,827 B and 57 globals).
+    expect(report.summary.savedShowCount).toBe(39)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })

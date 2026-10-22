@@ -509,8 +509,8 @@ The Shows list ships learning material beneath your own:
 - 17 **Learn** lessons, each adding one idea to the last.
 - 19 **Showcases** that catalogue every Effect, Transition, animation easing,
   Aperture shape, and Zone Layout.
-- Two finished **Portable Shows**: the Coronal Mass Ejection remix and
-  Quadrille.
+- Three finished **Portable Shows**: the Coronal Mass Ejection remix,
+  Quadrille, and Ember & Floe, where fire and ice hold a front line.
 - Five map-specific **Installations**: the 2,000-pixel Redline; Overture, a
   128 BPM opening night for the Proscenium arch stage; Totality, a solar
   eclipse on the 490-pixel Eclipse Dome; and Black Sun, a 120 BPM black hole

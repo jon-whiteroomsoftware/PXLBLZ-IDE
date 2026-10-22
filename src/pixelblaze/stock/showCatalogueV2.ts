@@ -3213,6 +3213,32 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       },
       defaultOpen: true
     }
+  },
+  {
+    id: "stock-show-portable-ember-floe",
+    name: "Ember & Floe",
+    track: "portable",
+    collection: "portable-shows",
+    level: null,
+    order: 3,
+    lesson: "Ember & Floe",
+    description: "Two of ZRanger1's Patterns, 90 seconds at 96 BPM. Fire and ice hold a front line that steps back and forth, lengthens at every escalation from a straight line through teeth to a checkerboard, and detonates in one white hit. Then ice rises as a soft shoreline and thaws the Stage back to cold.",
+    note: {
+      label: "Portable Shows",
+      title: "Ember & Floe",
+      purpose: "Two of ZRanger1's Patterns, 90 seconds at 96 BPM. Fire and ice hold a front line that steps back and forth, lengthens at every escalation from a straight line through teeth to a checkerboard, and detonates in one white hit. Then ice rises as a soft shoreline and thaws the Stage back to cold.",
+      notice: "The Patterns are ZRanger1's Metaballs of Fire 2D and Ice Floes 2D, shipped as-is. Each plays one Clip for the whole Show, so neither world ever restarts; only the Zone Layout changes. The front line is the Layout: a Moving Split stepped by held keyframes, then Wave and Checker Layouts, each with a longer boundary than the last, and a Soft Split for the shoreline.",
+      prompts: [
+        "Scrub from the Front marker to Buckle: each held step of the split lands on a bar, and the front never moves while it holds.",
+        "Open the Zone Layouts: the escalation is five Layouts in a row, and neither Clip is cut at any of them."
+      ],
+      guide: {
+        documentId: "show-visual-toolkit",
+        heading: "changing-zone-layouts",
+        label: "Read changing zone layouts"
+      },
+      defaultOpen: true
+    }
   }
 ]
 

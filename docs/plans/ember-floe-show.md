@@ -504,3 +504,15 @@ since-cut Shatter 2, and the 1:25 frame shows the thaw before it ended at
 88.75 s. Image: `docs/plans/images/ember-floe-storyboard.png`.
 
 ![Ember & Floe storyboard](images/ember-floe-storyboard.png)
+
+**Build captures (#1199).** These are production-route frames of the built Show
+at `3e5b42e1`, recorded with
+`npm run render -- --show stock-show-portable-ember-floe --start T --seconds 0.2 --width 1200`.
+Each tile is the first frame of its run. Left to right, top row: Front at 21 s
+(fire holds about half the Stage), Teeth at 37 s, and Shatter 8 at 47 s.
+Bottom row: Blaze at 52 s (fire alone, eight blobs, after the white hit),
+Shoreline at 70 s (ice rises from the bottom edge through the feather), and
+Thaw at 85 s (ice reclaims the Stage). Image:
+`docs/plans/images/ember-floe-build-captures.png`.
+
+![Ember & Floe build captures](images/ember-floe-build-captures.png)

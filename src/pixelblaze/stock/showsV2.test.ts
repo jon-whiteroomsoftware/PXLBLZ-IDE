@@ -50,7 +50,8 @@ describe('native v2 stock catalogue census', () => {
   it('lists the pinned legacy catalogue in order, then the Shows authored natively in v2', () => {
     // Native-only Shows (#1134) have no legacy counterpart to compare against.
     // #1196 recensus: +After Hours (native-only Shows 2 → 3; catalogue 42 → 43)
-    const nativeOnly = ['stock-show-installation-totality', 'stock-show-installation-black-sun', 'stock-show-installation-after-hours']
+    // #1199 recensus: +Ember & Floe (native-only Shows 3 → 4; catalogue 43 → 44)
+    const nativeOnly = ['stock-show-installation-totality', 'stock-show-installation-black-sun', 'stock-show-installation-after-hours', 'stock-show-portable-ember-floe']
     expect(STOCK_SHOWS_V2).toHaveLength(V1_STOCK_SHOWS.length + nativeOnly.length)
     const legacy = STOCK_SHOWS_V2.slice(0, V1_STOCK_SHOWS.length)
     expect(legacy.map(record => record.id)).toEqual(V1_STOCK_SHOWS.map(entry => entry.id))

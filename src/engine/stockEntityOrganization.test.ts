@@ -85,6 +85,7 @@ describe('built-in entity organization', () => {
       { kind: 'folder', name: 'Portable Shows', children: [
         { kind: 'entity', entityId: 'stock-show-remix-coronal-mass-ejection' },
         { kind: 'entity', entityId: 'stock-show-remix-quadrille' },
+        { kind: 'entity', entityId: 'stock-show-portable-ember-floe' },
       ] },
       { kind: 'folder', name: 'Installations', children: [
         { kind: 'entity', entityId: 'stock-show-showcase-redline-installation' },
