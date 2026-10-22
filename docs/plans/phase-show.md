@@ -267,8 +267,8 @@ posted on #1195 with its reason and evidence.
    it splits the phaser Clip. It is held as fallback rung 0, taken only if the
    hardware measurement exceeds the budget.
 7. **Snaps last one beat (600 ms, peak 3), not 400 ms at the clamp.** A snap
-   then starts and ends on the beat grid, and its jitter error is less than
-   half that of a 400 ms snap.
+   then starts and ends on the beat grid, and its jitter error is about half
+   that of a 400 ms snap (0.51 of the mean, 0.43 of the worst).
 8. **The lock oracle reads the phase difference, and coverage against a
    reference render.** Fixed coverage fractions do not hold on a finite Stage
    with about 3.3 stripe periods (probe 1 measured 0.227 and 0.455, not 0.25
@@ -378,18 +378,24 @@ rates and approximate at hardware frame rates, within the budget below:
 - **Reset:** the deterministic loop wrap at 72 s is the only reset. It runs
   every member's reset assignments (`src/engine/showCompiler.ts:5042-5044`,
   `5070-5076`). The build proves this under a jittered cadence.
-- **Whole-score budget:** at each lock, the allowance is the sum of the worst
-  per-move errors above for every move since Show start, capped at 0.125 loop.
-  That is 0.0164 after Phase's four drifts and 0.0328 after Count's. Clap's
-  snaps reach the cap. The cap is half a quarter: beyond it a lock is nearer
+- **Whole-score budget:** each move has an allowance, its modelled worst error
+  rounded up for margin: 0.005 loop per drift (worst 0.0041) and 0.035 per snap
+  (worst 0.0298). The margin covers a fixed seed that lands above the model's
+  2,000-run worst. At each lock, the budget is the sum of the allowances of
+  every move since Show start, capped at 0.125 loop. It is 0.020 after Phase's
+  four drifts and 0.040 after Count's. Clap's snaps bring it to 0.075, then
+  0.110, and the third snap, at bar 24, reaches the cap. The cap then holds through the
+  white. The cap is half a quarter: beyond it a lock is nearer
   the wrong quarter than the right one. A missing or extra move errs by 0.25
   loop, so the oracle still tells a wrong score from a sampled one.
 - **The white hit:** it follows eight drifts and eight snaps. In the model's
   whole score, the residual is 0.0007, 0.0011, 0.0059 and 0.0000 loop at
   steady 8, 7, 6 and 5 FPS. Under 125-200 ms jitter it averages 0.025 loop
   over 2,000 runs, about a third of a pixel column at 44 × 44. The worst run
-  reached 0.118 loop, about 1.6 columns of cobalt under the white. That tail
-  is the case for fallback rung 0.
+  reached 0.118 loop, about 1.6 columns of cobalt under the white (13.2
+  columns per stripe period). That is inside the 0.125 cap by only 0.007 loop.
+  The build fixes its jitter seeds before the first run. A seed that exceeds
+  the cap is a finding for fallback rung 0, not a reason to raise the cap.
 - **Fallback rung 0:** if hardware frame-time jitter measured with
   `npm run devbench` leaves a visible sliver at the white hit, split the
   phaser Clip at bar 27 so that it restarts in unison on the downbeat. That
@@ -468,7 +474,10 @@ measurement plan):
 score, which is small. Prove these:
 - it validates, reopens and compiles with no blockers, in one time section;
 - bytes are under the proxy and globals under 256;
-- **a lock oracle,** in two parts, at the middle of every held bar:
+- **a lock oracle,** in two parts, at the middle of every hold. A hold is each
+  held bar, plus the holds after Clap's landings. Those are 48.0-52.2,
+  52.8-57.0 and 57.6-59.4 s, then the 600 ms holds between the compressed
+  snaps: 60.0-60.6, 61.2-61.8, 62.4-63.0 and 63.6-64.2 s:
   - *phase difference:* the phaser's LumaStripes `phase` minus the anchor's,
     mod 1, equals the planned quarter (0, 0.25, 0.5 or 0.75). It must hold
     within 0.002 loop at steady 1000/60 and 1000/30 ms steps. At steady 125,
@@ -481,14 +490,14 @@ score, which is small. Prove these:
     same map, the same controls and the same observation time. At the
     preview's 60 and 30 FPS steps the phaser is offset by the planned quarter.
     At hardware-rate and jittered steps it is offset by the measured phase
-    difference: the phase budget there allows up to 1.6 columns, so a
+    difference: the 0.125-loop cap there allows up to 1.65 columns, so a
     planned-quarter reference would fail a correct Show. The phase part judges
     the clock and the coverage part judges the render. Fixed fractions do not hold: with about 3.3
     stripe periods on a finite Stage, coverage is 0.227 and 0.455 at the quarter
     and half locks (probe 1), not 0.25 and 0.5;
 - **the loop seam:** the frame at 2.4 s equals the frame at 74.4 s, and the
-  frame and phase difference at 12 s equal those at 84 s. The second pair is
-  needed because only the anchor is visible at 2.4 s, so the first pair cannot
+  frame and phase difference at 10.8 s equal those at 82.8 s. 10.8 s is the
+  middle of bar 4, the first quarter lock. The second pair is needed because only the anchor is visible at 2.4 s, so the first pair cannot
   see whether the phaser reset.
   - *Steady cadence:* both pairs are equal, to within 1e-9 loop for
     floating-point accumulation. This holds only because every tested step
@@ -499,13 +508,19 @@ score, which is small. Prove these:
     review measured 0.250020 against 0.250042 loop at 12 s and 84 s). Such
     steps are not used for the equality check.
   - *Jittered cadence:* the second pass draws different frames. There the
-    84 s phase difference must sit within the budget accumulated since the
-    wrap, the same allowance as at 12 s, not the larger allowance that
+    82.8 s phase difference must sit within the budget accumulated since the
+    wrap, the same 0.005 loop as at 10.8 s after one drift, not the larger allowance that
     carrying error past the wrap would need.
-  - Each replay trims its final step to land exactly on the compared time;
+  - Each compared time is reached by its own replay from t = 0, which trims
+    only its final step to land exactly on that time. Some compared times are
+    off the frame grid: 2.4 s and 10.8 s both fall between frames at 125, 1000/7
+    and 1000/6 ms. The trim is harmless there, because each lies inside a stretch at time
+    scale 1, where both clocks receive the same delta. Both passes trim by the
+    same amount, since 72 s is a whole number of frames. The lock oracle's
+    hold middles are read the same way;
 - the flash gate passes at 256 and 1,936 pixels. It is measured at 30 fps, and
   again at steady 125 and 200 ms steps, because at hardware frame rates a snap
-  covers only 3 to 5 frames;
+  covers only 3 to 4.8 frames (600 ms at 200 and 125 ms steps);
 - after #1197 lands, Precise replay matches fast replay at every lock, both
   replayed at the same steps.
 
