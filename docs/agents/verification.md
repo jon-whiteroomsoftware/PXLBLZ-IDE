@@ -5,6 +5,10 @@ full-suite evidence and substantive exact-range review before landing.
 Publication consumes those records and runs its separate artifact oracle;
 it does not execute the seven heavy suites again.
 
+The granted eng lead follows [publication completion](../reference/Cloudflare%20Operations.md#publication-completion)
+to retain the push exit and observe remote main plus the exact Worker build.
+That read-only report does not replace these gates or authorize issue closure.
+
 Since #724 the gate implementation lives in the shared
 `@whiteroom/software-process` package (vendored as a release tarball under `vendor/`, a `file:` devDependency in
 `package.json`); the npm script names are unchanged. This repository supplies

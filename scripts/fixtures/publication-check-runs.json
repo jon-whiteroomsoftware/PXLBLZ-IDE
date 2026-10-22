@@ -1,0 +1,36 @@
+{
+  "sourceUrl": "https://api.github.com/repos/jon-whiteroomsoftware/PXLBLZ-IDE/commits/dfd436674112b6ec271fb5344409b735107a56f6/check-runs?per_page=100",
+  "observedAt": "2026-10-22",
+  "response": {
+    "total_count": 2,
+    "check_runs": [
+      {
+        "id": 119622197685,
+        "name": "Workers Builds: pxlblz-ide-worker",
+        "head_sha": "dfd436674112b6ec271fb5344409b735107a56f6",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://dash.cloudflare.com/bcb0dc2806acf947e2b4873e034b8988/workers/services/view/pxlblz-ide-worker/production/builds/e070797c-c113-4afb-bdbe-5021c04e0318",
+        "html_url": "https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/runs/119622197685",
+        "external_id": "e070797c-c113-4afb-bdbe-5021c04e0318",
+        "app": { "id": 85455, "slug": "cloudflare-workers-and-pages" },
+        "output": {
+          "title": "Workers Builds: pxlblz-ide-worker",
+          "summary": "\nBuild ID: [e070797c-c113-4afb-bdbe-5021c04e0318](https://dash.cloudflare.com/bcb0dc2806acf947e2b4873e034b8988/workers/services/view/pxlblz-ide-worker/production/builds/e070797c-c113-4afb-bdbe-5021c04e0318)\nScript: [pxlblz-ide-worker](https://dash.cloudflare.com/bcb0dc2806acf947e2b4873e034b8988/workers/services/view/pxlblz-ide-worker/production)\nVersion ID: 56d7d50c-9d05-4343-92c5-fb238da174b1\n"
+        }
+      },
+      {
+        "id": 119621951710,
+        "name": "Cloudflare Pages",
+        "head_sha": "dfd436674112b6ec271fb5344409b735107a56f6",
+        "status": "completed",
+        "conclusion": "success",
+        "details_url": "https://dash.cloudflare.com/?to=/bcb0dc2806acf947e2b4873e034b8988/pages/view/pxlblz-ide/8149525a-8608-496e-a4fd-f02011fe4e11",
+        "html_url": "https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/runs/119621951710",
+        "external_id": "8149525a-8608-496e-a4fd-f02011fe4e11",
+        "app": { "id": 85455, "slug": "cloudflare-workers-and-pages" },
+        "output": { "title": "Deployed successfully" }
+      }
+    ]
+  }
+}

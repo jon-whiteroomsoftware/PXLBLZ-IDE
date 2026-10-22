@@ -105,14 +105,79 @@ Builds (#921): every push to `main` checks out the pushed tip, runs
 `wrangler.jsonc` (#922). Build progress and history live on the Worker's
 **Deployments** and **Settings → Builds** pages.
 
+### Publication completion
+
+Publication belongs solely to the granted eng lead, after the existing
+[review, exact-tip runner evidence and authority checks](../agents/verification.md)
+and eng-lead operations requirements. Freeze the clean reviewed checkout and
+its tip throughout this procedure. The helper only reads remote main and
+GitHub checks; it cannot push, deploy or change issue state.
+
+<!-- publication-completion-command -->
+```sh
+publication_complete() (
+  publication_tip=$(git rev-parse HEAD) || exit "$?"
+  publication_log=$(mktemp) || exit "$?"
+  git push origin "${publication_tip}:refs/heads/main" >"$publication_log" 2>&1 &
+  publication_pid=$!
+  if wait "$publication_pid"; then
+    publication_push_exit=0
+  else
+    publication_push_exit=$?
+  fi
+  printf 'Push exit: %s\nPush log: %s\n' "$publication_push_exit" "$publication_log"
+  if npx tsx scripts/publication-status.ts --sha "$publication_tip" --push-exit "$publication_push_exit"; then
+    publication_observer_exit=0
+  else
+    publication_observer_exit=$?
+  fi
+  if [ "$publication_push_exit" -ne 0 ]; then
+    exit "$publication_push_exit"
+  fi
+  exit "$publication_observer_exit"
+)
+publication_complete
+```
+
+While waiting for the push, report pending. Shell logging never changes push
+evidence: the subshell preserves the actual push failure even if the observer
+or later logging succeeds, and its `exit` does not close an interactive shell.
+Observer exits `0`/`1`/`2` mean verified/failed/pending; JSON `push.exitCode`
+preserves the original push exit separately. Exit zero from push alone proves
+only successful subprocess completion. Verification also requires remote main
+at the full intended SHA and the exact-SHA `Workers Builds: pxlblz-ide-worker`
+check from the Cloudflare app with the production account/service/build URL.
+An older-tip or Pages check grants nothing. The newest matching check wins.
+
+For a read-only historical observation, run
+`npx tsx scripts/publication-status.ts --sha <full-sha>`; its default push
+status is pending, so it cannot verify publication. If the Worker build is
+pending, rerun with the previously captured exact `--push-exit` value. Do not
+infer a push exit from the remote or a successful build. A successful check
+does not prove runtime smoke tests or that its version remains active after
+later deployments. Check semantics: [GitHub check runs](https://docs.github.com/en/rest/checks/runs)
+and [Cloudflare Build ID and Script details](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/#check-run).
+
+Closure remains manual and requires Jon's explicit authorization and the exact
+verified report: cite full intended SHA, remote SHA, service, check URL, build
+ID and Version ID where present. The helper never closes an issue. #1201's
+disposable-remote proof and historical observations do not complete the real
+already-authorized next publication; it remains pending until performed.
+
+### Manual fallback
+
 If the pipeline is unavailable, the same deploy runs manually from a clean
-checkout of the reviewed `main`:
+checkout of the reviewed `main`, after the required
+[exact-tip runner verification](../agents/verification.md):
 
 ```bash
-npm test
 npm run cf:build
 npx wrangler deploy
 ```
+
+The helper recognizes Workers Builds records, not manual deploys. Manual proof
+must cite the exact Worker, commit, version and build record; a Pages check
+cannot turn that proof into a verified helper report.
 
 `cf:build` bakes `VITE_BASE_PATH=/` and `VITE_GA_MEASUREMENT_ID` into the
 bundle (#920); a plain `npm run build` is for local verification and ships no

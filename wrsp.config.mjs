@@ -91,6 +91,8 @@ export default {
       'scripts/dev-runtime-store.ts',
       'scripts/dev-runtime.ts',
       'scripts/local-session-cookie.ts',
+      'scripts/publication-status.ts',
+      'scripts/publication-status.test.ts',
       'scripts/run-authenticated-playwright.ts',
       'scripts/run-public-playwright.ts',
       'scripts/with-suite-lock.ts',
