@@ -97,8 +97,13 @@ Preserve these invariants:
 - Keep the shared checkout clean and on `main`; implement every substantive
   slice in a temporary worktree under `~/src/worktrees/`.
 - Implementation is concurrent, but review and landing are serialized. Rebase
-  before review, then land the exact approved tip immediately with
-  `git merge --ff-only`; never rewrite or cherry-pick approved commits.
+  unreviewed work onto current local `main` before review. Before landing,
+  inspect contiguous coverage from current local `main` to the candidate with
+  `npm run review:status -- <main-sha> <tip>`, then run `wrsp-land <tip>` from
+  the clean shared checkout on `main`. For refusal and recovery, follow
+  `reviewed-main-workflow`'s **Land without invalidating approval**; never fall
+  back to raw Git after a refusal or deferral. Rewritten approved candidates
+  require eligible carry or fresh review.
 - For a slice that touches a gate-covered flow, run focused behavioral checks
   during implementation and record the cases and results in the issue. The
   final-suite developer runs all required committed-tip suites before landing;
@@ -215,7 +220,7 @@ npm run check:issue-proof -- --since-days <n>   # audit closed issues for named,
 npm run review:candidate -- <base> <tip> [--test-design <json>]
 npm run review:status -- [<base> <tip>]
 npm run review:push         # verify exact approvals for outgoing refs
-npm run land -- <tip>       # lander: land under the review lock; it checks no receipts, so run review:status first
+npx wrsp-land <tip>         # lander: land under the review lock; it checks no receipts, so run review:status first
 npm run build
 npm run test:e2e
 npm run check:playwright
@@ -291,7 +296,9 @@ For Jon-authorized same-family review, follow the explicit scoped exception in
 `docs/agents/verification.md` (WRSP 0.12.0 adoption).
 A valid review with findings stops for repair; exhausting eligible models
 fails, and so does a `reviewer` role with no member outside the author family.
-Mixed-family candidates need splitting.
+For mixed-family candidates, follow the installed version's supported capability:
+1.4.0 automatically splits author-family runs when whole-range coverage or carry
+does not handle the range; `--carry-only` does not split.
 Native approvals retain their actual reviewer, effort and policy provenance;
 later model/policy changes do not revoke exact approved ranges. Status and push
 still require contiguous coverage ending in a clean approval. Explicit native

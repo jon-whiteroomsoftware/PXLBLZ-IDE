@@ -49,6 +49,17 @@ if ! git -c trailer.separators=: interpret-trailers --in-place --if-exists doNot
   warn_session
   exit 0
 fi
+# WRSP #303: a missing model trailer comes from the session's transcript.
+if ! git -c trailer.separators=: interpret-trailers --parse "$1" 2>/dev/null | grep -qi '^x-authored-model:' \
+  && command -v wrsp-authored-model >/dev/null 2>&1; then
+  found=$(wrsp-authored-model "$session_value" 2>/dev/null) || found=
+  case "$found" in
+    ''|*[!a-zA-Z0-9._-]*|[!a-zA-Z0-9]*) found= ;;
+  esac
+  if [ -n "$found" ]; then
+    git -c trailer.separators=: interpret-trailers --in-place --where end --if-exists doNothing --if-missing add --trailer "X-Authored-Model: $found" "$1" || warn_session
+  fi
+fi
 # WRSP #149: X-Authored-Model stays the last trailer.
 model=$(git -c trailer.separators=: interpret-trailers --parse "$1" 2>/dev/null | grep -i '^x-authored-model:' | tail -n 1 | sed 's/^[^:]*: *//')
 if [ -n "$model" ] && ! git -c trailer.separators=: interpret-trailers --in-place --if-exists replace --where end --trailer "X-Authored-Model: $model" "$1"; then
