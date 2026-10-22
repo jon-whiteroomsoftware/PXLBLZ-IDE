@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1113",
+  "route": "/PXLBLZ-IDE/studio/shows/73f5c1af-97ad-4181-955a-fe553998f056",
+  "operation": "Added Ripple to the TestPattern1D Clip, immediately filled Amount with 0.2, verified its focus and draft, and pressed Enter. Waited for the stored v2 record to contain Ripple amount 0.2, reloaded, reopened Clip Effects, and saw Amount 0.2.",
+  "captures": [
+    ".wrsp/ui-proof/1113-ripple-committed.png",
+    ".wrsp/ui-proof/1113-ripple-after-reload.png"
+  ],
+  "capturedAtCommit": "8ac0a21aef6d5d219978f86395e7c2ab30473082"
+}
