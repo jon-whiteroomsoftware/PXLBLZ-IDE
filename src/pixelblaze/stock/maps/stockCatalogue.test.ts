@@ -44,6 +44,7 @@ describe('stock catalogue', () => {
       'proscenium-stage-2d',
       'eclipse-dome-2d',
       'after-hours-sign',
+      'cloudburst-chandelier',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
