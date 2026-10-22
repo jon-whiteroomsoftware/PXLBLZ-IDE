@@ -177,7 +177,8 @@ describe('Ember & Floe portable show (#1199)', () => {
     it('limits flashing area in every second of the 90 s score', () => {
       const windows = flashWindows(frames)
       // #1199 measured worst flash window: second 52, fraction 2 / 1936 = 0.0010330578512396695.
-      for (const window of windows) expect(window.fraction, `second ${window.second}`).toBeLessThanOrEqual(0.25)
+      // The harness fails a second at fraction >= 0.25 (telemetry/harness.ts).
+      for (const window of windows) expect(window.fraction, `second ${window.second}`).toBeLessThan(0.25)
     })
 
     it('shows Stage-wide white only inside the 50.00-51.25 s hit', () => {
