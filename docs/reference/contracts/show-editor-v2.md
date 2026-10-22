@@ -84,6 +84,8 @@ Refusal feedback depends on the surface. Clip delete puts a short red label on t
 
 The store adopts an accepted v2 replacement optimistically, adds one history step, then serializes personal saves per Show through `queueShowPersistence`. A failed save rolls back to the durable baseline and records a retryable failure. Lesson drafts adopt in memory without a provider write. The app's `beforeunload` guard warns while a Show save is queued or in flight. See `src/store/showStore.ts:476-535`, `src/store/showReplacementPolicy.ts:6-45`, `src/App.tsx:1163-1173`, and [Show state, history and persistence](show-state-history-persistence.md).
 
+Delayed Effect palette-close focus restores Add Effect only while focus has not moved to a meaningful new target (#1113). A field entered meanwhile, including one outside the Clip detail, retains focus and its draft. This is separate from save-settlement focus preserving an entered Effect field (#1182) and number-field blur cancelling an uncommitted draft. The owning component is `src/components/ShowClipEntityDetail.tsx`; the palette-close and save-settlement regressions are in `src/components/ShowClipEntityDetail.test.tsx`.
+
 ## Divergences from v1
 
 The [Scene-retirement specification §10, “Accepted divergences from v1”](../../plans/scene-retirement-specification.md) is the list.

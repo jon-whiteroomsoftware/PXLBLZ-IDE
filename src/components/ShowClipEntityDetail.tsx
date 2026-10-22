@@ -223,8 +223,14 @@ export const ShowClipEntityDetail = forwardRef<ShowClipEntityDetailHandle, ShowC
     }
   }
   const closeEffectChooser = () => {
+    const activeAtClose = document.activeElement
     setEffectChooserOpen(false)
-    window.setTimeout(() => addEffectButtonRef.current?.focus(), 0)
+    window.setTimeout(() => {
+      const active = document.activeElement
+      // Delayed restoration must not cancel a newly entered field's draft (#1113).
+      if (active instanceof HTMLElement && active !== document.body && active !== document.documentElement && active !== activeAtClose) return
+      addEffectButtonRef.current?.focus()
+    }, 0)
   }
   const focusAppliedEffect = (effectId?: string) => {
     window.setTimeout(() => {

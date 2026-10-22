@@ -810,6 +810,57 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Add Effect' })).toHaveFocus())
   })
 
+  it('keeps a new Effect draft focused when palette-close focus runs late (#1113)', () => {
+    vi.useFakeTimers()
+    try {
+      const onPatch = vi.fn<ShowClipEntityDetailProps['onPatch']>(() => new Promise<void>(() => {}))
+      const props = commonProps('scene-main', onPatch)
+      const { rerender } = render(<ShowClipEntityDetail {...props} />)
+      showTab('Effects')
+      fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+
+      const effect = onPatch.mock.calls[0][0].effects!.slice(-1)[0]
+      rerender(<ShowClipEntityDetail {...props} value={{ ...props.value, effects: [effect] }} />)
+      const amount = screen.getByRole('textbox', { name: 'Amount' })
+      act(() => { amount.focus() })
+      fireEvent.change(amount, { target: { value: '0.2' } })
+
+      act(() => { vi.runOnlyPendingTimers() })
+
+      expect(amount).toHaveFocus()
+      expect(amount).toHaveValue('0.2')
+      fireEvent.keyDown(amount, { key: 'Enter' })
+      expect(onPatch).toHaveBeenCalledTimes(2)
+      expect(onPatch).toHaveBeenNthCalledWith(2, { effects: [{ ...effect, amount: 0.2 }] })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a field outside the detail focused when palette-close focus runs late (#1113)', () => {
+    vi.useFakeTimers()
+    try {
+      render(<>
+        <ShowClipEntityDetail {...commonProps('scene-main')} />
+        <input aria-label="Sibling draft" />
+      </>)
+      showTab('Effects')
+      fireEvent.click(screen.getByRole('button', { name: 'Add Effect' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Back to Effects' }))
+      const sibling = screen.getByRole('textbox', { name: 'Sibling draft' })
+      act(() => { sibling.focus() })
+      fireEvent.change(sibling, { target: { value: 'draft' } })
+
+      act(() => { vi.runOnlyPendingTimers() })
+
+      expect(sibling).toHaveFocus()
+      expect(sibling).toHaveValue('draft')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a field the user entered in a new Effect focused when its save resolves (#1182)', async () => {
     let resolveSave!: () => void
     const onPatch = vi.fn<ShowClipEntityDetailProps['onPatch']>(() => new Promise<void>((resolve) => { resolveSave = resolve }))
