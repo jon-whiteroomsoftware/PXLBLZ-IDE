@@ -36,6 +36,11 @@ interface ApertureBaseline {
 }
 
 function loadApertureBaseline(): Record<string, ApertureBaseline> {
+  // Property animation Fast frames at 12150 and 24300 ms:
+  // re-pinned when track time moved to seconds (#1197)
+  // Property animation Precise frame at 48599 ms: re-pinned under an eng-lead
+  // exception (#1197). It is a loop-boundary clock-accumulation artifact: the
+  // Precise Show clock rolls over 1 ms early (#1204), not a track-time overflow.
   const directory = join(dirname(fileURLToPath(import.meta.url)), "..", "test", "fixtures")
   return JSON.parse(readFileSync(join(directory, "issue1138ApertureBaseline.json"), "utf8"))
 }

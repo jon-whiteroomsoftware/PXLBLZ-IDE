@@ -362,8 +362,10 @@ it('keeps authored opacity separate from nonlinear numeric animation and resumes
     // it is not a widened preservation oracle or a byte-exact playback claim.
     if (fidelity === 'fast') expect(active.frame).toEqual(beforeActive.frame)
     else {
-      expect(Array.from(beforeActive.frame)).toEqual([.147705078125, .0573577880859375, .1147308349609375, .205078125, .0573577880859375, .1147308349609375])
-      expect(Array.from(active.frame)).toEqual([.1477203369140625, .0573577880859375, .1147308349609375, .205078125, .0573577880859375, .1147308349609375])
+      // re-pinned when track time moved to seconds (#1197): one-LSB 16.16 quantization move (amended rule (c))
+      expect(Array.from(beforeActive.frame)).toEqual([.1477203369140625, .0573577880859375, .1147308349609375, .205078125, .0573577880859375, .1147308349609375])
+      // re-pinned when track time moved to seconds (#1197): one-LSB 16.16 quantization move (amended rule (c))
+      expect(Array.from(active.frame)).toEqual([.1477203369140625, .057373046875, .11474609375, .2050933837890625, .057373046875, .11474609375])
     }
     expect(active.exports).toEqual(beforeActive.exports)
     expect(actual.advanceTo(350, { stepMs: 1 }).frame).not.toEqual(original.advanceTo(350, { stepMs: 1 }).frame)
