@@ -472,7 +472,8 @@ score, which is small. Prove these:
   - *phase difference:* the phaser's LumaStripes `phase` minus the anchor's,
     mod 1, equals the planned quarter (0, 0.25, 0.5 or 0.75). It must hold
     within 0.002 loop at steady 1000/60 and 1000/30 ms steps. At steady 125,
-    143, 167 and 200 ms steps (8, 7, 6 and 5 FPS), and under seeded 125-200 ms
+    1000/7, 1000/6 and 200 ms steps (8, 7, 6 and 5 FPS), exact periods rather
+    than rounded ones, and under seeded 125-200 ms
     jitter, it must hold within the contract's whole-score budget. That budget
     accumulates from Show start, not from the last unison;
   - *coverage:* the anchor's visible share of the rendered Stage equals a
@@ -489,8 +490,14 @@ score, which is small. Prove these:
   frame and phase difference at 12 s equal those at 84 s. The second pair is
   needed because only the anchor is visible at 2.4 s, so the first pair cannot
   see whether the phaser reset.
-  - *Steady cadence:* both pairs are equal. Every tested step divides 72 s
-    evenly, so the second pass samples the same times as the first.
+  - *Steady cadence:* both pairs are equal, to within 1e-9 loop for
+    floating-point accumulation. This holds only because every tested step
+    is an exact period that divides 72 s evenly: 1000/60, 1000/30, 125,
+    1000/7, 1000/6 and 200 ms. The second pass then samples the same times as
+    the first. A rounded step such as 167 ms does not divide 72 s, so its
+    passes sample different times and a correct reset still differs (the
+    review measured 0.250020 against 0.250042 loop at 12 s and 84 s). Such
+    steps are not used for the equality check.
   - *Jittered cadence:* the second pass draws different frames. There the
     84 s phase difference must sit within the budget accumulated since the
     wrap, the same allowance as at 12 s, not the larger allowance that
