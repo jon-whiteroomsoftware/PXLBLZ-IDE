@@ -1,9 +1,16 @@
 # After Hours: Visual Direction Packet and Visual Performance Plan
 
 Design for #1192 (parent #1191), approved by Jon with the
-[decisions](#decisions) below. Nothing here is as-built: no stock map, Pattern
-or Show builder change lands under #1192. The build is a separate
-`work:implementation` child cut from this plan.
+[decisions](#decisions) below. No stock map, Pattern or Show builder change
+lands under #1192.
+
+**Status: built under #1196.** The `after-hours-sign` map, the NeonTube
+Pattern and the After Hours Installation Show are on main (`5c02397e`,
+`a4009172`, `e8c44bad`). The as-built Show follows this plan; its artifact
+stays under the 68,384 B budget (asserted in `afterHoursShow.test.ts`), and its worst one-second flash window covers
+0.136 of the sign. The Feature Guide describes what shipped. Precise and
+hardware playback past 32.7 s needed #1197, which has landed; that proof is
+still outstanding.
 
 **The design in one paragraph.** Build After Hours as an Installation Show on a
 new 2D sign map reading **FOOD**, with the **second O** as the failing letter.
