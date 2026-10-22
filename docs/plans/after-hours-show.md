@@ -1,17 +1,19 @@
 # After Hours: Visual Direction Packet and Visual Performance Plan
 
-Design proposal for #1192 (parent #1191), awaiting Jon's approval. Nothing here
-is as-built: no stock map, Pattern or Show builder change lands under #1192. The
-build is a separate `work:implementation` child cut from the approved plan.
+Design for #1192 (parent #1191), approved by Jon with the
+[decisions](#decisions) below. Nothing here is as-built: no stock map, Pattern
+or Show builder change lands under #1192. The build is a separate
+`work:implementation` child cut from this plan.
 
-**Recommendation in one paragraph.** Build After Hours as an Installation Show on
-a new 2D sign map reading **OPEN**, with the **O** as the failing letter. The
-sign is nine physical Zones (four letters, a border of bulbs, three arrow-shaft
-segments and an arrow head) driven by three Pattern instances: one shared steady
-tube, one private failing tube, and one stepped LumaMarquee chase. Every event
-is a property-track key inside Clips that span the whole Show, so it compiles to
-one time section with no Transition; the short is a white color-map keyed on
-every Clip. One new Pattern, NeonTube, is needed. The measured budgets are in the [cost envelope](#cost-envelope).
+**The design in one paragraph.** Build After Hours as an Installation Show on a
+new 2D sign map reading **FOOD**, with the **second O** as the failing letter.
+The sign is nine physical Zones (four letters, a border of bulbs, three
+arrow-shaft segments and an arrow head) driven by three Pattern instances: one
+shared steady tube, one private failing tube, and one stepped LumaMarquee chase.
+Every event is a property-track key inside Clips that span the whole Show, so it
+compiles to one time section with no Transition; the short is a white color-map
+keyed on every Clip. One new Pattern, NeonTube, is needed. The measured budgets
+are in the [cost envelope](#cost-envelope).
 
 The packet refines the ideation draft recorded in #1192 rather than restarting
 it; [what changed](#what-changed-from-the-draft) lists each refinement.
@@ -108,13 +110,13 @@ lamp igniting alone.
 
 | Section | Phrases | Time | What happens |
 | --- | --- | --- | --- |
-| Dark and warm-up | 1-2 | 0-16 s | 2 s of black. The O sputters first; P, E and N ignite cleanly on successive bars; the border ignites and starts its chase; the O, out of turn, is the last letter to catch. The arrow's first firing lands on the 16 s downbeat: the sign is open. |
+| Dark and warm-up | 1-2 | 0-16 s | 2 s of black. The second O sputters first; F, the first O and D ignite cleanly on successive bars, skipping its turn; the border ignites and starts its chase; the second O is the last letter to catch. The arrow's first firing lands on the 16 s downbeat: the diner is open. |
 | Steady | 3-5 | 16-40 s | The ordinary frame. The arrow fires each phrase; nothing else happens. |
-| Hint | 6-7 | 40-56 s | At the arrow's tip the O drops out for one step; next phrase, twice. Short enough to doubt. |
-| Failure | 8-10 | 56-80 s | Three held stages. First the dips become bursts, still on the arrow's beat. Then the arrow fires and the O does not answer; it fails on its own time, off the grid. Then it arcs, broken more than lit. Then it steadies: for a moment the sign is whole. |
+| Hint | 6-7 | 40-56 s | At the arrow's tip the second O drops out for one step; next phrase, twice. Short enough to doubt. |
+| Failure | 8-10 | 56-80 s | Three held stages. First the dips become bursts, still on the arrow's beat. Then the arrow fires and the second O does not answer; it fails on its own time, off the grid. Then it arcs, broken more than lit. Then it steadies: for a moment the sign is whole. |
 | The short | at 80 s | 80-81 s | The arrow's last firing reaches its tip and the whole sign flashes white and dies. The only white and the only simultaneous event. |
-| Afterglow | 11 | 81-92 s | About 2 s of black. The O alone buzzes back, catches and holds a breath, then stutters out. |
-| Out | 12 | 92-96 s | Black. The loop restarts with the O, the first to try again: the survivor is first and last. |
+| Afterglow | 11 | 81-92 s | About 2 s of black. The second O alone buzzes back, catches and holds a breath, then stutters out. |
+| Out | 12 | 92-96 s | Black. The loop restarts with the second O, the first to try again: the survivor is first and last. |
 
 ### Invariants
 
@@ -205,7 +207,7 @@ column scores this packet.
 | Motion grammar | 2 | 3 | The arrow becomes the fault's fuse, so march and fail interlock instead of running side by side. One verb serves ignition, failure, the short and the return. |
 | Temporal form | 2 | 3 | Cause, then decoupling, arcing, false recovery, the short and the return, with the survivor closing the loop seam. The draft's failure escalated without a cause. |
 | Restraint | 2 | 3 | Healthy lamps are dead steady and white happens once. The breathing texture and the sag are gone. |
-| Ordinary frame | 3 | 3 | Iconic: the steady frame is the archetypal lit OPEN sign, and the afterglow's lone ring reads as a symbol. Both read in the storyboard's prototype renders. |
+| Ordinary frame | 3 | 3 | Iconic: the steady frame is the archetypal roadside FOOD sign, and the afterglow's lone ring reads as a symbol. Both read in the storyboard's prototype renders. |
 | Surprise | 3 | 3 | The broken letter survives the healthy ones; the false recovery sharpens the rupture, and the return closes it. |
 
 ### What changed from the draft
@@ -226,31 +228,30 @@ column scores this packet.
    phrases.
 10. The storyboard adds the short.
 
-## Decisions for Jon
+## Decisions
 
-These halt the build until Jon answers them on #1192.
+Jon decided these on #1192 before the build child was cut.
 
-1. **The sign word.** I recommend **OPEN**, with the **O** failing.
-   - OPEN is the archetypal neon word, so the steady frame reads as "a neon
-     sign" at once, and an OPEN sign after hours is the title's joke.
-   - A lone O ring is the strongest survivor silhouette: a closed shape that
-     reads as a symbol on its own, not a fragment of a word.
-   - Four letters get 60 to 72 pixels each at 463 pixels in total, which leaves
+1. **The sign word is FOOD, with the second O failing.** Jon chose FOOD because
+   it is emblematic of the highway, the open road, diners and Americana.
+   - The steady frame reads as a roadside diner sign at once.
+   - The failing letter is third in reading order, so the warm-up visibly skips
+     its turn: F, the first O and D ignite on successive bars while the second
+     O still sputters. The healthy first O beside it is a control sample.
+   - The survivor is a lone O ring, the strongest survivor silhouette: a closed
+     shape that reads as a symbol on its own, not a fragment of a word.
+   - Four letters get 50 to 67 pixels each at 442 pixels in total, which leaves
      frame-rate headroom.
-   - The cost: the O is first in reading order, so its break is in completion,
-     not in start. It starts in turn and catches last. A middle letter would
-     break the order more visibly but leave a weaker survivor.
-   - The alternative is **PXLBLZ**: a self-portrait and booth piece, 560 pixels
-     at the same stroke density. A failing **Z** gives a zigzag survivor and a
-     sleep-and-spark pun; the draft's second **L** gives the healthy twin as a
-     control sample but the weakest lone silhouette. The legibility renders,
-     `docs/plans/images/after-hours-open-legibility.png` and
-     `docs/plans/images/after-hours-pxlblz-legibility.png`, show both words.
-2. **Approval of the packet and this plan** before the build child is cut.
-3. **NeonTube's home.** I recommend a Show ingredient, kept in the Pattern rail
-   and out of the Gallery like the Luma family. Alone it is one grey tube, and
-   its character comes from the Show's Health envelope. Its Health control
-   still serves builders' own Shows.
+   - The alternatives were **OPEN** with its O failing, the archetypal neon
+     word, whose failing letter is first in reading order and so breaks the
+     order only in completion; and **PXLBLZ**, a self-portrait at 560 pixels
+     with a failing Z or second L. The legibility render,
+     `docs/plans/images/after-hours-food-legibility.png`, draws the FOOD map.
+2. **The packet and this plan are approved.** The build child is cut from them.
+3. **NeonTube is a Show ingredient**, kept in the Pattern rail and out of the
+   Gallery like the Luma family. Alone it is one grey tube, and its character
+   comes from the Show's Health envelope. Its Health control still serves
+   builders' own Shows.
 
 ## Visual Performance Plan
 
@@ -268,7 +269,7 @@ costs. The [probe record](#probe-record) has the commands and raw results.
 
 - **Artifact:** an Installation Show in the Installations collection, with an
   installation output contract on a new stock 2D map (working id
-  `after-hours-sign`) at exactly 463 pixels.
+  `after-hours-sign`) at exactly 442 pixels.
 - **Duration:** 96 s, a deterministic loop.
 - **Controller:** Pixelblaze 3 (pb32 class, firmware 3.67, the hardware behind
   the measured anchors). Exploratory, but specified so it can be built as a
@@ -277,13 +278,13 @@ costs. The [probe record](#probe-record) has the commands and raw results.
 
 | Zone | Lamp | Index range | Pixels |
 | --- | --- | ---: | ---: |
-| O | letter tube | 0-59 | 60 |
-| P | letter tube | 60-119 | 60 |
-| E | letter tubes (outline, then middle arm) | 120-185 | 66 |
-| N | letter tube | 186-257 | 72 |
-| border | 141 bulbs, clockwise from top left | 258-398 | 141 |
-| arrow1, arrow2, arrow3 | shaft segments, tail first | 399-446 | 16 each |
-| head | chevron | 447-462 | 16 |
+| F | letter tubes (top and stem, then middle arm) | 0-49 | 50 |
+| O1 | letter tube | 50-109 | 60 |
+| O2 | letter tube, the failing letter | 110-169 | 60 |
+| D | letter tube | 170-236 | 67 |
+| border | 141 bulbs, clockwise from top left | 237-377 | 141 |
+| arrow1, arrow2, arrow3 | shaft segments, tail first | 378-425 | 16 each |
+| head | chevron | 426-441 | 16 |
 
 **Map layout.** The word is drawn in a single-stroke tube font with the letter
 box 1.0 high and 0.7 wide, letters 0.25 apart. Pixels sit at a uniform pitch of
@@ -351,8 +352,8 @@ controls, Health and Seed.
   blue. Measured: exactly every third bulb is lit, and the lit set advances one
   index per step.
 - **The short:** a second, white color-map on every Clip. Its amount jumps to 1
-  at 80.25 s. Then opacity decays on a cubic-out curve to 0 by 81.05 s; on the O,
-  the white amount decays instead, so the O can return. There is no Transition.
+  at 80.25 s. Then opacity decays on a cubic-out curve to 0 by 81.05 s; on the
+  second O, the white amount decays instead, so it can return. There is no Transition.
 - **Colour:** tint color-maps from black to the colour. Letters run to
   (1, 0.08, 0.02); furniture to (0.16, 0.36, 1) at opacity 0.6 for the border
   and 0.7 for the arrow. By Rec. 709 luminance both stay below the word: 0.22
@@ -360,14 +361,14 @@ controls, Health and Seed.
   wrong for colour: it would erase the tube's on and off and the chase's bulbs.
 - **The short's white** is the one solid color-map, (0.6, 0.6, 0.6). Erasing
   the source is its job: at amount 1, every pixel of every lamp turns white at
-  once, the unlit bulbs and the dark O included.
+  once, the unlit bulbs and the dark second O included.
 
 ### State and identity plan
 
 | Instance | Pattern | Serves | Why it has its own identity |
 | --- | --- | --- | --- |
-| `tube` | NeonTube, Health 1 | P, E, N, arrow1-3, head | Shared: these lamps have no private state, and their timing lives on their Clips |
-| `weak` | NeonTube, Seed 0.37, Health track | O | Private: its Health is the story |
+| `tube` | NeonTube, Health 1 | F, O1, D, arrow1-3, head | Shared: these lamps have no private state, and their timing lives on their Clips |
+| `weak` | NeonTube, Seed 0.37, Health track | O2 | Private: its Health is the story |
 | `chase` | LumaMarquee, stepped 250 ms | border | Its own clock is the grid |
 
 There is one Clip per Zone on its Main Layer. All nine Clips span the whole 96
@@ -379,12 +380,12 @@ s, and every track is active for its Clip's lifetime, so the Show compiles to
 | Ledger | Budget | Planned peak | Evidence or uncertainty |
 | --- | ---: | ---: | --- |
 | Pattern/source bytes | none set | NeonTube about 0.6 KB | Probe source |
-| Production artifact bytes | 68,384 B activation proxy (`test/perf-harness/issue514.test.ts`) | 46,615 B | Measured. Bytes barely depend on pixel count: 45,936 B at 286 pixels |
-| Globals and array words | 256 globals; 10,240 words | 116 globals; 1,401 (8,839 remaining) words | Measured |
-| Render-target words | 3 × (N + 4) | 1,401 at 463 pixels | Ledger formula, `src/engine/showVmResourceLedger.ts:3-8` |
-| Active Pattern evaluations | 5 renderers per pixel | 1 per pixel, always: 463 per frame | Score structure: no Transition, no overlay Layer |
+| Production artifact bytes | 68,384 B activation proxy (`test/perf-harness/issue514.test.ts`) | 46,511 B | Measured. Bytes barely depend on pixel count: earlier prototype maps measured 46,615 B at 463 pixels and 45,936 B at 286 pixels |
+| Globals and array words | 256 globals; 10,240 words | 116 globals; 1,338 (8,902 remaining) words | Measured |
+| Render-target words | 3 × (N + 4) | 1,338 at 442 pixels | Ledger formula, `src/engine/showVmResourceLedger.ts:3-8` |
+| Active Pattern evaluations | 5 renderers per pixel | 1 per pixel, always: 442 per frame | Score structure: no Transition, no overlay Layer |
 | Expensive operations per active pixel | none set | Two color-maps and an opacity per pixel; LumaMarquee's crest on the 141 border pixels; NeonTube writes a constant | Score structure |
-| Frame time or FPS | 15 FPS working floor (proposed) | About 20-35 FPS estimated | Estimate, not a measurement. It scales the per-pixel cost of measured pb32 anchors (Vignette 63.5 / 16.4 / 8.2 FPS at 256 / 1,000 / 2,000 pixels; simple Shows 38-40 FPS at 256 pixels; output alone about 30 µs per pixel) to 463 pixels with one evaluation each. `npm run devbench` in the build replaces it |
+| Frame time or FPS | 15 FPS working floor (proposed) | About 20-35 FPS estimated | Estimate, not a measurement. It scales the per-pixel cost of measured pb32 anchors (Vignette 63.5 / 16.4 / 8.2 FPS at 256 / 1,000 / 2,000 pixels; simple Shows 38-40 FPS at 256 pixels; output alone about 30 µs per pixel) to 442 pixels with one evaluation each. `npm run devbench` in the build replaces it |
 
 **Marginal costs**, measured on a synthetic nine-Zone Installation of 583
 pixels:
@@ -408,12 +409,12 @@ Show adds two boundaries.
 - about 4 KB for Effects.
 
 The arrow is the most expensive voice, at about 12 KB for 80 keys and four
-tracks. The headroom under the activation proxy is 21,769 B, about 180
+tracks. The headroom under the activation proxy is 21,873 B, about 180
 more keys.
 
 **Flash limit.** Measured with the harness algorithm at 30 fps
 (`src/agent-harness/telemetry/harness.ts`).
-- The worst one-second window has 13.0% of the pixels flashing above 3 Hz,
+- The worst one-second window has 13.6% of the pixels flashing above 3 Hz,
   against the 25% limit.
 - The fault flickers fast, but only inside one letter, so it stays under the
   area limit by construction.
@@ -429,15 +430,15 @@ no Clip edge, Transition or partial track window falls inside the Show.
 
 | Section | Time | Mechanism |
 | --- | --- | --- |
-| Dark and warm-up | 0-16 s | The O's Health keys start its sputter at 2 s, and it catches at 13 s. Held opacity keys ignite P at 4 s, E at 6 s, N at 8 s and the border at 12-13 s. The chase runs from its first lit step. The first arrow firing runs 15.25-16 s. |
+| Dark and warm-up | 0-16 s | O2's Health keys start its sputter at 2 s, and it catches at 13 s. Held opacity keys ignite F at 4 s, O1 at 6 s, D at 8 s and the border at 12-13 s. The chase runs from its first lit step. The first arrow firing runs 15.25-16 s. |
 | Steady | 16-40 s | Only the arrow's opacity keys, with tips at 24 and 32 s. |
-| Hint | 40-56 s | The O's Health drops to 0 for one step at the 40 s tip; at 48 s it drops out twice, a step apart. |
+| Hint | 40-56 s | O2's Health drops to 0 for one step at the 40 s tip; at 48 s it drops out twice, a step apart. |
 | Failure | 56-80 s | Held Health stages. Bursts on the beat at 56 and 60 s. The 64 s firing gets no answer, and bursts follow off the grid at 65.37, 67.83 and 70.24 s. Arcing from 72 to 78 s, recovery at 78 s, and the last firing at 79.25-80 s. |
-| The short | 80.25-81.05 s | The white color-map amount goes to 1 on every Clip; opacity (on the O, the white amount) decays to 0 on a cubic-out curve. Under the white, the O's Health drops to 0, so the O fades to black with the rest. The arrow's tip lights one step before the short, as its cause. |
-| Afterglow and out | 81.05-96 s | Only the O's Health keys: buzz from 83 s, catch at 85.75 s, hold to 90 s, stutter out by 92 s. Every other Clip sits at opacity 0. |
+| The short | 80.25-81.05 s | The white color-map amount goes to 1 on every Clip; opacity (on O2, the white amount) decays to 0 on a cubic-out curve. Under the white, O2's Health drops to 0, so O2 fades to black with the rest. The arrow's tip lights one step before the short, as its cause. |
+| Afterglow and out | 81.05-96 s | Only O2's Health keys: buzz from 83 s, catch at 85.75 s, hold to 90 s, stutter out by 92 s. Every other Clip sits at opacity 0. |
 
-At the loop seam, 92-96 s plus 0-2 s gives six seconds of black. The O is the
-last lamp out and the first to sputter.
+At the loop seam, 92-96 s plus 0-2 s gives six seconds of black. The second O is
+the last lamp out and the first to sputter.
 
 ### Expensive purchases
 
@@ -477,8 +478,8 @@ to the full score.
   afterglow.
 - **`npm run devbench` FPS** on a pb32, at or above the 15 FPS floor.
 - **Hardware notes:** the tuning of neon red, and the short's current draw.
-  At the commonly quoted 60 mA per pixel at full white, 463 pixels at 0.6 white
-  draw about 17 A.
+  At the commonly quoted 60 mA per pixel at full white, 442 pixels at 0.6 white
+  draw about 16 A.
 
 ### Fallback ladder
 
@@ -535,7 +536,7 @@ score, are posted on #1192.
 | V4: V2 plus eight opacity tracks, 20 keys each | 35,730 | 59 | 1,761 | 1 |
 | V5: V4 (20 keys) plus a whole-output fade-color short | 57,700 | 89 | 1,761 | 2 |
 | V6: V4 (20 keys) plus a white color-map short | 45,548 | 82 | 1,761 | 1 |
-| V7: V4 (20 keys) with P's Clip split at 40 s | 44,266 | 59 | 1,761 | 2 |
+| V7: V4 (20 keys) with one letter's Clip split at 40 s | 44,266 | 59 | 1,761 | 2 |
 | V8: V4 (20 keys) with the arrow as one Zone | 26,136 | 59 | 1,761 | 1 |
 
 V5 was refused in the specified shape: the incoming Clip had to start at the
@@ -566,24 +567,24 @@ Transition's end (80.8 s), and the outgoing tracks had to run through it.
 
 **Storyboard.** Rendered from the probe prototype, not captured from the real Stage. The
 frames are fast-replay pixel output from the production compiler, drawn as dots
-at the draft map's coordinates. Unlit pixels are drawn as dim grey outlines so
-the sign's shape stays visible, and the soft glow is illustrative. The arrow
-renders at the prototype's opacity of 0.85, before the plan lowered it to 0.7.
-Real-Stage captures belong to the build.
+at the FOOD map's coordinates. Unlit pixels are drawn as dim grey outlines so
+the sign's shape stays visible, and the soft glow is illustrative. Real-Stage
+captures belong to the build.
 
-- **Warm-up (6.1 s):** P and E are lit, and N is still dark. The O, first in
-  turn, is caught in an off phase of its sputter.
+- **Warm-up (8.1 s):** F, the first O and D are lit. The second O, whose turn
+  the order skipped, is caught in an off phase of its sputter.
 - **Steady (28 s):** the whole word, the chase one bulb in three, the arrow
   dark. This is the ordinary frame.
 - **Arrow firing (23.75 s):** the shaft is lit, and the tip comes next.
-- **First hint (40.125 s):** the arrow's tip is lit and the O is dark: cause and
-  effect in one frame.
-- **Failure (65.4 s):** the word with the O dark. The arrow is dark, and the
+- **First hint (40.125 s):** the arrow's tip is lit and the second O is
+  dark: cause and effect in one frame.
+- **Failure (65.4 s):** the word with the second O dark: FO D. The arrow is dark, and the
   furniture carries on.
 - **The short (80.3 s):** the whole sign in white, already decaying.
-- **Afterglow (87 s):** the O alone.
+- **Afterglow (87 s):** the second O alone.
 
 The score strip plots each Zone's mean brightness over the full 96 s on the
 phrase grid. Images: `docs/plans/images/after-hours-storyboard.png` and
-`docs/plans/images/after-hours-score-strip.png`. The legibility renders draw
-both candidate maps with every point lit, at the same stroke pitch.
+`docs/plans/images/after-hours-score-strip.png`. The legibility render,
+`docs/plans/images/after-hours-food-legibility.png`, draws the FOOD map with
+every point lit.
