@@ -11,8 +11,8 @@ stock `plane` map. Two instances of the existing LumaStripes, the cobalt
 *anchor* and the amber *phaser*, play the same figure. The phaser sits on top
 under a luma key, so in unison it hides the anchor completely. One
 `instance-time-scale` track speeds the phaser up so that it gains a quarter
-loop per drift: to within 0.002 loop at a steady frame rate, and within a
-measured budget when frame times jitter. How far apart the two voices are then shows as how much
+loop per drift: to within 0.002 loop at the preview's 60 and 30 FPS, and
+within a measured whole-score budget at hardware frame rates. How far apart the two voices are then shows as how much
 cobalt and black survive under the amber: sparse bars on black in unison, a
 full two-colour field at half phase. Three phrases change one variable each:
 *Phase* drifts, *Count* thins both voices so they pair instead of covering, and
@@ -120,10 +120,11 @@ Drift and snap are one verb, "move ahead", at two speeds. Lock is its absence.
 
 Over the piece the phaser gains four loops, one in each of Phase and Count and
 two in Clap, and the anchor runs exactly 30. Both clocks therefore return to
-their starting phase at the seam. The gain is within 0.002 loop of that at a steady frame
-rate; under frame jitter it is within the budget in
-[the phase mechanism](#state-and-identity-plan), and the loop wrap resets both
-clocks so the error never carries into the next pass.
+their starting phase at the seam. The gain is within 0.002 loop of that at the
+preview's 60 and 30 FPS. At hardware frame rates it is within the whole-score
+budget in [the phase mechanism](#state-and-identity-plan). Error accumulates
+across phrases, because a nominal unison resets nothing. Only the loop wrap
+resets both clocks, so the error never carries into the next pass.
 
 ### Invariants
 
@@ -256,8 +257,10 @@ posted on #1195 with its reason and evidence.
    Precise proof past 32.7 s waits for that repair.
 6. **Quarter locks carry a cadence contract instead of a claim of exactness.**
    The compiler samples the time scale once per frame, so locks are near exact
-   only at a steady frame rate. Under frame jitter, drifts stay within 0.005
-   loop and snaps carry a bounded error; the loop wrap resets it every pass (see
+   only at the preview's 60 and 30 FPS. At hardware frame rates, steady or
+   jittered, each move adds a bounded error. The error accumulates from Show
+   start and only the loop wrap resets it. Every lock must stay within a
+   whole-score budget capped at 0.125 loop (see
    [the phase mechanism](#state-and-identity-plan)). A phaser restart at the
    unison downbeat would make the white hit exact regardless of cadence, but
    it splits the phaser Clip. It is held as fallback rung 0, taken only if the
@@ -297,8 +300,8 @@ is labelled as an estimate.
 - **Invariants that survive every fallback:**
   - two independent clocks on one Pattern;
   - the phaser keyed on top;
-  - quarter locks, within 0.002 loop at a steady frame rate and within the
-    cadence budget under jitter;
+  - quarter locks, within 0.002 loop at the preview's 60 and 30 FPS and
+    within the whole-score budget at hardware frame rates;
   - the loop returning both clocks to phase.
 
 ### Visual grammar
@@ -348,12 +351,16 @@ frame-sampled sum, not that integral.
   maximum of 4 (`src/engine/showModel.ts:2486-2501`) would allow 400 ms, but a
   400 ms snap is off the beat grid and carries twice the jitter error.
 
-**Cadence contract.** The quarter locks are near exact at a steady frame rate
-and approximate under frame jitter, within the budget below:
-- **Steady frame rate:** for a smooth bump that returns to 1, the sampled sum
-  matches the integral to within 0.00002 loop at 60, 30 and 5 FPS. The worst
-  steady case is a snap at 8 FPS, 4.8 frames long: 0.0011 loop for the planned
-  600 ms snap, and 0.0039 for a 400 ms one.
+**Cadence contract.** The quarter locks are near exact at the preview's frame
+rates and approximate at hardware frame rates, within the budget below:
+- **Preview frame rates:** at a steady 60 or 30 FPS the sampled sum matches the
+  integral to within 0.00002 loop per move in the model.
+- **Steady hardware frame rates (5-8 FPS):** near exactness depends on how a
+  move's length aliases with the frame time, so no per-rate promise holds
+  across the range. In the model, a planned 600 ms snap errs by 0.0011 loop at
+  8 FPS, where it spans 4.8 frames. A 400 ms snap errs by 0.0039. The review's
+  compiled replay of the whole score at a steady 6 FPS left 0.0055 loop after
+  the final snap.
 - **Jittered frame rate:** each frame drawn uniformly from 125-200 ms, the worst
   case in 2,000 runs:
 
@@ -363,12 +370,25 @@ and approximate under frame jitter, within the budget below:
 | Snap, planned | 600 ms, peak 3 | 0.0089 loop | 0.0298 loop |
 | Snap, rejected | 400 ms, peak 4 | 0.0173 loop | 0.0698 loop |
 
-- **The white hit:** it follows eight snaps. The expected residual is about
-  0.03 loop, less than half a pixel column at 44 × 44. The worst case is about
-  0.1 loop, about 1.3 columns of cobalt under the white.
-- **Reset:** errors do not carry across passes. The deterministic loop wrap
-  runs every member's reset assignments (`src/engine/showCompiler.ts:5042-5044`,
+- **Accumulation:** a nominal unison resets neither clock. Error at any lock is
+  the sum of every move's error since Show start, or since the last loop wrap.
+  The review's compiled replay under 125-200 ms jitter left 0.0004 loop at
+  Count's opening unison, carried from Phase.
+- **Reset:** the deterministic loop wrap at 72 s is the only reset. It runs
+  every member's reset assignments (`src/engine/showCompiler.ts:5042-5044`,
   `5070-5076`). The build proves this under a jittered cadence.
+- **Whole-score budget:** at each lock, the allowance is the sum of the worst
+  per-move errors above for every move since Show start, capped at 0.125 loop.
+  That is 0.0164 after Phase's four drifts and 0.0328 after Count's. Clap's
+  snaps reach the cap. The cap is half a quarter: beyond it a lock is nearer
+  the wrong quarter than the right one. A missing or extra move errs by 0.25
+  loop, so the oracle still tells a wrong score from a sampled one.
+- **The white hit:** it follows eight drifts and eight snaps. In the model's
+  whole score, the residual is 0.0007, 0.0011, 0.0059 and 0.0000 loop at
+  steady 8, 7, 6 and 5 FPS. Under 125-200 ms jitter it averages 0.025 loop
+  over 2,000 runs, about a third of a pixel column at 44 × 44. The worst run
+  reached 0.118 loop, about 1.6 columns of cobalt under the white. That tail
+  is the case for fallback rung 0.
 - **Fallback rung 0:** if hardware frame-time jitter measured with
   `npm run devbench` leaves a visible sliver at the white hit, split the
   phaser Clip at bar 27 so that it restarts in unison on the downbeat. That
@@ -448,9 +468,10 @@ score, which is small. Prove these:
 - **a lock oracle,** in two parts, at the middle of every held bar:
   - *phase difference:* the phaser's LumaStripes `phase` minus the anchor's,
     mod 1, equals the planned quarter (0, 0.25, 0.5 or 0.75). It must hold
-    within 0.002 loop at steady 1000/60, 1000/30 and 125 ms steps. Under the
-    jittered cadence of the contract it must hold within the contract's worst
-    errors, accumulated over the moves since the last unison;
+    within 0.002 loop at steady 1000/60 and 1000/30 ms steps. At steady 125,
+    143, 167 and 200 ms steps (8, 7, 6 and 5 FPS), and under seeded 125-200 ms
+    jitter, it must hold within the contract's whole-score budget. That budget
+    accumulates from Show start, not from the last unison;
   - *coverage:* the anchor's visible share of the rendered Stage equals a
     reference coverage within one pixel column. The reference comes from the
     same map, the same controls and the same observation time, with the phaser
@@ -518,4 +539,4 @@ path (`prepareShowV2ForCompile`, then `compileShow`) and replayed through
 | 2. Precise bisection | The cause is section-local time emitted in milliseconds (`showCompiler.ts:5087-5091`), filed as #1197. Precise matches fast at every lock through 30 s. A time-scale track stops gaining at 32.8 s. |
 | 3. Moiré variants (pitch 0.06 and 0.1; angle 0.015 and 0.03 turns; scale 1.15) at 1,936 and 256 pixels | Moiré is weak at 44 × 44 and noise at 16 × 16, so it is rejected. |
 | 4. Final score (this plan) | Bytes by white mechanism; locks at every half bar; the loop seam delta of 0.00000; the flash gate at 0.000; the storyboard; and the fixes for the fade and the grey white. |
-| 5. Cadence model (`/tmp`, not committed; added after review) | A standalone model of the sine-in-out time-scale bumps, sampled at frame end as the compiler does. It gives the steady and jittered errors in the cadence contract. It is not the compiled Show, so the build re-measures through fast replay. |
+| 5. Cadence model (`/tmp`, not committed; added after review) | A standalone model of the sine-in-out time-scale bumps, sampled at frame end as the compiler does. It gives the steady and jittered errors in the cadence contract, per move and over the whole score. Its whole-score residual at a steady 6 FPS is 0.0059 loop, against 0.0055 in the review's compiled replay. It is not the compiled Show, so the build re-measures through fast replay. |
