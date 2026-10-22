@@ -67,12 +67,13 @@ describe('boundary-latched decode (#936)', () => {
       expect(checksums(on, 'fidelity'), item.id).toEqual(checksums(off, 'fidelity'))
     }
     // Census pinned: two index-routed Installation Shows latch (Redline and
-    // 301), two shared cut-scene dispatchers keep per-pixel decode because
-    // their plans are not interned (302 and the Overture remix: property
-    // tracks or reuse groups), and the other 36 have no such dispatcher
+    // 301), three shared cut-scene dispatchers keep per-pixel decode because
+    // their plans are not interned (302, the Overture remix and After Hours:
+    // property tracks or reuse groups), and the other 36 have no such dispatcher
     // (coordinate routing, transitions, or spans).
+    // #1196 recensus: +After Hours (non-interned-plans 2 → 3)
     expect(latched.sort()).toEqual(['stock-show-301-installation-mapping', 'stock-show-showcase-redline-installation'])
-    expect(reasons.get('non-interned-plans') ?? 0).toBe(2)
+    expect(reasons.get('non-interned-plans') ?? 0).toBe(3)
     expect(reasons.get('no-literal-ranges') ?? 0).toBe(0)
     expect(reasons.get('configuration-reads-local') ?? 0).toBe(0)
   }, 600_000)
