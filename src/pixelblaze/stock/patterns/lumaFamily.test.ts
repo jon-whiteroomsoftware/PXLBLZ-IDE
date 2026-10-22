@@ -12,6 +12,7 @@ import { loadPattern } from '@/engine/loadPattern'
 import { discoverAutomatablePatternControls } from '@/engine/showPatternControls'
 import { createFxShim, createShim, planeShimConfig } from '@/engine/shim'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { SOURCE_STOCK_MAPS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
 
@@ -29,6 +30,7 @@ const FAMILY = [
   'LumaSpiral',
   'LumaMarquee',
   'LumaCells',
+  'LumaPlane3D',
 ] as const
 
 // Shared ontology: identical exported control names wherever a control appears.
@@ -67,7 +69,8 @@ function makeHarness(name: string, mode: 'fast' | 'fidelity' = 'fast'): Harness 
     for (let row = 0; row < 16; row++) {
       for (let col = 0; col < 16; col++) {
         const [tx, ty] = shim.transformPoint(col / 15, row / 15, 0)
-        handle.render2D(enc(row * 16 + col), tx, ty)
+        if (metadata.renderFns.hasRender3D) handle.render3D(enc(row * 16 + col), tx, ty, enc(0.5))
+        else handle.render2D(enc(row * 16 + col), tx, ty)
         const [r, g, b] = shim.capturedPixel()
         expect(r, `${name} grayscale r==g`).toBeCloseTo(g, 8)
         expect(g, `${name} grayscale g==b`).toBeCloseTo(b, 8)
@@ -79,8 +82,34 @@ function makeHarness(name: string, mode: 'fast' | 'fidelity' = 'fast'): Harness 
   return { handle, shim, enc, advance, frame }
 }
 
+describe('LumaPlane3D level waterline (#1200)', () => {
+  it.each([
+    [0.060, [0.1, 0, 0]],
+    [0.185, [0.4, 0.1, 0]],
+    [0.310, [0.7, 0.4, 0.1]],
+    [0.716, [1, 1, 1]],
+  ] as const)('holds a level surface at y=%f', (height, fractions) => {
+    const { handle, enc, advance, shim } = makeHarness('LumaPlane3D')
+    for (const [name, value] of Object.entries({ Direction: 0.5, Spacing: 1, Width: 0.5, Feather: 0.04, Lean: 0.5, Tilt: 0, Offset: height / 2 })) {
+      handle.controls[`slider${name}`](enc(value))
+    }
+    advance(0)
+    const points = SOURCE_STOCK_MAPS.find((map) => map.id === 'cloudburst-chandelier')!.resolve(960)
+    const values = points.map(({ sample: [x, y, z] }, index) => {
+      handle.render3D(enc(index), enc(x), enc(y), enc(z))
+      const value = shim.capturedPixel()[0]
+      if (y < height) expect(value, `submerged pixel ${index}`).toBeGreaterThanOrEqual(0.79)
+      else expect(value, `air pixel ${index}`).toBeLessThan(0.5)
+      return value
+    })
+    for (const [ring, start, end] of [[0, 0, 160], [1, 160, 480], [2, 480, 960]]) {
+      expect(values.slice(start, end).filter((v) => v > 0.5).length / (end - start)).toBe(fractions[ring])
+    }
+  })
+})
+
 describe('Luma family catalogue placement (#819)', () => {
-  it('registers all six members as a rail section excluded from the gallery', () => {
+  it('registers every member as a rail section excluded from the gallery', () => {
     const section = DEMO_SECTIONS.find((candidate) => candidate.label === 'Luma Sources')
     expect(section?.names).toEqual([...FAMILY].sort((a, b) => a.localeCompare(b)))
     expect(LUMA_DEMOS).toEqual([...FAMILY])

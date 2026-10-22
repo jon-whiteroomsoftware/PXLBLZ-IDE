@@ -206,6 +206,18 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderTwist: 'Strength of the line distortion.',
     sliderReflections: 'Number of kaleidoscopic reflection segments.',
   },
+  LumaPlane3D: {
+    sliderLoopInterval: 'Exact cycle length in seconds, up to 10; one loop advances one plane period.',
+    sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
+    sliderSpacing: 'Plane pitch from 0.05 to 2 normalized units.',
+    sliderWidth: 'Lit fraction of each plane period.',
+    sliderFeather: 'Softness of the plane edges.',
+    sliderLean: 'Crest asymmetry; centered is symmetric.',
+    sliderTilt: 'Plane normal from +y through horizontal to -y; zero makes level planes.',
+    sliderAzimuth: 'Normal heading around the vertical y axis.',
+    sliderOffset: 'Phase shift in periods; at Spacing 1, Offset y/2 sets a waterline at y.',
+    toggleInvert: 'Swaps bright planes and dark gaps.',
+  },
   LumaStripes: {
     sliderLoopInterval: 'Exact cycle length in seconds, up to 10 — type a precise value like 2.37; one loop advances exactly one band.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
@@ -573,7 +585,7 @@ const LUMA_LOOP_SECONDS: ControlSecondsPresentation = { scale: 10, minSeconds: 0
 
 export const CONTROL_SECONDS_PRESENTATIONS: Record<string, Record<string, ControlSecondsPresentation>> =
   Object.fromEntries(
-    ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral', 'LumaMarquee', 'LumaCells']
+    ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral', 'LumaMarquee', 'LumaCells', 'LumaPlane3D']
       .map((name) => [name, { sliderLoopInterval: LUMA_LOOP_SECONDS }]),
   )
 

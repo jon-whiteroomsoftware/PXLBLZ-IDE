@@ -333,6 +333,12 @@ describe('demo smoke tests', () => {
     })
   }
 
+  it.each(['fast', 'fidelity'] as const)('LumaPlane3D.js bundles, runs, and lights pixels in %s mode', (mode) => {
+    const result = runDimensionedDemo('LumaPlane3D.js', mode)
+    expect(result.anyLit).toBe(true)
+    expect(result.allFinite).toBe(true)
+  })
+
   it.each(['fast', 'fidelity'] as const)('NeonTube.js bundles in %s mode with its two controls', (mode) => {
     const src = readFileSync(join(here, 'NeonTube.js'), 'utf8')
     const { code, fxCode, metadata } = bundle(src, LIBRARIES)

@@ -12,6 +12,8 @@ const INTENTIONAL_LOW_DENSITY = new Set([
   // The Luma family's wiring-order member presents on a 256-pixel strip: the
   // chase is index-order geometry, so a panel presentation would misread it.
   'LumaMarquee',
+  // Cloudburst's designed chandelier has 48 tubes of 20 LEDs.
+  'LumaPlane3D',
   'Bouncer3D',
   'CyclicCellularAutomata2D',
   'DoomFireV20_2D',

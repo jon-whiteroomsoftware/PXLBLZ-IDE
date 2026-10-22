@@ -127,6 +127,7 @@ export const LUMA_DEMOS = [
   'LumaSpiral',
   'LumaMarquee',
   'LumaCells',
+  'LumaPlane3D',
 ]
 
 // Show ingredients outside the Luma family (#1196): single-purpose sources a
