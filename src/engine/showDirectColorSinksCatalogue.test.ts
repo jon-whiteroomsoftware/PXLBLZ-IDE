@@ -43,6 +43,7 @@ describe('direct color sinks across the stock Show catalogue (#557)', () => {
     // mechanism coverage in showDirectColorSinks.test.ts, the whole
     // catalogue stays byte-for-byte neutral, and new stock content that
     // lands here must be reviewed the same way as #363's original pass.
+    // #1196 recensus: +After Hours (eligible set remains empty)
     expect(eligible).toEqual([])
   })
 })

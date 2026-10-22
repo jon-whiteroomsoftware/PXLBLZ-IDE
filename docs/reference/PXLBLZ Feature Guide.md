@@ -37,9 +37,11 @@ takes it from there: read the code, clone it, or send it to a Controller.
 
 The public pages (Gallery, Pattern and Show pages, Docs, and API) never touch
 your Controllers. They have no Controller controls and start no discovery or
-extension handshake. Two built-in folders stay out of the public Gallery but
-are available in Studio: **Test Patterns** (diagnostics) and **Luma Sources**
-(grayscale keying ingredients for Shows).
+extension handshake. Three built-in folders stay out of the public Gallery but
+are available in Studio: **Test Patterns** (diagnostics), **Luma Sources**
+(grayscale keying ingredients for Shows), and **Show Ingredients**.
+Show Ingredients holds single-purpose Show sources such as NeonTube, one
+uniform tube whose Health control a Show keys to make a lamp ignite, fail and recover.
 
 ## 2. Studio
 
@@ -506,10 +508,11 @@ The Shows list ships learning material beneath your own:
   Aperture shape, and Zone Layout.
 - Two finished **Portable Shows**: the Coronal Mass Ejection remix and
   Quadrille.
-- Four map-specific **Installations**: the 2,000-pixel Redline; Overture, a
+- Five map-specific **Installations**: the 2,000-pixel Redline; Overture, a
   128 BPM opening night for the Proscenium arch stage; Totality, a solar
   eclipse on the 490-pixel Eclipse Dome; and Black Sun, a 120 BPM black hole
-  on the same dome.
+  on the same dome. After Hours plays a failing roadside FOOD sign on its own
+  442-LED neon sign map.
 
 Edit them freely. Changes live in a session draft, **Reset** or a reload
 restores the shipped version, and **Clone** keeps your variant.

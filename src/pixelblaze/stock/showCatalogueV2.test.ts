@@ -52,7 +52,8 @@ describe('v2 stock Show metadata catalogue', () => {
   })
 
   it('resolves all slots and reference anchors in native v2 records', () => {
-    expect(STOCK_SHOW_CATALOGUE).toHaveLength(42)
+    // #1196 recensus: +After Hours (catalogue 42 → 43)
+    expect(STOCK_SHOW_CATALOGUE).toHaveLength(43)
     for (const entry of STOCK_SHOW_CATALOGUE) {
       const record = stockShowV2ById(entry.id)
       expect(record, entry.id).toBeDefined()

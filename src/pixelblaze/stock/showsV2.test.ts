@@ -49,7 +49,8 @@ const SINGLE_PASSAGE_SHOWS_WITHOUT_CHAPTERS = new Set([
 describe('native v2 stock catalogue census', () => {
   it('lists the pinned legacy catalogue in order, then the Shows authored natively in v2', () => {
     // Native-only Shows (#1134) have no legacy counterpart to compare against.
-    const nativeOnly = ['stock-show-installation-totality', 'stock-show-installation-black-sun']
+    // #1196 recensus: +After Hours (native-only Shows 2 → 3; catalogue 42 → 43)
+    const nativeOnly = ['stock-show-installation-totality', 'stock-show-installation-black-sun', 'stock-show-installation-after-hours']
     expect(STOCK_SHOWS_V2).toHaveLength(V1_STOCK_SHOWS.length + nativeOnly.length)
     const legacy = STOCK_SHOWS_V2.slice(0, V1_STOCK_SHOWS.length)
     expect(legacy.map(record => record.id)).toEqual(V1_STOCK_SHOWS.map(entry => entry.id))

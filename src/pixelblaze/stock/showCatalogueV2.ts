@@ -3188,6 +3188,32 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
       defaultOpen: true
     }
   }
+  ,{
+    id: "stock-show-installation-after-hours",
+    name: "After Hours Installation",
+    track: "installation",
+    collection: "installations",
+    level: null,
+    order: 5,
+    lesson: "After Hours Installation",
+    description: "Three Pattern instances play a roadside FOOD sign on a 442-LED neon map. The letters warm up in reading order while the second O sputters out of turn; an arrow fires once a phrase and the weak letter dips under its load, then fails on its own, seems to heal, and the arrow's last firing shorts the whole sign white. In the dark, the broken O is the one lamp that comes back.",
+    note: {
+      label: "Installations",
+      title: "After Hours Installation",
+      purpose: "Three Pattern instances play a roadside FOOD sign on a 442-LED neon map. The letters warm up in reading order while the second O sputters out of turn; an arrow fires once a phrase and the weak letter dips under its load, then fails on its own, seems to heal, and the arrow's last firing shorts the whole sign white. In the dark, the broken O is the one lamp that comes back.",
+      notice: "Every healthy lamp shares one NeonTube instance held at full Health, tinted red or blue, and lights on held opacity keys. The failing O is a private NeonTube whose Health track is the story, and the chase is a stepped LumaMarquee lighting every third bulb. The short is a white color-map on every Clip, so the whole Show compiles to one time section with no Transition.",
+      prompts: [
+        "Scrub from 40 s: at each arrow tip the second O drops out, first for one step, then twice.",
+        "Open the artifact inventory: one NeonTube instance serves seven lamps, and a second plays the failing letter."
+      ],
+      guide: {
+        documentId: "show-visual-toolkit",
+        heading: "property-animation",
+        label: "Read property animation"
+      },
+      defaultOpen: true
+    }
+  }
 ]
 
 export function stockShowCatalogueById(id: string): StockShowCatalogueEntry | undefined {

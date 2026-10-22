@@ -92,6 +92,7 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   overtureRemixV2(),
   totalityInstallationV2(),
   blackSunInstallationV2(),
+  afterHoursInstallationV2(),
 ]
 
 export function stockShowV2ById(id: string | null | undefined): ShowRecordV2 | undefined {
@@ -2469,5 +2470,65 @@ function blackSunInstallationV2(): ShowRecordV2 {
       chapter('m-lock', 52_000, 'Lock'),
       chapter('m-close', 62_000, 'Close'),
     ],
+  })
+}
+
+// After Hours (#1196): a roadside FOOD sign at 2 a.m. The second O fails,
+// shorts the sign, and is the one lamp that comes back. Nine physical Zones,
+// three Pattern instances, no Transition or overlay Layer; one time section:
+// every event is a key inside a whole-Show Clip; the short is a white color-map.
+function afterHoursInstallationV2(): ShowRecordV2 {
+  const end = 96_000
+  const HOLD: ShowStructuredEasing = { curve: 'hold', at: 1 }
+  type Key = [number, number, ShowStructuredEasing?]
+  const track = (id: string, target: Parameters<typeof propertyTrack>[1], keys: Key[]) =>
+    propertyTrack(id, target, 0, end, keys.map(([time, value, easing], n) => propertyKey(`${id}-${n}`, time, value, easing ?? HOLD)))
+  const zones = physicalZones(['F', 'O', 'Second O', 'D', 'Border', 'Arrow 1', 'Arrow 2', 'Arrow 3', 'Arrow head'], [50, 60, 60, 67, 141, 16, 16, 16, 16])
+  const lamps = ['f', 'o1', 'o2', 'd', 'border', 'arrow1', 'arrow2', 'arrow3', 'head']
+  const short: Key[] = [[80_250, 1, CUBIC_OUT], [81_050, 0]]
+  const opacity = (id: string, keys: Key[]) => track(`${id}-opacity`, { kind: 'clip-opacity', clipId: id }, [...keys, ...short])
+  return nativeShowV2({
+    id: 'stock-show-installation-after-hours', name: 'After Hours Installation',
+    stageMapId: 'after-hours-sign', outputContract: installationOutputContract('after-hours-sign', 442),
+    executionModel: 'continuous', showEndMs: end, zones,
+    zoneLayouts: [physicalLayout('layout-sign', 'FOOD sign', zones, [[[0, 49]], [[50, 109]], [[110, 169]], [[170, 236]], [[237, 377]], [[378, 393]], [[394, 409]], [[410, 425]], [[426, 441]]])],
+    layoutOccurrences: [occurrence(1, 'layout-sign', 0, end)],
+    layers: zones.map(zone => mainLayer(zone.id)),
+    patternInstances: [
+      instance('tube', 'NeonTube', 1, { sliderHealth: 1, sliderSeed: 0 }),
+      instance('weak', 'NeonTube', 1, { sliderHealth: 0, sliderSeed: 0.37 }),
+      { ...steppedInstance('chase', 'LumaMarquee', 1, 250), controlTargets: { sliderLoopInterval: 0.075, sliderDirection: 1, sliderSpacing: 0.0013, sliderWidth: 0.24, sliderFeather: 0, sliderLean: 0.3264 } },
+    ],
+    clips: lamps.map((id, index) => {
+      const [highlightR, highlightG, highlightB] = index < 4 ? [1, 0.08, 0.02] : [0.16, 0.36, 1]
+      const zone = zones[index].id
+      return clip(id, id === 'o2' ? 'weak' : id === 'border' ? 'chase' : 'tube', zone, mainLayerId(zone), 0, end, { effects: [
+        { id: `${id}-tint`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR, highlightG, highlightB },
+        { id: `${id}-white`, kind: 'color-map', amount: 0, shadowR: 0.6, shadowG: 0.6, shadowB: 0.6, highlightR: 0.6, highlightG: 0.6, highlightB: 0.6 },
+      ] })
+    }),
+    propertyTracks: [
+      track('weak-health', { kind: 'instance-control', instanceId: 'weak', exportName: 'sliderHealth' }, [
+        [0, 0], [2000, 0.35], [3000, 0.2], [4750, 0.5], [6250, 0.3], [7500, 0.6], [9000, 0.45], [10500, 0.75], [11500, 0.55], [13000, 1],
+        [40000, 0], [40250, 1], [48000, 0], [48250, 1], [48500, 0], [48750, 1], [56000, 0.5], [57000, 1], [60000, 0.4], [60750, 1],
+        [65370, 0.45], [66110, 1], [67830, 0.3], [68900, 0.8], [70240, 0.5], [70900, 1], [72000, 0.5], [73500, 0.35], [75200, 0.55], [77000, 0.4], [78000, 1],
+        [80250, 0], [83000, 0.3], [84000, 0.55], [85000, 0.8], [85750, 1], [90000, 0.6], [91000, 0.2], [92000, 0],
+      ]),
+      opacity('f', [[0, 0], [4000, 1], [4250, 0], [4500, 1], [4750, 0], [5000, 1]]),
+      opacity('o1', [[0, 0], [6000, 1], [6250, 0], [6500, 1], [7000, 0], [7250, 1]]),
+      opacity('d', [[0, 0], [8000, 1], [8500, 0], [8750, 1]]),
+      opacity('border', [[0, 0], [12000, 0.6], [12250, 0], [12500, 0.6], [12750, 0], [13000, 0.6]]),
+      ...['arrow1', 'arrow2', 'arrow3', 'head'].map((id, index) => {
+        const keys: Key[] = [[0, 0]]
+        for (let tip = 16_000; tip <= 80_000; tip += 8_000) {
+          keys.push([tip - 750 + index * 250, 0.7])
+          if (tip !== 80_000) keys.push([tip + 1000, 0])
+        }
+        return opacity(id, keys)
+      }),
+      ...lamps.map(id => track(`${id}-white-amount`, { kind: 'clip-effect', clipId: id, effectId: `${id}-white`, effectKind: 'color-map', parameterId: 'amount' },
+        id === 'o2' ? [[0, 0], ...short] : [[0, 0], [80_250, 1]])),
+    ],
+    markers: [chapter('m-warmup', 0, 'Warm-up'), chapter('m-steady', 16_000, 'Steady'), chapter('m-hint', 40_000, 'Hint'), chapter('m-failure', 56_000, 'Failure'), chapter('m-short', 80_000, 'The short'), chapter('m-afterglow', 81_000, 'Afterglow'), chapter('m-out', 92_000, 'Out')],
   })
 }
