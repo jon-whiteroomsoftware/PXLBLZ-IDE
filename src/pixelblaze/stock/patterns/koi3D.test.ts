@@ -2,12 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { bundle } from '@/engine/bundle'
 import { loadPattern } from '@/engine/loadPattern'
 import { createFxShim, createShim } from '@/engine/shim'
+import { discoverAutomatablePatternControls } from '@/engine/showPatternControls'
 import { DEMO_SECTIONS, GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '../patterns'
 import { SOURCE_STOCK_MAPS } from '../maps/stockCatalogue'
 
 describe('Koi3D (#1200)', () => {
+  it('presents Loop Interval in exact seconds matching its 20 s lap and 1 s floor', () => {
+    const controls = discoverAutomatablePatternControls(DEMOS.Koi3D, {}, 'Koi3D')
+    expect(
+      controls.find((control) => control.exportName === 'sliderLoopInterval')?.secondsPresentation,
+    ).toEqual({ scale: 20, minSeconds: 1 })
+    const lumaControls = discoverAutomatablePatternControls(DEMOS.LumaStripes, {}, 'LumaStripes')
+    expect(
+      lumaControls.find((control) => control.exportName === 'sliderLoopInterval')?.secondsPresentation,
+    ).toEqual({ scale: 10, minSeconds: 0.1 })
+  })
+
   it('is a Show Ingredient outside the Gallery', () => {
     expect(DEMO_SECTIONS.find((s) => s.label === 'Show Ingredients')?.names).toContain('Koi3D')
     expect(GALLERY_PATTERNS.some((p) => p.name === 'Koi3D')).toBe(false)

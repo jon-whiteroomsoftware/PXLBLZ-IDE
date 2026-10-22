@@ -589,18 +589,23 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
 // Sliders whose raw 0..1 value encodes seconds linearly (value * scale). The
 // Luma family's Loop Interval (#819) keeps the raw slider legible on hardware
 // (seconds / 10, so 20% = 2 s) while the IDE offers exact typed entry.
+// Koi3D's Loop Interval (#1200) uses the same mechanism at a 20 s scale.
 export interface ControlSecondsPresentation {
   scale: number
   minSeconds: number
 }
 
 const LUMA_LOOP_SECONDS: ControlSecondsPresentation = { scale: 10, minSeconds: 0.1 }
+// Koi3D's lap is max(1 s, value * 20 s) (#1200), not the Luma 10 s scale.
+const KOI_LOOP_SECONDS: ControlSecondsPresentation = { scale: 20, minSeconds: 1 }
 
-export const CONTROL_SECONDS_PRESENTATIONS: Record<string, Record<string, ControlSecondsPresentation>> =
-  Object.fromEntries(
+export const CONTROL_SECONDS_PRESENTATIONS: Record<string, Record<string, ControlSecondsPresentation>> = {
+  ...Object.fromEntries(
     ['LumaStripes', 'LumaChevron', 'LumaRings', 'LumaPinwheel', 'LumaDots', 'LumaWeave', 'LumaSpiral', 'LumaMarquee', 'LumaCells', 'LumaPlane3D']
       .map((name) => [name, { sliderLoopInterval: LUMA_LOOP_SECONDS }]),
-  )
+  ),
+  Koi3D: { sliderLoopInterval: KOI_LOOP_SECONDS },
+}
 
 // Return a copy of `controls` with `description` (and any curated seconds
 // presentation) filled in from the curated tables for `demoName`. Pure and
