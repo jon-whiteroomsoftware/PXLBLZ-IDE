@@ -217,7 +217,7 @@ describe('Phase (#1205)', () => {
     ])
     expect(GALLERY_SHOWS.some(show => show.id === record.id)).toBe(false)
     expect(stockShowCatalogueById(record.id)).toMatchObject({
-      track: 'portable', collection: 'portable-shows', level: null, order: 3,
+      track: 'portable', collection: 'portable-shows', level: null, order: 4,
       patternSlots: [{ instanceIds: ['anchor'] }, { instanceIds: ['phaser'] }],
       note: { title: 'Phase', label: 'Portable Shows', defaultOpen: false },
     })

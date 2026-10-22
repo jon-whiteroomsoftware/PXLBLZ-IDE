@@ -3247,7 +3247,7 @@ export const STOCK_SHOW_CATALOGUE: readonly StockShowCatalogueEntry[] = [
     track: 'portable',
     collection: 'portable-shows',
     level: null,
-    order: 3,
+    order: 4,
     lesson: 'Phase',
     description: 'Two copies of one striped figure drift apart and lock together. Amber hides cobalt in unison; disagreement fills the black between them. A 72-second process piece after Steve Reich.',
     patternSlots: [{ instanceIds: ['anchor'] }, { instanceIds: ['phaser'] }],

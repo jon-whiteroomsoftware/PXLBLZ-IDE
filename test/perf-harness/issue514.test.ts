@@ -65,8 +65,8 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // 1,000-pixel Proscenium 301 sits outside the render-target question),
     // and again with Ember & Floe (#1199: a two-Zone portable Show that
     // clears every budget at 47,827 B and 57 globals).
-    // #1205 recensus: Phase adds one portable Show; zero Show rejections and acceptance verdicts hold.
-    expect(report.summary.savedShowCount).toBe(39)
+    // and again with Phase (#1205: a two-instance portable Show; zero Show rejections and acceptance verdicts hold).
+    expect(report.summary.savedShowCount).toBe(40)
     expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })
