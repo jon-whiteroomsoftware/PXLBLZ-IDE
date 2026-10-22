@@ -84,10 +84,10 @@ export function evaluateShowPropertyTrack(track: ShowCompilerPropertyAnimationTr
   return left.value + (right.value - left.value) * eased
 }
 
-/** Emit the exact evaluator used by generated Show code. */
+/** Emit the exact evaluator used by generated Show code. Time is in seconds so every emitted value and constant stays inside Pixelblaze 16.16 range (#1197). */
 export function emitShowPropertyTrackExpression(
   track: ShowCompilerPropertyAnimationTrack,
-  atMsExpression: string,
+  atSecondsExpression: string,
 ): string {
   const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
   if (keyframes.length === 0) return '0'
@@ -98,16 +98,16 @@ export function emitShowPropertyTrackExpression(
     const right = keyframes[index + 1]
     const retained = left.curveSegment
     const progress = retained
-      ? `(${retained.elapsedOffsetMs} + ((${atMsExpression}) - ${left.timeMs})) / ${retained.sourceDurationMs}`
-      : `((${atMsExpression}) - ${left.timeMs}) / ${right.timeMs - left.timeMs}`
+      ? `(${retained.elapsedOffsetMs / 1000} + ((${atSecondsExpression}) - ${left.timeMs / 1000})) / ${retained.sourceDurationMs / 1000}`
+      : `((${atSecondsExpression}) - ${left.timeMs / 1000}) / ${(right.timeMs - left.timeMs) / 1000}`
     const eased = emitShowEasingExpression(retained?.easing ?? left.easing, progress)
     let segmentExpression = retained
       ? `(${retained.baseValue} + (${retained.deltaValue}) * ${eased})`
       : `(${left.value} + (${right.value - left.value}) * ${eased})`
-    if (retained && index > 0) segmentExpression = `((${atMsExpression}) == ${left.timeMs} ? ${left.value} : ${segmentExpression})`
-    expression = `((${atMsExpression}) < ${right.timeMs} ? ${segmentExpression} : ${expression})`
+    if (retained && index > 0) segmentExpression = `((${atSecondsExpression}) == ${left.timeMs / 1000} ? ${left.value} : ${segmentExpression})`
+    expression = `((${atSecondsExpression}) < ${right.timeMs / 1000} ? ${segmentExpression} : ${expression})`
   }
-  return `((${atMsExpression}) <= ${keyframes[0].timeMs} ? ${keyframes[0].value} : ${expression})`
+  return `((${atSecondsExpression}) <= ${keyframes[0].timeMs / 1000} ? ${keyframes[0].value} : ${expression})`
 }
 
 export function normalizeShowPropertyTracks(

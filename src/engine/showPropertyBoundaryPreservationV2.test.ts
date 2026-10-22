@@ -7,7 +7,7 @@ function track(): ShowPropertyTrackV2 {
 }
 function values(source: ShowPropertyTrackV2, times: number[]) {
   const compilerTrack = { ...source, target: { kind: 'placement-view' as const, placementId: 'clip', property: 'brightness' as const } }
-  const expression = emitShowPropertyTrackExpression(compilerTrack, 'atMs'); const emitted = new Function('atMs', 'min', 'max', `return ${expression}`)
+  const expression = emitShowPropertyTrackExpression(compilerTrack, '(atMs / 1000)'); const emitted = new Function('atMs', 'min', 'max', `return ${expression}`)
   return times.map(time => ({ native: evaluateShowPropertyKeysV2(source.keyframes, time), legacy: evaluateShowPropertyTrack(compilerTrack, time), emitted: emitted(time, Math.min, Math.max) }))
 }
 it('authored exact interior key wins while outgoing descriptor keeps strict interior', () => {
@@ -24,7 +24,7 @@ it('hold keeps the original incoming segment, constant authored boundary and unt
 })
 it('descriptor-free emitted expression bytes remain exact', () => {
   const source = { id: 'ordinary', target: { kind: 'placement-opacity' as const, placementId: 'clip' }, keyframes: [{ id: 'a', timeMs: 0, value: 0.2, easing: { curve: 'linear' as const } }, { id: 'b', timeMs: 1000, value: 0.8, easing: { curve: 'linear' as const } }] }
-  expect(emitShowPropertyTrackExpression(source, 'atMs')).toBe('((atMs) <= 0 ? 0.2 : ((atMs) < 1000 ? (0.2 + (0.6000000000000001) * ((atMs) - 0) / 1000) : 0.8))')
+  expect(emitShowPropertyTrackExpression(source, 'atMs')).toBe('((atMs) <= 0 ? 0.2 : ((atMs) < 1 ? (0.2 + (0.6000000000000001) * ((atMs) - 0) / 1) : 0.8))')
 })
 it.each([0, 25, 100, 200, 400])('holds first/interior/last authored key at%s with incoming retained discontinuity intact', atMs => {
   const original = track(); original.activeStartMs = 0
@@ -60,5 +60,5 @@ it('ordinary exact-key hold keeps descriptor-free expression bytes identical to 
   expect(mapped.keyframes.every(key => !key.curveSegment)).toBe(true)
   const compilerTarget = { kind: 'placement-view' as const, placementId: 'clip', property: 'brightness' as const }
   const independent = { ...original, target: compilerTarget, keyframes: [{ ...original.keyframes[0] }, { ...original.keyframes[1] }, { ...original.keyframes[1], id: 'manual-resume', timeMs: 375 }, { ...original.keyframes[2], timeMs: 625 }] }
-  expect(emitShowPropertyTrackExpression({ ...mapped, target: compilerTarget }, 'atMs')).toBe(emitShowPropertyTrackExpression(independent, 'atMs'))
+  expect(emitShowPropertyTrackExpression({ ...mapped, target: compilerTarget }, '(atMs / 1000)')).toBe(emitShowPropertyTrackExpression(independent, '(atMs / 1000)'))
 })

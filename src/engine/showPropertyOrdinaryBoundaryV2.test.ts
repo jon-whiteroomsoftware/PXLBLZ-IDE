@@ -12,7 +12,7 @@ function track(curve: 'steps' | 'hold'): ShowPropertyTrackV2 {
 }
 function delivered(source: ShowPropertyTrackV2, atMs: number) {
   const compiler = { ...source, target: { kind: 'placement-opacity' as const, placementId: 'clip' } }
-  const expression = emitShowPropertyTrackExpression(compiler, 'atMs')
+  const expression = emitShowPropertyTrackExpression(compiler, '(atMs / 1000)')
   return [evaluateShowPropertyKeysV2(source.keyframes, atMs), evaluateShowPropertyTrack(compiler, atMs), new Function('atMs', 'min', 'max', 'floor', `return ${expression}`)(atMs, Math.min, Math.max, Math.floor)]
 }
 it.each(['steps', 'hold'] as const)('preserves ordinary %s historical outgoing exact boundary', curve => {

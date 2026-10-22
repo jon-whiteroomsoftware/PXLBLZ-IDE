@@ -2075,7 +2075,7 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
     const lowered = lowerShowCompositionV2ForCompile(record, lookupFor(record)).show
     const scene = lowered.composition!.scenes.find(candidate => candidate.sceneId === sectionId)!
     const track = scene.propertyTracks!.find(candidate => candidate.id === trackId)!
-    const emitted = new Function('localMs', `return ${emitShowPropertyTrackExpression(track, 'localMs')}`) as (localMs: number) => number
+    const emitted = new Function('localMs', `return ${emitShowPropertyTrackExpression(track, '(localMs / 1000)')}`) as (localMs: number) => number
     return {
       durationMs: lowered.scenes.find(candidate => candidate.id === sectionId)!.durationMs,
       at: (atMs: number) => {
@@ -2277,8 +2277,8 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
   })
 
   it('keeps the generated source of a record whose pieces already fit', () => {
-    // Pinned on the code before #1103; the retained-exact path keeps these bytes.
-    expect(generatedHash(animationRecord())).toBe('d9e47d72dfbf825418f1185135204992b56de22b0a8d401a30da0a77bbb8949d')
+    // Pinned on the code before #1103; re-pinned when track time moved to seconds (#1197).
+    expect(generatedHash(animationRecord())).toBe('8cff2e3839dc35fed582d2c9f9aa0292d6a28dcc97eb2a95a630173332512145')
   })
 
   it('keeps compiler vocabulary out of user-facing preparation refusals (#1043)', () => {

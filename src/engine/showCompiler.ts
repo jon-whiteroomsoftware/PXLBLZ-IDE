@@ -4326,10 +4326,10 @@ function emitAdaptationRampShowCode(
   const from = normalizeAdaptation(ramp.from)
   const to = normalizeAdaptation(ramp.to)
   const transitionEnd = ramp.startMs + ramp.durationMs
-  const elapsedRampMs = `(__pxlblz_show_elapsed_s - ${ramp.startMs / 1000}) * 1000`
-  const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, elapsedRampMs)
-  const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, elapsedRampMs)
-  const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, elapsedRampMs)
+  const elapsedRampS = `(__pxlblz_show_elapsed_s - ${ramp.startMs / 1000})`
+  const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, elapsedRampS)
+  const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, elapsedRampS)
+  const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, elapsedRampS)
   return [
     emitRuntimePrelude([member], outputDimension, { includeAdaptationMix: true }),
     member.code.trim(),
@@ -4354,13 +4354,13 @@ function emitAdaptationRampShowCode(
 function emitControlRampAssignments(
   member: CompiledMember,
   ramps: Record<string, ShowAdaptationPropertyRampRecipe> | undefined,
-  elapsedExpression: string,
+  elapsedSecondsExpression: string,
 ): string {
   if (!ramps) return ''
   return Object.entries(ramps).map(([exportName, ramp]) => {
     const control = member.controls.find((candidate) => candidate.exportName === exportName)
     if (!control) throw new Error(`Clip "${member.id}" cannot animate "${exportName}": public slider control not found.`)
-    const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+    const progress = `clamp((${elapsedSecondsExpression}) / ${ramp.durationMs / 1000}, 0, 1)`
     const mix = emitShowEasingExpression(ramp.easing, progress)
     return `${control.valueName} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`
   }).join('\n')
@@ -4369,13 +4369,13 @@ function emitControlRampAssignments(
 function emitPropertyRampAssignments(
   member: CompiledMember,
   ramps: ShowAdaptationRampRecipe['propertyRamps'],
-  elapsedExpression: string,
+  elapsedSecondsExpression: string,
 ): string {
   if (!ramps) return ''
   return (['brightness', 'timeScale'] as const).flatMap((property) => {
     const ramp = ramps[property]
     if (!ramp) return []
-    const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+    const progress = `clamp((${elapsedSecondsExpression}) / ${ramp.durationMs / 1000}, 0, 1)`
     const mix = emitShowEasingExpression(ramp.easing, progress)
     return [`${member.prefix}_adapt_${property} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`]
   }).join('\n')
@@ -4384,13 +4384,13 @@ function emitPropertyRampAssignments(
 function emitEffectRampAssignments(
   member: CompiledMember,
   ramps: ShowEffectPropertyRampsRecipe | undefined,
-  elapsedExpression: string,
+  elapsedSecondsExpression: string,
 ): string {
   if (!ramps) return ''
   return Object.entries(ramps).flatMap(([effectId, parameters]) => (
     Object.entries(parameters).map(([parameter, ramp]) => {
       const variable = effectParameterVariable(member, effectId, parameter)
-      const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+      const progress = `clamp((${elapsedSecondsExpression}) / ${ramp.durationMs / 1000}, 0, 1)`
       const mix = emitShowEasingExpression(ramp.easing, progress)
       return `${variable} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`
     })
@@ -4681,11 +4681,11 @@ function emitSceneSequenceShowCode(
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${segment.transition!.propertyRamps
-      ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
+      ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000})`), 4)}`
       : ''}${segment.transition!.controlRamps
-        ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
+        ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000})`), 4)}`
         : ''}${segment.transition!.effectRamps
-          ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
+          ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000})`), 4)}`
         : ''}${scalarField ? `\n${indentBlock(emitScalarFieldLifecycle(scalarField), 4)}` : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
@@ -5084,10 +5084,11 @@ ${continuityMembers.map((member) => {
 }`
     : ''
   const hiddenContinuityCall = continuityMembers.length > 0 ? '__pxlblz_show_advance_hidden_instances(delta)' : ''
+  // Section-local time in seconds; ms would wrap 16.16 past 32.767 s (#1197).
   const sceneLocalTimeExpression = (sceneIndex: number) => {
     const scene = scenes[sceneIndex]
     const offset = scene.localTimeOffsetMs ?? 0
-    return `((__pxlblz_show_elapsed_s - ${(sceneStartMs.get(sceneIndex) ?? 0) / 1000}) * 1000 + ${offset})`
+    return `(__pxlblz_show_elapsed_s - ${(sceneStartMs.get(sceneIndex) ?? 0) / 1000} + ${offset / 1000})`
   }
 
   const setupEntriesForPlacements = (
@@ -5120,7 +5121,7 @@ ${continuityMembers.map((member) => {
         : `max(1, floor(pixelCount / ${logicalZoneCount}))`
       const rampAssignments = emitRoutedSceneRampAssignments(
         ramps?.filter((ramp) => ramp.member === member),
-        '(__pxlblz_show_elapsed_s - __pxlblz_show_transition_start_s) * 1000',
+        '(__pxlblz_show_elapsed_s - __pxlblz_show_transition_start_s)',
       )
       const propertyTrackAssignments = (propertyTrackContexts ?? []).flatMap((context) => ([
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression),
@@ -6955,12 +6956,12 @@ function emitSharedPhysicalSceneZoneStack(
 
 function emitRoutedSceneRampAssignments(
   ramps: ResolvedRoutedScenePlacementRamp[] | undefined,
-  elapsedExpression: string,
+  elapsedSecondsExpression: string,
 ): string {
   return (ramps ?? []).flatMap((ramp) => [
-    emitPropertyRampAssignments(ramp.member, ramp.propertyRamps, elapsedExpression),
-    emitControlRampAssignments(ramp.member, ramp.controlRamps, elapsedExpression),
-    emitEffectRampAssignments(ramp.member, ramp.effectRamps, elapsedExpression),
+    emitPropertyRampAssignments(ramp.member, ramp.propertyRamps, elapsedSecondsExpression),
+    emitControlRampAssignments(ramp.member, ramp.controlRamps, elapsedSecondsExpression),
+    emitEffectRampAssignments(ramp.member, ramp.effectRamps, elapsedSecondsExpression),
   ]).filter(Boolean).join('\n')
 }
 

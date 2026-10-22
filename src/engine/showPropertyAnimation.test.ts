@@ -112,7 +112,7 @@ describe('Scene-local property animation (#490)', () => {
           { id: 'key-b', timeMs: 900, value: 0.8, easing: { curve: 'linear' } },
         ],
       })
-      const expression = emitShowPropertyTrackExpression(candidate, 'atMs')
+      const expression = emitShowPropertyTrackExpression(candidate, '(atMs / 1000)')
       const emitted = new Function(
         'atMs', 'floor', 'min', 'cos', 'PI',
         `${showCubicBezierRuntimeSource()}\nreturn ${expression}`,

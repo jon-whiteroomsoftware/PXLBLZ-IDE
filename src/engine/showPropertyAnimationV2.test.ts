@@ -442,7 +442,7 @@ describe('v2 property animation', () => {
         { id: 'right', timeMs: 750, value: 0, easing: { curve: 'linear' as const } },
       ],
     }
-    const emitted = emitShowPropertyTrackExpression(track, 'atMs')
+    const emitted = emitShowPropertyTrackExpression(track, '(atMs / 1000)')
     const evaluateEmitted = new Function('atMs', `return ${emitted}`) as (atMs: number) => number
 
     expect(evaluateShowPropertyTrack(track, 500)).toBeCloseTo(0.5)
