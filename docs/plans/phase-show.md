@@ -76,7 +76,8 @@ players stand.
 - **Amber** (`#FF8A00`) is the phaser and the hero.
 - **Cobalt** (`#1840FF`) is the anchor, and the colour of disagreement.
 - **Black** is agreement and space.
-- **White** is exact unison, once, when the last snap lands. It is the
+- **White** is unison, once, when the last snap lands. It is exact at the
+  preview's frame rates and within the cadence budget on hardware. It is the
   stripes' own raw light with the amber tint removed: the figure seen bare.
 - **No intruder hue.** The intruder is behavioural: the snap in *Clap*.
 
@@ -424,7 +425,9 @@ The 67 property keys: 49 on the phaser's clock, 8 on the two width tracks,
 is 39 KB.
 
 **Flash limit.** Measured with `runTelemetry` from
-`src/agent-harness/telemetry/harness.ts` at 30 fps over the full 72 s:
+`src/agent-harness/telemetry/harness.ts` at 30 fps over the full 72 s. It
+was not measured at hardware frame rates; the build adds those (see the
+measurement plan):
 - 0.000 of pixels flash above 3 Hz in the worst second, at both 256 and 1,936
   pixels;
 - the snaps are at least 600 ms apart, and still are with one-beat snaps (the
@@ -447,7 +450,7 @@ is 39 KB.
   - fast-replay and editor proof stand;
   - Precise proof past 32.7 s waits for the repair;
   - Precise replay already matches fast replay for every lock through 30 s
-    (probe 2).
+    (probe 2), at the same preview-rate steps.
 
 ### Expensive purchases
 
@@ -474,15 +477,30 @@ score, which is small. Prove these:
     accumulates from Show start, not from the last unison;
   - *coverage:* the anchor's visible share of the rendered Stage equals a
     reference coverage within one pixel column. The reference comes from the
-    same map, the same controls and the same observation time, with the phaser
-    offset by the planned quarter. Fixed fractions do not hold: with about 3.3
+    same map, the same controls and the same observation time. At the
+    preview's 60 and 30 FPS steps the phaser is offset by the planned quarter.
+    At hardware-rate and jittered steps it is offset by the measured phase
+    difference: the phase budget there allows up to 1.6 columns, so a
+    planned-quarter reference would fail a correct Show. The phase part judges
+    the clock and the coverage part judges the render. Fixed fractions do not hold: with about 3.3
     stripe periods on a finite Stage, coverage is 0.227 and 0.455 at the quarter
     and half locks (probe 1), not 0.25 and 0.5;
-- **the loop seam:** the frame at 2.4 s equals the frame at 74.4 s. This holds
-  at a steady cadence and also under a jittered one, because the loop wrap
-  resets both clocks;
-- the flash gate passes at 256 and 1,936 pixels;
-- after #1197 lands, Precise replay matches fast replay at every lock.
+- **the loop seam:** the frame at 2.4 s equals the frame at 74.4 s, and the
+  frame and phase difference at 12 s equal those at 84 s. The second pair is
+  needed because only the anchor is visible at 2.4 s, so the first pair cannot
+  see whether the phaser reset.
+  - *Steady cadence:* both pairs are equal. Every tested step divides 72 s
+    evenly, so the second pass samples the same times as the first.
+  - *Jittered cadence:* the second pass draws different frames. There the
+    84 s phase difference must sit within the budget accumulated since the
+    wrap, the same allowance as at 12 s, not the larger allowance that
+    carrying error past the wrap would need.
+  - Each replay trims its final step to land exactly on the compared time;
+- the flash gate passes at 256 and 1,936 pixels. It is measured at 30 fps, and
+  again at steady 125 and 200 ms steps, because at hardware frame rates a snap
+  covers only 3 to 5 frames;
+- after #1197 lands, Precise replay matches fast replay at every lock, both
+  replayed at the same steps.
 
 **Then:**
 - census re-pins in the fan-out order of `docs/agents/stock-content.md`, with
@@ -538,5 +556,5 @@ path (`prepareShowV2ForCompile`, then `compileShow`) and replayed through
 | 1. Four-phrase prototype (Phase, Angle, Ratio, Clap) | The time-scale mechanism gives exact quarter locks in fast replay: 0, 0.227, 0.455, 0.227 and 0, at both 16 ms and 33 ms steps. Under Precise, the phaser vanished from 18 s. |
 | 2. Precise bisection | The cause is section-local time emitted in milliseconds (`showCompiler.ts:5087-5091`), filed as #1197. Precise matches fast at every lock through 30 s. A time-scale track stops gaining at 32.8 s. |
 | 3. Moiré variants (pitch 0.06 and 0.1; angle 0.015 and 0.03 turns; scale 1.15) at 1,936 and 256 pixels | Moiré is weak at 44 × 44 and noise at 16 × 16, so it is rejected. |
-| 4. Final score (this plan) | Bytes by white mechanism; locks at every half bar; the loop seam delta of 0.00000; the flash gate at 0.000; the storyboard; and the fixes for the fade and the grey white. |
+| 4. Final score (this plan) | Bytes by white mechanism; locks at every half bar and the loop seam delta of 0.00000, both at preview-rate steps; the flash gate at 0.000; the storyboard; and the fixes for the fade and the grey white. |
 | 5. Cadence model (`/tmp`, not committed; added after review) | A standalone model of the sine-in-out time-scale bumps, sampled at frame end as the compiler does. It gives the steady and jittered errors in the cadence contract, per move and over the whole score. Its whole-score residual at a steady 6 FPS is 0.0059 loop, against 0.0055 in the review's compiled replay. It is not the compiled Show, so the build re-measures through fast replay. |
