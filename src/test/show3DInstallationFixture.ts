@@ -3,12 +3,19 @@ import { validateShowRecordV2 } from '../engine/showCompositionV2'
 import { createCustomMap } from '../engine/maps'
 import type { ShowPreparedStageDependenciesV2 } from '../engine/showPreparedStageV2'
 
-/** Synthetic Stage: sample and position deliberately agree on every axis. */
-export function show3DInstallationFixture(source: string, mode: 'span' | 'independent' = 'span') {
-  const coordinates = Array.from({ length: 960 }, (_, i) => [
+/** Synthetic 3D (or reference 2D) Stage: sample and position agree on every axis. */
+export function show3DInstallationFixture(
+  source: string | readonly string[],
+  mode: 'span' | 'independent' = 'span',
+  options: { stageDimension?: 2 | 3 } = {},
+) {
+  const dimension = options.stageDimension ?? 3
+  const coordinates = Array.from({ length: 960 }, (_, i) => dimension === 2 ? [
+    (i % 12) / 11, Math.floor(i / 12) / 79,
+  ] : [
     (i % 12) / 11, (Math.floor(i / 12) % 10) / 9, Math.floor(i / 120) / 7,
   ])
-  const map = { id: 'lattice', name: 'Lattice', dim: 3 as const, generator: 'custom', params: {}, points: coordinates, updatedAt: 1 }
+  const map = { id: 'lattice', name: 'Lattice', dim: dimension, generator: 'custom', params: {}, points: coordinates, updatedAt: 1 }
   const record = createShowV2WithOutputContract('stage-3d', 'Synthetic volume', {
     version: 1, kind: 'installation', outputMapId: map.id, pixelCount: 960, resolution: 'fixed',
   }, 1)
@@ -27,7 +34,7 @@ export function show3DInstallationFixture(source: string, mode: 'span' | 'indepe
   record.composition.propertyTracks = []
   record.composition.layoutOccurrences = [{ id: 'layout-occurrence', layoutId: 'layout', startMs: 0, durationMs: 2000, parameters: {} }]
   const dependencies: ShowPreparedStageDependenciesV2 = {
-    patterns: record.zones.map((_, i) => ({ id: `pattern-${i}`, name: `Probe ${i}`, src: source, controls: {}, updatedAt: 1 })),
+    patterns: record.zones.map((_, i) => ({ id: `pattern-${i}`, name: `Probe ${i}`, src: typeof source === 'string' ? source : source[i], controls: {}, updatedAt: 1 })),
     maps: [map], libraries: [], profiles: [], stageMap: createCustomMap(coordinates, { id: map.id, name: map.name }),
   }
   const invalid = validateShowRecordV2(record)

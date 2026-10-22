@@ -57,6 +57,101 @@ function cutClips(fixture: Fixture) {
   }
 }
 
+describe('render(index)-only members on a 3D Stage keep index sampling (#1198)', () => {
+  const indexProbe = 'export function render(i){hsv(0,0,i/pixelCount)}'
+
+  function pixelsOf(fixture: Fixture, fidelity: Fidelity) {
+    expect(validateShowRecordV2(fixture.record)).toEqual([])
+    const { prepared } = captureShowStageEditV2(fixture.record, fixture.dependencies)
+    if (prepared.status !== 'ready') throw new Error(JSON.stringify(prepared))
+    const { bundle } = prepared
+    if (fixture.dependencies.maps[0].dim === 2) {
+      expect(bundle.artifact.metadata.renderFns.hasRender2D).toBe(false)
+      expect(bundle.artifact.metadata.renderFns.hasRender3D).toBe(false)
+    } else {
+      expect(bundle.artifact.metadata.renderFns.hasRender3D).toBe(true)
+      if (fixture.record.composition.propertyTracks.length) {
+        expect(bundle.recipe.samplePropertyRamps).toBeDefined()
+      }
+    }
+    const delivery = buildShowV2RouteArtifacts(bundle)
+    if (delivery.status !== 'ready') throw new Error(delivery.message)
+    const source = parseEpe(delivery.artifacts.epe.text).src
+    return replay(source, bundle.artifact, fixture, fidelity).renderCurrentFrame().pixels
+  }
+
+  function translate(fixture: Fixture, mirror = false) {
+    for (const clip of fixture.record.composition.clips) {
+      clip.appearance.keys[0].value.effects = [{ id: 'shift', kind: 'translate', x: 0.25, y: 0 }]
+      clip.appearance.keys[0].value.view.mirror = mirror
+    }
+    return fixture
+  }
+
+  function equalPixels(pixels: number[][], reference: number[][], fidelity: Fidelity) {
+    expect(pixels).toHaveLength(reference.length)
+    pixels.forEach((pixel, i) => pixel.forEach((channel, c) => {
+      expect(channel, `pixel ${i}, channel ${c}`).toBeCloseTo(reference[i][c], fidelity === 'fast' ? 7 : 3)
+    }))
+  }
+
+  function changedPixels(pixels: number[][], baseline: number[][]) {
+    expect(pixels.filter((pixel, i) => pixel.some((channel, c) => Math.abs(channel - baseline[i][c]) > 0.01)).length).toBeGreaterThanOrEqual(50)
+  }
+
+  for (const mode of ['span', 'independent'] as const) {
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      for (const mirror of [false, true]) {
+        it(`${mode}/${fidelity} translate${mirror ? ' + mirror' : ''}`, () => {
+          const fixture = translate(show3DInstallationFixture(indexProbe, mode), mirror)
+          const reference = translate(show3DInstallationFixture(indexProbe, mode, { stageDimension: 2 }), mirror)
+          const pixels = pixelsOf(fixture, fidelity)
+          equalPixels(pixels, pixelsOf(reference, fidelity), fidelity)
+          const baseline = translate(show3DInstallationFixture(indexProbe, mode), mirror)
+          for (const clip of baseline.record.composition.clips) clip.appearance.keys[0].value.effects = []
+          changedPixels(pixels, pixelsOf(baseline, fidelity))
+        })
+      }
+
+      it(`${mode}/${fidelity} translate under Cut`, () => {
+        const fixture = translate(show3DInstallationFixture(indexProbe, mode))
+        const reference = translate(show3DInstallationFixture(indexProbe, mode, { stageDimension: 2 }))
+        cutClips(fixture)
+        cutClips(reference)
+        equalPixels(pixelsOf(fixture, fidelity), pixelsOf(reference, fidelity), fidelity)
+      })
+
+      if (mode === 'span') {
+        it(`${mode}/${fidelity} repeat-scale`, () => {
+          const fixture = show3DInstallationFixture(indexProbe, mode)
+          const reference = show3DInstallationFixture(indexProbe, mode, { stageDimension: 2 })
+          for (const item of [fixture, reference]) {
+            item.record.composition.propertyTracks = [{
+              id: 'repeat', target: { kind: 'show-repeat-scale' }, activeStartMs: 0, activeDurationMs: 2000,
+              keyframes: [{ id: 'r0', timeMs: 0, value: 3, easing: { curve: 'linear' } }, { id: 'r1', timeMs: 2000, value: 3, easing: { curve: 'linear' } }],
+            }]
+            expect(validateShowRecordV2(item.record)).toEqual([])
+          }
+          const pixels = pixelsOf(fixture, fidelity)
+          equalPixels(pixels, pixelsOf(reference, fidelity), fidelity)
+          changedPixels(pixels, pixelsOf(show3DInstallationFixture(indexProbe, mode), fidelity))
+        })
+      }
+
+      it(`${mode}/${fidelity} mixed renderers`, () => {
+        const fixture = show3DInstallationFixture([indexProbe, 'export function render3D(i,x,y,z){hsv(0,0,z)}', 'export function render3D(i,x,y,z){hsv(0,0,z)}'], mode)
+        fixture.record.composition.clips[0].appearance.keys[0].value.effects = [{ id: 'shift', kind: 'translate', x: 0.25, y: 0 }]
+        const reference = translate(show3DInstallationFixture(indexProbe, mode, { stageDimension: 2 }))
+        const pixels = pixelsOf(fixture, fidelity)
+        equalPixels(pixels.slice(0, 320), pixelsOf(reference, fidelity).slice(0, 320), fidelity)
+        pixels.slice(320).forEach((pixel, i) => pixel.forEach(channel => {
+          expect(Math.abs(channel - fixture.points[i + 320].sample[2])).toBeLessThan(fidelity === 'fast' ? 1e-8 : 0.001)
+        }))
+      })
+    }
+  }
+})
+
 describe('Installation Stage xyz at the delivered artifact', () => {
   for (const mode of ['span', 'independent'] as const) {
     for (const fidelity of ['fast', 'fidelity'] as const) {

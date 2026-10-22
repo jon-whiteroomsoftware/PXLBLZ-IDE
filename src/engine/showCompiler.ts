@@ -11235,6 +11235,7 @@ function emitRuntimePrelude(
     group.memberIds.map((memberId) => [memberId, binding] as const)
   )))
   const memberVars = members.flatMap((member, index) => {
+    const indexCapture = outputDimension === 1 || (outputDimension === 3 && member.hasRender && !member.hasRender2D && !member.hasRender3D)
     const sharedEffectKernel = sharedEffectKernelByMemberId.get(member.id)
     const effectRuntime = describeMemberEffectRuntime(member, sharedEffectKernel)
     const compatibility = selectRenderCompatibility(outputDimension, {
@@ -11469,7 +11470,7 @@ ${freezeCapture}${refreshCapture}${rollingRefreshCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     ] : []),
-    ...(outputDimension === 1 ? [(() => {
+    ...(indexCapture ? [(() => {
       // #562: uniform-binding members drop the per-pixel mirror branch and
       // single-use temps; coefficients refresh at every frame-level write
       // site. Non-uniform members keep the branch form verbatim.
@@ -11514,14 +11515,14 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
       const rendererIndex = effectRuntime?.hasCoordinates
         ? uniformMirror ? `min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))` : 'mappedIndex'
         : sourceIndex
-      return `function ${member.prefix}_renderCapture(index) {
+      return `function ${member.prefix}_renderCapture${outputDimension === 1 ? '(index)' : '2D(index, x, y)'} {
 ${freezeReplay}${refreshReplay}${rollingRefreshReplay}${prologue}${ramps}${coords}${omitClear ? '' : `  ${member.prefix}_clear()
 `}  ${emitSelectedMemberRendererCall(member, 1, { index: rendererIndex })}`
     })() + `
 ${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${member.pixelCountName} - 1)`, y: '0.5' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
-    ...(outputDimension !== 1 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
+    ...(!indexCapture ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
 ${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates) ? '' : member.binding?.uniformMirrorBinding ? `  var mappedIndex = ${member.needsMirrorMapping ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index` : 'index'}
   var mappedX = ${member.needsMirrorMapping ? `${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x` : 'x'}
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}` : `  var mappedIndex = index

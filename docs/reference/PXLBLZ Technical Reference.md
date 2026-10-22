@@ -1272,6 +1272,9 @@ On a 3D Stage, the existing sample remap and coordinate Effects still operate
 on x/y, in the same order around View mirror and member transforms. They add
 no repeat-scale policy for z. Stage sampling retains the existing sample-from-pos
 behavior; map sample coordinates and preview positions remain separate concerns.
+A member with only `render(index)` keeps index-order sampling on a 3D Stage —
+coordinate Effects and repeat-scale act on its index position exactly as at
+output dimension 1.
 
 **Routing.** Installation layouts keep arbitrary inclusive LED ranges; the
 first match wins and uncovered pixels render black with a warning. Portable
