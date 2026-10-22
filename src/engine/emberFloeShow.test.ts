@@ -49,6 +49,8 @@ const frameAt = (timeMs: number): Rgb[] => runtime().advanceTo(timeMs, { stepMs:
 
 const ice = ([r, , b]: Rgb) => b > r + 0.02
 const white = ([r, g, b]: Rgb) => Math.min(r, g, b) > 0.5 && Math.max(r, g, b) - Math.min(r, g, b) < 0.15
+const clamp = (n: number) => Math.max(0, Math.min(1, n))
+const lum = ([r, g, b]: Rgb) => 0.2126 * clamp(r) + 0.7152 * clamp(g) + 0.0722 * clamp(b)
 const share = (pixels: Rgb[], test: (rgb: Rgb) => boolean) => pixels.filter(test).length / pixels.length
 const fireShare = (pixels: Rgb[]) => 1 - share(pixels, ice)
 
@@ -127,6 +129,73 @@ describe('Ember & Floe portable show (#1199)', () => {
     const result = replay.advanceTo(50_100, { stepMs: 33 })
     expect(Number(result.exports.__pxlblz_show_c0_numPoints) / 65536, '50100 ms').toBe(8)
   }, 120_000)
+
+  describe('flash limit over the delivered score', () => {
+    const frames: { t: number; pixels: Rgb[] }[] = []
+    beforeAll(() => {
+      const replay = runtime()
+      for (let n = 0; n < 2700; n++) {
+        const t = n * (1000 / 30)
+        frames.push({ t, pixels: replay.advanceTo(t, { stepMs: 1000 / 30 }).pixels })
+      }
+    }, 180_000)
+
+    // Port of telemetry/harness.ts's contrast-qualified extremum detector.
+    function flashWindows(sampled: { pixels: Rgb[] }[]) {
+      const direction = new Int8Array(mapPoints.length)
+      const extremum = new Float64Array(mapPoints.length)
+      const previous = new Float64Array(mapPoints.length)
+      const transitions = new Uint16Array(mapPoints.length)
+      const windows: { second: number; fraction: number }[] = []
+      sampled.forEach(({ pixels }, frame) => {
+        pixels.forEach((rgb, index) => {
+          const value = lum(rgb)
+          if (frame === 0) extremum[index] = value
+          else {
+            const step = value - previous[index]
+            const nextDirection = step > 0 ? 1 : step < 0 ? -1 : 0
+            if (nextDirection !== 0) {
+              if (direction[index] === 0) direction[index] = nextDirection
+              else if (nextDirection !== direction[index]) {
+                if (Math.abs(previous[index] - extremum[index]) >= 0.1) transitions[index]++
+                extremum[index] = previous[index]
+                direction[index] = nextDirection
+              }
+            }
+          }
+          previous[index] = value
+        })
+        if ((frame + 1) % 30 === 0) {
+          const violating = Array.from(transitions).filter(n => n / 2 > 3 && n / 2 <= 15).length
+          windows.push({ second: Math.floor(frame / 30), fraction: violating / mapPoints.length })
+          transitions.fill(0)
+        }
+      })
+      return windows
+    }
+
+    it('limits flashing area in every second of the 90 s score', () => {
+      const windows = flashWindows(frames)
+      // #1199 measured worst flash window: second 52, fraction 2 / 1936 = 0.0010330578512396695.
+      for (const window of windows) expect(window.fraction, `second ${window.second}`).toBeLessThanOrEqual(0.25)
+    })
+
+    it('shows Stage-wide white only inside the 50.00-51.25 s hit', () => {
+      // #1199 measured largest out-of-hit white share: 9 / 1936 = 0.0046487603305785125 at 87233.33333333334 ms.
+      for (const { t, pixels } of frames) {
+        if (t < 50_000 || t > 51_250) expect(share(pixels, white), `${t} ms`).toBeLessThan(0.01)
+      }
+      const nearest = frames.reduce((closest, frame) => Math.abs(frame.t - 50_000) < Math.abs(closest.t - 50_000) ? frame : closest)
+      expect(share(nearest.pixels, white), `${nearest.t} ms`).toBeGreaterThan(0.9)
+    })
+
+    it('detects a synthetic flash, so the limit is not vacuous', () => {
+      const synthetic = Array.from({ length: 30 }, (_, n) => ({
+        pixels: mapPoints.map(() => Array(3).fill(Math.floor(n / 3) % 2)),
+      }))
+      expect(flashWindows(synthetic)).toEqual([{ second: 0, fraction: 1 }])
+    })
+  })
 
   describe('rendered score', () => {
     const frames = new Map<number, Rgb[]>()
