@@ -14,6 +14,16 @@ and local D1 inside the Vite process, so UI and `/api` share the single port.
 `npm run dev:main` applies pending migrations, provisions local synthetic
 identities, and starts that process when it is absent.
 
+Managed main `5174` and every shared or isolated issue listener bind all IPv4
+interfaces (`0.0.0.0`). Previews live at
+`http://Agent-Mini.local:<port>/PXLBLZ-IDE/`; localhost still works. Health checks
+and proxy traffic stay on localhost.
+
+Existing healthy runtimes adopt this binding only after an owner-coordinated
+restart. Status URLs advertise the preview location; they do not prove an old
+listener's binding. Main's first adoption restart belongs to the eng lead after
+landing #1208; builders must not stop it.
+
 A bare `npm run dev` is the same single-process shape for ad-hoc use, reading
 `.dev.vars` and persisting to the checkout's `.wrangler/state` — the same
 database `npm run db:migrate:local` targets. Setting `VITE_API_PROXY_TARGET`
@@ -102,17 +112,29 @@ npm run dev:status
 npm run dev:status -- --json
 ```
 
-Generate a signed localhost session for the assigned synthetic identity with:
+Generate a signed session for the assigned synthetic identity with:
 
 ```bash
 npm run dev:session -- --issue 627
 npm run dev:session -- --issue 627 --json
 ```
 
-The JSON form is suitable for a separate automated browser context. Agents must
+The JSON form includes `user`, the legacy localhost `cookie`, and `cookies` for
+both `localhost` and `agent-mini.local`, in that order. Both cookies use the same
+session token and attributes. Install them in a separate automated browser context:
+
+```ts
+await context.addCookies(session.cookies)
+```
+
+Existing callers can continue using `session.cookie`. Agents must
 not overwrite the user's Chrome cookies or rely on a personal OAuth session.
 Real OAuth remains available on the stable main origin (`5174`) when a human
 needs to exercise the provider loop.
+
+LAN app UI, API, and dev sign-in are supported. Agent OAuth onboarding remains
+same-machine on its configured localhost origin because the existing validator
+admits HTTP loopback origins only. #1208 does not change that security policy.
 
 `.dev.vars` remains canonical in the main checkout. The coordinator links each
 worktree to that ignored file; it never copies secrets into worktrees or the

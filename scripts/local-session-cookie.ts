@@ -9,6 +9,7 @@ import { loadRuntimeRegistry } from './dev-runtime-store'
 import {
   loadManifest,
   repositoryContext,
+  runtimeSessionCookies,
 } from './dev-runtime'
 
 function parseArgs(args: readonly string[]): {
@@ -62,17 +63,11 @@ const token = await createSessionToken(
 
 const cookie = `${sessionCookieName}=${encodeURIComponent(token)}`
 if (args.json) {
+  const cookies = runtimeSessionCookies(sessionCookieName, token)
   console.log(JSON.stringify({
     user,
-    cookie: {
-      name: sessionCookieName,
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
+    cookie: cookies[0],
+    cookies,
   }, null, 2))
 } else {
   console.log(cookie)

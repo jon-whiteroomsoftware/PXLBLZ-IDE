@@ -137,7 +137,10 @@ Preserve these invariants:
 
 Use the managed local runtime described in `docs/agents/dev-runtime.md`. The
 stable reviewed-main checkout owns Vite `5174` — a single worker-dev process
-serving UI, `/api`, and the shared local D1 (#900). Run `npm run dev:main` to
+serving UI, `/api`, and the shared local D1 (#900). Managed main and shared/isolated
+issue listeners bind all IPv4 interfaces; previews live at
+`http://Agent-Mini.local:<port>/PXLBLZ-IDE/` (localhost still works).
+Run `npm run dev:main` to
 migrate, provision, and recover it; never stop it during ordinary task
 cleanup.
 
@@ -340,7 +343,8 @@ check the local D1 schema first.
   repo package through `npx playwright`, `npm run test:e2e`, or CommonJS
   resolution from the workspace; Codex.app's bundled package may expect a
   different browser revision.
-- Use `http://localhost:5174/PXLBLZ-IDE/?capture` for preview screenshots. The WebGL loop
+- Use `http://Agent-Mini.local:5174/PXLBLZ-IDE/?capture` for preview screenshots
+  (localhost still works). The WebGL loop
   keeps pages busy and ordinary canvas readback may be stale or empty.
 - Under `?capture`, call `window.__pxlblz.setPreview(patch)` and then
   `window.__pxlblz.capture(name)`. Captures are written to

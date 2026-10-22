@@ -40,6 +40,29 @@ import {
   updateRuntimeAssignment,
 } from './dev-runtime-store'
 
+export const runtimeListenHost = '0.0.0.0'
+export const runtimeLanHost = 'Agent-Mini.local'
+
+export function managedViteArgs(worktree: string): string[] {
+  return [resolve(worktree, 'node_modules/vite/bin/vite.js'), '--host', runtimeListenHost]
+}
+
+export function runtimeUiUrl(port: number, basePath: string): string {
+  return `http://${runtimeLanHost}:${port}${basePath}`
+}
+
+export function runtimeSessionCookies(name: string, value: string) {
+  return ['localhost', runtimeLanHost.toLowerCase()].map((domain) => ({
+    name,
+    value,
+    domain,
+    path: '/',
+    httpOnly: true,
+    secure: false,
+    sameSite: 'Lax' as const,
+  }))
+}
+
 type DevRuntimeArgs =
   | { command: 'main' }
   | {
@@ -351,14 +374,14 @@ async function printStatus(
     branch: 'main',
     profile: 'shared',
     uiPort: manifest.shared.vitePort,
-    uiUrl: `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`,
+    uiUrl: runtimeUiUrl(manifest.shared.vitePort, manifest.basePath),
     apiTarget: `http://localhost:${manifest.shared.vitePort}`,
     uiState: listenerPids(manifest.shared.vitePort).length > 0 ? 'listening' : 'stopped',
     apiState: apiHealth === 'ok' ? 'listening' : apiHealth,
   }
   const assignments = loadRuntimeRegistry(context.runtimeDirectory).assignments.map((assignment) => ({
     ...assignment,
-    uiUrl: issueUrl(assignment, manifest),
+    uiUrl: runtimeUiUrl(assignment.uiPort, manifest.basePath),
     uiState: classifyAssignmentPort(assignment, listenerPids(assignment.uiPort)),
     apiState: assignment.profile === 'shared'
       ? (listenerPids(assignment.apiPort).length > 0 ? 'shared' : 'stopped')
@@ -501,7 +524,7 @@ async function ensureMainRuntime(
   if (runtimeAction !== 'none') {
     const pid = startDetached(
       process.execPath,
-      [resolve(context.mainWorktree, 'node_modules/vite/bin/vite.js')],
+      managedViteArgs(context.mainWorktree),
       context.mainWorktree,
       join(context.runtimeDirectory, 'logs', 'main-vite.log'),
       {
@@ -520,7 +543,7 @@ async function ensureMainRuntime(
     }
   }
   console.log(
-    `Stable main is available at http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
+    `Stable main is available at ${runtimeUiUrl(manifest.shared.vitePort, manifest.basePath)}`
     + ` serving UI and /api from one process.`,
   )
 }
@@ -561,8 +584,8 @@ export function issueViteEnvironment(
       ? { VITE_API_PROXY_TARGET: mode.target }
       : {
           VITE_CF_PERSIST_STATE: mode.persistState,
-          // The shared .dev.vars describes main. An isolated Worker is its own
-          // OAuth authority and must advertise the same origin that serves it.
+          // An isolated Worker is its own OAuth authority. Agent OAuth onboarding
+          // stays same-machine only even though the UI listener is LAN reachable.
           PXLBLZ_DEV_AGENT_OAUTH_ORIGIN: `http://localhost:${assignment.uiPort}`,
         }),
   }
@@ -576,7 +599,7 @@ function startVite(
 ): number {
   return startDetached(
     process.execPath,
-    [resolve(worktree, 'node_modules/vite/bin/vite.js')],
+    managedViteArgs(worktree),
     worktree,
     join(runtimeDirectory, 'logs', `issue-${assignment.issue}-vite.log`),
     issueViteEnvironment(assignment, mode),
@@ -1108,7 +1131,7 @@ export async function portIsAvailable(port: number): Promise<boolean> {
   return new Promise((resolveAvailability) => {
     const server = createServer()
     server.once('error', () => resolveAvailability(false))
-    server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {
+    server.listen({ host: runtimeListenHost, port, exclusive: true }, () => {
       server.close(() => resolveAvailability(true))
     })
   })
@@ -1166,12 +1189,12 @@ function issueUrl(assignment: RuntimeAssignment, manifest: RuntimeManifest): str
   return `http://localhost:${assignment.uiPort}${manifest.basePath}`
 }
 
-function runtimeStartSummary(
+export function runtimeStartSummary(
   assignment: RuntimeAssignment,
   manifest: RuntimeManifest,
 ): string {
   return [
-    `Issue ${assignment.issue} runtime: ${issueUrl(assignment, manifest)}`,
+    `Issue ${assignment.issue} runtime: ${runtimeUiUrl(assignment.uiPort, manifest.basePath)}`,
     `API: ${assignment.apiTarget} (${assignment.profile})`,
     `Local identity: ${assignment.userId}`,
     `Task title: ${assignment.issue}:${assignment.uiPort} - ${assignment.description}`,
