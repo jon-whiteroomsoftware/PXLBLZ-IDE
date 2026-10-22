@@ -7,10 +7,13 @@ lands under #1192.
 **Status: built under #1196.** The `after-hours-sign` map, the NeonTube
 Pattern and the After Hours Installation Show are on main (`5c02397e`,
 `a4009172`, `e8c44bad`). The as-built Show follows this plan; its artifact
-stays under the 68,384 B budget (asserted in `afterHoursShow.test.ts`), and its worst one-second flash window covers
-0.136 of the sign. The Feature Guide describes what shipped. Precise and
-hardware playback past 32.7 s needed #1197, which has landed; that proof is
-still outstanding.
+stays under the 68,384 B budget (asserted in `afterHoursShow.test.ts`), and its
+worst one-second flash window covers 0.136 of the sign. The Feature Guide
+describes the built-in content. Precise and hardware playback past 32.7 s
+needed #1197, which has landed; that playback proof, pb32 FPS and bench
+neon-red tuning remain outstanding. After Hours is available for Jon's local
+preview on port 5174 and stays unpushed until he previews it and chooses
+whether to push (#1191).
 
 **The design in one paragraph.** Build After Hours as an Installation Show on a
 new 2D sign map reading **FOOD**, with the **second O** as the failing letter.
