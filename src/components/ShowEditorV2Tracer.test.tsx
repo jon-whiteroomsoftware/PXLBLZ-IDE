@@ -2702,14 +2702,15 @@ describe('v2 converted-boundary resize repair (#1068)', () => {
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
 
     const dialog = screen.getByRole('alertdialog', { name: 'Move connected Clip?' })
+    // Measurement can happen during confirmation's act; the replacement Clip is the signal.
+    const movedRect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Move Clip and remove Transition' }))
     await act(async () => {})
 
     const movedClip = clipButton('resize-a')
     expect(movedClip).not.toBe(originalClip)
     expect(originalClip.isConnected).toBe(false)
-    const movedRect = vi.spyOn(movedClip, 'getBoundingClientRect')
-    await waitFor(() => expect(movedRect).toHaveBeenCalled())
+    await waitFor(() => expect(movedRect.mock.contexts).toContain(movedClip))
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-pinned', 'true')
     expect(authoredClip(editor.state().record, 'resize-a').layerId).toBe(
       editor.state().record.composition.layers.find((layer) => layer.rank === 1)!.id,
