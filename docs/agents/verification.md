@@ -73,6 +73,25 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.3.0 adoption (#1189)
+
+This adoption updates the executable package from 1.2.0. See WRSP
+`docs/reference/process-release-1.3.0.md` at the tag.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.3.0, tag `v1.3.0` |
+| Source | `434331ce40452fe4ad7e3ddec294201ef6ec58aa` |
+| Tarball | `vendor/whiteroom-software-process-1.3.0.tgz` |
+| SHA256 | `0a8c5c84522f805614dc1cf40b775b1c49f7840e5465a5a4acdea0d7ce01a50a` |
+
+No copied hook, bin, package export or `wrsp.config.mjs` key changed, and the
+review policy fingerprint is unchanged, so existing receipts stay valid.
+`review:candidate` now splits a mixed-family range itself (WRSP #291), so do
+not split one by hand. The review commands no longer print
+`fatal: Needed a single revision` lines (WRSP #301), `wrsp-land --help` exits
+0 (WRSP #302), and carry tries every content-matching chain (WRSP #289).
+
 ## WRSP 1.2.0 adoption (#1180)
 
 This adoption updates the executable package from 1.1.0. See WRSP
