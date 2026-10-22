@@ -10,8 +10,9 @@ from this plan, and it stays out of pushes until Jon has previewed it.
 stock `plane` map. Two instances of the existing LumaStripes, the cobalt
 *anchor* and the amber *phaser*, play the same figure. The phaser sits on top
 under a luma key, so in unison it hides the anchor completely. One
-`instance-time-scale` track speeds the phaser up so that it gains exactly a
-quarter loop per drift. How far apart the two voices are then shows as how much
+`instance-time-scale` track speeds the phaser up so that it gains a quarter
+loop per drift: to within 0.002 loop at a steady frame rate, and within a
+measured budget when frame times jitter. How far apart the two voices are then shows as how much
 cobalt and black survive under the amber: sparse bars on black in unison, a
 full two-colour field at half phase. Three phrases change one variable each:
 *Phase* drifts, *Count* thins both voices so they pair instead of covering, and
@@ -88,7 +89,7 @@ which keeps them apart on a dim matrix.
   stops.
 - **Drift:** the phaser eases ahead of the anchor over a bar.
 - **Lock:** holding a phase relationship for a bar.
-- **Snap:** the phaser jumps ahead by a quarter in 400 ms.
+- **Snap:** the phaser jumps ahead by a quarter in one beat, 600 ms.
 
 Drift and snap are one verb, "move ahead", at two speeds. Lock is its absence.
 
@@ -113,13 +114,16 @@ Drift and snap are one verb, "move ahead", at two speeds. Lock is its absence.
 | 0-2 | 0-4.8 s | **Anchor** | The cobalt figure alone. |
 | 2-10 | 4.8-24 s | **Phase** | The phaser cuts in exactly on top: the whole figure turns amber. It locks for a bar, then drifts a quarter, four times over: thin cobalt slivers, then full alternation with no black, then slivers on the other side, then unison. |
 | 10-18 | 24-43.2 s | **Count** | In the unison bar both voices thin to quarter-width bars. The same four drifts now never cover: the voices pair, then alternate evenly with black between, then pair the other way. Black dominates. |
-| 18-27 | 43.2-64.8 s | **Clap** | In the unison bar both voices widen again. Drift is replaced by snaps, a quarter each in 400 ms, landing on bars 20, 22 and 24, then compressing: 25, 25.5, 26, 26.5 and 27. The compression stretches the phrase to nine bars. |
+| 18-27 | 43.2-64.8 s | **Clap** | In the unison bar both voices widen again. Drift is replaced by snaps, a quarter each in one beat, landing on bars 20, 22 and 24, then compressing: 25, 25.5, 26, 26.5 and 27. The compression stretches the phrase to nine bars. |
 | 27-29 | 64.8-69.6 s | **Unison** | The last snap lands on the downbeat of bar 27. The phaser's tint goes to zero for a beat, showing white bars, then decays back to amber over two beats. It holds amber unison for two bars. |
 | 29-30 | 69.6-72 s | **Anchor** | The phaser cuts out on the bar line, and the cobalt figure is alone again. The loop restarts in that state. |
 
-Over the piece the phaser gains exactly four loops, one in each of Phase and
-Count and two in Clap, and the anchor runs exactly 30. Both clocks therefore
-return to their starting phase at the seam.
+Over the piece the phaser gains four loops, one in each of Phase and Count and
+two in Clap, and the anchor runs exactly 30. Both clocks therefore return to
+their starting phase at the seam. The gain is within 0.002 loop of that at a steady frame
+rate; under frame jitter it is within the budget in
+[the phase mechanism](#state-and-identity-plan), and the loop wrap resets both
+clocks so the error never carries into the next pass.
 
 ### Invariants
 
@@ -250,6 +254,21 @@ posted on #1195 with its reason and evidence.
    decision.
 5. **Depend on #1197** rather than split sections (the eng lead's direction).
    Precise proof past 32.7 s waits for that repair.
+6. **Quarter locks carry a cadence contract instead of a claim of exactness.**
+   The compiler samples the time scale once per frame, so locks are near exact
+   only at a steady frame rate. Under frame jitter, drifts stay within 0.005
+   loop and snaps carry a bounded error; the loop wrap resets it every pass (see
+   [the phase mechanism](#state-and-identity-plan)). A phaser restart at the
+   unison downbeat would make the white hit exact regardless of cadence, but
+   it splits the phaser Clip. It is held as fallback rung 0, taken only if the
+   hardware measurement exceeds the budget.
+7. **Snaps last one beat (600 ms, peak 3), not 400 ms at the clamp.** A snap
+   then starts and ends on the beat grid, and its jitter error is less than
+   half that of a 400 ms snap.
+8. **The lock oracle reads the phase difference, and coverage against a
+   reference render.** Fixed coverage fractions do not hold on a finite Stage
+   with about 3.3 stripe periods (probe 1 measured 0.227 and 0.455, not 0.25
+   and 0.5).
 
 ## Visual Performance Plan
 
@@ -278,7 +297,8 @@ is labelled as an estimate.
 - **Invariants that survive every fallback:**
   - two independent clocks on one Pattern;
   - the phaser keyed on top;
-  - exact quarter locks;
+  - quarter locks, within 0.002 loop at a steady frame rate and within the
+    cadence budget under jitter;
   - the loop returning both clocks to phase.
 
 ### Visual grammar
@@ -313,19 +333,50 @@ is labelled as an estimate.
 | sliderLean | 0.5 | symmetric |
 | sliderAngle | 0.25 | travels right to left; vertical bars |
 
-**The phase mechanism.** The compiler multiplies the delta passed to the
-member's `beforeRender` by the instance's time scale
-(`src/engine/showCompiler.ts:11258-11263`). LumaStripes accumulates its clock
-from that delta and wraps it exactly at the loop length
-(`src/pixelblaze/stock/patterns/LumaStripes.js:55-71`). A time-scale bump whose
-excess integrates to a quarter of the 2.4 s loop (600 ms) therefore advances the
-phaser exactly a quarter period, and it stays locked once the time scale returns
-to 1.
+**The phase mechanism.** Each frame, the compiler samples the instance's time
+scale once, at the frame's end time, and multiplies the whole frame delta by it
+(`src/engine/showCompiler.ts:5070-5091`, `11316-11320`). It does not integrate
+the curve between frames. LumaStripes accumulates its clock from that delta and
+wraps it at the loop length (`src/pixelblaze/stock/patterns/LumaStripes.js:55-71`).
+A time-scale bump whose excess integrates to a quarter of the 2.4 s loop
+(600 ms) advances the phaser a quarter period, and it stays locked once the
+time scale returns to 1. The advance the phaser actually receives is the
+frame-sampled sum, not that integral.
 - **Drift:** sine-in-out keys at 1, then 1.5, then 1 over one bar. The excess
   averages 0.25 across the bar, which is 600 ms.
-- **Snap:** the same shape over 400 ms, peaking at 4, the clamp maximum
-  (`src/engine/showModel.ts:2486-2501`). A snap cannot be shorter than 400 ms at
-  a quarter step.
+- **Snap:** the same shape over one beat (600 ms), peaking at 3. The clamp
+  maximum of 4 (`src/engine/showModel.ts:2486-2501`) would allow 400 ms, but a
+  400 ms snap is off the beat grid and carries twice the jitter error.
+
+**Cadence contract.** The quarter locks are near exact at a steady frame rate
+and approximate under frame jitter, within the budget below:
+- **Steady frame rate:** for a smooth bump that returns to 1, the sampled sum
+  matches the integral to within 0.00002 loop at 60, 30 and 5 FPS. The worst
+  steady case is a snap at 8 FPS, 4.8 frames long: 0.0011 loop for the planned
+  600 ms snap, and 0.0039 for a 400 ms one.
+- **Jittered frame rate:** each frame drawn uniformly from 125-200 ms, the worst
+  case in 2,000 runs:
+
+| Move | Shape | Mean error | Worst error |
+| --- | --- | ---: | ---: |
+| Drift | 2.4 s, peak 1.5 | 0.0010 loop | 0.0041 loop |
+| Snap, planned | 600 ms, peak 3 | 0.0089 loop | 0.0298 loop |
+| Snap, rejected | 400 ms, peak 4 | 0.0173 loop | 0.0698 loop |
+
+- **The white hit:** it follows eight snaps. The expected residual is about
+  0.03 loop, less than half a pixel column at 44 × 44. The worst case is about
+  0.1 loop, about 1.3 columns of cobalt under the white.
+- **Reset:** errors do not carry across passes. The deterministic loop wrap
+  runs every member's reset assignments (`src/engine/showCompiler.ts:5042-5044`,
+  `5070-5076`). The build proves this under a jittered cadence.
+- **Fallback rung 0:** if hardware frame-time jitter measured with
+  `npm run devbench` leaves a visible sliver at the white hit, split the
+  phaser Clip at bar 27 so that it restarts in unison on the downbeat. That
+  costs a Clip boundary and needs LumaStripes' restart plan to be `ready`
+  (`src/engine/showCompiler.ts:5045-5053`).
+
+These figures come from a numeric model of the time-scale curves (probe 5),
+not from the compiled Show. The build re-measures them through fast replay.
 
 ### Cost envelope
 
@@ -356,7 +407,10 @@ is 39 KB.
 `src/agent-harness/telemetry/harness.ts` at 30 fps over the full 72 s:
 - 0.000 of pixels flash above 3 Hz in the worst second, at both 256 and 1,936
   pixels;
-- the snaps are at least 600 ms apart;
+- the snaps are at least 600 ms apart, and still are with one-beat snaps (the
+  closest landings are 1.2 s apart);
+- these figures are for the 400 ms snaps the probe measured, so the build
+  re-measures them with one-beat snaps;
 - the white is one flash on 48% of the Stage.
 
 ### Section and transition strategy
@@ -391,11 +445,21 @@ is 39 KB.
 score, which is small. Prove these:
 - it validates, reopens and compiles with no blockers, in one time section;
 - bytes are under the proxy and globals under 256;
-- **a lock oracle:** at the middle of every held bar, the anchor's visible share
-  of the Stage equals the planned phase coverage within one pixel column. The
-  expected values are 0, 0.25, 0.5 and 0.25 for full width, and 0.25 at every
-  non-unison lock for quarter width;
-- **the loop seam:** the frame at 2.4 s equals the frame at 74.4 s;
+- **a lock oracle,** in two parts, at the middle of every held bar:
+  - *phase difference:* the phaser's LumaStripes `phase` minus the anchor's,
+    mod 1, equals the planned quarter (0, 0.25, 0.5 or 0.75). It must hold
+    within 0.002 loop at steady 1000/60, 1000/30 and 125 ms steps. Under the
+    jittered cadence of the contract it must hold within the contract's worst
+    errors, accumulated over the moves since the last unison;
+  - *coverage:* the anchor's visible share of the rendered Stage equals a
+    reference coverage within one pixel column. The reference comes from the
+    same map, the same controls and the same observation time, with the phaser
+    offset by the planned quarter. Fixed fractions do not hold: with about 3.3
+    stripe periods on a finite Stage, coverage is 0.227 and 0.455 at the quarter
+    and half locks (probe 1), not 0.25 and 0.5;
+- **the loop seam:** the frame at 2.4 s equals the frame at 74.4 s. This holds
+  at a steady cadence and also under a jittered one, because the loop wrap
+  resets both clocks;
 - the flash gate passes at 256 and 1,936 pixels;
 - after #1197 lands, Precise replay matches fast replay at every lock.
 
@@ -437,7 +501,9 @@ Portable Show too:
   the reopened export.
 - **Open questions:**
   - #1197, for Precise and hardware past 32.7 s;
-  - hardware FPS at the reference size.
+  - hardware FPS at the reference size;
+  - hardware frame-time jitter against the cadence contract, which decides
+    fallback rung 0.
 
 ### Probe record
 
@@ -452,3 +518,4 @@ path (`prepareShowV2ForCompile`, then `compileShow`) and replayed through
 | 2. Precise bisection | The cause is section-local time emitted in milliseconds (`showCompiler.ts:5087-5091`), filed as #1197. Precise matches fast at every lock through 30 s. A time-scale track stops gaining at 32.8 s. |
 | 3. Moiré variants (pitch 0.06 and 0.1; angle 0.015 and 0.03 turns; scale 1.15) at 1,936 and 256 pixels | Moiré is weak at 44 × 44 and noise at 16 × 16, so it is rejected. |
 | 4. Final score (this plan) | Bytes by white mechanism; locks at every half bar; the loop seam delta of 0.00000; the flash gate at 0.000; the storyboard; and the fixes for the fade and the grey white. |
+| 5. Cadence model (`/tmp`, not committed; added after review) | A standalone model of the sine-in-out time-scale bumps, sampled at frame end as the compiler does. It gives the steady and jittered errors in the cadence contract. It is not the compiled Show, so the build re-measures through fast replay. |
