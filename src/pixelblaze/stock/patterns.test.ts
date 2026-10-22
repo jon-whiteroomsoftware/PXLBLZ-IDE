@@ -14,6 +14,7 @@ const INTENTIONAL_LOW_DENSITY = new Set([
   'LumaMarquee',
   // Cloudburst's designed chandelier has 48 tubes of 20 LEDs.
   'LumaPlane3D',
+  'TubeRain3D',
   'Bouncer3D',
   'CyclicCellularAutomata2D',
   'DoomFireV20_2D',

@@ -333,6 +333,12 @@ describe('demo smoke tests', () => {
     })
   }
 
+  it.each(['fast', 'fidelity'] as const)('TubeRain3D.js bundles, runs, and lights pixels in %s mode', (mode) => {
+    const result = runDimensionedDemo('TubeRain3D.js', mode)
+    expect(result.anyLit).toBe(true)
+    expect(result.allFinite).toBe(true)
+  })
+
   it.each(['fast', 'fidelity'] as const)('LumaPlane3D.js bundles, runs, and lights pixels in %s mode', (mode) => {
     const result = runDimensionedDemo('LumaPlane3D.js', mode)
     expect(result.anyLit).toBe(true)

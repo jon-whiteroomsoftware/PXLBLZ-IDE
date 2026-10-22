@@ -206,6 +206,13 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderTwist: 'Strength of the line distortion.',
     sliderReflections: 'Number of kaleidoscopic reflection segments.',
   },
+  TubeRain3D: {
+    sliderSpeed: 'Downward travel speed along world y.',
+    sliderDensity: 'Fraction of complete drops admitted, from dry to downpour.',
+    sliderLength: 'Length of the fading tail above each bright head.',
+    sliderHue: 'Rain colour around the hue wheel.',
+    sliderSaturation: 'Rain colour saturation; zero is white.',
+  },
   LumaPlane3D: {
     sliderLoopInterval: 'Exact cycle length in seconds, up to 10; one loop advances one plane period.',
     sliderDirection: 'Left third reverses, middle holds still, right third travels forward.',
