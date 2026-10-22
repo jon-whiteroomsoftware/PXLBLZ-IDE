@@ -79,6 +79,20 @@ A fresh worktree has no `node_modules`. Run `npm ci` inside it before anything
 else, or Vitest fails to load `vite.config.ts` and the failure looks unrelated to
 the missing install.
 
+`package.json#allowScripts` records which dependency install scripts npm may
+run (npm 11.21+, #1190). `esbuild` and `workerd` are approved, pinned to their
+exact versions; their postinstalls hard-link the platform binary into place and
+download it when the optional platform package is missing. `msw` and
+`fsevents` are denied: msw's postinstall only copies a service worker when
+`package.json#msw.workerDirectory` exists, which this repo does not set, and
+fsevents ships a prebuilt binary with no script, flagged only by the lockfile's
+`hasInstallScript`. A clean `npm ci` prints no `install-scripts` warning. After
+a dependency bump, npm 11.21 still runs an unreviewed script but warns again,
+because a pin no longer matches; that is intended. Review the new version
+with `npm install-scripts ls`, then re-approve it with
+`npm install-scripts approve <pkg>`, which rewrites the pin. The root
+`prepare` script (husky) is never gated.
+
 ## Status, authentication, and cleanup
 
 Use the registry instead of guessing ports:
