@@ -22,8 +22,8 @@
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 6852,
-          "sourceSha256": "1da2fb8e79af9a5179a3d43d4225e587a4461db7eba350b265369036ae62d236",
+          "bytes": 6793,
+          "sourceSha256": "ef1f50fc2496e77c0c6c4f809675c3b911dc79c14d033c82715c8adeccd219a4",
           "stampKind": "show"
         }
       },
@@ -123,8 +123,8 @@
         },
         "epe": {
           "filename": "101-clips-cuts-and-blank-time.epe",
-          "bytes": 12804,
-          "sourceSha256": "3ebcd515bd1c6f35ce8f44f9bbfeb8df77d01c8a84408772d02e45c3d4bb5bce",
+          "bytes": 12819,
+          "sourceSha256": "04b76ab7b91f8c7a71290e66b7457aea634b1aa283176b37036d9ae96f14c64f",
           "stampKind": "show"
         }
       },
@@ -163,8 +163,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 34132,
-          "sourceSha256": "e4b340559cbe50d20a816ce76adc9c6f9f8963022074fa4def9807bf5016fc5d",
+          "bytes": 34147,
+          "sourceSha256": "6cfd647e4a9889799df97bce0804eb6d9250262e91266ef60117051d05ae9208",
           "stampKind": "show"
         }
       },
@@ -218,8 +218,8 @@
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 68616,
-          "sourceSha256": "0b5a99e302234dc0daab91ab3164fa362b66815b6d6686b8d9a4e5fcad1c368c",
+          "bytes": 68291,
+          "sourceSha256": "d0236d1b00e6680d5015bf78d62889235c444e0716aa54da257b159e5e535669",
           "stampKind": "show"
         }
       },
@@ -258,8 +258,8 @@
         },
         "epe": {
           "filename": "206-changing-zone-layouts.epe",
-          "bytes": 22438,
-          "sourceSha256": "4b525bd7b29d3503b44a817cea897a075a6338b5d26480f4ce23cf638b4689a3",
+          "bytes": 22453,
+          "sourceSha256": "50e55b0f828528cb3e798cb3e2642cdf6584828ceef6b3b0b143ad7c30ec7ea0",
           "stampKind": "show"
         }
       },
@@ -299,8 +299,8 @@
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 21222,
-          "sourceSha256": "5882a1188e2f717e0dcc89eb36404b3b4cfe6f3e5e6758b4802ec630157158cc",
+          "bytes": 21095,
+          "sourceSha256": "af8dab844ca2fd487cde51b4cedf7bf79a9aee573252bceb5203048bd099ed38",
           "stampKind": "show"
         }
       },

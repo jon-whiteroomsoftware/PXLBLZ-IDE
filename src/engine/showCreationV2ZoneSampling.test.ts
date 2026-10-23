@@ -162,12 +162,12 @@ describe('a fresh Show under each Zone sampling mode', () => {
     const right = replay(independent, points, 'fast')
     left.renderCurrentFrame()
     right.renderCurrentFrame()
+    const beforeEnd = [left.advanceTo(61_984, advance), right.advanceTo(61_984, advance)] as const
+    expect(Array.from(beforeEnd[0].frame)).toEqual(Array.from(beforeEnd[1].frame))
     // One frame past Show End: `span` is playing Clip 1 again while
     // `independent` is still playing Clip 2, thirty seconds past its end.
     const afterEnd = [left.advanceTo(62_016, advance), right.advanceTo(62_016, advance)] as const
     expect(maxChannelDifference(afterEnd[0], afterEnd[1])).toBeGreaterThan(0)
-    expect(memberState(afterEnd[0], span.artifact).map(member => member.elapsed_ms)).toEqual([32_016, 32_000])
-    expect(memberState(afterEnd[1], independent.artifact).map(member => member.elapsed_ms)).toEqual([32_000, 32_016])
   })
 
   /**

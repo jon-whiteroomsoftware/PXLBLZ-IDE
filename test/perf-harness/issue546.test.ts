@@ -11,37 +11,39 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     // to shared voices (#514/#536 ceilings). The exchange grows to 19 -> 7
     // machines with the recast; the fixture keeps the #559 byte-budget
     // fallback (shared HSV chain); the 205 fixture sits 2,454 B (post-#907)
-    // under the activation ceiling.
+    // under the activation ceiling at that recensus.
     // Re-measured 2026-09-07 after #848: the qualification fixture preserves
     // the qualified CompassRose casting and twin columns (see
     // showPatternSlotTestFixture.ts), so the 19 -> 7 exchange, 181 globals
     // and 264 cache words are unchanged; only the byte figures moved with the
     // shipping reference's linear ramps and lower speed values.
     // Re-measured 2026-09-25 (#1042 4-4c): both subjects now convert through the v1 import adapter and compile on the v2 path. The qualification fixture is byte-identical; the 205 fixture drops its two boundary brightness ramps, which v2 does not convert off the flat route (#1091), and its figures are byte-equal to the v1 compile of the same stripped subject.
+    // Re-measured for #1202 after member-clock wrapping: source bytes and
+    // headroom move in both fixtures; installation cache/globals also shrink.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
-        baseline: { sourceBytes: 78_498, physicalMachines: 19 }, // re-pinned when track time moved to seconds (#1197)
+        baseline: { sourceBytes: 78_612, physicalMachines: 19 },
         selected: {
-          sourceBytes: 52_253, // re-pinned when track time moved to seconds (#1197)
+          sourceBytes: 52_295,
           physicalMachines: 7,
           auxiliaryCacheWords: 264,
           persistentGlobals: 181,
-          remainingArtifactBytes: 16_131, // re-pinned when track time moved to seconds (#1197)
+          remainingArtifactBytes: 16_089,
         },
-        sourceChangePercent: expect.closeTo(-33.43, 1), // re-pinned when track time moved to seconds (#1197)
+        sourceChangePercent: expect.closeTo(-33.48, 1),
       },
       {
         id: 'fixture-installation-composition',
-        baseline: { sourceBytes: 66_876, physicalMachines: 12 },
+        baseline: { sourceBytes: 66_534, physicalMachines: 12 },
         selected: {
-          sourceBytes: 59_491,
+          sourceBytes: 58_997,
           physicalMachines: 10,
-          auxiliaryCacheWords: 216,
-          persistentGlobals: 251,
-          remainingArtifactBytes: 8893,
+          auxiliaryCacheWords: 204,
+          persistentGlobals: 245,
+          remainingArtifactBytes: 9387,
         },
-        sourceChangePercent: expect.closeTo(-11.04, 1),
+        sourceChangePercent: expect.closeTo(-11.33, 1),
       },
     ])
   })
