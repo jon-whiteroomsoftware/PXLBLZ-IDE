@@ -1,3 +1,4 @@
+// #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 import { afterEach, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -177,12 +178,11 @@ it.each(['fast', 'fidelity'] as const)('keeps stale invalid declared metadata st
   expect(() => runtime(prepared, fidelity).snapshot()).toThrow(/__checkpoint_absent_binding/)
 })
 
-// Captured from actual exported/imported artifacts before metadata repair at
-// 7523b463. Source inspection and state metadata may change; delivered bytes do not.
+// Current exported/imported bytes, re-measured for #1202 source-identity recensus.
 it.each([
-  ['live', '84091a6ebd2f3318eb5a401042c2cda0aa3d2334b3af6968e9ad2c557fc8e18c', 'de1bc793dea0e21eac3ca949db73498c8823dac39822f2e9128d71be4e5b9c0c', '93976c43c958f50da833fe18f2191c58f17c28807589700d36a6c117554f4d1a'],
-  ['freeze', 'b761e9932364fa9b99186cc2720d61c1016a81daab0fd641deee639f661c5dd0', '27ced89596ec55b2296764dfca2a0587c58b4fe6763765812aa689b56b8eeeb3', '74e287d01ea6ab93a14319ef9a35f81e4dffc1f17de087551859b69895e5f68d'],
-] as const)('preserves original imported %s source, Precise emission and EPE bytes', (mode, codeHash, fxHash, epeHash) => {
+  ['live', '78301177e95f5b542afc445138148eb35e8c43677aa7fe7620ddd14d0276b774', '92b720719bf53772c982cc497e16e8818a0fb744c2829a2dad8066ef6e7c0994', 'b8da33d7e0156dab79665e5b2e35abb20ec10a06bb1c583223616ffe767b6380'],
+  ['freeze', 'eace2364fb2c470ccbfbfcc1c0209538017e50c7ec59e43be21572a405010355', 'ebab48cd1c11a745fa978d1a63eefe310add0f8b60117794a80aebd504641ac2', '364ba63967c1923195d7e6bf8f1a7cd77917c2e105915aef3b56dfd5239df65a'],
+] as const)('preserves pinned imported %s source, Precise emission and EPE bytes', (mode, codeHash, fxHash, epeHash) => {
   const prepared = delivered(fixture(mode))
   const hash = (value: string) => createHash('sha256').update(value).digest('hex')
   expect(hash(prepared.code)).toBe(codeHash)

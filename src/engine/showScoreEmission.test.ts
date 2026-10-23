@@ -1,3 +1,4 @@
+// #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
@@ -69,7 +70,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     // again 2026-08-02 when the reference pair recast to the measured
     // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop, and
     // 2026-08-22 when every Transition reference dropped that backdrop (#63).
-    expect(baseline.artifact?.summary.artifactBytes).toBe(24_598)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(24_610)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

@@ -1,3 +1,4 @@
+// #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 // #1039: the migration runbook's reopen-and-compile oracle. The assertions are
 // at the surfaces an operator cares about - portable bytes that reopen as the
 // same record, dependencies that resolve through the ordinary v2 import
@@ -28,7 +29,7 @@ function migrated(): ShowRecordV2 {
 // is re-pinned.
 it('qualifies a converted stock-sourced record through reopen and compile', async () => {
   await expect(qualifyMigratedShowV2Record(migrated(), assets))
-    .resolves.toEqual({ status: 'qualified', compiled: { hash: '0e4bd46e', codeBytes: 3282 } })
+    .resolves.toEqual({ status: 'qualified', compiled: { hash: '985991b4', codeBytes: 3203 } })
 })
 
 it('qualifies a record whose Pattern source is a personal Pattern the assets carry', async () => {
@@ -41,7 +42,7 @@ it('qualifies a record whose Pattern source is a personal Pattern the assets car
   // A different Pattern source compiles to different bytes, so the hash also
   // proves the compiled artifact belongs to this record rather than a constant.
   await expect(qualifyMigratedShowV2Record(record, { ...assets, patterns: [pattern] }))
-    .resolves.toEqual({ status: 'qualified', compiled: { hash: 'a4785d03', codeBytes: 2687 } })
+    .resolves.toEqual({ status: 'qualified', compiled: { hash: 'bfcf446f', codeBytes: 2693 } })
 })
 
 it('refuses a record whose personal Pattern is missing from the assets', async () => {

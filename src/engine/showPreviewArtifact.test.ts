@@ -578,7 +578,7 @@ export function render(index) { rgb(field[index], 0, 0) }
       renderPolicy: 'single-continuous-hold',
       clips: [expect.objectContaining({ stepMs: 125 })],
     })
-    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_c0_step_ms = 125')
+    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_c0_step_half_ms = 62.5')
   })
 
   it('loads routed multi-range offsets and the later Scene schedule into the exact Stage artifact', () => {
@@ -626,7 +626,7 @@ export function render(index) { rgb(field[index], 0, 0) }
         expect.objectContaining({ id: '__pxlblz_empty-routed', timeOffsetMs: 0 }),
       ],
     })
-    expect(artifact.expandedCode).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_c1_elapsed_s = 0.5')
     expect(rightPixels.some((index) => firstScene.pixels[index].some((channel) => channel > 0))).toBe(true)
     expect(leftPixels.some((index) => secondScene.pixels[index].some((channel) => channel > 0))).toBe(true)
     expect(rightPixels.every((index) => secondScene.pixels[index].every((channel) => channel === 0))).toBe(true)
@@ -714,12 +714,12 @@ export function render(index) { rgb(field[index], 0, 0) }
 
     const continueArtifact = compileShowForPreview(continued, [], undefined, {}).artifact
     expect(continueArtifact?.summary.clipCount).toBe(2)
-    expect(continueArtifact?.expandedCode.match(/var __pxlblz_show_c0_elapsed_ms/g)).toHaveLength(1)
+    expect(continueArtifact?.expandedCode.match(/var __pxlblz_show_c0_elapsed_s/g)).toHaveLength(1)
 
     const restarted = updateShowCellRestartOnEntry(continued, destination.id, true)
     const restartArtifact = compileShowForPreview(restarted, [], undefined, {}).artifact
     expect(restartArtifact?.summary.clipCount).toBe(3)
-    expect(restartArtifact?.expandedCode).toContain('var __pxlblz_show_c2_elapsed_ms = 0')
+    expect(restartArtifact?.expandedCode).toContain('var __pxlblz_show_c2_elapsed_s = 0')
   })
 })
 

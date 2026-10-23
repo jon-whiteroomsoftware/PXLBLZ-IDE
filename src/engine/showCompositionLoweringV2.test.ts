@@ -1,3 +1,4 @@
+// #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 import { createHash } from 'node:crypto'
 import { Worker } from 'node:worker_threads'
 import { describe, expect, it } from 'vitest'
@@ -2278,7 +2279,7 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
 
   it('keeps the generated source of a record whose pieces already fit', () => {
     // Pinned on the code before #1103; re-pinned when track time moved to seconds (#1197).
-    expect(generatedHash(animationRecord())).toBe('8cff2e3839dc35fed582d2c9f9aa0292d6a28dcc97eb2a95a630173332512145')
+    expect(generatedHash(animationRecord())).toBe('593c352ba92800e26ee0a50cb93fd5d35c09c96f4422c0c2c70794eacef40dbd')
   })
 
   it('keeps compiler vocabulary out of user-facing preparation refusals (#1043)', () => {

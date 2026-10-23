@@ -1685,7 +1685,7 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
     const exports = handle.getExports()
     expect(exports.__pxlblz_show_elapsed_s).toBeCloseTo(0.02)
     expect(exports.__pxlblz_show_c0_elapsed).toBeCloseTo(20)
-    expect(exports.__pxlblz_show_c0_elapsed_ms).toBeCloseTo(20)
+    expect(exports.__pxlblz_show_c0_elapsed_s).toBeCloseTo(0.02)
     expect(exports.__pxlblz_show_c0_frames).toBe(1)
   })
 
@@ -3673,7 +3673,7 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     expect(pixel()[0]).toBeCloseTo(0.5)
     expect(pixel()[1]).toBeCloseTo(0.5)
     expect(pixel()[2]).toBeCloseTo(0.5)
-    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed_ms: 500 })
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed_s: 0.5 })
   })
 
   it('composites Scene layers through normalized 2D routing (#489)', () => {
@@ -5614,8 +5614,8 @@ export function render(index) { rgb(0, t, 0) }
     handle.beforeRender(1000)
 
     expect(handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 1500,
-      __pxlblz_show_c1_elapsed_ms: 2000,
+      __pxlblz_show_c0_elapsed_s: 1.5,
+      __pxlblz_show_c1_elapsed_s: 2,
       __pxlblz_show_c0_t: 1500 / 65_536,
       __pxlblz_show_c1_t: 2000 / 65_536,
     })
@@ -5965,7 +5965,7 @@ export function render(index) { rgb(elapsed, index, 0) }
     expect(pixel()).toEqual([1100, 2, 0])
     expect(handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed: 1100,
-      __pxlblz_show_c0_elapsed_ms: 1100,
+      __pxlblz_show_c0_elapsed_s: 1.1,
     })
     expect(artifact.summary).toMatchObject({
       clipCount: 1,
@@ -6022,8 +6022,8 @@ export function render(index) { rgb(elapsed, index, 0) }
     expect(handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed: 900,
       __pxlblz_show_c1_elapsed: 200,
-      __pxlblz_show_c0_elapsed_ms: 900,
-      __pxlblz_show_c1_elapsed_ms: 200,
+      __pxlblz_show_c0_elapsed_s: 0.9,
+      __pxlblz_show_c1_elapsed_s: 0.2,
     })
     expect(artifact.summary).toMatchObject({
       clipCount: 2,
@@ -6154,7 +6154,7 @@ export function render(index) { rgb(time(1), elapsed, index) }
     expect(paused.pixel()[0]).toBeCloseTo(100 / 65_536)
     expect(paused.pixel()[1]).toBeCloseTo(100)
     expect(paused.pixel()[2]).toBe(3)
-    expect(paused.handle.getExports().__pxlblz_show_c0_elapsed_ms).toBeCloseTo(100)
+    expect(paused.handle.getExports().__pxlblz_show_c0_elapsed_s).toBeCloseTo(0.1)
     expect(paused.handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(100)
     expect(paused.handle.getExports()).toMatchObject({
       __pxlblz_show_c0_frames: 4,
@@ -6182,7 +6182,7 @@ export function render(index) { rgb(time(1), elapsed, index) }
     resumed.handle.beforeRender(100)
 
     expect(resumed.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 150,
+      __pxlblz_show_c0_elapsed_s: 0.15,
       __pxlblz_show_c0_elapsed: 150,
       __pxlblz_show_c0_adapt_timeScale: 1,
     })
@@ -6285,7 +6285,7 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, ind
 
     expect(heldRuntime.pixel()).toEqual([0, 1, 2])
     expect(heldRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 0,
+      __pxlblz_show_c0_elapsed_s: 0,
       __pxlblz_show_c0_elapsed: 0,
     })
     expect(held.summary).toMatchObject({
@@ -6307,9 +6307,9 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, ind
     restartRuntime.handle.beforeRender(100)
 
     expect(restartRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 0,
+      __pxlblz_show_c0_elapsed_s: 0,
       __pxlblz_show_c0_elapsed: 0,
-      __pxlblz_show_c1_elapsed_ms: 100,
+      __pxlblz_show_c1_elapsed_s: 0.1,
       __pxlblz_show_c1_elapsed: 100,
     })
     expect(restarted.summary).toMatchObject({
@@ -6390,7 +6390,7 @@ export function render(index) { renderCalls = renderCalls + 1; rgb(elapsed, fram
 
     expect(runtime.pixel()).toEqual([0, 0, 0])
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 250,
+      __pxlblz_show_c0_elapsed_s: 0.25,
       __pxlblz_show_c0_elapsed: 250,
       __pxlblz_show_c0_frames: 1,
       __pxlblz_show_c0_renderCalls: 0,
@@ -6401,7 +6401,7 @@ export function render(index) { renderCalls = renderCalls + 1; rgb(elapsed, fram
 
     expect(runtime.pixel()).toEqual([250, 1, 2])
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 250,
+      __pxlblz_show_c0_elapsed_s: 0.25,
       __pxlblz_show_c0_elapsed: 250,
       __pxlblz_show_c0_frames: 1,
       __pxlblz_show_c0_renderCalls: 1,
@@ -6481,9 +6481,10 @@ export function render(index) { renders = renders + 1; rgb(elapsed, frames, rend
     runtime.handle.render(0)
 
     expect(runtime.pixel()).toEqual([240, 2, 4])
+    expect(runtime.handle.getExports().__pxlblz_show_c0_elapsed_s).toBeCloseTo(0.24, 12)
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 240,
-      __pxlblz_show_c0_step_pending_ms: 60,
+      __pxlblz_show_c0_step_half_phase: 1,
+      __pxlblz_show_c0_step_pending_half_ms: 10,
       __pxlblz_show_c0_elapsed: 240,
       __pxlblz_show_c0_frames: 2,
       __pxlblz_show_c0_renders: 4,
@@ -6522,8 +6523,9 @@ export function render(index) { rgb(scale, frames, index) }
 
     expect(runtime.pixel()).toEqual([4, 2, 0])
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 116,
-      __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c0_elapsed_s: 0.116,
+      __pxlblz_show_c0_step_half_phase: 0,
+      __pxlblz_show_c0_step_pending_half_ms: 0,
       __pxlblz_show_c0_step_primed: 1,
       __pxlblz_show_c0_frames: 2,
     })
@@ -6545,8 +6547,9 @@ export function render(index) { rgb(elapsed, index, 0) }
     heldRuntime.handle.beforeRender(60)
 
     expect(heldRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 160,
-      __pxlblz_show_c0_step_pending_ms: 20,
+      __pxlblz_show_c0_elapsed_s: 0.16,
+      __pxlblz_show_c0_step_half_phase: 0,
+      __pxlblz_show_c0_step_pending_half_ms: 20,
       __pxlblz_show_c0_elapsed: 160,
     })
 
@@ -6564,10 +6567,12 @@ export function render(index) { rgb(elapsed, index, 0) }
     restartRuntime.handle.beforeRender(40)
 
     expect(restartRuntime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 60,
-      __pxlblz_show_c0_step_pending_ms: 0,
-      __pxlblz_show_c1_elapsed_ms: 60,
-      __pxlblz_show_c1_step_pending_ms: 40,
+      __pxlblz_show_c0_elapsed_s: 0.06,
+      __pxlblz_show_c0_step_half_phase: 0,
+      __pxlblz_show_c0_step_pending_half_ms: 0,
+      __pxlblz_show_c1_elapsed_s: 0.06,
+      __pxlblz_show_c1_step_half_phase: 0,
+      __pxlblz_show_c1_step_pending_half_ms: 40,
     })
     expect(restarted.summary).toMatchObject({
       temporalPolicy: 'stepped-clock',
@@ -6576,14 +6581,16 @@ export function render(index) { rgb(elapsed, index, 0) }
   })
 
   it('composes stepped time after time scaling and shutter freeze eligibility', () => {
+    const source = `
+export var elapsed = 0
+export var frames = 0
+export function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }
+export function render(index) { rgb(elapsed, frames, 0) }
+`
     const artifact = compileShow({
       clips: [{
         id: 'composed',
-        source: `
-export var elapsed = 0
-export function beforeRender(delta) { elapsed = elapsed + delta }
-export function render(index) { rgb(elapsed, index, 0) }
-`,
+        source,
         adaptation: {
           timeScale: 0.5,
           steppedClock: { stepMs: 100 },
@@ -6595,12 +6602,41 @@ export function render(index) { rgb(elapsed, index, 0) }
 
     runtime.handle.beforeRender(300)
     runtime.handle.beforeRender(400)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([0, 0, 0])
 
-    const exports = runtime.handle.getExports()
-    expect(exports.__pxlblz_show_c0_elapsed_ms).toBeCloseTo(250)
-    expect(exports.__pxlblz_show_c0_step_pending_ms).toBeCloseTo(0)
-    expect(exports.__pxlblz_show_c0_step_pending_delta).toBeCloseTo(0)
-    expect(exports.__pxlblz_show_c0_elapsed).toBeCloseTo(250)
+    runtime.handle.beforeRender(300)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([250, 2, 0])
+
+    runtime.handle.beforeRender(100)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([300, 3, 0])
+
+    runtime.handle.beforeRender(100)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([350, 4, 0])
+
+    // A partial eligible frame retains its scaled motion until the next tick.
+    const partialArtifact = compileShow({
+      clips: [{
+        id: 'partial',
+        source,
+        adaptation: { timeScale: 0.5, steppedClock: { stepMs: 100 } },
+      }],
+    }, {})
+    const partial = loadShow(partialArtifact.code, partialArtifact.metadata)
+    partial.handle.beforeRender(0)
+    partial.handle.render(0)
+    expect(partial.pixel()).toEqual([0, 1, 0])
+
+    partial.handle.beforeRender(40)
+    partial.handle.render(0)
+    expect(partial.pixel()).toEqual([0, 1, 0])
+
+    partial.handle.beforeRender(60)
+    partial.handle.render(0)
+    expect(partial.pixel()).toEqual([50, 2, 0])
     expect(artifact.summary).toMatchObject({
       clockPolicy: 'scaled',
       temporalPolicy: 'stepped-clock',
@@ -6663,8 +6699,8 @@ export function render(index) { rgb(time(1), frames, index) }
 
     expect(runtime.pixel()[0]).toBeCloseTo(560 / 65_536)
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 160,
-      __pxlblz_show_c1_elapsed_ms: 560,
+      __pxlblz_show_c0_elapsed_s: 0.16,
+      __pxlblz_show_c1_elapsed_s: 0.56,
     })
   })
 

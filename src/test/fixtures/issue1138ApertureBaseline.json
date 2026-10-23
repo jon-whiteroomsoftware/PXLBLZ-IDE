@@ -29,7 +29,7 @@
   },
   "stock-show-reference-property-animation": {
     "bytes": 63797,
-    "persistentGlobals": 233,
+    "persistentGlobals": 228,
     "durationMs": 48600,
     "times": [
       0,
@@ -85,7 +85,7 @@
   },
   "stock-show-installation-black-sun": {
     "bytes": 48040,
-    "persistentGlobals": 202,
+    "persistentGlobals": 204,
     "durationMs": 64000,
     "times": [
       0,

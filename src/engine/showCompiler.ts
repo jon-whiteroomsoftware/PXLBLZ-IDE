@@ -1010,7 +1010,6 @@ export interface CompiledMember {
   palettePrefix: string
   usesTime: boolean
   elapsedName: string
-  elapsedSecondsName: string
   pixelCountName: string
   adaptation: ShowClipAdaptation
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
@@ -2117,7 +2116,6 @@ function patternSlotBankBindings(member: CompiledMember): string[] {
   return [
     ...member.resetAssignments.map((assignment) => assignment.slice(0, assignment.indexOf(' = '))),
     member.elapsedName,
-    ...(member.usesTime ? [member.elapsedSecondsName] : []),
     `${member.prefix}_adapt_brightness`,
     `${member.prefix}_adapt_phase`,
     `${member.prefix}_adapt_timeScale`,
@@ -2130,7 +2128,8 @@ function patternSlotOwnerAdaptationExpression(
   key: 'timeOffsetMs' | 'brightness' | 'phase' | 'timeScale' | 'mirror',
 ): string {
   const values = member.slotOwnerAdaptations.map((adaptation) => (
-    key === 'mirror' ? boolNumber(adaptation.mirror) : adaptation[key]
+    key === 'mirror' ? boolNumber(adaptation.mirror)
+      : key === 'timeOffsetMs' ? adaptation.timeOffsetMs / 1000 : adaptation[key]
   ))
   const [first] = values
   if (values.every((value) => value === first)) return String(first)
@@ -2142,7 +2141,7 @@ function emitPatternSlotBankRuntime(member: CompiledMember): string[] {
   if (member.slotOwnerCount <= 1) return []
   const bindings = patternSlotBankBindings(member)
   const banks = bindings.map((_, index) => `${member.prefix}_slot_bank_${index}`)
-  const timeOffsetMs = patternSlotOwnerAdaptationExpression(member, 'timeOffsetMs')
+  const timeOffsetSeconds = patternSlotOwnerAdaptationExpression(member, 'timeOffsetMs')
   const brightness = patternSlotOwnerAdaptationExpression(member, 'brightness')
   const phase = patternSlotOwnerAdaptationExpression(member, 'phase')
   const timeScale = patternSlotOwnerAdaptationExpression(member, 'timeScale')
@@ -2160,8 +2159,8 @@ ${bindings.map((binding, index) => `    ${banks[index]}[${member.prefix}_slot_ow
 ${bindings.map((binding, index) => `    ${binding} = ${banks[index]}[nextOwner]`).join('\n')}
   } else {
     ${member.prefix}_resetPattern()
-    ${member.elapsedName} = ${timeOffsetMs}
-    ${member.usesTime ? `${member.elapsedSecondsName} = (${timeOffsetMs}) / 1000\n    ` : ''}${member.prefix}_adapt_brightness = ${brightness}
+    ${member.elapsedName} = ${timeOffsetSeconds}
+    ${member.prefix}_adapt_brightness = ${brightness}
     ${member.prefix}_adapt_phase = ${phase}
     ${member.prefix}_adapt_timeScale = ${timeScale}
     ${member.prefix}_adapt_mirror = ${mirror}
@@ -5015,12 +5014,13 @@ function emitRoutedSceneSequenceShowCode(
   const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
   const memberRuntimeResetLines = (member: CompiledMember) => [
     ...memberCoordinateTransformResetAssignments(member),
-    `${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
-    ...(member.usesTime ? [`${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1_000}`] : []),
+    `${member.elapsedName} = ${member.adaptation.timeOffsetMs / 1000}`,
     ...(member.adaptation.steppedClock
       ? [
-          `${member.prefix}_step_pending_ms = 0`,
-          `${member.prefix}_step_pending_delta = 0`,
+          `${member.prefix}_step_pending_half_ms = 0`,
+          `${member.prefix}_step_half_phase = 0`,
+          `${member.prefix}_step_pending_delta_blocks = 0`,
+          `${member.prefix}_step_pending_delta_ms = 0`,
           `${member.prefix}_step_primed = 0`,
         ]
       : []),
@@ -11264,38 +11264,91 @@ function emitRuntimePrelude(
     const steppedClock = member.adaptation.steppedClock
     const steppedClockVars = steppedClock
       ? [
-          `var ${member.prefix}_step_ms = ${steppedClock.stepMs}`,
-          `var ${member.prefix}_step_pending_ms = 0`,
-          `var ${member.prefix}_step_pending_delta = 0`,
+          // Two bounded millisecond halves retain exact cadence boundaries in 16.16.
+          `var ${member.prefix}_step_half_ms = ${steppedClock.stepMs / 2}`,
+          `var ${member.prefix}_step_pending_half_ms = 0`,
+          `var ${member.prefix}_step_half_phase = 0`,
+          `var ${member.prefix}_step_pending_delta_blocks = 0`,
+          `var ${member.prefix}_step_pending_delta_ms = 0`,
           `var ${member.prefix}_step_primed = 0`,
+          // Carry bounded milliseconds: remainder <16000, carry sum <32000.
+          `function ${member.prefix}_addSteppedMotionChunk(scaledDeltaMs) {
+  var blocks = floor(scaledDeltaMs / 16000)
+  var remainder = scaledDeltaMs - blocks * 16000
+  remainder = ${member.prefix}_step_pending_delta_ms + remainder
+  if (remainder >= 16000) {
+    remainder = remainder - 16000
+    blocks = blocks + 1
+  }
+  ${member.prefix}_step_pending_delta_blocks = ${member.prefix}_step_pending_delta_blocks + blocks
+  ${member.prefix}_step_pending_delta_ms = remainder
+}`,
+          // Split before scaling so even scale 4 never exceeds 32000 ms.
+          `function ${member.prefix}_addSteppedMotion(delta) {
+  while (delta > 8000) {
+    ${member.prefix}_addSteppedMotionChunk(8000 * ${member.prefix}_adapt_timeScale)
+    delta = delta - 8000
+  }
+  ${member.prefix}_addSteppedMotionChunk(delta * ${member.prefix}_adapt_timeScale)
+}`,
+          // Bound Pattern delta-ms arguments without overflowing a 16.16 value.
+          // Each callback observes its own private-clock advancement.
+          `function ${member.prefix}_deliverStepped(blocks, remainderMs) {
+${member.hasBeforeRender ? `  var called = 0
+  while (blocks >= 2) {
+    ${member.elapsedName} = ${member.elapsedName} + 32
+    ${member.beforeRenderName}(32000)
+    blocks = blocks - 2
+    called = 1
+  }
+  var finalDeltaMs = blocks * 16000 + remainderMs
+  if (finalDeltaMs > 0 || called == 0) {
+    ${member.elapsedName} = ${member.elapsedName} + finalDeltaMs / 1000
+    ${member.beforeRenderName}(finalDeltaMs)
+  }
+` : `  ${member.elapsedName} = ${member.elapsedName} + blocks * 16 + remainderMs / 1000
+`}
+  ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
+}`,
           // #663: activation is boundary zero. Patterns compute render state in
           // beforeRender, and firmware never renders before delivering it, so
           // the first advance after activation/restart delivers immediately
           // with the frame's scaled delta instead of holding for a full step.
           `function ${member.prefix}_advanceStepped(delta) {
-  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
   if (${member.prefix}_step_primed == 0) {
     ${member.prefix}_step_primed = 1
-    ${member.elapsedName} = ${member.elapsedName} + scaledDelta
-    ${member.usesTime ? `${member.elapsedSecondsName} = ${member.elapsedSecondsName} + scaledDelta / 1000` : ''}
-    ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
-    ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
+    ${member.prefix}_addSteppedMotion(delta)
+    ${member.prefix}_deliverStepped(${member.prefix}_step_pending_delta_blocks, ${member.prefix}_step_pending_delta_ms)
+    ${member.prefix}_step_pending_delta_blocks = 0
+    ${member.prefix}_step_pending_delta_ms = 0
     return
   }
-  var previousPendingMs = ${member.prefix}_step_pending_ms
-  var accumulatedMs = previousPendingMs + delta
-  var deliveredCadenceMs = floor(accumulatedMs / ${member.prefix}_step_ms) * ${member.prefix}_step_ms
-  if (deliveredCadenceMs > 0) {
-    var deliveredDelta = ${member.prefix}_step_pending_delta + (deliveredCadenceMs - previousPendingMs) * ${member.prefix}_adapt_timeScale
-    ${member.prefix}_step_pending_ms = accumulatedMs - deliveredCadenceMs
-    ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_ms * ${member.prefix}_adapt_timeScale
-    ${member.elapsedName} = ${member.elapsedName} + deliveredDelta
-    ${member.usesTime ? `${member.elapsedSecondsName} = ${member.elapsedSecondsName} + deliveredDelta / 1000` : ''}
-    ${member.hasBeforeRender ? `${member.beforeRenderName}(deliveredDelta)` : ''}
-    ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
+  var incomingHalves = floor(delta / ${member.prefix}_step_half_ms)
+  var incomingRemainderMs = delta - incomingHalves * ${member.prefix}_step_half_ms
+  var toNextHalfMs = ${member.prefix}_step_half_ms - ${member.prefix}_step_pending_half_ms
+  if (incomingRemainderMs >= toNextHalfMs) {
+    incomingHalves = incomingHalves + 1
+    ${member.prefix}_step_pending_half_ms = incomingRemainderMs - toNextHalfMs
   } else {
-    ${member.prefix}_step_pending_ms = accumulatedMs
-    ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_delta + scaledDelta
+    ${member.prefix}_step_pending_half_ms = ${member.prefix}_step_pending_half_ms + incomingRemainderMs
+  }
+  var totalHalves = ${member.prefix}_step_half_phase + incomingHalves
+  ${member.prefix}_step_half_phase = totalHalves % 2
+  ${member.prefix}_addSteppedMotion(delta)
+  if (totalHalves >= 2) {
+    var deliveryBlocks = ${member.prefix}_step_pending_delta_blocks
+    var deliveryMs = ${member.prefix}_step_pending_delta_ms
+    ${member.prefix}_step_pending_delta_blocks = 0
+    ${member.prefix}_step_pending_delta_ms = 0
+    if (${member.prefix}_step_half_phase != 0) ${member.prefix}_addSteppedMotion(${member.prefix}_step_half_ms)
+    ${member.prefix}_addSteppedMotion(${member.prefix}_step_pending_half_ms)
+    deliveryBlocks = deliveryBlocks - ${member.prefix}_step_pending_delta_blocks
+    deliveryMs = deliveryMs - ${member.prefix}_step_pending_delta_ms
+    if (deliveryMs < 0) {
+      deliveryMs = deliveryMs + 16000
+      deliveryBlocks = deliveryBlocks - 1
+    }
+    ${member.prefix}_deliverStepped(deliveryBlocks, deliveryMs)
   }
 }`,
         ]
@@ -11332,8 +11385,7 @@ function emitRuntimePrelude(
     const advanceDelta = (delta: string, indent: string) => steppedClock
       ? `${indent}${member.prefix}_advanceStepped(${delta})`
       : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
-${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
-${member.usesTime ? `${indent}${member.elapsedSecondsName} = ${member.elapsedSecondsName} + scaledDelta / 1000\n` : ''}
+${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta / 1000
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
 ${indent}${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
@@ -11357,8 +11409,7 @@ ${advanceDelta('delta', '  ')}
 ${advanceDelta('delta', '  ')}
 }`
     return [
-    `var ${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
-    ...(member.usesTime ? [`var ${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1000}`] : []),
+    `var ${member.elapsedName} = ${member.adaptation.timeOffsetMs / 1000}`,
     `var ${member.pixelCountName} = pixelCount`,
     `var ${member.prefix}_adapt_brightness = ${member.adaptation.brightness}`,
     `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
@@ -11426,7 +11477,7 @@ ${advanceDelta('delta', '  ')}
 }`,
     ] : []),
     ...(member.usesTime
-      ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
+      ? [`function ${member.prefix}_time(interval) { return (${member.elapsedName} / (interval * 65.536)) % 1 }`]
       : []),
     ...(includeAdaptationMix ? [`function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
   ${member.prefix}_adapt_brightness = brightness
@@ -11892,7 +11943,6 @@ function buildMetadata(
       : []),
     ...members.flatMap(member => [
       member.elapsedName,
-      ...(member.usesTime ? [member.elapsedSecondsName] : []),
       member.pixelCountName,
       `${member.prefix}_adapt_brightness`,
       `${member.prefix}_adapt_phase`,
@@ -11916,9 +11966,11 @@ function buildMetadata(
         : []),
       ...(member.adaptation.steppedClock
         ? [
-            `${member.prefix}_step_ms`,
-            `${member.prefix}_step_pending_ms`,
-            `${member.prefix}_step_pending_delta`,
+            `${member.prefix}_step_half_ms`,
+            `${member.prefix}_step_pending_half_ms`,
+            `${member.prefix}_step_half_phase`,
+            `${member.prefix}_step_pending_delta_blocks`,
+            `${member.prefix}_step_pending_delta_ms`,
             `${member.prefix}_step_primed`,
           ]
         : []),

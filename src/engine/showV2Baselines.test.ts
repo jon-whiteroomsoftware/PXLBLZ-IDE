@@ -42,7 +42,7 @@ const BASELINE_DIR = 'docs/reference/evidence/issue-1042-v2-baselines'
 const committedBaselines = JSON.parse(readFileSync(resolve(repoRoot, BASELINE_DIR, 'baselines.json'), 'utf8')) as { generator: { nodeMajor: number } }
 const comparable = runtimeComparability(committedBaselines.generator.nodeMajor, process.versions.node).comparable
 const PINNED_DIGESTS: Record<string, string> = {
-  'baselines.json': '30c374b0b0d30e7a1d97cc7e73e305441ac4057f41c9698e463e005549b987ae', // re-pinned when track time moved to seconds (#1197)
+  'baselines.json': 'ef666c622906f1e3f03b3d44aa85fb6b8a290125dba0cc161acc35055d7ead6b', // #1202 compiler-output source-identity recensus
   'runtime-frames.json': 'a9b652b8b61ac1a8c10139e0d81dc7d110a96320c9af02beac5ec58249eb3d60', // re-pinned when track time moved to seconds (#1197)
   'fixtures/animation.json': '5fe5e38c50a73ca5ff25305a93063a3f50f673d676c5f78bd38de1b51eb2c5e7',
   'fixtures/groups.json': 'be4db1bb8ba11efba0f1864642c32ffcfee22aabc8de2415a7c839ff6a15e505',

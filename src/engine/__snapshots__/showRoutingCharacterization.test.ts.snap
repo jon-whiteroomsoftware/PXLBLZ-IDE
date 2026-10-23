@@ -1,13 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`routing representation characterization (#570) > coordinate-predicates output is byte-stable 1`] = `"335f2d66ed5ec798"`;
+exports[`routing representation characterization (#570) > coordinate-predicates output is byte-stable 1`] = `"ce266bb4d0008745"`;
 
-exports[`routing representation characterization (#570) > gaps-and-overlaps output is byte-stable 1`] = `"acd54c53a138a3f0"`;
+exports[`routing representation characterization (#570) > gaps-and-overlaps output is byte-stable 1`] = `"cce39cc10c56f1fc"`;
 
-exports[`routing representation characterization (#570) > generated-formula output is byte-stable 1`] = `"26badae0949b5e9e"`;
+exports[`routing representation characterization (#570) > generated-formula output is byte-stable 1`] = `"c059e89f6f169357"`;
 
-exports[`routing representation characterization (#570) > packed-pixels output is byte-stable 1`] = `"64f735f7b1ffb008"`;
+exports[`routing representation characterization (#570) > packed-pixels output is byte-stable 1`] = `"7076506de23aa9a8"`;
 
-exports[`routing representation characterization (#570) > range-branches output is byte-stable 1`] = `"dc6dfa634dc40fd8"`;
+exports[`routing representation characterization (#570) > range-branches output is byte-stable 1`] = `"b7a57ccb972d0e17"`;
 
-exports[`routing representation characterization (#570) > route-mode output is byte-stable 1`] = `"7c42c2657c3df33b"`;
+exports[`routing representation characterization (#570) > route-mode output is byte-stable 1`] = `"024913e9850fda3e"`;

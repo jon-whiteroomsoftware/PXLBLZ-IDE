@@ -1,3 +1,4 @@
+// #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 import { describe, expect, it } from 'vitest'
 import { compilerVintageOptions } from './showCompilerVintages'
 import { createFastReplayRuntime } from './fastReplay'
@@ -45,8 +46,8 @@ function boundarySampleTimesMsV2(record: ShowRecordV2): number[] {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
-    ['stock-show-reference-slide-transitions', { none: 20_591, structure: 15_720, exact: 16_174, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 28_548, structure: 22_755, exact: 22_716, boundaries: 7, exactKernels: 5 }],
+    ['stock-show-reference-slide-transitions', { none: 20_603, structure: 15_732, exact: 16_186, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 28_491, structure: 22_698, exact: 22_659, boundaries: 7, exactKernels: 5 }],
   ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).
