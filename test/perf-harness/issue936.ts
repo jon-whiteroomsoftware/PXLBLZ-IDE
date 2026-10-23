@@ -56,6 +56,12 @@ export function latchRedline(code: string): Omit<Issue936Candidates, 'exact'> {
   const zoneChainStart = render.indexOf('if (index <= ')
   const zoneChainEnd = render.indexOf('var __pxlblz_t = ')
   if (zoneChainStart < 0 || zoneChainEnd < 0) throw new Error('zone chain not found')
+  const placementPreludeStart = render.indexOf('var __pxlblz_d = -1\n')
+  const placementPreludeEnd = render.indexOf('if (__pxlblz_d == ', placementPreludeStart)
+  if (placementPreludeStart < zoneChainEnd || placementPreludeEnd <= placementPreludeStart) {
+    throw new Error('placement prelude not found')
+  }
+  const placementPrelude = render.slice(placementPreludeStart, placementPreludeEnd)
   // The zone chain assigns `__pxlblz_b = index - BASE`; the latched form
   // records BASE and the boundary index instead (`index <= END` gives END + 1).
   const zoneChain = render.slice(zoneChainStart, zoneChainEnd)
@@ -89,13 +95,8 @@ var __pxlblz_D = 1
   __pxlblz_lat_next = -1
 ${zoneChain}  __pxlblz_lat_col = -1
   __pxlblz_lat_row = 0
-  var __pxlblz_d = -1
-  if (__pxlblz_C >= 0) __pxlblz_d = __pxlblz_ax[__pxlblz_z * 5 + __pxlblz_C] - 1
-  __pxlblz_lat_d = __pxlblz_d
-  var __pxlblz_aj = __pxlblz_d * 5 + __pxlblz_C
-  var __pxlblz_i = __pxlblz_d >= 0 && __pxlblz_aj != __pxlblz_ai
+  ${placementPrelude}__pxlblz_lat_d = __pxlblz_d
   if (__pxlblz_i) {
-    __pxlblz_ai = __pxlblz_aj
     ${coefficientChain.split('\n').join('\n    ')}
   }
   }
