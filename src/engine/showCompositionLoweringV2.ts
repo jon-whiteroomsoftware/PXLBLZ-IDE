@@ -277,6 +277,12 @@ function resolveAndLowerShowV2(
 ): ResolvedLowering | { issues: ShowV2CompilePreparationIssue[] } {
   const invalid = validateShowRecordV2(record)[0]
   if (invalid) return refuse('invalid-record', invalid.path, invalid.message)
+  const stepIndex = record.composition.propertyTracks.findIndex(track => track.target.kind === 'instance-time-step-ms')
+  if (stepIndex !== -1) return refuse('unsupported-property-target', `composition.propertyTracks[${stepIndex}].target`, 'Step-length Property tracks cannot be compiled yet.')
+  for (const [definitionIndex, definition] of record.composition.groupDefinitions.entries()) {
+    const trackIndex = definition.propertyTracks.findIndex(track => track.target.kind === 'instance-time-step-ms')
+    if (trackIndex !== -1) return refuse('unsupported-property-target', `composition.groupDefinitions[${definitionIndex}].propertyTracks[${trackIndex}].target`, 'Step-length Property tracks cannot be compiled yet.')
+  }
   const unavailable = validateShowLayoutAvailabilityV2(record)[0]
   if (unavailable) {
     return refuse(
@@ -576,7 +582,7 @@ function propertyTrackSectionBounds(
   track: ShowRecordV2['composition']['propertyTracks'][number],
 ) {
   const contribution = sectionContribution(record, section)
-  return track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-control'
+  return track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-time-step-ms' || track.target.kind === 'instance-control'
     ? { startMs: section.startMs, endMs: contribution.endMs }
     : contribution
 }
@@ -1000,7 +1006,7 @@ function lowerPropertyTargetForSection(
   identities: GlobalPlacementIdentities,
 ): ShowPropertyAnimationTarget {
   if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') return structuredClone(target)
-  if (target.kind === 'layout-occurrence-split-position' || target.kind === 'show-repeat-scale') {
+  if (target.kind === 'instance-time-step-ms' || target.kind === 'layout-occurrence-split-position' || target.kind === 'show-repeat-scale') {
     throw new Error(`Show composition v2 property target "${target.kind}" requires direct compiler support.`)
   }
   const clipId = target.clipId

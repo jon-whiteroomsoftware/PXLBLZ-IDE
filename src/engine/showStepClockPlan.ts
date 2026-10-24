@@ -41,15 +41,19 @@ export function validateShowStepClockTrack(track: ShowStepClockTrack): ShowStepC
       })
     }
     if (keyframeIndex === track.keyframes.length - 1) return
-    if (!isHeldUntilNextKey(key.easing)) {
+    const next = track.keyframes[keyframeIndex + 1]
+    const segment = key.curveSegment
+    const constant = segment
+      ? segment.deltaValue === 0 && segment.baseValue === key.value
+      : key.value === next.value
+    if (!constant && !isHeldUntilNextKey(key.easing)) {
       issues.push({
         keyframeIndex,
         field: 'easing',
         message: 'Step-length changes require Hold easing at the next key.',
       })
     }
-    const segment = key.curveSegment
-    if (segment && (!isHeldUntilNextKey(segment.easing)
+    if (segment && ((segment.deltaValue !== 0 && !isHeldUntilNextKey(segment.easing))
       || segment.baseValue !== key.value
       || !isShowStepClockValue(segment.baseValue)
       || !isShowStepClockValue(segment.baseValue + segment.deltaValue))) {

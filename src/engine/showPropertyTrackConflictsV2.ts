@@ -1,7 +1,7 @@
 import type { ShowPropertyTrackV2 } from './showCompositionV2'
 
 export interface ShowInstancePropertyTrackConflictV2 {
-  target: Extract<ShowPropertyTrackV2['target'], { kind: 'instance-time-scale' | 'instance-control' }>
+  target: Extract<ShowPropertyTrackV2['target'], { kind: 'instance-time-scale' | 'instance-time-step-ms' | 'instance-control' }>
   trackIds: [string, string]
 }
 
@@ -11,7 +11,7 @@ export function findShowInstancePropertyTrackConflictsV2(
 ): ShowInstancePropertyTrackConflictV2[] {
   const conflicts: ShowInstancePropertyTrackConflictV2[] = []
   tracks.forEach((track, index) => {
-    if (track.target.kind !== 'instance-time-scale' && track.target.kind !== 'instance-control') return
+    if (track.target.kind !== 'instance-time-scale' && track.target.kind !== 'instance-time-step-ms' && track.target.kind !== 'instance-control') return
     for (const candidate of tracks.slice(0, index)) {
       if (!sameInstanceTarget(candidate.target, track.target) || !propertyTrackIntervalsOverlap(candidate, track)) continue
       conflicts.push({ target: structuredClone(track.target), trackIds: [candidate.id, track.id] })
@@ -35,7 +35,9 @@ export function sameShowInstancePropertyTargetV2(
   if (left.kind !== right.kind || !('instanceId' in left) || !('instanceId' in right)
     || left.instanceId !== right.instanceId) return false
   return left.kind === 'instance-time-scale'
+    || left.kind === 'instance-time-step-ms'
     || right.kind === 'instance-time-scale'
+    || right.kind === 'instance-time-step-ms'
     || left.exportName === right.exportName
 }
 

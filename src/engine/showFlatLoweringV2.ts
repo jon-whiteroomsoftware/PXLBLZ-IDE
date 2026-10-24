@@ -88,7 +88,7 @@ export function withoutUnusedInstanceTracksV2(record: ShowRecordV2): ShowRecordV
     // Promotion asks before validation refuses, so a malformed candidate still
     // reaches this filter: only a well-formed unused-instance target can drop.
     const kind = track.target?.kind
-    if (kind !== 'instance-control' && kind !== 'instance-time-scale') return true
+    if (kind !== 'instance-control' && kind !== 'instance-time-scale' && kind !== 'instance-time-step-ms') return true
     return usedInstanceIds.has((track.target as { instanceId: string }).instanceId)
   })
   if (propertyTracks.length === record.composition.propertyTracks.length) return record

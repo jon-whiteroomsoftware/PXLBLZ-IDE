@@ -217,7 +217,7 @@ export function projectShowTimelineV2(record: ShowRecordV2): ShowTimelineViewMod
 
   const instanceNames = new Map(record.composition.patternInstances.map((instance) => [instance.id, instance.patternName]))
   const propertyTracks = [
-    ...record.composition.propertyTracks.map((track) => (
+    ...record.composition.propertyTracks.filter(track => track.target.kind !== 'instance-time-step-ms').map((track) => (
       propertyTrackView(track, { kind: 'show' }, instanceNames)
     )),
     ...record.composition.groupDefinitions.flatMap((definition) => {
@@ -230,7 +230,7 @@ export function projectShowTimelineV2(record: ShowRecordV2): ShowTimelineViewMod
           .map((occurrence) => occurrence.id),
       }
       const names = new Map(definition.patternInstances.map((instance) => [instance.id, instance.patternName]))
-      return definition.propertyTracks.map((track) => propertyTrackView(track, owner, names))
+      return definition.propertyTracks.filter(track => track.target.kind !== 'instance-time-step-ms').map((track) => propertyTrackView(track, owner, names))
     }),
   ]
 
@@ -305,6 +305,8 @@ function propertyTargetLabel(target: ShowPropertyTargetV2, instanceNames: Readon
   switch (target.kind) {
     case 'instance-time-scale':
       return `${instance(target.instanceId)} animation speed`
+    case 'instance-time-step-ms':
+      return 'step length (ms)'
     case 'instance-control':
       return `${instance(target.instanceId)} ${target.exportName}`
     case 'clip-opacity':

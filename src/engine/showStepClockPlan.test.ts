@@ -60,8 +60,15 @@ describe('step-clock request value validation (#1211)', () => {
   })
 
   it.each<ShowStructuredEasing>([{ curve: 'linear' }, { curve: 'hold', at: 0.5 }])(
-    'rejects outgoing $curve easing even between equal values', easing => {
+    'accepts outgoing $curve easing between equal values', easing => {
       const input = track('easing', 0, 100, [[0, 250], [100, 250]])
+      input.keyframes[0].easing = easing
+      expect(validateShowStepClockTrack(input)).toEqual([])
+    })
+
+  it.each<ShowStructuredEasing>([{ curve: 'linear' }, { curve: 'hold', at: 0.5 }])(
+    'rejects outgoing $curve easing between different values', easing => {
+      const input = track('easing', 0, 100, [[0, 250], [100, 500]])
       input.keyframes[0].easing = easing
       expect(validateShowStepClockTrack(input)).toEqual([
         { keyframeIndex: 0, field: 'easing', message: EASING_MESSAGE },
@@ -90,6 +97,7 @@ describe('step-clock request value validation (#1211)', () => {
 
   it.each([
     { name: 'different base', retained: segment({ baseValue: 125 }) },
+    { name: 'different base with zero delta', retained: segment({ baseValue: 125, deltaValue: 0 }) },
     { name: 'fractional base', retained: segment({ baseValue: 250.5 }), value: 250.5 },
     { name: 'fractional endpoint', retained: segment({ deltaValue: 0.5 }) },
     { name: 'endpoint below minimum', retained: segment({ deltaValue: -249 }) },
@@ -105,6 +113,15 @@ describe('step-clock request value validation (#1211)', () => {
       ...(value === 250.5 ? [{ keyframeIndex: 0, field: 'value', message: VALUE_MESSAGE }] : []),
       { keyframeIndex: 0, field: 'curveSegment', message: SEGMENT_MESSAGE },
     ])
+  })
+
+  it('preserves a constant retained linear descriptor with irrelevant left-key easing', () => {
+    const input = track('constant-retained', 0, 500, [[0, 250], [500, 500]])
+    input.keyframes[0].easing = { curve: 'linear' }
+    input.keyframes[0].curveSegment = segment({ deltaValue: 0, easing: { curve: 'linear' } })
+    const original = structuredClone(input)
+    expect(validateShowStepClockTrack(freezeTrack(input))).toEqual([])
+    expect(input).toEqual(original)
   })
 
   it('reports value, outgoing easing and retained descriptor issues together', () => {

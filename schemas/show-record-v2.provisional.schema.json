@@ -391,6 +391,15 @@
         {
           "type": "object",
           "properties": {
+            "kind": { "const": "instance-time-step-ms" },
+            "instanceId": { "$ref": "#/$defs/Id" }
+          },
+          "required": ["kind", "instanceId"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
             "kind": { "const": "instance-control" },
             "instanceId": { "$ref": "#/$defs/Id" },
             "exportName": { "type": "string", "minLength": 1 }

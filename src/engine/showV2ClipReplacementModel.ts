@@ -93,7 +93,7 @@ export function createShowV2ClipReplacementIntent(capture: ShowV2ClipSharingCapt
     const { record } = context, effective = materializeShowGroupsV2(record), source = record.composition.patternInstances.find(instance => instance.id === clip.instanceId)!
     const compatible = new Set(resolved.replacement.exportedSliders.map(control => control.exportName))
     const ownedTracks = effective.composition.propertyTracks.filter(track => 'instanceId' in track.target && track.target.instanceId === source.id)
-    const retained = ownedTracks.filter(track => track.target.kind === 'instance-time-scale' || (track.target.kind === 'instance-control' && compatible.has(track.target.exportName)))
+    const retained = ownedTracks.filter(track => track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-time-step-ms' || (track.target.kind === 'instance-control' && compatible.has(track.target.exportName)))
     const unchanged = source.pattern.kind === resolved.replacement.patternReference.kind && source.pattern.id === resolved.replacement.patternReference.id && source.patternName === resolved.replacement.patternName
       && Object.keys(source.controlTargets ?? {}).every(name => compatible.has(name)) && retained.length === ownedTracks.length
     const intent: ShowV2ClipReplacementIntent = { kind: 'replace-pattern', clipId, patternReference: { ...resolved.replacement.patternReference } }

@@ -63,6 +63,7 @@ function propertyTargetEntityId(target: ShowPropertyTargetV2): string | undefine
 function propertyTargetLabel(target: ShowPropertyTargetV2): string {
   switch (target.kind) {
     case 'instance-time-scale': return 'animation speed'
+    case 'instance-time-step-ms': return 'step length (ms)'
     case 'instance-control': return target.exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim()
     case 'clip-opacity': return 'opacity'
     case 'clip-view': return target.property
@@ -490,7 +491,7 @@ export function projectShowEditorTimelineV2(record: ShowRecordV2): ShowTimelineV
     transitions: transitionViews,
     layoutIntervals,
     markers,
-    propertyTracks: record.composition.propertyTracks.map(projectPropertyTrack),
+    propertyTracks: record.composition.propertyTracks.filter(track => track.target.kind !== 'instance-time-step-ms').map(projectPropertyTrack),
     structuralTimesMs,
   }
 }
@@ -791,6 +792,7 @@ function clipLaneFacts(record: ShowRecordV2, clip: ShowClipV2): AuthoredClipFact
 function authoredTrackLanesV2(record: ShowRecordV2): ShowEditorPropertyLaneV2[] {
   const showEndMs = Math.max(1, record.composition.showEndMs)
   return record.composition.propertyTracks.flatMap((track): ShowEditorPropertyLaneV2[] => {
+    if (track.target.kind === 'instance-time-step-ms') return []
     // A Show-wide scalar track - repeat scale, split position - owns no Clip,
     // and v1 draws it on its own sample-remap row rather than as an animation
     // lane. Resolving owners first keeps that target out of the lowering the

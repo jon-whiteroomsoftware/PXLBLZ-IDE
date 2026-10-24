@@ -327,6 +327,7 @@ function ordinaryAnimation(
   appearance: HeldAppearance,
 ): ShowEditorClipAnimationPresentationV2 {
   const tracks = record.composition.propertyTracks
+    .filter(track => track.target.kind !== 'instance-time-step-ms')
     .filter(track => targetBelongsToClip(track.target, clip.id, clip.instanceId))
     .filter(track => (
       track.activeStartMs < appearance.spanEndMs
@@ -417,6 +418,7 @@ function groupAnimation(
   owner: Extract<ShowEditorClipOwnerV2, { kind: 'group-clip' }>,
 ): ShowEditorClipAnimationPresentationV2 {
   const tracks = definition.propertyTracks
+    .filter(track => track.target.kind !== 'instance-time-step-ms')
     .filter(track => targetBelongsToClip(track.target, child.id, child.instanceId))
     .map((track): ShowEditorPropertyTrackPresentationV2 => ({
       authored: structuredClone(track),

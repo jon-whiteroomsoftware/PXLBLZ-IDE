@@ -264,7 +264,7 @@ export function moveShowGroupOccurrenceV2(
       .filter(clip => selectedClipIds.has(clip.id) && uses.get(clip.instanceId) === 1)
       .map(clip => clip.instanceId))
     for (const track of next.composition.propertyTracks) {
-      if ((track.target.kind !== 'instance-control' && track.target.kind !== 'instance-time-scale')
+      if ((track.target.kind !== 'instance-control' && track.target.kind !== 'instance-time-scale' && track.target.kind !== 'instance-time-step-ms')
         || !soleMovedInstances.has(track.target.instanceId)) continue
       const shiftedStartMs = track.activeStartMs + deltaMs
       const shiftedEndMs = shiftedStartMs + track.activeDurationMs

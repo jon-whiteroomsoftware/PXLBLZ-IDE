@@ -378,7 +378,7 @@ function independencePlan(
   const compatible = compatibleControlExports === undefined ? null : new Set(compatibleControlExports)
   const tracks = effective.composition.propertyTracks.filter(track => (
     'instanceId' in track.target && track.target.instanceId === clip.instanceId
-    && (compatible === null || track.target.kind === 'instance-time-scale'
+    && (compatible === null || track.target.kind === 'instance-time-scale' || track.target.kind === 'instance-time-step-ms'
       || (track.target.kind === 'instance-control' && compatible.has(track.target.exportName)))
   ))
   const identitiesBySourceTrackId: Record<string, { trackId: string; keyframeIdsBySourceId: Record<string, string> }> = {}

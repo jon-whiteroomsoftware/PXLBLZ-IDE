@@ -26,6 +26,7 @@ import type {
 import { validateShowEasing } from './showEasing'
 import type { ShowPropertyCurveSegment } from './showPropertyAnimation'
 import { findShowInstancePropertyTrackConflictsV2 } from './showPropertyTrackConflictsV2'
+import { validateShowStepClockTrack } from './showStepClockPlan'
 
 export interface ShowLayerV2 {
   id: string
@@ -123,6 +124,7 @@ export interface ShowTransitionParticipantV2 {
 
 export type ShowPropertyTargetV2 =
   | { kind: 'instance-time-scale'; instanceId: string }
+  | { kind: 'instance-time-step-ms'; instanceId: string }
   | { kind: 'instance-control'; instanceId: string; exportName: string }
   | { kind: 'clip-opacity'; clipId: string }
   | { kind: 'clip-view'; clipId: string; property: 'brightness' | 'phase' }
@@ -586,6 +588,10 @@ export function validateShowRecordV2Domain(record: ShowRecordV2, derivedStructur
         } else if (ramp.from <= 0) addIssue(issues, rampPath, 'out-of-bounds', 'Repeat-scale ramp origin must be positive.')
         return
       }
+      if (ramp.target.kind === 'instance-time-step-ms') {
+        addIssue(issues, `${rampPath}.target`, 'invalid-property-target', 'Step-length tracks cannot be Transition property ramps.')
+        return
+      }
       if (ramp.target.kind !== 'instance-time-scale' && ramp.target.kind !== 'clip-view') return
       const isSpeed = ramp.target.kind === 'instance-time-scale'
       const isBrightness = ramp.target.kind === 'clip-view' && ramp.target.property === 'brightness'
@@ -925,6 +931,11 @@ function validatePropertyTrack(
     previous = keyframe.timeMs
   })
   validatePropertyTarget(issues, `${path}.target`, track, context)
+  if (track.target.kind === 'instance-time-step-ms') {
+    for (const issue of validateShowStepClockTrack(track)) {
+      addIssue(issues, `${path}.keyframes[${issue.keyframeIndex}].${issue.field}`, 'out-of-bounds', issue.message)
+    }
+  }
 }
 
 function validatePropertyTarget(
@@ -946,7 +957,7 @@ function validatePropertyTarget(
     }
     return
   }
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-time-step-ms' || target.kind === 'instance-control') {
     if (!context.instances.has(target.instanceId)) {
       addIssue(issues, path, 'invalid-property-target', 'Property target Pattern instance does not exist.')
     }

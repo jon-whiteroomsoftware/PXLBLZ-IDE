@@ -328,7 +328,7 @@ export function copyShowInstancePropertyTracksV2(
     }
   }
   for (const source of retainedSources) {
-    if (source.target.kind !== 'instance-time-scale' && source.target.kind !== 'instance-control') {
+    if (source.target.kind !== 'instance-time-scale' && source.target.kind !== 'instance-time-step-ms' && source.target.kind !== 'instance-control') {
       return {
         status: 'refused', propertyTracks: record.composition.propertyTracks, copiedTrackIds: [], discardedTargets: [],
         message: `Effective source track "${source.id}" is not instance-owned.`,

@@ -68,7 +68,7 @@ function activationWindow(
       outgoingMs = transition.durationMs
     }
   }
-  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-time-step-ms' || target.kind === 'instance-control') {
     return { activeStartMs: offset, activeDurationMs: frame.storageDurationMs + outgoingMs }
   }
   return { activeStartMs: offset - incomingMs, activeDurationMs: frame.storageDurationMs + incomingMs + outgoingMs }

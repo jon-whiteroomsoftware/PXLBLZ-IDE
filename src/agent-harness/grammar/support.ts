@@ -157,6 +157,7 @@ export function trackSites(document: ShowGrammarDocument): TrackSite[] {
 export function describeTarget(target: ShowPropertyTargetV2): string {
   switch (target.kind) {
     case 'instance-time-scale': return `time scale of instance ${target.instanceId}`
+    case 'instance-time-step-ms': return `step length in ms of instance ${target.instanceId}`
     case 'instance-control': return `control "${target.exportName}" of instance ${target.instanceId}`
     case 'clip-opacity': return `opacity of Clip ${target.clipId}`
     case 'clip-view': return `${target.property} of Clip ${target.clipId}`
