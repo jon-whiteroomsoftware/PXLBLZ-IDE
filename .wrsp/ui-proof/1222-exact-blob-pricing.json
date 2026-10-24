@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "route": "http://localhost:5201/PXLBLZ-IDE/studio/shows/c757dce5-cc5f-4f83-9c2b-0c5a5d39f23a",
-  "operation": "#1222 Show gauge/inventory proof at 1440x900 and 1180x800. The canonical authenticated test:e2e:shows -- --grep '#1222' --workers=1 host run passed 1 test in 7.4s. The exact synthetic 70,000-byte record shows 68.4 KB exact / 53.4 KB, raw -1,616 B and usable -15,293 B; live-to-pending invalidates the retained record and shows 7.09 KB estimate / 53.4 KB, raw 61,121 B and usable 47,444 B. Both console/page-error oracles were empty. All four captures show exact/estimate price and both signed headroom rows; the 1440 exact frame also shows the budget tooltip. Synthetic bytes prove UI pricing, not native compilation or hardware capacity. Jon approved strings in https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389836659 and 390 is out of scope per https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389819528. The 1180 harness clears hover/focus and scrolls usable headroom into view; AO3 inspected all four actual PNGs from this run and validated the pixels. No new browser run is claimed by importing these artifacts.",
+  "route": "http://localhost:5201/PXLBLZ-IDE/studio/shows/ba720897-8378-45ef-b434-b1728b374e5c",
+  "operation": "#1222 Show gauge/inventory proof at 1440x900 and 1180x800, refreshed after rebasing onto dd1e2f85. The canonical authenticated test:e2e:shows -- --grep '#1222' --workers=1 host run passed 1 test in 7.5s. The exact synthetic 70,000-byte record shows 68.4 KB exact / 53.4 KB, raw -1,616 B and usable -15,293 B; live-to-pending invalidates the retained record and shows 7.09 KB estimate / 53.4 KB, raw 61,121 B and usable 47,444 B. The browser error oracle was empty. All four captures show exact/estimate price and both signed headroom rows; the 1440 exact frame also shows the budget tooltip. Synthetic bytes prove UI pricing, not native compilation or hardware capacity. Jon approved strings in https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389836659 and 390 is out of scope per https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389819528. The canonical run includes AO3's 1180 harness step: clear hover/focus and scroll usable headroom into view. AO4 inspected all four actual PNGs from this refreshed run and validated the pixels.",
   "captures": [
     ".wrsp/ui-proof/1222-pricing-1440-exact.png",
     ".wrsp/ui-proof/1222-pricing-1440-estimate.png",
     ".wrsp/ui-proof/1222-pricing-1180-exact.png",
     ".wrsp/ui-proof/1222-pricing-1180-estimate.png"
   ],
-  "capturedAtCommit": "ba4fe003c38476e7905548c897be6e79ce4ca6fe"
+  "capturedAtCommit": "cf3fe8ca856eed8edaee482f085b83483743ee18"
 }
