@@ -269,6 +269,193 @@ function renderLiveProgramInventory(
 }
 
 describe('ControllerProfilePage', () => {
+  function bulkFixture() {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'bulk-select-1218',
+      activeProgramId: 'ACTIVE',
+      configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'ACTIVE', name: 'Running Pattern' },
+        { id: 'A', name: 'Alpha' }, { id: 'B', name: 'Beta' }, { id: 'C', name: 'Gamma' },
+        { id: 'OWN', name: 'Owned' },
+      ],
+      bindings: { 'pat-owned': 'OWN' }, pushRecords: {},
+    })
+    return { profile, provider }
+  }
+
+  it('bulk Other Delete snapshots exactly three, cancels without writes and confirms sequential deletes', async () => {
+    const { provider } = bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    const all = screen.getByRole('checkbox', { name: 'Select all Other Patterns' })
+    expect(all).not.toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    expect(all).toBePartiallyChecked()
+    fireEvent.click(all)
+    expect(all).toBeChecked()
+    fireEvent.click(all)
+    expect(screen.getByText('0 of 4 selected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    expect(screen.getByText('3 of 4 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('heading')).toHaveTextContent('Delete 3 Patterns from Burner bag?')
+    expect(within(dialog).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Alpha', 'Beta', 'Gamma'])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(provider.deletedProgramIds).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(provider.deletedProgramIds).toEqual(['A', 'B', 'C'])
+    expect(provider.programs).toEqual([{ id: 'ACTIVE', name: 'Running Pattern' }, { id: 'OWN', name: 'Owned' }])
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+    expect(provider.listCalls).toBeGreaterThan(3)
+  })
+
+  it('batch imports two recovered Patterns into Studio without Controller changes or navigation', async () => {
+    const { provider } = bulkFixture()
+    const createPattern = vi.fn(async (_record: PatternRecord) => {})
+    setPersonalContentProvider({ ...demoPersonalContentProvider, createPattern, updateControllerProfile: async () => {} })
+    for (const [id, name] of [['A', 'Alpha'], ['B', 'Beta']]) provider.recoveredPrograms.set(id, {
+      programId: id, deviceName: name, sourceCode: 'export function render() { rgb(1, 0, 0) }', stamp: null,
+    })
+    const route = useRouterStore.getState().route
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument())
+    expect(createPattern.mock.calls.map(([record]) => record.name)).toEqual(['Alpha', 'Beta'])
+    expect(usePatternStore.getState().userPatterns.map((record) => record.name)).toEqual(['Beta', 'Alpha'])
+    expect(provider.deletedProgramIds).toEqual([])
+    expect(provider.activationCalls).toEqual([])
+    expect(provider.bindingWrites).toBe(0)
+    expect(provider.pushRecordWrites).toBe(0)
+    expect(useRouterStore.getState().route).toEqual(route)
+  })
+
+  it('clears selection in both section-switch directions and gives Saved no Import and owned wording', async () => {
+    bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select Saved PXLBLZ Patterns' }))
+    expect(screen.queryByRole('checkbox', { name: 'Select Alpha' })).not.toBeInTheDocument()
+    expect(screen.getByText('0 of 1 selected')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Owned' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('The Studio Pattern is not deleted; Save sends it again.')
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select Other Patterns' }))
+    expect(screen.getByText('0 of 4 selected')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Select Owned' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Refresh saved Patterns' })).not.toBeInTheDocument()
+  })
+
+  it('continues past a middle delete failure and names the failed Pattern', async () => {
+    const { provider } = bulkFixture()
+    provider.deleteProgram = vi.fn(async (id: string) => {
+      if (id === 'B') throw new Error('device timed out')
+      return ProgramListProvider.prototype.deleteProgram.call(provider, id)
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Beta: device timed out')
+    expect(provider.deletedProgramIds).toEqual(['A', 'C'])
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+  })
+
+  it('rechecks running identity after opening the batch confirm', async () => {
+    const { provider } = bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    provider.activeProgramId = 'A' // the Controller changes before panel telemetry arrives
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 1 from Controller' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Alpha')
+    expect(provider.deletedProgramIds).toEqual([])
+    expect(provider.programs).toHaveLength(5)
+  })
+
+  it.each(['saved', 'other'] as const)('skips running and pending checkboxes in %s and reconciles selected IDs on telemetry changes', async (section) => {
+    const profile = seedProfile()
+    renderLiveProgramInventory(profile, {
+      storageId: `eligibility-${section}`, activeProgramId: 'A', configSourceIp: '192.168.8.224',
+      programs: [{ id: 'A', name: 'Alpha' }, { id: 'B', name: 'Beta' }, { id: 'C', name: 'Gamma' }],
+      bindings: section === 'saved' ? { 'pat-a': 'A', 'pat-b': 'B', 'pat-c': 'C' } : {}, pushRecords: {},
+    })
+    fireEvent.click(await screen.findByRole('button', { name: `Select ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}` }))
+    act(() => useControllerPanelStore.setState({ activatingProgramId: 'B' }))
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('title', 'Running now — switch to another Pattern first')
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('title', 'Waiting to confirm the running Pattern')
+    fireEvent.click(screen.getByRole('checkbox', { name: /Select all/ }))
+    expect(screen.getByText('1 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'C', activatingProgramId: null }))
+    expect(screen.getByText('0 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).not.toBeChecked()
+  })
+
+  it('prevents duplicate batch confirms while a delete is pending', async () => {
+    const { provider } = bulkFixture()
+    const hold = deferred<void>()
+    const original = provider.deleteProgram.bind(provider)
+    provider.deleteProgram = vi.fn(async (id: string) => { await hold.promise; await original(id) })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const confirm = screen.getByRole('button', { name: 'Delete 1 from Controller' })
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+    await waitFor(() => expect(provider.deleteProgram).toHaveBeenCalledTimes(1))
+    await act(async () => hold.resolve())
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(provider.deletedProgramIds).toEqual(['A'])
+  })
+
+  it('header Refresh rereads both inventories, configuration and installed map once', async () => {
+    const { profile, provider } = bulkFixture()
+    await screen.findByText('Alpha')
+    await settleProfileAsync()
+    const listCalls = provider.listCalls
+    const getConfig = vi.spyOn(provider, 'getConfig').mockResolvedValue({ activeProgramId: 'ACTIVE', pixelCount: 144 })
+    const mapRead = vi.spyOn(provider, 'getPixelMapData')
+    provider.programs = [...provider.programs, { id: 'NEW', name: 'New foreign' }, { id: 'NEWOWN', name: 'New owned' }]
+    provider.bindings['192.168.8.224']['new-pattern'] = 'NEWOWN'
+    render(<ControllerProfileHeaderActions profile={profile} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(await screen.findByText('New foreign')).toBeInTheDocument()
+    expect(await screen.findByText('New owned')).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).getByText('New owned')).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Other Patterns' })).getByText('New foreign')).toBeInTheDocument()
+    await waitFor(() => expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(144))
+    expect(provider.listCalls).toBe(listCalls + 1)
+    expect(getConfig).toHaveBeenCalledTimes(1)
+    expect(mapRead).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Refresh saved Patterns' })).not.toBeInTheDocument()
+  })
+
+  it('clears selection and its pending batch confirmation on a Controller session change', async () => {
+    const { provider } = bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    act(() => useControllerStore.setState((state) => ({
+      controllers: { ...state.controllers, '192.168.8.224': { ...state.controllers['192.168.8.224'], liveEpoch: 2 } },
+    })))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+    expect(provider.deletedProgramIds).toEqual([])
+    await settleProfileAsync()
+  })
+
   it('projects running state and profile evidence while keeping row Run isolated from Studio', async () => {
     const profile = seedProfile()
     usePatternStore.setState({
@@ -1682,6 +1869,7 @@ describe('ControllerProfilePage', () => {
 
     fireEvent.click(refresh)
     expect(refreshLiveMetadata).toHaveBeenCalledWith('ctrl-1')
+    expect(useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile['ctrl-1']).toBe(1)
   })
 
   it('shows the saved-program inventory offline state in its dedicated pane', () => {
@@ -1692,7 +1880,7 @@ describe('ControllerProfilePage', () => {
     const empty = screen.getByText(/nothing to show while offline/i)
     expect(empty).not.toHaveClass('border', 'border-dashed', 'bg-zinc-950/30')
     expect(screen.getByRole('button', { name: 'Connect this Controller' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh saved Patterns' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Refresh saved Patterns' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /Other Patterns/ })).not.toBeInTheDocument()
   })
 
@@ -1851,6 +2039,7 @@ describe('ControllerProfilePage', () => {
 
     const pane = (currentProfile: typeof profile) => (
       <div style={{ width: 520 }}>
+        <ControllerProfileHeaderActions profile={currentProfile} />
         <ControllerSavedProgramsPane profile={currentProfile} />
       </div>
     )
@@ -1960,7 +2149,7 @@ describe('ControllerProfilePage', () => {
     })
 
     provider.programs = [...provider.programs, { id: 'FOREIGN2', name: 'New Pattern 14' }]
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh saved Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Other Patterns (2)' })).toBeInTheDocument()
     expect(provider.listCalls).toBe(2)

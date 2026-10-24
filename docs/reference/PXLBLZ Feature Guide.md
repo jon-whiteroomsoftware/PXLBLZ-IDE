@@ -303,6 +303,18 @@ hardware knowledge lives:
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 
+  Each inventory section has **Select**. Check individual Patterns or use the
+  header checkbox to select all eligible rows; running and pending-running
+  Patterns cannot be selected. **Play** remains available. Saved PXLBLZ Patterns
+  offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
+  sections clears the previous selection. Batch Delete confirms the selected
+  names once, then checks safety for each deletion. Both batch operations run
+  sequentially, continue after individual failures, name failed Patterns, and
+  leave selection mode when finished. Import preserves Studio identity and
+  recovered source without switching the Studio view or changing the Controller.
+  The page-header **Refresh** rereads settings, the installed map, and both
+  Pattern inventories.
+
 A profile's name is the device's name. While the Controller is live, rename it
 from the center title; PXLBLZ writes the new name to the device, reads it
 back, and only then updates the profile. If the device refuses, the old name

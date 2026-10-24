@@ -764,6 +764,19 @@ focus; Run delegates to the panel store's persistent activation path and never
 navigates Studio. Program ids move from a column into the name tooltip, and
 Other Patterns have no freshness column.
 
+Both sections share one selection owner. `controllerPatternBatch.ts` provides
+immutable ID selection, eligibility reconciliation, and an ordered sequential
+runner that collects per-Pattern failures. Selecting a section clears the other;
+running and pending-running IDs are excluded before the confirmation snapshot.
+Batch adapters reuse single-row import decisions and queued delete safety checks.
+Each delete retains its captured Controller session and raw device name, and
+revalidates live running state before writing. A failed item does not cancel later
+items. Completion refreshes the inventory, reports named failures, and exits
+selection mode. Batch imports save Studio records without navigation. The
+page-header Refresh requests one inventory-refresh generation alongside the
+existing metadata/installed-map refresh; the inventory owner performs the full
+list read through the existing live-store pipeline.
+
 Delete is available for managed and Other rows only after Controller-scoped
 active-program evidence arrives, and remains disabled for the live running id,
 including when that id changes after the confirmation dialog opens. A fresh

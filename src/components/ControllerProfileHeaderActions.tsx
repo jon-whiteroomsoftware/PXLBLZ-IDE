@@ -28,6 +28,7 @@ import { uniquePatternName } from '@/engine/patternName'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { useControllerSavedProgramsLiveStore } from '@/store/controllerSavedProgramsLiveStore'
 import { useMapStore } from '@/store/mapStore'
 import { useRouterStore } from '@/store/routerStore'
 
@@ -244,7 +245,12 @@ export function ControllerProfileHeaderActions({ profile }: { profile: Controlle
         variant="ghost"
         className={sectionActionButtonClass}
         disabled={!refreshable}
-        onClick={() => void refreshLiveMetadata(profile.id)}
+        onClick={() => {
+          if (profileController?.phase !== 'live') return
+          // The inventory owner performs one full list read for this generation.
+          useControllerSavedProgramsLiveStore.getState().requestRefresh(profile.id)
+          void refreshLiveMetadata(profile.id)
+        }}
         title={refreshable
           ? 'Refresh controller metadata'
           : 'Connect this controller to refresh its metadata'}

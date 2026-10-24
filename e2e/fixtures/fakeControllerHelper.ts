@@ -12,6 +12,8 @@ export interface FakeControllerHelperOptions {
   vars?: Record<string, number>
   sequencerMode?: number
   runSequencer?: boolean
+  /** Encoded PBP fixtures, read through the production recovery decoder. */
+  savedProgramData?: Record<string, string>
   /** Hold the first permission grant beyond the ordinary socket deadline. */
   permissionDelayMs?: number
 }
@@ -124,6 +126,12 @@ export async function installFakeControllerHelper(
       if (message.type === 'get-map') {
         if (fixture.address && message.address !== fixture.address) return
         emit({ type: 'map-data', reqId: message.reqId, ok: true })
+        return
+      }
+      if (message.type === 'get-program') {
+        if (fixture.address && message.address !== fixture.address) return
+        emit({ type: 'program-data', reqId: message.reqId, ok: true,
+          programData: fixture.savedProgramData?.[String(message.programId)] ?? null })
         return
       }
       if (message.type === 'compile') {

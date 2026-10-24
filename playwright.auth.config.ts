@@ -12,7 +12,7 @@ requireEnvironment('PXLBLZ_DEV_VARS_FILE')
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '**/*.auth.spec.ts',
+  testMatch: ['**/*.auth.spec.ts', '**/controller-bulk-select.spec.ts'],
   fullyParallel: true,
   workers: authenticatedPlaywrightWorkerCount,
   // The runner reads playwright-report.json from its output directory for per-test durations (#1171).
