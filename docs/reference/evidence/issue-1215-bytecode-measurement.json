@@ -437,6 +437,168 @@
       }
     },
     {
+      "id": "stock-show-installation-cloudburst",
+      "name": "Cloudburst Installation",
+      "measuredBase": "dfa6f8c4f5087f362f973b61df51921acd0413c1",
+      "inputPath": "exportShowV2ForDelivery(record, {artifact: compileStockShowV2(id,{})}, []).text -> parseEpe(text).src",
+      "estimator": "src/engine/showVmResourceLedger.ts:estimateShowBytecodeBytes; same delivered source",
+      "sourceBytes": 54192,
+      "sourceSha256": "7dda771e4188168d0cc062f9a165242123e621a3be690dc697db558a472a3d99",
+      "nativeEstimateBytes": 54192,
+      "oracleWords": 9570,
+      "wordBytes": 38280,
+      "exportFramingBytes": 51,
+      "headerWordBytes": 38280,
+      "headerExportBytes": 43,
+      "blobBytes": 38331,
+      "blobSha256": "a2219e0c8bd0fe867a92a896d5bfb3a5250e2c6cb341b99b4b301873aae41cbe",
+      "exports": [
+        {
+          "name": "beforeRender",
+          "type": "global",
+          "address": 179
+        },
+        {
+          "name": "render2D",
+          "type": "global",
+          "address": 181
+        },
+        {
+          "name": "render3D",
+          "type": "global",
+          "address": 182
+        }
+      ],
+      "histogram": {
+        "totalWords": 9570,
+        "codeBytes": 38280,
+        "instructionWords": 6736,
+        "literalWords": 2834,
+        "opcodeHistogram": {
+          "0x17": 737,
+          "0x29": 1035,
+          "0x2b": 7,
+          "0x0b": 728,
+          "0x39": 543,
+          "0x35": 567,
+          "0x37": 744,
+          "0x01": 1,
+          "0x09": 57,
+          "0x05": 83,
+          "0x0d": 644,
+          "0x19": 166,
+          "0x59": 9,
+          "0x51": 78,
+          "0x1b": 329,
+          "0x07": 290,
+          "0x27": 102,
+          "0x3b": 216,
+          "0x7d": 17,
+          "0x61": 10,
+          "0x57": 7,
+          "0x4f": 36,
+          "0x49": 16,
+          "0x4b": 209,
+          "0x33": 11,
+          "0x21": 4,
+          "0x1d": 9,
+          "0x03": 5,
+          "0x85": 13,
+          "0x13": 1,
+          "0x55": 6,
+          "0x5d": 3,
+          "0x4d": 4,
+          "0x5f": 6,
+          "0x53": 2,
+          "0x63": 11,
+          "0x65": 26,
+          "0x87": 1,
+          "0xa5": 1,
+          "0x2d": 1,
+          "0x3d": 1
+        }
+      },
+      "sourceToBlob": 1.4137904046333256,
+      "estimateToBlob": 1.4137904046333256,
+      "blobToSource": 0.7073184233835252,
+      "estimateToSource": 1,
+      "headroomBytes": 30053,
+      "estimateErrorBytes": 15861,
+      "sourceParityErrorBytes": 15861,
+      "categories": {
+        "provenance": 2168,
+        "routing-render-plans": 11517,
+        "runtime-scheduler": 1379,
+        "pattern": 38386,
+        "remainder": 621,
+        "exports": 121
+      },
+      "resourceLedger": {
+        "pixelCount": 960,
+        "pixelLimit": 2000,
+        "vmWordBudget": 10240,
+        "renderTargetWords": 2892,
+        "memberPatternWords": 16,
+        "routingWords": 0,
+        "planWords": 0,
+        "auxiliaryCacheWords": 0,
+        "totalWords": 2908,
+        "remainingWords": 7332,
+        "persistentGlobals": 125,
+        "persistentGlobalLimit": 256,
+        "remainingGlobals": 131,
+        "artifactBytes": 52024,
+        "artifactByteBudget": 68384,
+        "remainingArtifactBytes": 16360,
+        "estimatedArtifactBytecodeBytes": 52024,
+        "allocations": [
+          {
+            "owner": "Show render target plane 1",
+            "category": "render-target",
+            "elementCount": 960,
+            "words": 964
+          },
+          {
+            "owner": "Show render target plane 2",
+            "category": "render-target",
+            "elementCount": 960,
+            "words": 964
+          },
+          {
+            "owner": "Show render target plane 3",
+            "category": "render-target",
+            "elementCount": 960,
+            "words": 964
+          },
+          {
+            "owner": "rain: array allocation",
+            "category": "member-pattern",
+            "elementCount": 0,
+            "words": 4
+          },
+          {
+            "owner": "rain: array allocation",
+            "category": "member-pattern",
+            "elementCount": 0,
+            "words": 4
+          },
+          {
+            "owner": "rain: array allocation",
+            "category": "member-pattern",
+            "elementCount": 0,
+            "words": 4
+          },
+          {
+            "owner": "rain: array allocation",
+            "category": "member-pattern",
+            "elementCount": 0,
+            "words": 4
+          }
+        ],
+        "blockers": []
+      }
+    },
+    {
       "id": "stock-show-showcase-luma-sources",
       "name": "Luma Sources",
       "measuredBase": "129f868bb51c8f158b1d163ec9dbc6cc16ead466",
@@ -725,168 +887,6 @@
             "category": "member-pattern",
             "elementCount": 4,
             "words": 8
-          }
-        ],
-        "blockers": []
-      }
-    },
-    {
-      "id": "stock-show-installation-cloudburst",
-      "name": "Cloudburst Installation",
-      "measuredBase": "129f868bb51c8f158b1d163ec9dbc6cc16ead466",
-      "inputPath": "exportShowV2ForDelivery(record, {artifact: compileStockShowV2(id,{})}, []).text -> parseEpe(text).src",
-      "estimator": "src/engine/showVmResourceLedger.ts:estimateShowBytecodeBytes; same delivered source",
-      "sourceBytes": 47561,
-      "sourceSha256": "c28500e3792754e529ea685e041d1495081f256e3a44899df634f47b76389dbb",
-      "nativeEstimateBytes": 47561,
-      "oracleWords": 8315,
-      "wordBytes": 33260,
-      "exportFramingBytes": 51,
-      "headerWordBytes": 33260,
-      "headerExportBytes": 43,
-      "blobBytes": 33311,
-      "blobSha256": "06c5b38221d0e854d09065e7688c0819b6dd036970c9113f6a11760bb54a9367",
-      "exports": [
-        {
-          "name": "beforeRender",
-          "type": "global",
-          "address": 179
-        },
-        {
-          "name": "render2D",
-          "type": "global",
-          "address": 181
-        },
-        {
-          "name": "render3D",
-          "type": "global",
-          "address": 182
-        }
-      ],
-      "histogram": {
-        "totalWords": 8315,
-        "codeBytes": 33260,
-        "instructionWords": 5989,
-        "literalWords": 2326,
-        "opcodeHistogram": {
-          "0x17": 713,
-          "0x29": 1003,
-          "0x2b": 7,
-          "0x0b": 636,
-          "0x39": 481,
-          "0x35": 446,
-          "0x37": 608,
-          "0x01": 1,
-          "0x09": 57,
-          "0x05": 83,
-          "0x0d": 633,
-          "0x19": 160,
-          "0x59": 10,
-          "0x51": 72,
-          "0x1b": 258,
-          "0x07": 220,
-          "0x27": 101,
-          "0x3b": 173,
-          "0x7d": 16,
-          "0x61": 10,
-          "0x57": 7,
-          "0x4f": 28,
-          "0x49": 16,
-          "0x4b": 152,
-          "0x33": 11,
-          "0x21": 4,
-          "0x1d": 9,
-          "0x03": 5,
-          "0x85": 13,
-          "0x13": 1,
-          "0x55": 6,
-          "0x5d": 3,
-          "0x4d": 4,
-          "0x5f": 6,
-          "0x53": 2,
-          "0x63": 11,
-          "0x65": 19,
-          "0x87": 1,
-          "0xa5": 1,
-          "0x2d": 1,
-          "0x3d": 1
-        }
-      },
-      "sourceToBlob": 1.4277866170334124,
-      "estimateToBlob": 1.4277866170334124,
-      "blobToSource": 0.7003847690334518,
-      "estimateToSource": 1,
-      "headroomBytes": 35073,
-      "estimateErrorBytes": 14250,
-      "sourceParityErrorBytes": 14250,
-      "categories": {
-        "provenance": 2099,
-        "routing-render-plans": 11057,
-        "runtime-scheduler": 1329,
-        "pattern": 32334,
-        "remainder": 621,
-        "exports": 121
-      },
-      "resourceLedger": {
-        "pixelCount": 960,
-        "pixelLimit": 2000,
-        "vmWordBudget": 10240,
-        "renderTargetWords": 2892,
-        "memberPatternWords": 16,
-        "routingWords": 0,
-        "planWords": 0,
-        "auxiliaryCacheWords": 0,
-        "totalWords": 2908,
-        "remainingWords": 7332,
-        "persistentGlobals": 125,
-        "persistentGlobalLimit": 256,
-        "remainingGlobals": 131,
-        "artifactBytes": 45462,
-        "artifactByteBudget": 68384,
-        "remainingArtifactBytes": 22922,
-        "estimatedArtifactBytecodeBytes": 45462,
-        "allocations": [
-          {
-            "owner": "Show render target plane 1",
-            "category": "render-target",
-            "elementCount": 960,
-            "words": 964
-          },
-          {
-            "owner": "Show render target plane 2",
-            "category": "render-target",
-            "elementCount": 960,
-            "words": 964
-          },
-          {
-            "owner": "Show render target plane 3",
-            "category": "render-target",
-            "elementCount": 960,
-            "words": 964
-          },
-          {
-            "owner": "rain: array allocation",
-            "category": "member-pattern",
-            "elementCount": 0,
-            "words": 4
-          },
-          {
-            "owner": "rain: array allocation",
-            "category": "member-pattern",
-            "elementCount": 0,
-            "words": 4
-          },
-          {
-            "owner": "rain: array allocation",
-            "category": "member-pattern",
-            "elementCount": 0,
-            "words": 4
-          },
-          {
-            "owner": "rain: array allocation",
-            "category": "member-pattern",
-            "elementCount": 0,
-            "words": 4
           }
         ],
         "blockers": []
@@ -7122,13 +7122,13 @@
     }
   ],
   "totals": {
-    "sourceBytes": 1350195,
-    "nativeEstimateBytes": 1349646,
-    "oracleWords": 182858,
-    "wordBytes": 731432,
+    "sourceBytes": 1356826,
+    "nativeEstimateBytes": 1356277,
+    "oracleWords": 184113,
+    "wordBytes": 736452,
     "exportFramingBytes": 1723,
-    "blobBytes": 733155,
-    "headroomBytes": 2344125
+    "blobBytes": 738175,
+    "headroomBytes": 2339105
   },
   "probes": [
     {
@@ -8099,12 +8099,25 @@
     "restoredPbpSha256": "29b2baea2194d88044b791ce25a3e59ef8fecb4a251f515027d86900bdb6f7a9",
     "finishedUtc": "2026-10-24T17:32:29.793Z"
   },
+  "refresh": {
+    "utc": "2026-10-24T18:16:36.470Z",
+    "id": "stock-show-installation-cloudburst",
+    "measuredBase": "dfa6f8c4f5087f362f973b61df51921acd0413c1",
+    "compilerSha256": "73a3718052127814302cd14ad3af73217b0dea0bc150da7ae85eaad550261d9b",
+    "phasePresent": false
+  },
   "integration": {
-    "base": "eaf64e12dcd3126fe3a0da792ba75f100f6c09cb",
-    "mainChecked": "eaf64e12dcd3126fe3a0da792ba75f100f6c09cb",
-    "remainingMeasuredNativeInputsChanged": false,
-    "comparison": "git diff 129f868bb51c8f158b1d163ec9dbc6cc16ead466 main; only Phase removal affects native catalogue inputs; no remaining Show or delivery/compiler dependency changed",
-    "cloudburstRefresh": "pending developer: #1200 has not landed in checked local main"
+    "base": "dfa6f8c4f5087f362f973b61df51921acd0413c1",
+    "mainChecked": "dfa6f8c4f5087f362f973b61df51921acd0413c1",
+    "remainingMeasuredNativeInputsChanged": true,
+    "comparison": "Cloudburst refreshed after #1200; the other 44 rows retain their original measurements and bases. Phase is already absent.",
+    "cloudburstRefresh": {
+      "utc": "2026-10-24T18:16:36.470Z",
+      "id": "stock-show-installation-cloudburst",
+      "measuredBase": "dfa6f8c4f5087f362f973b61df51921acd0413c1",
+      "compilerSha256": "73a3718052127814302cd14ad3af73217b0dea0bc150da7ae85eaad550261d9b",
+      "phasePresent": false
+    }
   },
   "units": {
     "blobBytes": "complete serialized bytecode section, including 8-byte header and exports",
@@ -8125,9 +8138,9 @@
     "sourceParityErrorBytes": "sourceBytes - blobBytes"
   },
   "aggregateRatios": {
-    "sourceToBlob": 1.841622849192872,
-    "estimateToBlob": 1.8408740307302003,
-    "blobToSource": 0.5429993445391221,
-    "estimateToSource": 0.9995933920655905
+    "sourceToBlob": 1.838081755681241,
+    "estimateToBlob": 1.837338029600027,
+    "blobToSource": 0.5440454413462006,
+    "estimateToSource": 0.9995953792159054
   }
 }

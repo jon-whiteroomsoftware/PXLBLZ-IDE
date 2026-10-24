@@ -1,10 +1,12 @@
 # Native Show bytecode measurements (#1215)
 
-All 45 measured native Shows fit below the historical 68,384-byte reference when counted as complete bytecode blobs. Quadrille leads both delivered source (66,223 UTF-8 bytes) and bytecode (38,122 bytes), leaving 30,262 raw reference bytes. A host run independently read back the exact Quadrille bytecode from the Controller's saved PBP, observed activation, restored the original live state and saved Pattern, and removed only the temporary Pattern. This establishes storage and activation of those bytes; firmware recompilation, VM allocation, a firmware-3.70 ceiling, visual correctness, and sustained operation were not tested.
+All 45 measured native Shows fit below the historical 68,384-byte reference when counted as complete bytecode blobs. Quadrille leads delivered source (66,223 UTF-8 bytes); refreshed Cloudburst leads bytecode (38,331 bytes), leaving 30,053 raw reference bytes. Quadrille retains its 38,122-byte blob and 30,262 raw reference bytes. A host run independently read back the exact Quadrille bytecode from the Controller's saved PBP, observed activation, restored the original live state and saved Pattern, and removed only the temporary Pattern. This establishes storage and activation of those bytes; firmware recompilation, VM allocation, a firmware-3.70 ceiling, visual correctness, and sustained operation were not tested.
 
 ## Revisions and inputs
 
-Measurements completed at **2026-10-24T16:44:31.195Z**, from corpus revision **129f868bb51c8f158b1d163ec9dbc6cc16ead466**. Every row retains that `measuredBase`. Integration base and checked local main are **eaf64e12dcd3126fe3a0da792ba75f100f6c09cb** (#1216). The intervening native-input diff removes Phase only; no delivered native source dependency for the remaining measured Shows changed. Phase (`stock-show-phase`) was explicitly excluded: one excluded Show, 45 included. Its subsequent removal does not make these fresh measurements of the integration base. **#1200 Cloudburst has not landed in checked local main; its refresh remains pending for the developer.** The host-confirmed Quadrille hashes remain tied to the original measured corpus.
+The corpus has mixed measurement revisions. The original 45-Show run completed at **2026-10-24T16:44:31.195Z**, from **129f868bb51c8f158b1d163ec9dbc6cc16ead466**. Cloudburst alone was refreshed offline at **2026-10-24T18:16:36.470Z**, from **dfa6f8c4f5087f362f973b61df51921acd0413c1** after #1200. Its `measuredBase` names that main revision; the other 44 rows, their original bases, Gate-1 evidence, synthetic probes and host evidence are unchanged. The 45 ids are identical. Phase was excluded in the original run and is already absent at the refresh revision. The top-level `utc` and `measuredBase` retain the original run; `refresh` records the single-row update, and row-level bases govern each measurement.
+
+Cloudburst changed from **47,561 to 54,192 source/estimate bytes**, **8,315 to 9,570 compiler words**, and **33,311 to 38,331 complete blob bytes**; framing remains 51 bytes. Raw headroom changed from 35,073 to 30,053 bytes. Its source rank changes from 5 to 3; its blob rank changes from 4 to 1. The host-confirmed Quadrille hashes remain tied to the original measured corpus; its current blob rank is 2. No device or LAN endpoint was contacted for this refresh.
 
 The canonical input is `STOCK_SHOWS_V2` in `src/pixelblaze/stock/showsV2.ts`, resolved by `showsV2Compile.ts` and the existing `compileStockShowV2` fixture. `exportShowV2ForDelivery(record, {artifact}, [])` produces the delivered EPE; `parseEpe(epe.text).src` reopens its exact hardware source. The script checks equality with the exported source and that the source ends with the compiled artifact. No stripping, rewriting, or ablation occurs. Native inputs are independent of `npm run census`, whose `showResourceCensus.test.ts` enumerates `V1_STOCK_SHOWS`; no legacy figures are joined to native code.
 
@@ -51,25 +53,25 @@ The same-source native estimate calls `estimateShowBytecodeBytes` in `showVmReso
 | Aggregate | Count / bytes |
 | --- | --- |
 | Shows | 45 |
-| sourceBytes | 1350195 |
-| nativeEstimateBytes | 1349646 |
-| oracleWords | 182858 |
-| wordBytes | 731432 |
+| sourceBytes | 1356826 |
+| nativeEstimateBytes | 1356277 |
+| oracleWords | 184113 |
+| wordBytes | 736452 |
 | exportFramingBytes | 1723 |
-| blobBytes | 733155 |
-| headroomBytes | 2344125 |
+| blobBytes | 738175 |
+| headroomBytes | 2339105 |
 
 ### Twelve largest delivered sources
 
-Source rank is descending UTF-8 bytes, ties by id. Quadrille is also the heaviest blob (rank 1).
+Source rank is descending UTF-8 bytes, ties by id. Cloudburst is the heaviest blob (rank 1); Quadrille is blob rank 2.
 
 | Rank | Show id | Source B | Native estimate B | Words | Blob B | Headroom B |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | stock-show-remix-quadrille | 66223 | 66223 | 9521 | 38122 | 30262 |
 | 2 | stock-show-reference-property-animation | 64173 | 64173 | 8661 | 34682 | 33702 |
-| 3 | stock-show-showcase-luma-sources | 53750 | 53750 | 7785 | 31178 | 37206 |
-| 4 | stock-show-portable-ember-floe | 48663 | 48749 | 7091 | 28402 | 39982 |
-| 5 | stock-show-installation-cloudburst | 47561 | 47561 | 8315 | 33311 | 35073 |
+| 3 | stock-show-installation-cloudburst | 54192 | 54192 | 9570 | 38331 | 30053 |
+| 4 | stock-show-showcase-luma-sources | 53750 | 53750 | 7785 | 31178 | 37206 |
+| 5 | stock-show-portable-ember-floe | 48663 | 48749 | 7091 | 28402 | 39982 |
 | 6 | stock-show-remix-overture | 47057 | 47057 | 6349 | 25434 | 42950 |
 | 7 | stock-show-showcase-compositing-key-effects | 46712 | 46518 | 6047 | 24226 | 44158 |
 | 8 | stock-show-106-built-from-basics | 45510 | 45510 | 6499 | 26034 | 42350 |
@@ -86,9 +88,9 @@ The [CSV](issue-1215-bytecode-measurement.csv) contains all counts, hashes, form
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | stock-show-remix-quadrille | 66223 | 66223 | 9521 | 38084 | 38 | 38122 | 30262 |
 | stock-show-reference-property-animation | 64173 | 64173 | 8661 | 34644 | 38 | 34682 | 33702 |
+| stock-show-installation-cloudburst | 54192 | 54192 | 9570 | 38280 | 51 | 38331 | 30053 |
 | stock-show-showcase-luma-sources | 53750 | 53750 | 7785 | 31140 | 38 | 31178 | 37206 |
 | stock-show-portable-ember-floe | 48663 | 48749 | 7091 | 28364 | 38 | 28402 | 39982 |
-| stock-show-installation-cloudburst | 47561 | 47561 | 8315 | 33260 | 51 | 33311 | 35073 |
 | stock-show-remix-overture | 47057 | 47057 | 6349 | 25396 | 38 | 25434 | 42950 |
 | stock-show-showcase-compositing-key-effects | 46712 | 46518 | 6047 | 24188 | 38 | 24226 | 44158 |
 | stock-show-106-built-from-basics | 45510 | 45510 | 6499 | 25996 | 38 | 26034 | 42350 |
@@ -143,10 +145,10 @@ Ratios use `sourceToBlob = sourceBytes / blobBytes`, `estimateToBlob = nativeEst
 
 | Ratio of corpus totals | Value |
 | --- | --- |
-| sourceToBlob | 1.841622849 |
-| estimateToBlob | 1.840874031 |
-| blobToSource | 0.542999345 |
-| estimateToSource | 0.999593392 |
+| sourceToBlob | 1.838081756 |
+| estimateToBlob | 1.837338030 |
+| blobToSource | 0.544045441 |
+| estimateToSource | 0.999595379 |
 
 `sourceParityErrorBytes`: 45 over-priced, 0 under-priced, 0 exact.
 
@@ -198,7 +200,7 @@ wrsp-log env PIXELBLAZE_IP=192.168.8.249 node node_modules/tsx/dist/cli.mjs .wrs
 wrsp-log env PIXELBLAZE_IP=192.168.8.249 node node_modules/tsx/dist/cli.mjs .wrsp/1215/confirm-largest.ts --confirm
 ```
 
-The selected case is `stock-show-remix-quadrille`, source rank 1 and blob rank 1. Its source SHA256 is `74f6cd0fe35f4ce9879a56e2051a01ca62849dc28b454be557bd91761a7b3477`; complete blob SHA256 is `d41760b5e0955556cf134fcc00a9c94b6c9a772e417f533b221cd537bf2f260a`. The host saved new temporary id `pxbs6YNngDLJuYMT3`, independently fetched HTTP `/p/{id}`, decoded the returned PBP, and compared every byte of its complete 38,122-byte bytecode section: equality, tolerance 0. The enclosing returned PBP was 55,669 bytes with bytecode offset 59. Explicit `setActiveProgram(id, false)` then produced the observed temporary active id. `encodePbp`/`decodePbp` own the format (`src/engine/pbpEncode.ts:54–85,114–140`); PBP header offsets 20/24 identify section offset/length. This counts device-returned storage, not a remembered push-buffer length.
+The selected case was `stock-show-remix-quadrille`, source rank 1 and blob rank 1 at host confirmation. After the Cloudburst refresh, Quadrille remains source rank 1 and becomes blob rank 2; this host record is preserved unchanged. Its source SHA256 is `74f6cd0fe35f4ce9879a56e2051a01ca62849dc28b454be557bd91761a7b3477`; complete blob SHA256 is `d41760b5e0955556cf134fcc00a9c94b6c9a772e417f533b221cd537bf2f260a`. The host saved new temporary id `pxbs6YNngDLJuYMT3`, independently fetched HTTP `/p/{id}`, decoded the returned PBP, and compared every byte of its complete 38,122-byte bytecode section: equality, tolerance 0. The enclosing returned PBP was 55,669 bytes with bytecode offset 59. Explicit `setActiveProgram(id, false)` then produced the observed temporary active id. `encodePbp`/`decodePbp` own the format (`src/engine/pbpEncode.ts:54–85,114–140`); PBP header offsets 20/24 identify section offset/length. This counts device-returned storage, not a remembered push-buffer length.
 
 Fresh original state was WavyBands (`pxb9zpbqKGMAbtw7J`), pb32 / 3.70 / 256, controls `{}`, brightness 0.265, sequencerMode 0, runSequencer false. The original was present in saved inventory and its complete PBP was privately backed up before mutation. The host restored the original selection and complete projected live state before cleanup, verified the original saved PBP SHA256 `29b2baea2194d88044b791ce25a3e59ef8fecb4a251f515027d86900bdb6f7a9` by independent read-back, then deleted only the newly created temporary id and verified its absence. `restorationVerified` and `cleanupVerified` are true; `sequencerViolation` is false. Sequencer state remained off at every fresh observation; no sequencer setter was invented or sent. Original source and PBP bytes remain private.
 
@@ -206,16 +208,13 @@ This confirms storage and observed activation of bytes compiled by the Controlle
 
 ## Reproduction appendix
 
-Use the exact measured revision `129f868bb51c8f158b1d163ec9dbc6cc16ead466` in a separate, provisioned checkout with its locked dependencies. Obtain the Controller compiler privately through the existing cache-refresh command above, then require the recorded SHA256. Do not publish the compiler implementation. Recreate `.wrsp/1215/measure.ts`, `.wrsp/1215/measurement.test.ts`, and `.wrsp/1215/vitest.config.ts` exactly as below and run:
+The original 44 retained rows and Gate-1/probe evidence remain pinned to `129f868bb51c8f158b1d163ec9dbc6cc16ead466`. Reproduce the Cloudburst refresh in a provisioned checkout of `dfa6f8c4f5087f362f973b61df51921acd0413c1` with locked dependencies and the existing verified private compiler cache. Do not refresh the compiler or contact a Controller. Require compiler SHA256 `73a3718052127814302cd14ad3af73217b0dea0bc150da7ae85eaad550261d9b`. Seed `.wrsp/1215/measurements.json` from the original corpus (or this mixed-revision JSON for an idempotent refresh). Recreate the scratch files below and run:
 
 ```sh
-mkdir -p .wrsp/1215
-wrsp-log npx vitest run --config .wrsp/1215/vitest.config.ts
+fnm exec --using v24.14.0 env WRSP_LOG_DIR=.wrsp/1215 wrsp-log npx vitest run --config .wrsp/1215/vitest.config.ts
 ```
 
-The original focused measurement run passed one test in one file, EXIT:0 (4.59 s). Direct `tsx` failed with `ReferenceError: __dirname is not defined in ES module scope` in `bytecodeOracle.ts`. Running the same scratch script through Vitest's module transform with the configuration below succeeded without editing the oracle or moving its cache. This is the successful ESM workaround, not an alternative compiler.
-
-The script is intentionally pinned to the original 46-entry catalogue and excludes Phase before measuring 45 Shows. On the later Phase-removal revision its one-exclusion assertion will fail; reproduce on the measured revision rather than relabeling old counts. The recorded integration diff establishes continuing applicability to the 45 remaining Shows. A future Cloudburst refresh must use the actual new HEAD, account for already-removed Phase, keep the same compiler identity, and retain this earlier provenance and host-confirmed hashes until equality is checked.
+The refresh passed one test in one file, EXIT:0 (1.31 s). The driver compiles only Cloudburst, reopens its unchanged delivery EPE, reconciles blob framing, checks the same 45 ids, and merges the row while retaining prior evidence. Phase may already be absent. The commented original Gate-1 and probe blocks document the earlier run and are not executed. The original whole-corpus run passed in 4.59 s. Direct `tsx` had failed with `ReferenceError: __dirname is not defined in ES module scope` in `bytecodeOracle.ts`; Vitest's module transform remains the working offline entry point. Compiler implementation and original PBP stay private.
 
 ### `measure.ts`
 
@@ -238,6 +237,7 @@ const hash = createHash('sha256').update(readFileSync(path)).digest('hex')
 if (hash !== '73a3718052127814302cd14ad3af73217b0dea0bc150da7ae85eaad550261d9b') throw Error('Unexpected cache identity')
 const compile = loadCachedWordCompiler()
 if (!compile) throw Error('Null compiler')
+/* Original Gate-1 evidence is retained; this refresh compiles Cloudburst only.
 const pattern = (body: string) => ['var a = 0','var b = 0.25','var c = 0.5','var d = 0.75','var k = 1','var n = 4','var i = 0',`export function beforeRender(delta) {\n${body}\n}`,'export function render(index) { hsv(0, 0, 0) }'].join('\n')
 const inputs: [string,string,number][] = [
  ['empty','  ',37],['assignment','  a = b',40],['&&','  a = b && c',43],['bitwise &','  a = b & c',42],['||','  a = b || c',43],['ternary','  a = k ? b : c',44],['if/else','  if (k) { a = b } else { a = c }',46],['arithmetic select','  a = k * b + (1 - k) * c',48],['loop','  for (i = 0; i < n; i = i + 1) { a = a + 1 }',55],['unrolled x4','  a = a + 1\n  a = a + 1\n  a = a + 1\n  a = a + 1',57],['local read','  var l = b\n  a = l',43],['global read twice','  a = b\n  c = b',43],
@@ -260,6 +260,9 @@ const result = {utc:new Date().toISOString(),measuredBase:'129f868bb51c8f158b1d1
 writeFileSync('.wrsp/1215/gate1.json',JSON.stringify(result,null,2)+'\n')
 console.log(JSON.stringify(result,null,2))
 if (!result.pass) throw Error('STOP: changed #906 fact')
+*/
+const previous = JSON.parse(readFileSync('.wrsp/1215/measurements.json','utf8'))
+const result = {measuredBase:'dfa6f8c4f5087f362f973b61df51921acd0413c1'}
 
 // Evaluate the existing serializer unchanged; it is private to controllerHardware.ts.
 const hardwareText = readFileSync('test/perf-harness/controllerHardware.ts','utf8')
@@ -276,8 +279,11 @@ function measure(source: string) {
  return {sourceBytes:Buffer.byteLength(source),sourceSha256:sha(source),nativeEstimateBytes:estimateShowBytecodeBytes(source),oracleWords:p.words.length,wordBytes,exportFramingBytes,headerWordBytes:header.getUint32(0,true),headerExportBytes:header.getUint32(4,true),blobBytes:blob.length,blobSha256:sha(blob),exports:p.exports,histogram:summarizeWords(p.words),blob}
 }
 const excluded = STOCK_SHOWS_V2.filter(r=>/phase/i.test(r.id))
-if(excluded.length!==1) throw Error('Phase exclusion count')
-const rows = STOCK_SHOWS_V2.filter(r=>!excluded.includes(r)).map(record=>{
+if(excluded.length>1) throw Error('Phase exclusion count')
+const ids = STOCK_SHOWS_V2.filter(r=>!excluded.includes(r)).map(r=>r.id).sort()
+if(ids.length!==45 || JSON.stringify(ids)!==JSON.stringify(previous.rows.map((r:any)=>r.id).sort())) throw Error('Corpus identity mismatch')
+const target = 'stock-show-installation-cloudburst'
+const refreshed = STOCK_SHOWS_V2.filter(r=>r.id===target).map(record=>{
  const artifact = compileStockShowV2(record.id,{})
  const epe = exportShowV2ForDelivery(record,{artifact},[])
  if(!epe) throw Error('Export refused '+record.id)
@@ -292,7 +298,10 @@ const rows = STOCK_SHOWS_V2.filter(r=>!excluded.includes(r)).map(record=>{
  writeFileSync(`.wrsp/1215/${record.id}.blob`,blob)
  console.log(record.id,row.sourceBytes,row.blobBytes)
  return row
-}).sort((a,b)=>b.sourceBytes-a.sourceBytes||a.id.localeCompare(b.id))
+})
+if(refreshed.length!==1) throw Error('Expected exactly one Cloudburst')
+const rows = previous.rows.map((r:any)=>r.id===target?refreshed[0]:r).sort((a:any,b:any)=>b.sourceBytes-a.sourceBytes||a.id.localeCompare(b.id))
+/* Preserve original synthetic probes without recompiling them.
 const probes:any[]=[]
 const recordProbe=(name:string,source:string,baseline:string)=>{
  const {blob,...m}=measure(source); const {blob:baseBlob,...base}=measure(baseline)
@@ -307,8 +316,9 @@ for(const n of [16,256]) {
  recordProbe(`dynamic table routing ${n}`,`var t = [${values.join(',')}]\n${pattern('  a = t[i]')}`,`var t = [${values.join(',')}]\n${pattern('  a = b')}`)
 }
 recordProbe('dynamic branch routing',pattern('  if (i < n) { a = b } else { a = c }'),pattern('  a = b'))
+*/
 const totals = Object.fromEntries(['sourceBytes','nativeEstimateBytes','oracleWords','wordBytes','exportFramingBytes','blobBytes','headroomBytes'].map(k=>[k,rows.reduce((sum,r)=>sum+(r as any)[k],0)]))
-const output={utc:new Date().toISOString(),measuredBase:result.measuredBase,gate1:result,excluded:{count:excluded.length,ids:excluded.map(r=>r.id),reason:'Phase cancelled; #1216 owns removal'},count:rows.length,rows,totals,probes,hostConfirmation:{status:'pending',selectedId:rows[0].id,sourceRank:1,blobRank:[...rows].sort((a,b)=>b.blobBytes-a.blobBytes||a.id.localeCompare(b.id)).findIndex(r=>r.id===rows[0].id)+1}}
+const output={...previous,refresh:{utc:new Date().toISOString(),id:target,measuredBase:result.measuredBase,compilerSha256:hash,phasePresent:excluded.length>0},count:rows.length,rows,totals}
 writeFileSync('.wrsp/1215/measurements.json',JSON.stringify(output,null,2)+'\n')
 console.log('CORPUS COMPLETE',rows.length,JSON.stringify(totals),JSON.stringify(output.hostConfirmation))
 ```
