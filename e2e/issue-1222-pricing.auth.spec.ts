@@ -6,6 +6,7 @@ import { test, expect } from './fixtures/authenticated'
 import { seedShowV2 } from './support/showBackingRecords'
 import { createDefaultShow } from '../src/engine/showModel'
 import { parseEpe } from '../src/engine/epeImport'
+import type { ControllerStatus } from '../src/engine/ControllerProvider'
 
 test('prices the current full Show artifact and invalidates it when the live session changes (#1222)', async ({ page }) => {
   // One small Show, one download and six optional viewport captures. Allow
@@ -30,7 +31,8 @@ test('prices the current full Show artifact and invalidates it when the live ses
     const { NullControllerProvider } = await load('/PXLBLZ-IDE/src/engine/ControllerProvider.ts')
     const { setControllerProvider } = await load('/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts')
     const provider = new NullControllerProvider()
-    provider.getStatus = () => ({ kind: 'connected', controller: { id: 'pricing-synthetic', address: '192.0.2.122', deviceId: null } })
+    const status = { kind: 'connected', controller: { id: 'pricing-synthetic', address: '192.0.2.122', deviceId: null } } satisfies ControllerStatus
+    provider.getStatus = () => status
     provider.compile = async () => { throw Error('Pricing readout must never compile') }
     setControllerProvider(provider)
     useControllerStore.setState({
@@ -40,6 +42,10 @@ test('prices the current full Show artifact and invalidates it when the live ses
     })
   })
   const sourceToggle = page.getByRole('button', { name: 'Source code', exact: true })
+  await test.step('ShowEditor mounts with the connected provider', async () => {
+    await expect(sourceToggle).toBeVisible()
+  })
+  expect(errors).toEqual([])
   if (await sourceToggle.getAttribute('aria-expanded') === 'true') await sourceToggle.click()
   const gauge = page.getByLabel(/^Controller source .* advisory\.$/)
   await expect(gauge).toHaveAccessibleName(/estimate \/ 53\.4 KB advisory\.$/)
