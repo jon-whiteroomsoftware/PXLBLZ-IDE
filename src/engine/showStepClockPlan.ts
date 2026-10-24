@@ -21,6 +21,9 @@ export interface ShowStepClockPlan {
   changes: ShowStepClockRequestChange[]
 }
 
+/** #1211: one instance's compile-time request schedule; times are Show ms. */
+export type ShowStepCalendar = Pick<ShowStepClockPlan, 'initialStepMs' | 'changes'>
+
 export function isShowStepClockValue(value: number): boolean {
   return value === 0 || (Number.isInteger(value) && value >= 16 && value <= 60_000)
 }
