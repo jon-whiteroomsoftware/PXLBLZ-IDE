@@ -1,7 +1,13 @@
-// #1211 slice 1 diagnostic proof. Ported from AF8 oracle.ts and af8-diagnostics.ts,
+// #1211 slices 1-2 diagnostic proof. Ported from AF8 oracle.ts and af8-diagnostics.ts,
 // and AF9 af9-bounds.ts in .wrsp/1211-{af8-design,af9-revision}/.
 // Exact BigInt oracles judge product-emitted text through the real bundle/load/shim pipeline.
 // Compiled Show / reopened EPE acceptance belongs to later slices.
+import {
+  R, Q, Q0, BOUNDS, exactDouble, exactDecimal, ulps, bandRegisters,
+  CalendarOracle, quantizedRequest, bruteForce, oracleCalls,
+  scenarios, planScenario, expectedBeforeRenderCalls, normalizeCalendarCursor,
+  type Scenario, type Mode,
+} from '../test/showStepCalendarOracle'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { bundle } from './bundle'
 import { loadPattern } from './loadPattern'
@@ -12,69 +18,16 @@ import {
   stepCalendarNeedsResidue, splitStepRequest, STEP_CALENDAR_TICK_LINE,
   type StepCalendarSpec,
 } from './showStepClockEmit'
-const check = (ok: boolean, label: string) => { expect(ok, label).toBe(true); return ok }
-const results: Record<string, unknown> = {}
-const rationalGcd = (a: bigint, b: bigint): bigint => { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) [a, b] = [b, a % b]; return a }
-class R {
-  readonly n: bigint
-  readonly d: bigint
-  constructor(n: bigint, d = 1n) {
-    if (d === 0n) throw new Error('zero denominator')
-    if (d < 0n) { n = -n; d = -d }
-    const g = rationalGcd(n, d) || 1n
-    this.n = n / g; this.d = d / g
-  }
-  static of(v: bigint | number) { return new R(BigInt(v)) }
-  add(o: R) { return new R(this.n * o.d + o.n * this.d, this.d * o.d) }
-  sub(o: R) { return new R(this.n * o.d - o.n * this.d, this.d * o.d) }
-  mul(o: R) { return new R(this.n * o.n, this.d * o.d) }
-  cmp(o: R) { const l = this.n * o.d, r = o.n * this.d; return l < r ? -1 : l > r ? 1 : 0 }
-  lt(o: R) { return this.cmp(o) < 0 }
-  le(o: R) { return this.cmp(o) <= 0 }
-  gt(o: R) { return this.cmp(o) > 0 }
-  ge(o: R) { return this.cmp(o) >= 0 }
-  eq(o: R) { return this.cmp(o) === 0 }
-  floor() { const q = this.n / this.d; return this.n < 0n && q * this.d !== this.n ? q - 1n : q }
-  toString() { return this.d === 1n ? `${this.n}` : `${this.n}/${this.d}` }
-  /** Decimal rendering for humans only; never used in a comparison. */
-  approx(digits = 18) {
-    const neg = this.n < 0n, n = neg ? -this.n : this.n
-    const whole = n / this.d
-    let rem = n % this.d, frac = ''
-    for (let i = 0; i < digits; i++) { rem *= 10n; frac += (rem / this.d).toString(); rem %= this.d }
-    return `${neg ? '-' : ''}${whole}.${frac}`
-  }
-}
-const pow2 = (k: number) => k >= 0 ? new R(1n << BigInt(k)) : new R(1n, 1n << BigInt(-k))
 const HALF = new R(1n, 2n)
 const ONE = R.of(1)
 const THOUSAND = R.of(1000)
-
-// ------------------------------------------------------- exact binary64 I/O
-
-const view = new DataView(new ArrayBuffer(8))
-const bitsOf = (x: number) => { view.setFloat64(0, x); return view.getBigUint64(0) }
-const ofBits = (b: bigint) => { view.setBigUint64(0, b); return view.getFloat64(0) }
-/** Exact value of a finite binary64, from its sign, exponent and significand bits. */
-function exactDouble(x: number): R {
-  const b = bitsOf(x)
-  const sign = b >> 63n, exp = (b >> 52n) & 0x7ffn, man = b & ((1n << 52n) - 1n)
-  if (exp === 0x7ffn) throw new Error('non-finite')
-  const sig = exp === 0n ? man : man | (1n << 52n)
-  const e2 = exp === 0n ? -1074n : exp - 1075n
-  const mag = e2 >= 0n ? new R(sig << e2) : new R(sig, 1n << -e2)
-  return sign ? R.of(0).sub(mag) : mag
-}
-/** k representable steps from a non-negative binary64 (k < 0 steps down). */
-const ulps = (x: number, k: number) => ofBits(bitsOf(x) + BigInt(k))
-/** Exact rational of a decimal literal string, e.g. '0.9994999999999999'. */
-function exactDecimal(text: string): R {
-  const [whole, frac = ''] = text.split('.')
-  return new R(BigInt(whole + frac), 10n ** BigInt(frac.length))
-}
-
-// ------------------------------------------------- the system under test
-
+const PROVEN_BAND = new R(1n, 1n << 44n)
+const fastEndpointOk = (d: R) => d.gt(BOUNDS.fast.endpointLowExclusive) && d.le(BOUNDS.fast.endpointHigh)
+const fastIntervalOk = (d: R) => d.lt(BOUNDS.fast.intervalExclusive) && d.gt(R.of(0).sub(BOUNDS.fast.intervalExclusive))
+const preciseEndpointOk = (d: R) => d.ge(BOUNDS.precise.endpointLow) && d.le(BOUNDS.precise.endpointHigh)
+const halfUp = (x: R) => x.add(HALF).floor()
+const check = (ok: boolean, label: string) => { expect(ok, label).toBe(true); return ok }
+const results: Record<string, unknown> = {}
 function helperProgram() { return `${emitStepCalendarSharedHelpers()}
 var __pxlblz_show_elapsed_s = 0
 function old_tick_ms(a, b) {
@@ -126,266 +79,6 @@ function preciseTick(raw: number): { ms: bigint; s: bigint; m: bigint } {
 
 // Endpoint error delta(e) = tick(e) - 1000*e ms, against the mode's own register.
 // Interval error Delta = (tick(e2) - tick(e1)) - 1000*(e2 - e1) = delta(e2) - delta(e1).
-const BOUNDS = {
-  fast: { endpointLowExclusive: R.of(0).sub(HALF), endpointHigh: HALF.add(pow2(-44)), intervalExclusive: ONE.add(pow2(-44)) },
-  precise: { endpointLow: new R(-4095n, 8192n), endpointHigh: HALF, interval: new R(8191n, 8192n) },
-  // Claims being replaced (AF8 sections 6.1, 6.2, 6.4).
-  af8: { fastIntervalStrictBelow: ONE, fastEndpointAllowance: HALF.add(new R(2n, 10n ** 13n)) },
-}
-const fastEndpointOk = (d: R) => d.gt(BOUNDS.fast.endpointLowExclusive) && d.le(BOUNDS.fast.endpointHigh)
-const fastIntervalOk = (D: R) => D.lt(BOUNDS.fast.intervalExclusive) && D.gt(R.of(0).sub(BOUNDS.fast.intervalExclusive))
-const preciseEndpointOk = (d: R) => d.ge(BOUNDS.precise.endpointLow) && d.le(BOUNDS.precise.endpointHigh)
-const halfUp = (x: R) => x.add(HALF).floor()
-
-
-// AF8 #1211 independent calendar oracle (design diagnostic, not product code).
-//
-// Exact BigInt rationals throughout. The oracle walks events from the origin;
-// it shares no expression, packed tick, carry or float recurrence with the
-// emitted calendar. Semantics (AF3 accepted rules 1-5, AF8 D3/D4/D6):
-// - Effective time E advances only inside the advancing set W, which repeats
-//   every loop L. Requests R are right-continuous and repeat every loop.
-// - Boundary zero P is the first instant >= origin inside W.
-// - A positive request q: the next boundary is the first instant at which E
-//   has advanced q since the step began; sample R at that exact instant.
-// - Request 0 is continuous until the next change point (authored change or
-//   loop seam), where R is sampled again.
-// - Delivered motion at tick z is E(z) while continuous, otherwise E at the
-//   last owned boundary, rounded up to whole ms (the declared whole-ms
-//   delivery of a quantized non-integer request).
-
-const gcd = (a: bigint, b: bigint): bigint => {
-  a = a < 0n ? -a : a
-  b = b < 0n ? -b : b
-  while (b) [a, b] = [b, a % b]
-  return a
-}
-
-class Q {
-  readonly n: bigint
-  readonly d: bigint
-  constructor(n: bigint, d: bigint = 1n) {
-    if (d === 0n) throw new Error('zero denominator')
-    if (d < 0n) { n = -n; d = -d }
-    const g = gcd(n, d) || 1n
-    this.n = n / g
-    this.d = d / g
-  }
-  static int(v: number | bigint): Q {
-    if (typeof v === 'number' && !Number.isInteger(v)) throw new Error(`Q.int needs an integer, got ${v}`)
-    return new Q(BigInt(v))
-  }
-  /** Exact value of a binary64 number. */
-  static ofDouble(x: number): Q {
-    const exact = exactDouble(x)
-    return new Q(exact.n, exact.d)
-  }
-  add(o: Q): Q { return new Q(this.n * o.d + o.n * this.d, this.d * o.d) }
-  sub(o: Q): Q { return new Q(this.n * o.d - o.n * this.d, this.d * o.d) }
-  mul(o: Q): Q { return new Q(this.n * o.n, this.d * o.d) }
-  div(o: Q): Q { return new Q(this.n * o.d, this.d * o.n) }
-  cmp(o: Q): number { const l = this.n * o.d, r = o.n * this.d; return l < r ? -1 : l > r ? 1 : 0 }
-  lt(o: Q) { return this.cmp(o) < 0 }
-  le(o: Q) { return this.cmp(o) <= 0 }
-  gt(o: Q) { return this.cmp(o) > 0 }
-  ge(o: Q) { return this.cmp(o) >= 0 }
-  eq(o: Q) { return this.cmp(o) === 0 }
-  floor(): bigint { const q = this.n / this.d; return this.n < 0n && q * this.d !== this.n ? q - 1n : q }
-  ceil(): bigint { return -new Q(-this.n, this.d).floor() }
-  isInt() { return this.d === 1n }
-  toNumber() { return Number(this.n) / Number(this.d) }
-  toString() { return this.d === 1n ? `${this.n}` : `${this.n}/${this.d}` }
-}
-
-const Q0 = Q.int(0)
-const max = (a: Q, b: Q) => (a.ge(b) ? a : b)
-
-interface OracleSpec {
-  loopMs: Q
-  windows: Array<{ start: Q; end: Q }>
-  initial: Q
-  changes: Array<{ at: Q; step: Q }>
-}
-
-/** Declared request quantization: whole ms plus a 2^-16 ms residue (round half up). */
-function quantizedRequest(stepMs: number): Q {
-  return new Q(BigInt(Math.round(stepMs * 65536)), 65536n)
-}
-
-interface OracleEvent { T: Q; E: Q; q: Q; kind: 'prime' | 'boundary' | 'change' }
-
-class CalendarOracle {
-  readonly events: OracleEvent[] = []
-  readonly prime: Q | null
-
-  constructor(readonly spec: OracleSpec, readonly origin: Q) {
-    if (spec.windows.some((w, i) => w.start.ge(w.end) || (i > 0 && w.start.lt(spec.windows[i - 1].end)))) {
-      throw new Error('windows must be sorted, disjoint and non-empty')
-    }
-    this.prime = spec.windows.length === 0 ? null : this.firstInW(origin)
-    if (this.prime) this.events.push({ T: this.prime, E: Q0, q: this.R(this.prime), kind: 'prime' })
-  }
-
-  private epochStart(T: Q): Q { return Q.int(T.div(this.spec.loopMs).floor()).mul(this.spec.loopMs) }
-  private local(T: Q): Q { return T.sub(this.epochStart(T)) }
-
-  R(T: Q): Q {
-    const x = this.local(T)
-    let value = this.spec.initial
-    for (const change of this.spec.changes) if (change.at.le(x)) value = change.step
-    return value
-  }
-
-  inW(T: Q): boolean {
-    const x = this.local(T)
-    return this.spec.windows.some(w => w.start.le(x) && x.lt(w.end))
-  }
-
-  private firstInW(T: Q): Q {
-    if (this.inW(T)) return T
-    const base = this.epochStart(T)
-    const x = T.sub(base)
-    const next = this.spec.windows.find(w => w.start.gt(x))
-    return next ? base.add(next.start) : base.add(this.spec.loopMs).add(this.spec.windows[0].start)
-  }
-
-  private nextChangePoint(T: Q): Q {
-    const base = this.epochStart(T)
-    const x = T.sub(base)
-    const next = this.spec.changes.find(change => change.at.gt(x))
-    return next ? base.add(next.at) : base.add(this.spec.loopMs)
-  }
-
-  /** First instant at which effective time has advanced `need` (> 0) since T. */
-  private reach(T: Q, need: Q): Q {
-    let t = T
-    let rem = need
-    for (;;) {
-      const base = this.epochStart(t)
-      const x = t.sub(base)
-      const w = this.spec.windows.find(window => window.end.gt(x))
-      if (!w) { t = base.add(this.spec.loopMs); continue }
-      const start = max(x, w.start)
-      const len = w.end.sub(start)
-      if (rem.le(len)) return base.add(start).add(rem)
-      rem = rem.sub(len)
-      t = base.add(w.end)
-    }
-  }
-
-  /** Measure of W in [T1, T2). */
-  measure(T1: Q, T2: Q): Q {
-    let total = Q0
-    let t = T1
-    while (t.lt(T2)) {
-      const base = this.epochStart(t)
-      const x = t.sub(base)
-      const epochEnd = base.add(this.spec.loopMs)
-      const stop = T2.lt(epochEnd) ? T2.sub(base) : this.spec.loopMs
-      for (const w of this.spec.windows) {
-        const s = max(x, w.start)
-        const e = w.end.lt(stop) ? w.end : stop
-        if (s.lt(e)) total = total.add(e.sub(s))
-      }
-      t = epochEnd
-    }
-    return total
-  }
-
-  extendTo(z: Q) {
-    if (!this.prime) return
-    while (this.events[this.events.length - 1].T.le(z)) {
-      const last = this.events[this.events.length - 1]
-      if (last.q.gt(Q0)) {
-        const X = this.reach(last.T, last.q)
-        this.events.push({ T: X, E: last.E.add(last.q), q: this.R(X), kind: 'boundary' })
-      } else {
-        const c = this.nextChangePoint(last.T)
-        this.events.push({ T: c, E: last.E.add(this.measure(last.T, c)), q: this.R(c), kind: 'change' })
-      }
-    }
-  }
-
-  private lastIndexAtOrBefore(z: Q): number {
-    this.extendTo(z)
-    let lo = 0, hi = this.events.length - 1, found = -1
-    while (lo <= hi) {
-      const mid = (lo + hi) >> 1
-      if (this.events[mid].T.le(z)) { found = mid; lo = mid + 1 } else hi = mid - 1
-    }
-    return found
-  }
-
-  /** Delivered effective ms since boundary zero at tick z, and the mode in force after z's events. */
-  stateAt(z: Q): { primed: boolean; D: Q; continuous: boolean; index: number } {
-    const index = this.lastIndexAtOrBefore(z)
-    if (index < 0) return { primed: false, D: Q0, continuous: false, index }
-    const event = this.events[index]
-    if (event.q.eq(Q0)) return { primed: true, D: event.E.add(this.measure(event.T, z)), continuous: true, index }
-    return { primed: true, D: Q.int(event.E.ceil()), continuous: false, index }
-  }
-
-  boundariesIn(z1: Q | null, z2: Q): number {
-    const hi = this.lastIndexAtOrBefore(z2)
-    let count = 0
-    for (let i = hi; i >= 0; i--) {
-      const event = this.events[i]
-      if (z1 && event.T.le(z1)) break
-      if (event.kind === 'boundary') count++
-    }
-    return count
-  }
-}
-
-interface OracleCall { primedNow: boolean; delivered: Q; called: boolean; boundaries: number; D: Q; primed: boolean }
-
-/** Per-advance expectations for one origin segment: delivered motion and whether the Pattern is called. */
-function oracleCalls(oracle: CalendarOracle, ticks: Q[]): OracleCall[] {
-  const out: OracleCall[] = []
-  let previous: Q | null = null
-  let previousState: ReturnType<CalendarOracle['stateAt']> | null = null
-  for (const z of ticks) {
-    const state = oracle.stateAt(z)
-    const primedBefore = previousState?.primed ?? false
-    const primedNow = !primedBefore && state.primed
-    const boundaries = oracle.boundariesIn(previous, z)
-    const continuousBefore = primedBefore && previousState!.continuous
-    const called = primedNow || boundaries > 0 || continuousBefore || (state.primed && state.continuous)
-    const delivered = state.D.sub(primedBefore ? previousState!.D : Q0)
-    out.push({ primedNow, delivered, called, boundaries, D: state.D, primed: state.primed })
-    previous = z
-    previousState = state
-  }
-  return out
-}
-
-/**
- * Third, deliberately naive model for oracle self-tests: integer ms only,
- * simulated one millisecond at a time from the origin.
- */
-function bruteForce(spec: { loopMs: number; windows: Array<[number, number]>; initial: number; changes: Array<[number, number]> }, origin: number, zmax: number) {
-  const L = spec.loopMs
-  const local = (t: number) => ((t % L) + L) % L
-  const inW = (t: number) => spec.windows.some(([s, e]) => s <= local(t) && local(t) < e)
-  const R = (t: number) => {
-    let v = spec.initial
-    for (const [at, step] of spec.changes) if (at <= local(t)) v = step
-    return v
-  }
-  const isChangePoint = (t: number) => local(t) === 0 || spec.changes.some(([at]) => at === local(t))
-  const out: Array<{ primed: boolean; D: number }> = []
-  let primed = false, q = 0, rem = 0, eff = 0, commit = 0
-  for (let t = origin; t <= zmax; t++) {
-    if (!primed && inW(t)) { primed = true; q = R(t); rem = q; commit = eff }
-    out.push({ primed, D: !primed ? 0 : q === 0 ? eff : commit })
-    if (!primed) continue
-    if (inW(t)) { eff += 1; if (q > 0) rem -= 1 }
-    if (q > 0 && rem === 0) { commit = eff; q = R(t + 1); rem = q }
-    else if (q === 0 && isChangePoint(t + 1)) { q = R(t + 1); rem = q; commit = eff }
-  }
-  return out
-}
-
 const mulberry32 = (seed: number) => () => {
   seed |= 0; seed = (seed + 0x6D2B79F5) | 0
   let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
@@ -522,19 +215,7 @@ it("AF9 Fast pair rejects the strict interval bound and meets 1 + 2^-44", () => 
 // binary64 e = s + f with 1000*f within +-2^-43 of N - 1/2. The proof (design
 // 6.1) says tick = halfUp + 1 can only occur with 1000*f in [N-1/2-2^-44, N-1/2);
 // the band is twice that width, so its edges are tested too.
-const W = pow2(-43), PROVEN_BAND = pow2(-44)
-function bandRegisters(s: number, N: number): number[] {
-  const t = R.of(N).sub(HALF)
-  const low = t.sub(W), high = t.add(W)
-  const xOf = (e: number) => THOUSAND.mul(exactDouble(e).sub(R.of(s)))
-  let e = s + (N - 0.5) / 1000
-  while (xOf(e).ge(low)) e = ulps(e, -1)
-  e = ulps(e, 1)
-  while (xOf(e).lt(low)) e = ulps(e, 1)
-  const out: number[] = []
-  while (xOf(e).le(high)) { out.push(e); e = ulps(e, 1) }
-  return out
-}
+
 it("Fast tick_now is expression-defined with endpoint error in (-1/2, 1/2 + 2^-44]", () => {
 
   let points = 0, disagreements = 0, disagreementsBelow1s = 0, outsideProvenBand = 0
@@ -939,5 +620,124 @@ it('calendar exports retain the template state, reset and request domains', () =
   expect(member).not.toContain('return 0.015625')
   expect(member).not.toContain('return 0.48828125')
   expect(member).toContain('if (k >= 0.1953125)')
+})
+
+
+/** AF8 af8-diagnostics.ts scenario execution; expected motion comes only from the
+ * independent event-walking oracle. Register models are checked against execution. */
+function scenarioProgram(spec: StepCalendarSpec): string {
+  const reset = [
+    'p_step_pending_delta_blocks = 0', 'p_step_pending_delta_ms = 0',
+    ...stepCalendarResetLines(spec),
+  ].join('\n  ')
+  return calendarProgram(spec) + `
+function h_frame_det(delta) {
+  var wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${spec.loopMs / 1000}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${spec.loopMs / 1000}
+  if (wrapped) {
+  ${reset}
+  }
+  ${STEP_CALENDAR_TICK_LINE}
+}
+function h_restart_at(eSec, ePacked) {
+  ${reset}
+  p_cal_t = ePacked
+  if (eSec > __pxlblz_show_elapsed_s) p_cal_lag = 1
+  else p_cal_lag = 0
+}`
+}
+
+interface ScenarioResult {
+  mismatches: string[]
+  registerMismatches: number
+  tickMismatches: number
+  maxDeliveries: number
+  invariantViolations: string[]
+  snapshots: Map<string, string>
+}
+
+function executeCalendarScenario(sc: Scenario, mode: Mode): ScenarioResult {
+  const planned = planScenario(sc, mode)
+  const { handle, fns, enc, dec } = load(mode, scenarioProgram(sc.spec))
+  const result: ScenarioResult = {
+    mismatches: [], registerMismatches: 0, tickMismatches: 0,
+    maxDeliveries: 0, invariantViolations: [], snapshots: new Map(),
+  }
+  let expectedIndex = 0, total = 0, originTotal = 0, segment = 0
+  const read = () => handle.getRuntimeState() as Record<string, number>
+  for (const frame of planned.frames) {
+    fns[sc.deterministic ? 'h_frame_det' : 'h_frame'](enc(frame.delta))
+    if (frame.crossing) fns.h_restart_at(enc(frame.crossing.eMs / 1000), enc(packedMs(frame.crossing.eMs)))
+    const register = read()
+    if (mode === 'fast' ? register.__pxlblz_show_elapsed_s !== frame.regFast
+      : BigInt(register.__pxlblz_show_elapsed_s) !== frame.regRaw) result.registerMismatches++
+    if (BigInt(packedToMs(dec(register.__pxlblz_show_tick))) !== frame.tick) result.tickMismatches++
+    if (!frame.advance) continue
+    const expected = planned.expected[expectedIndex++]
+    if (segment !== expected.segment) { segment = expected.segment; originTotal = total }
+    fns.h_advance()
+    const after = read()
+    const cursor = dec(after.p_cal_t), remainder = dec(after.p_cal_r)
+    if (cursor < 0 || cursor > packedMs(sc.spec.loopMs)) result.invariantViolations.push('cursor outside [0, L]')
+    if (remainder < 0 || remainder > packedMs(60001)) result.invariantViolations.push('remainder outside [0, 60001 ms]')
+    for (const name of ['p_step_pending_delta_ms', 'p_cal_ready_ms']) {
+      const value = dec(after[name])
+      if (!Number.isInteger(value) || value < 0 || value >= 16000) result.invariantViolations.push(`${name} outside whole-ms remainder range`)
+    }
+    const delivered = dec(after.h_s) * 1000 + dec(after.h_ms)
+    total += delivered
+    const calls = dec(after.h_calls), deliveries = dec(after.h_deliveries)
+    result.maxDeliveries = Math.max(result.maxDeliveries, deliveries)
+    const expectedCalls = expected.called ? expectedBeforeRenderCalls(expected.delivered.toNumber()) : 0
+    if (!Number.isInteger(delivered) || !expected.delivered.eq(Q.int(delivered))
+      || calls !== expectedCalls || dec(after.p_cal_primed) !== Number(expected.primed)) {
+      result.mismatches.push(`${sc.name}/${mode} frame ${expected.frame}: delivered ${delivered}/${expected.delivered}, calls ${calls}/${expectedCalls}, primed ${dec(after.p_cal_primed)}/${expected.primed}`)
+    }
+    result.snapshots.set(`${segment}:${expected.abs}`, [
+      normalizeCalendarCursor(dec(after.p_cal_t), sc.spec.loopMs),
+      dec(after.p_cal_r), dec(after.p_cal_inc), dec(after.p_cal_primed),
+      stepCalendarNeedsResidue(sc.spec) ? dec(after.p_cal_phi) : 0, total - originTotal,
+    ].join(','))
+  }
+  const state = read()
+  if (dec(state.h_max_ms_arg) > 16) result.invariantViolations.push('tick_ms duration > 16 s')
+  if (dec(state.h_max_abs) > packedMs(sc.spec.loopMs)) result.invariantViolations.push('absolute instant > L')
+  if (dec(state.h_min_abs) < 0) result.invariantViolations.push('absolute instant < 0')
+  return result
+}
+
+describe('step calendar scenarios', () => {
+  const runs = new Map<string, ScenarioResult>()
+  it('46 calendar scenarios match the exact oracle', () => {
+    expect(scenarios).toHaveLength(46)
+    for (const sc of scenarios) for (const mode of ['fast', 'precise'] as const) {
+      const result = executeCalendarScenario(sc, mode)
+      runs.set(`${sc.name}:${mode}`, result)
+      expect(result.mismatches, `${sc.name}/${mode}`).toEqual([])
+      expect(result.registerMismatches, `${sc.name}/${mode} register`).toBe(0)
+      expect(result.tickMismatches, `${sc.name}/${mode} tick`).toBe(0)
+      expect(result.invariantViolations, `${sc.name}/${mode} invariants`).toEqual([])
+      expect(result.maxDeliveries, `${sc.name}/${mode} deliveries`).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('equal ticks give equal calendar state across cadences and seek replays', () => {
+    for (const family of ['partitions', 'seek']) for (const mode of ['fast', 'precise'] as const) {
+      const ticks = new Map<string, string[]>()
+      for (const sc of scenarios.filter(sc => sc.family === family)) {
+        // This test also runs independently when selected by name.
+        const run = runs.get(`${sc.name}:${mode}`) ?? executeCalendarScenario(sc, mode)
+        for (const [tick, state] of run.snapshots) ticks.set(tick, [...(ticks.get(tick) ?? []), state])
+      }
+      let shared = 0
+      for (const [tick, states] of ticks) {
+        if (states.length < 2) continue
+        shared++
+        expect(new Set(states).size, `${family}/${mode}/${tick}`).toBe(1)
+      }
+      expect(shared, `${family}/${mode} shared ticks`).toBe(
+        family === 'partitions' ? (mode === 'fast' ? 8728 : 8679) : (mode === 'fast' ? 1184 : 103))
+    }
+  })
 })
 
