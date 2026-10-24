@@ -36,7 +36,26 @@ const runtimeFor = () => createFastReplayRuntime({
   code: delivered, fxCode: artifact.fxCode, metadata: artifact.metadata,
   dimension: nativeDimension(artifact.metadata.renderFns),
 }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity: 'fast' })
-const frameAt = (t: number, stepMs = 25) => runtimeFor().advanceTo(t, { stepMs }).pixels
+const frameCache = new Map<string, Rgb[]>()
+// Repeated identical requests share the result; each distinct request still replays fresh from zero.
+const frameAt = (t: number, stepMs = 25) => {
+  const key = `${stepMs}:${t}`
+  let pixels = frameCache.get(key)
+  if (pixels === undefined) {
+    pixels = runtimeFor().advanceTo(t, { stepMs }).pixels
+    frameCache.set(key, pixels)
+  }
+  return pixels.map(rgb => [...rgb])
+}
+const fixedPointCache = new Map<string, string>()
+function fixedPointFor(code: string): string {
+  let emitted = fixedPointCache.get(code)
+  if (emitted === undefined) {
+    emitted = emitFixedPoint(code)
+    fixedPointCache.set(code, emitted)
+  }
+  return emitted
+}
 const zone = (pixels: Rgb[], n: number) => pixels.slice(ranges[n][0], ranges[n][1] + 1)
 const sum = ([r, g, b]: Rgb) => r + g + b
 const lit = (rgb: Rgb) => sum(rgb) > 0.05
@@ -171,7 +190,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
 
   it.each(['fast', 'fidelity'] as const)('delivers brighter isolated bulbs without changing the arrow or word (%s)', fidelity => {
     const runtime = createFastReplayRuntime({
-      code: delivered, fxCode: emitFixedPoint(delivered), metadata: artifact.metadata, dimension: 2,
+      code: delivered, fxCode: fixedPointFor(delivered), metadata: artifact.metadata, dimension: 2,
     }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity })
     const pixels = runtime.advanceTo(16500, { stepMs: 25 }).pixels
     const indices = borderIndices(pixels)
@@ -277,7 +296,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     const exported = buildShowEpeExportV2(opened.show, comparisonArtifact.code)
     if (exported.status !== 'exported') throw new Error(exported.message)
     const source = parseEpe(exported.text).src
-    const makeRuntime = (code: string) => createFastReplayRuntime({ code, fxCode: emitFixedPoint(code), metadata: artifact.metadata, dimension: 2 }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity })
+    const makeRuntime = (code: string) => createFastReplayRuntime({ code, fxCode: fixedPointFor(code), metadata: artifact.metadata, dimension: 2 }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity })
     const current = makeRuntime(delivered), baseline = makeRuntime(source)
     let outsideError = 0, equalWindowError = 0, deadError = 0, missedTurns = 0, restoredTurns = 0
     for (let frame = 0; frame <= 3390; frame++) {
@@ -308,6 +327,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
         expect(pixels.filter(white)).toHaveLength(441)
       }
     }
+  // The full Precise comparison measured 8.62 s unloaded; 30 s provides >3x headroom for this intrinsically expensive continuous sweep.
   }, 30_000)
 
   it('leaves only the broken O glowing at 87 s', () => {
