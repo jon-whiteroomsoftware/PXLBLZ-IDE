@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "issue": "1217",
+  "route": "/PXLBLZ-IDE/studio/controllers?controllerScenario=firmware-update",
+  "operation": "Host Chromium with synthetic firmware-update and matched Controller scenarios. At 1440x1000 and 390x844, open the panel and verify no firmware notice or firmware Open Pixelblaze action; click the amber Firmware update available button and assert the exact profile destination exposed by the existing profile link, closed panel, installed v3.51 instructions, and external http://192.0.2.10/ link. Independently Tab through the header to the panel toggle, Enter to open it, Tab to the separately named firmware button, and Enter to reach the same matching detail route. Current state has no firmware icon or banner in either surface. Narrow detail has no horizontal overflow. Console and runtime errors: zero. No hardware contacted.",
+  "captures": [
+    ".wrsp/ui-proof/1217-outdated-desktop-panel.png",
+    ".wrsp/ui-proof/1217-outdated-desktop-detail.png",
+    ".wrsp/ui-proof/1217-outdated-desktop-keyboard-focus.png",
+    ".wrsp/ui-proof/1217-outdated-narrow-panel.png",
+    ".wrsp/ui-proof/1217-outdated-narrow-detail.png",
+    ".wrsp/ui-proof/1217-outdated-narrow-keyboard-focus.png",
+    ".wrsp/ui-proof/1217-current-desktop-panel.png",
+    ".wrsp/ui-proof/1217-current-desktop-detail.png",
+    ".wrsp/ui-proof/1217-current-narrow-panel.png",
+    ".wrsp/ui-proof/1217-current-narrow-detail.png"
+  ],
+  "capturedAtCommit": "3a49bb686216e8b0f228a0079c50b8dce7b8ed2c"
+}
