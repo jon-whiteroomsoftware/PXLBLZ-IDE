@@ -105,6 +105,12 @@ test('prices the current full Show artifact and invalidates it when the live ses
       await help.focus()
       await expect(page.getByRole('tooltip')).toContainText('54,707 B provisional budget; 68,384 B firmware 3.67 observation.')
       if (output) {
+        if (viewport.width === 1180) {
+          await page.mouse.move(0, 0)
+          await toggle.focus()
+          await inventory.locator('[data-source-resource="Usable headroom"]').scrollIntoViewIfNeeded()
+          await expect(page.getByRole('tooltip')).toBeHidden()
+        }
         await mkdir(output, { recursive: true })
         const file = `${viewport.width}-${viewport.height}-${kind}.png`
         await page.screenshot({ path: join(output, file) })
@@ -114,7 +120,9 @@ test('prices the current full Show artifact and invalidates it when the live ses
             const box = element.getBoundingClientRect()
             return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, documentWidth: document.documentElement.scrollWidth }
           }),
-          keyboard: 'inventory opened with native control; budget help focused and tooltip visible',
+          keyboard: viewport.width === 1180
+            ? 'inventory opened with native control; budget help verified, then Source code focused and tooltip hidden'
+            : 'inventory opened with native control; budget help focused and tooltip visible',
         })
       }
     }
