@@ -108,10 +108,19 @@ lamp igniting alone.
 ### Timing hierarchy
 
 - **Step:** 250 ms. The chase step, an ignition pulse, one arrow segment.
-- **Bar:** 2 s. Letter ignitions land on bars.
-- **Phrase:** 8 s. The arrow fires once per phrase and its tip lands on the
-  downbeat.
+- **Bar:** 2 s. Warm-up letter ignitions land on bars; the later spelling uses
+  the 250 ms steps.
+- **Phrase:** 8 s. The arrow's first tip lands on the downbeat. The 24 s phrase
+  adds one second firing; the 32 s phrase holds its pointing head for a bar.
 - **Arc:** 12 phrases, 96 s, dark to dark, looping seamlessly.
+- **One sequencer timer:** the word's spelling steps and the arrow's fill steps
+  take turns on the same 250 ms grid. One sequence finishes before the other
+  starts; their steps never coincide or interleave. After the word resets at
+  20 s, F lights at 20.25 s, the first O at 20.5 s, the weak O one step late at
+  21 s, and D at 21.25 s. This late turn seeds the fault before the unchanged
+  load-coupled hints at 40 and 48 s.
+- The border chase stays continuous furniture. Its one paused step coincides
+  with the first 24 s arrow tip; normal forward stepping resumes afterward.
 - Healthy lamps and furniture stay on the grid. The fault starts coupled to the
   grid through the arrow and then leaves it. Its health falls in held stages,
   never along a ramp.
@@ -121,10 +130,10 @@ lamp igniting alone.
 | Section | Phrases | Time | What happens |
 | --- | --- | --- | --- |
 | Dark and warm-up | 1-2 | 0-16 s | 2 s of black. The second O sputters first; F, the first O and D ignite cleanly on successive bars, skipping its turn; the border ignites and starts its chase; the second O is the last letter to catch. The arrow's first firing lands on the 16 s downbeat: the diner is open. |
-| Steady | 3-5 | 16-40 s | The ordinary frame. The arrow fires each phrase; nothing else happens. |
+| Steady | 3-5 | 16-40 s | The ordinary frame gains a relay spelling at 20-21.25 s, with the weak O late. The 24 s arrow double-fires, with one chase pause on its first tip; the 32 s firing leaves its head pointing through 34 s. The word and arrow sequences take turns. |
 | Hint | 6-7 | 40-56 s | At the arrow's tip the second O drops out for one step; next phrase, twice. Short enough to doubt. |
 | Failure | 8-10 | 56-80 s | Three held stages. First the dips become bursts, still on the arrow's beat. Then the arrow fires and the second O does not answer; it fails on its own time, off the grid. Then it arcs, broken more than lit. Then it steadies: for a moment the sign is whole. |
-| The short | at 80 s | 80-81 s | The arrow's last firing reaches its tip and the whole sign flashes white and dies. The only white and the only simultaneous event. |
+| The short | at 80 s | 80-81 s | The arrow's last firing reaches its tip and the whole sign flashes white and dies. The only white and the only whole-sign event. |
 | Afterglow | 11 | 81-92 s | About 2 s of black. The second O alone buzzes back, catches and holds a breath, then stutters out. |
 | Out | 12 | 92-96 s | Black. The loop restarts with the second O, the first to try again: the survivor is first and last. |
 
@@ -137,7 +146,8 @@ lamp igniting alone.
 - The word is red; the furniture is blue and dimmer than the word.
 - White appears only at the short.
 - The survivor is the weak letter, first and last in every loop.
-- Healthy lamps are dead steady; only the weak lamp has texture.
+- Healthy lamps hold dead steady between their authored clean ignitions and
+  relay cuts; only the weak lamp has texture.
 
 ### Permitted variations
 
@@ -165,6 +175,14 @@ and fill step; the phrase length (6 to 10 s); and the sign word.
   is the one whole-sign event.
 - No hue drift on the word and no rainbow. The only colour change is the short's
   white.
+- One relay-like sequencer owns the word's clean spelling and the arrow's
+  stepped fills in turn. Every step lands on the 250 ms grid, and one sequence
+  finishes before the next starts. The healthy letters ignite once each in
+  reading order and then hold; they acquire no new flicker or texture.
+- The border runs independently as continuous furniture, with one held step on
+  the first 24 s arrow tip. New word, arrow and border gestures finish during
+  Steady, before Hint at 40 s. Nothing new competes with the weak O during the
+  56-80 s failure.
 - Besides the chase, one event at a time. The arrow and the weak letter's answer
   to it count as one event, cause and effect. The off-grid faults avoid the
   arrow's firings, and the false recovery clears the stage for the last one.
@@ -441,7 +459,7 @@ no Clip edge, Transition or partial track window falls inside the Show.
 | Section | Time | Mechanism |
 | --- | --- | --- |
 | Dark and warm-up | 0-16 s | O2's Health keys start its sputter at 2 s, and it catches at 13 s. Held opacity keys ignite F at 4 s, O1 at 6 s, D at 8 s and the border at 12-13 s. The chase runs from its first lit step. The first arrow firing runs 15.25-16 s. |
-| Steady | 16-40 s | Only the arrow's opacity keys, with tips at 24 and 32 s. |
+| Steady | 16-40 s | At 20 s the word resets, then F/O1/O2/D ignite at 20.25/20.5/21/21.25 s; O2 misses its 20.75 s turn. The arrow fills at 23.25-24 s, resets at 24.25 s, fills again at 24.75-25.5 s and goes dark at 26.5 s. The border pauses on the first tip. The next fill runs 31.25-32 s; its shaft goes dark at 32 s and its head holds through 34 s. Every sequence finishes before the next starts. |
 | Hint | 40-56 s | O2's Health drops to 0 for one step at the 40 s tip; at 48 s it drops out twice, a step apart. |
 | Failure | 56-80 s | Held Health stages. Bursts on the beat at 56 and 60 s. The 64 s firing gets no answer, and bursts follow off the grid at 65.37, 67.83 and 70.24 s. Arcing from 72 to 78 s, recovery at 78 s, and the last firing at 79.25-80 s. |
 | The short | 80.25-81.05 s | The white color-map amount goes to 1 on every Clip; opacity (on O2, the white amount) decays to 0 on a cubic-out curve. Under the white, O2's Health drops to 0, so O2 fades to black with the rest. The arrow's tip lights one step before the short, as its cause. |

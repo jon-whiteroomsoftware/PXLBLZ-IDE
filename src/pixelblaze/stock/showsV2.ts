@@ -2484,8 +2484,11 @@ function afterHoursInstallationV2(): ShowRecordV2 {
   const end = 96_000
   const HOLD: ShowStructuredEasing = { curve: 'hold', at: 1 }
   type Key = [number, number, ShowStructuredEasing?]
-  const track = (id: string, target: Parameters<typeof propertyTrack>[1], keys: Key[]) =>
-    propertyTrack(id, target, 0, end, keys.map(([time, value, easing], n) => propertyKey(`${id}-${n}`, time, value, easing ?? HOLD)))
+  const track = (id: string, target: Parameters<typeof propertyTrack>[1], keys: Key[], extra: Key[] = []) =>
+    propertyTrack(id, target, 0, end, [
+      ...keys.map(([time, value, easing], n) => propertyKey(`${id}-${n}`, time, value, easing ?? HOLD)),
+      ...extra.map(([time, value, easing], n) => propertyKey(`${id}-relay-${n}`, time, value, easing ?? HOLD)),
+    ].sort((a, b) => a.timeMs - b.timeMs))
   const zones = physicalZones(['F', 'O', 'Second O', 'D', 'Border', 'Arrow 1', 'Arrow 2', 'Arrow 3', 'Arrow head'], [50, 60, 60, 67, 141, 16, 16, 16, 16])
   const lamps = ['f', 'o1', 'o2', 'd', 'border', 'arrow1', 'arrow2', 'arrow3', 'head']
   // Shared Effect identity retains placement-specific values and Clip-scoped tracks.
@@ -2518,16 +2521,19 @@ function afterHoursInstallationV2(): ShowRecordV2 {
         [40000, 0], [40250, 1], [48000, 0], [48250, 1], [48500, 0], [48750, 1], [56000, 0.5], [57000, 1], [60000, 0.4], [60750, 1],
         [65370, 0.45], [66110, 1], [67830, 0.3], [68900, 0.8], [70240, 0.5], [70900, 1], [72000, 0.5], [73500, 0.35], [75200, 0.55], [77000, 0.4], [78000, 1],
         [80250, 0], [83000, 0.3], [84000, 0.55], [85000, 0.8], [85750, 1], [90000, 0.6], [91000, 0.2], [92000, 0],
-      ]),
-      opacity('f', [[0, 0], [4000, 1], [4250, 0], [4500, 1], [4750, 0], [5000, 1]]),
-      opacity('o1', [[0, 0], [6000, 1], [6250, 0], [6500, 1], [7000, 0], [7250, 1]]),
-      opacity('d', [[0, 0], [8000, 1], [8500, 0], [8750, 1]]),
+      ], [[20000, 0], [21000, 1]]),
+      opacity('f', [[0, 0], [4000, 1], [4250, 0], [4500, 1], [4750, 0], [5000, 1], [20000, 0], [20250, 1]]),
+      opacity('o1', [[0, 0], [6000, 1], [6250, 0], [6500, 1], [7000, 0], [7250, 1], [20000, 0], [20500, 1]]),
+      opacity('d', [[0, 0], [8000, 1], [8500, 0], [8750, 1], [20000, 0], [21250, 1]]),
       opacity('border', [[0, 0], [12000, 0.6], [12250, 0], [12500, 0.6], [12750, 0], [13000, 0.6]]),
+      track('chase-direction', { kind: 'instance-control', instanceId: 'chase', exportName: 'sliderDirection' }, [[0, 1], [24000, 0.5], [24250, 1]]),
       ...['arrow1', 'arrow2', 'arrow3', 'head'].map((id, index) => {
         const keys: Key[] = [[0, 0]]
         for (let tip = 16_000; tip <= 80_000; tip += 8_000) {
           keys.push([tip - 750 + index * 250, 0.7])
-          if (tip !== 80_000) keys.push([tip + 1000, 0])
+          if (tip === 24_000) keys.push([24_250, 0], [24_750 + index * 250, 0.7], [26_500, 0])
+          else if (tip === 32_000) keys.push([index === 3 ? 34_000 : 32_000, 0])
+          else if (tip !== 80_000) keys.push([tip + 1000, 0])
         }
         return opacity(id, keys)
       }),
