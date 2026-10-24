@@ -4,6 +4,7 @@ import { isShowColorEffect, showEffectParameterNames } from './showEffects'
 export interface ShowGeneratedEffectKernelMember {
   id: string
   effects: ShowClipEffect[]
+  animatedEffects: boolean
   animatedParameterPaths: string[]
   adaptationShape: {
     mirror: boolean
@@ -181,7 +182,8 @@ function structuralKey(member: ShowGeneratedEffectKernelMember): string {
 }
 
 function isScaleRotateTranslateFamily(member: ShowGeneratedEffectKernelMember): boolean {
-  return !member.compositionEnvironment.staticPlanEffects
+  return member.animatedEffects === true
+    && !member.compositionEnvironment.staticPlanEffects
     && member.effects[0]?.kind === 'scale'
     && member.effects[1]?.kind === 'rotate'
     && member.effects[2]?.kind === 'translate'

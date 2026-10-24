@@ -11331,6 +11331,7 @@ function buildGeneratedEffectKernelPlan(
       id: member.id,
       effects: member.effects,
       animatedParameterPaths: member.animatedEffectParameterPaths,
+      animatedEffects: member.animatedEffects,
       adaptationShape: {
         mirror: member.needsMirrorMapping,
         lightShutter: Boolean(member.adaptation.lightShutter),

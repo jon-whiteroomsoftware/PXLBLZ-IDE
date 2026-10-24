@@ -138,6 +138,35 @@ function wholeFrames(recipe: ShowRecipe) {
 }
 
 describe('shared Scale Rotate Translate emission (#1210)', () => {
+  it('leaves fixed sceneSequence transforms without affine scratch or claimed savings', () => {
+    const recipe = affineRecipe()
+    recipe.routedSceneSequence = undefined
+    recipe.routingLayouts = undefined
+    recipe.zones = undefined
+    recipe.sceneSequence = {
+      scenes: recipe.clips.map((clip, index) => ({
+        clipId: clip.id,
+        holdMs: 1_000,
+        transform: { scaleX: 0.8 + index * 0.1, scaleY: 0.7, rotation: 0.25, positionX: 0.1, positionY: -0.15 },
+      })),
+    }
+    for (const clip of recipe.clips) clip.effects = []
+    // This fixture has only the new family, so the existing switch disables only it.
+    const { shared, original } = wholeFrames(recipe)
+    expect.soft(shared.summary.specializations.generatedEffectKernels).toMatchObject({
+      selected: false, family: null, kernelCount: 0, memberCount: 0,
+      sharedResultGlobals: 0, persistentGlobalsAvoided: 0,
+    })
+    expect.soft(shared.expandedCode.match(/function __pxlblz_show_fxk_scale_rotate_translate_/g) ?? []).toEqual([])
+    expect.soft(shared.expandedCode.match(/var __pxlblz_show_fxk_scale_rotate_translate_\d+_[a-z]+\b/g) ?? []).toEqual([])
+    expect.soft(shared.summary.resources.persistentGlobals - original.summary.resources.persistentGlobals).toBe(0)
+    expect(shared.summary.resources).toEqual(original.summary.resources)
+    expect(shared.summary.sourceInventory).toEqual(original.summary.sourceInventory)
+    expect(shared.expandedCode).toBe(original.expandedCode)
+    expect(shared.code).toBe(original.code)
+    expect(shared.fxCode).toBe(original.fxCode)
+  })
+
   it('declines the affine family when its scratch would remove shipped replay purity', () => {
     const record = stockShowV2ById('stock-show-remix-quadrille')!
     const libraries = compileLibraries(LIBRARIES, [])

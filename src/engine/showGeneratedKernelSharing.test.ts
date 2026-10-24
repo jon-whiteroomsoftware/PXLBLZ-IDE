@@ -10,6 +10,7 @@ function member(
 ): ShowGeneratedEffectKernelMember {
   return {
     id,
+    animatedEffects: true,
     effects: [{ id: `${id}-scale`, kind: 'scale', x: 0.8, y: 0.9 }],
     animatedParameterPaths: ['scale.x', 'scale.y'],
     adaptationShape: {
@@ -62,12 +63,13 @@ describe('Scale Rotate Translate kernel selection (#1210)', () => {
     ])
   })
 
-  it.each(['empty', 'static', 'incomplete', 'reordered', 'shear', 'other-prefix', 'affine-tail', 'wrap-tail', 'distortion-tail', 'color-prefix'])(
+  it.each(['empty', 'static', 'non-animated', 'incomplete', 'reordered', 'shear', 'other-prefix', 'affine-tail', 'wrap-tail', 'distortion-tail', 'color-prefix'])(
     'refuses %s even when repeated', (shape) => {
       const a = affineMember('a'), b = affineMember('b')
       for (const item of [a, b]) {
         if (shape === 'empty') item.effects = []
         if (shape === 'static') item.compositionEnvironment.staticPlanEffects = true
+        if (shape === 'non-animated') item.animatedEffects = false
         if (shape === 'incomplete') item.effects.pop()
         if (shape === 'reordered') item.effects.reverse()
         if (shape === 'shear') item.effects[1] = { id: 'shear', kind: 'shear', x: 0.2, y: 0 }
@@ -84,6 +86,14 @@ describe('Scale Rotate Translate kernel selection (#1210)', () => {
 })
 
 describe('shared generated Effect kernels (#538)', () => {
+  it('preserves single-Scale eligibility without animation', () => {
+    const plan = planShowGeneratedEffectKernels([
+      member('first', { animatedEffects: false }),
+      member('second', { animatedEffects: false }),
+    ])
+    expect(plan.groups).toEqual([expect.objectContaining({ family: 'affine-scale', memberIds: ['first', 'second'] })])
+  })
+
   it('groups the same animated affine structure while parameterizing ids and values', () => {
     const plan = planShowGeneratedEffectKernels([
       member('first'),
