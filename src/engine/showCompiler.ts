@@ -1069,6 +1069,8 @@ export interface CompiledMember {
    * showMemberBindingPolicy after Pattern-slot sharing, then read-only. */
   binding?: MemberBindingPolicy
   generatedEffectKernelSharing: boolean
+  /** Internal family selection; old single-Scale sharing remains independent. */
+  generatedAffineEffectKernelSharing?: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
   freezeRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
@@ -2189,6 +2191,30 @@ export function compileShow(
   libraries: Record<string, string>,
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
+  const candidate = compileShowWithKernelFamilies(recipe, libraries, options, true)
+  const family = candidate.summary.specializations.generatedEffectKernels.family
+  if ((family === 'affine-scale-rotate-translate' || family === 'mixed')
+    && !candidate.metadata.deterministicReplay) {
+    // Compare the actual emitted proof, retaining all existing Scale sharing.
+    // Shared outputs are not admitted as target-overwritten scratch without
+    // every-path written-before-read proof. Prefer the unshared family when
+    // it preserves a replay capability the original emitter already proves.
+    const unsharedAffine = compileShowWithKernelFamilies(recipe, libraries, options, false)
+    if (unsharedAffine.metadata.deterministicReplay) return unsharedAffine
+  }
+  return candidate
+}
+
+function compileShowWithKernelFamilies(
+  recipe: ShowRecipe,
+  libraries: Record<string, string>,
+  options: ShowCompileOptions,
+  allowAffineKernelSharing: boolean,
+): GeneratedShowArtifact {
+  // Preserve family selection through the existing resource-budget retries.
+  const compileShow = (nextRecipe: ShowRecipe, nextLibraries: Record<string, string>, nextOptions: ShowCompileOptions) => (
+    compileShowWithKernelFamilies(nextRecipe, nextLibraries, nextOptions, allowAffineKernelSharing)
+  )
   // #937: the spatial hold latches RGB, so member sinks must capture rather
   // than paint natively - but only when the hold is actually selected. A
   // declined hold returns the ordinary artifact (direct sinks and all) with
@@ -2424,6 +2450,7 @@ export function compileShow(
       },
     }),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
+    generatedAffineEffectKernelSharing: allowAffineKernelSharing,
   }))
   if ((options.effectParameterHoisting ?? true) && expandedRecipe.routedSceneSequence) {
     const placements = expandedRecipe.routedSceneSequence.scenes.flatMap((scene) => scene.placements)
@@ -11298,7 +11325,7 @@ function buildGeneratedEffectKernelPlan(
   members: CompiledMember[],
   outputDimension: ShowOutputDimension,
 ): ShowGeneratedEffectKernelPlan {
-  return planShowGeneratedEffectKernels(members
+  const plan = planShowGeneratedEffectKernels(members
     .filter((member) => member.generatedEffectKernelSharing)
     .map((member) => ({
       id: member.id,
@@ -11318,6 +11345,15 @@ function buildGeneratedEffectKernelPlan(
         staticPlanEffects: member.staticPlanEffects,
       },
     })))
+  if (!members.some((member) => member.generatedAffineEffectKernelSharing === false)) return plan
+  const groups = plan.groups.filter((group) => group.family !== 'affine-scale-rotate-translate')
+  const selectedIds = new Set(groups.flatMap((group) => group.memberIds))
+  return {
+    groups,
+    members: plan.members.map((member) => member.status === 'selected' && !selectedIds.has(member.id)
+      ? { ...member, status: 'unrolled', reason: 'unsupported-family' }
+      : member),
+  }
 }
 
 function emitRuntimePrelude(

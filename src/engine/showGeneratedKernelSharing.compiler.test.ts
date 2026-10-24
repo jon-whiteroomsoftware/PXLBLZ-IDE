@@ -5,6 +5,11 @@ import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { parseEpe } from './epeImport'
 import { emitFixedPoint } from './fxEmit'
 import { convertibleV2Record } from '../test/showEpeV2TestSupport'
+import { stockShowV2ById } from '../pixelblaze/stock/showsV2'
+import { nativeStockSourceLookupV2 } from '../pixelblaze/stock/showsV2Compile'
+import { LIBRARIES } from '../pixelblaze/libs'
+import { compileLibraries } from './libraries'
+import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 
 function repeatedScaleRecipe(memberCount: number, incompatibleIndex = -1): ShowRecipe {
   const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 15 }] }]
@@ -133,6 +138,19 @@ function wholeFrames(recipe: ShowRecipe) {
 }
 
 describe('shared Scale Rotate Translate emission (#1210)', () => {
+  it('declines the affine family when its scratch would remove shipped replay purity', () => {
+    const record = stockShowV2ById('stock-show-remix-quadrille')!
+    const libraries = compileLibraries(LIBRARIES, [])
+    const prepared = prepareShowV2ForCompile(record, nativeStockSourceLookupV2(record), { libraries })
+    if (prepared.status !== 'ready') throw new Error('Quadrille preparation refused')
+    const baseline = compileShow(prepared.recipe, libraries, { generatedEffectKernelSharing: false })
+    expect(baseline.metadata.deterministicReplay?.intermediateRender).toBe('state-pure')
+    const candidate = compileShow(prepared.recipe, libraries)
+    expect(candidate.metadata.deterministicReplay?.intermediateRender).toBe('state-pure')
+    expect(candidate.expandedCode).toBe(baseline.expandedCode)
+    expect(candidate.summary.specializations.generatedEffectKernels.selected).toBe(false)
+  })
+
   it('emits the measured five-input, 45-local form and preserves delivered frames', () => {
     const recipe = affineRecipe()
     const before = structuredClone(recipe)

@@ -66,32 +66,46 @@ describe('generated frame-constant hoisting in compiled Shows (#928)', () => {
   it('is exact across the stock catalogue in both preview modes and removes the census sites', () => {
     let before = 0
     let after = 0
-    const residual: string[] = []
     for (const item of STOCK_SHOWS_V2) {
       const off = compileStock(item.id, false)
       const on = compileStock(item.id, true)
       const offSites = perPixelSiteCount(off.expandedCode)
       const onSites = perPixelSiteCount(on.expandedCode)
       before += offSites
+      // #1210: the shared affine storage must admit all eight Luma hoists.
+      // Assert this before the general capacity check so a removed hoist is
+      // rejected for its actual per-pixel work, even if its pixels still match.
+      if (item.id === 'stock-show-showcase-luma-sources') {
+        expect(offSites).toBe(8)
+        expect(onSites).toBe(0)
+      }
       // A Show already at the 256 persistent-global limit gets no hoists:
       // the cap keeps it artifact-clean and its sites stay per pixel.
       if (onSites > 0) {
         expect(on.summary.resources.persistentGlobals, item.id).toBe(PIXELBLAZE_MAX_PERSISTENT_GLOBALS)
         expect(on.code, item.id).toBe(off.code)
-        residual.push(`${item.id}: ${onSites}/${offSites}`)
       } else {
         after += onSites
+      }
+      // #1210: shared affine working storage frees the globals that previously
+      // kept these eight sites per pixel. Protect the emitted operation sites,
+      // rather than treating an empty residual census as the new oracle.
+      if (item.id === 'stock-show-showcase-luma-sources') {
+        expect(on.summary.resources.persistentGlobals).toBeLessThan(PIXELBLAZE_MAX_PERSISTENT_GLOBALS)
+        const frameBody = on.expandedCode.slice(
+          on.expandedCode.indexOf('export function beforeRender'),
+          on.expandedCode.indexOf('export function render'),
+        )
+        expect(frameBody.match(/ceil\(sqrt\(pixelCount\)\)/g)).toHaveLength(1)
+        expect(renderBody(on.expandedCode).match(/__pxlblz_show_frame_const_\d+/g)).toHaveLength(8)
       }
       expect(checksums(on, 'fast'), item.id).toEqual(checksums(off, 'fast'))
       expect(checksums(on, 'fidelity'), item.id).toEqual(checksums(off, 'fidelity'))
     }
     // Census pinned on 2026-09-01: 286 sites by this count (189 ceil(sqrt(...))
     // plus the `floor(pixelCount *` forms) across the 40 stock Shows' render
-    // bodies. Any residual is a per-pixel-written dependency or a frame-side
-    // helper and is listed.
+    // bodies. The Luma assertions above protect its newly admitted hoist.
     expect(before).toBeGreaterThan(250)
     expect(after).toBe(0)
-    // Pinned 2026-09-01: the Luma sources showcase sits exactly at the limit.
-    expect(residual).toEqual(['stock-show-showcase-luma-sources: 8/8'])
   }, 300_000)
 })
