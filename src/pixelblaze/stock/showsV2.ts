@@ -2513,7 +2513,7 @@ function afterHoursInstallationV2(): ShowRecordV2 {
       return clip(id, id === 'o2' ? 'weak' : id === 'border' ? 'chase' : 'tube', zone, mainLayerId(zone), 0, end, { effects: [
         { id: `${effectOwnerId(id)}-tint`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR, highlightG, highlightB },
         { id: `${effectOwnerId(id)}-white`, kind: 'color-map', amount: 0, shadowR: 0.6, shadowG: 0.6, shadowB: 0.6, highlightR: 0.6, highlightG: 0.6, highlightB: 0.6 },
-      ] })
+      ], ...(id === 'border' ? { aperture: { enabled: true, x: 2, y: 1 / 11 - .02, width: .04, height: .04, aperture: 'rectangle' as const, edge: 'hard' as const, invert: true } } : {}) })
     }),
     propertyTracks: [
       track('weak-health', { kind: 'instance-control', instanceId: 'weak', exportName: 'sliderHealth' }, [
@@ -2527,6 +2527,7 @@ function afterHoursInstallationV2(): ShowRecordV2 {
       opacity('d', [[0, 0], [8000, 1], [8500, 0], [8750, 1], [20000, 0], [21250, 1]]),
       opacity('border', [[0, 0], [12000, 0.6], [12250, 0], [12500, 0.6], [12750, 0], [13000, 0.6]]),
       track('chase-direction', { kind: 'instance-control', instanceId: 'chase', exportName: 'sliderDirection' }, [[0, 1], [24000, 0.5], [24250, 1]]),
+      track('border-dead-bulb', { kind: 'clip-aperture', clipId: 'border', property: 'x' }, [[0, 2], [28250, .98]]),
       ...['arrow1', 'arrow2', 'arrow3', 'head'].map((id, index) => {
         const keys: Key[] = [[0, 0]]
         for (let tip = 16_000; tip <= 80_000; tip += 8_000) {

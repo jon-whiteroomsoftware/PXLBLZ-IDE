@@ -9,11 +9,15 @@ Pattern and the After Hours Installation Show are on main (`5c02397e`,
 `a4009172`, `e8c44bad`). The as-built Show follows this plan; its artifact
 stays under the 68,384 B budget (asserted in `afterHoursShow.test.ts`), and its
 worst one-second flash window covers 0.136 of the sign. The Feature Guide
-describes the built-in content. Precise and hardware playback past 32.7 s
-needed #1197, which has landed; that playback proof, pb32 FPS and bench
-neon-red tuning remain outstanding. After Hours is available for Jon's local
+describes the built-in content. Playback past 32.7 s needed #1197, which has
+landed; full-loop Precise replay is now proved on #1196. Hardware playback,
+pb32 FPS and bench neon-red tuning remain outstanding. After Hours is available for Jon's local
 preview on port 5174 and stays unpushed until he previews it and chooses
 whether to push (#1191).
+
+**Preview follow-up under #1196:** Jon selected the relay spelling, arrow
+variations, chase pause and one dead border bulb. This score is on the issue
+branch for his preview on port 5178; it has not been reviewed or landed.
 
 **The design in one paragraph.** Build After Hours as an Installation Show on a
 new 2D sign map reading **FOOD**, with the **second O** as the failing letter.
@@ -73,9 +77,9 @@ In the dark that follows, the broken letter is the one that comes back.
   ignition.
 - **Steady:** the word is the hero, the chase supports it and the arrow
   punctuates each phrase.
-- **Hint and failure:** the weak letter becomes the hero only by being the one
-  irregular thing. The rest of the sign carries on, indifferent, and its
-  regularity is the foil.
+- **Hint and failure:** the weak letter becomes the hero through its changing
+  fault. The rest of the sign carries on, indifferent; the border's one dead
+  bulb is already a fixed gap, with no new activity during the failure.
 - **The short:** the whole sign, once.
 - **Afterglow:** the survivor alone.
 - **Throughout:** black night with no ambient fill. The furniture (border and
@@ -121,6 +125,10 @@ lamp igniting alone.
   load-coupled hints at 40 and 48 s.
 - The border chase stays continuous furniture. Its one paused step coincides
   with the first 24 s arrow tip; normal forward stepping resumes afterward.
+- At 28.25 s one border bulb stops answering the chase. This clean failure
+  occupies one grid step between the double firing and the pointing sequence.
+  The fixed gap persists through the short and resets at the loop seam; the
+  chase keeps its phase and spacing around it.
 - Healthy lamps and furniture stay on the grid. The fault starts coupled to the
   grid through the arrow and then leaves it. Its health falls in held stages,
   never along a ramp.
@@ -130,10 +138,10 @@ lamp igniting alone.
 | Section | Phrases | Time | What happens |
 | --- | --- | --- | --- |
 | Dark and warm-up | 1-2 | 0-16 s | 2 s of black. The second O sputters first; F, the first O and D ignite cleanly on successive bars, skipping its turn; the border ignites and starts its chase; the second O is the last letter to catch. The arrow's first firing lands on the 16 s downbeat: the diner is open. |
-| Steady | 3-5 | 16-40 s | The ordinary frame gains a relay spelling at 20-21.25 s, with the weak O late. The 24 s arrow double-fires, with one chase pause on its first tip; the 32 s firing leaves its head pointing through 34 s. The word and arrow sequences take turns. |
+| Steady | 3-5 | 16-40 s | The ordinary frame gains a relay spelling at 20-21.25 s, with the weak O late. The 24 s arrow double-fires, with one chase pause on its first tip. A border bulb dies at 28.25 s; the 32 s firing leaves its head pointing through 34 s. The word, bulb failure and arrow sequences take turns. |
 | Hint | 6-7 | 40-56 s | At the arrow's tip the second O drops out for one step; next phrase, twice. Short enough to doubt. |
-| Failure | 8-10 | 56-80 s | Three held stages. First the dips become bursts, still on the arrow's beat. Then the arrow fires and the second O does not answer; it fails on its own time, off the grid. Then it arcs, broken more than lit. Then it steadies: for a moment the sign is whole. |
-| The short | at 80 s | 80-81 s | The arrow's last firing reaches its tip and the whole sign flashes white and dies. The only white and the only whole-sign event. |
+| Failure | 8-10 | 56-80 s | Three held stages. First the dips become bursts, still on the arrow's beat. Then the arrow fires and the second O does not answer; it fails on its own time, off the grid. Then it arcs, broken more than lit. Then it steadies: for a moment the word is whole. |
+| The short | at 80 s | 80-81 s | The arrow's last firing reaches its tip and the sign flashes white and dies. The dead border bulb stays black. The only white and the only whole-sign event. |
 | Afterglow | 11 | 81-92 s | About 2 s of black. The second O alone buzzes back, catches and holds a breath, then stutters out. |
 | Out | 12 | 92-96 s | Black. The loop restarts with the second O, the first to try again: the survivor is first and last. |
 
@@ -180,7 +188,9 @@ and fill step; the phrase length (6 to 10 s); and the sign word.
   finishes before the next starts. The healthy letters ignite once each in
   reading order and then hold; they acquire no new flicker or texture.
 - The border runs independently as continuous furniture, with one held step on
-  the first 24 s arrow tip. New word, arrow and border gestures finish during
+  the first 24 s arrow tip and one bulb's clean death at 28.25 s. The dead
+  bulb misses future chase turns without redistributing the other bulbs, stays
+  black under the white short, and resets with the loop. New word, arrow and border gestures finish during
   Steady, before Hint at 40 s. Nothing new competes with the weak O during the
   56-80 s failure.
 - Besides the chase, one event at a time. The arrow and the weak letter's answer
@@ -199,8 +209,8 @@ and fill step; the phrase length (6 to 10 s); and the sign word.
   structure (coupling to the arrow, held stages, the slip off the grid, the
   false recovery); the tube supplies only texture.
 - **The chase competes with the weak letter.** The furniture is permanently
-  subordinate, dimmer, cooler and on the grid, so the fault wins by being the
-  only irregular thing. Dimming the chase only during the failure would be a
+  subordinate, dimmer, cooler and on the grid. Its lone bulb dies during
+  Steady and is a passive gap by the failure. Dimming the chase during the failure would be a
   whole-sign sag, which the premise rejects.
 - **The dip misses the arrow.** The coupling reads only if the dip lands on the
   tip's own step.
@@ -377,8 +387,11 @@ controls, Health and Seed.
   at Health 1, a constant) under tint color-maps. They ignite and fire on
   held opacity keys, on the grid.
 - **Border chase:** the existing LumaMarquee on a 250 ms stepped clock, tinted
-  blue. Measured: exactly every third bulb is lit, and the lit set advances one
-  index per step.
+  blue. Every third address is lit and advances one index per step, except
+  the authored held step. From 28.25 s, local bulb 23 (physical LED 260) is
+  omitted whenever its turn comes. A held Clip Aperture moves over that bulb
+  after the Effects, so even the short cannot relight it. No extra Zone or
+  Pattern instance is needed.
 - **The short:** a second, white color-map on every Clip. Its amount jumps to 1
   at 80.25 s. Then opacity decays on a cubic-out curve to 0 by 81.05 s; on the
   second O, the white amount decays instead, so it can return. There is no Transition.
@@ -389,7 +402,8 @@ controls, Health and Seed.
   wrong for colour: it would erase the tube's on and off and the chase's bulbs.
 - **The short's white** is the one solid color-map, (0.6, 0.6, 0.6). Erasing
   the source is its job: at amount 1, every pixel of every lamp turns white at
-  once, the unlit bulbs and the dark second O included.
+  once, the unlit bulbs and the dark second O included, except the dead border
+  bulb suppressed by the post-Effect Aperture.
 
 ### State and identity plan
 
@@ -404,6 +418,10 @@ s, and every track is active for its Clip's lifetime, so the Show compiles to
 **one time section**.
 
 ### Cost envelope
+
+The following prototype ledger and marginal estimates predate the Effect
+identity reuse and relay preview. Current compiler measurements and remaining
+headroom are recorded on #1196; this historical estimate is not their oracle.
 
 | Ledger | Budget | Planned peak | Evidence or uncertainty |
 | --- | ---: | ---: | --- |
@@ -459,10 +477,10 @@ no Clip edge, Transition or partial track window falls inside the Show.
 | Section | Time | Mechanism |
 | --- | --- | --- |
 | Dark and warm-up | 0-16 s | O2's Health keys start its sputter at 2 s, and it catches at 13 s. Held opacity keys ignite F at 4 s, O1 at 6 s, D at 8 s and the border at 12-13 s. The chase runs from its first lit step. The first arrow firing runs 15.25-16 s. |
-| Steady | 16-40 s | At 20 s the word resets, then F/O1/O2/D ignite at 20.25/20.5/21/21.25 s; O2 misses its 20.75 s turn. The arrow fills at 23.25-24 s, resets at 24.25 s, fills again at 24.75-25.5 s and goes dark at 26.5 s. The border pauses on the first tip. The next fill runs 31.25-32 s; its shaft goes dark at 32 s and its head holds through 34 s. Every sequence finishes before the next starts. |
+| Steady | 16-40 s | At 20 s the word resets, then F/O1/O2/D ignite at 20.25/20.5/21/21.25 s; O2 misses its 20.75 s turn. The arrow fills at 23.25-24 s, resets at 24.25 s, fills again at 24.75-25.5 s and goes dark at 26.5 s. The border pauses on the first tip. One border bulb dies cleanly at 28.25 s. The next fill runs 31.25-32 s; its shaft goes dark at 32 s and its head holds through 34 s. Every sequence finishes before the next starts. |
 | Hint | 40-56 s | O2's Health drops to 0 for one step at the 40 s tip; at 48 s it drops out twice, a step apart. |
 | Failure | 56-80 s | Held Health stages. Bursts on the beat at 56 and 60 s. The 64 s firing gets no answer, and bursts follow off the grid at 65.37, 67.83 and 70.24 s. Arcing from 72 to 78 s, recovery at 78 s, and the last firing at 79.25-80 s. |
-| The short | 80.25-81.05 s | The white color-map amount goes to 1 on every Clip; opacity (on O2, the white amount) decays to 0 on a cubic-out curve. Under the white, O2's Health drops to 0, so O2 fades to black with the rest. The arrow's tip lights one step before the short, as its cause. |
+| The short | 80.25-81.05 s | The white color-map amount goes to 1 on every Clip; opacity (on O2, the white amount) decays to 0 on a cubic-out curve. The dead border bulb remains black after the white Effect. Under the white, O2's Health drops to 0, so O2 fades to black with the rest. The arrow's tip lights one step before the short, as its cause. |
 | Afterglow and out | 81.05-96 s | Only O2's Health keys: buzz from 83 s, catch at 85.75 s, hold to 90 s, stutter out by 92 s. Every other Clip sits at opacity 0. |
 
 At the loop seam, 92-96 s plus 0-2 s gives six seconds of black. The second O is
@@ -608,7 +626,8 @@ captures belong to the build.
   dark: cause and effect in one frame.
 - **Failure (65.4 s):** the word with the second O dark: FO D. The arrow is dark, and the
   furniture carries on.
-- **The short (80.3 s):** the whole sign in white, already decaying.
+- **The short (80.3 s):** the sign in white, already decaying; the dead border
+  bulb remains black in the #1196 preview follow-up.
 - **Afterglow (87 s):** the second O alone.
 
 The score strip plots each Zone's mean brightness over the full 96 s on the

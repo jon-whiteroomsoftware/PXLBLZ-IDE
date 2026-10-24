@@ -13,6 +13,7 @@ import { validateShowRecordV2 } from './showCompositionV2'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import { nativeStockSourceLookupV2 } from '@/pixelblaze/stock/showsV2Compile'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { emitFixedPoint } from './fxEmit'
 
 const ID = 'stock-show-installation-after-hours'
 const authored = stockShowV2ById(ID)!
@@ -118,7 +119,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     expect(prepared.provenance.derivedSceneIds).toHaveLength(1)
     const resources = artifact.summary.resources
     // #1196 recensus: shared healthy-tube Effect IDs remove duplicate generated state/code;
-    // relay recensus: measured artifactBytes 44,763 (delivered 46,654);
+    // timed dead-bulb recensus: measured artifactBytes 45,125 (delivered 47,016);
     // persistentGlobals 117; totalWords 1,338;
     // remainingWords 8,902; time sections 1.
     expect(resources.blockers).toEqual([])
@@ -131,7 +132,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     expect(stockShowCatalogueById(ID)).toMatchObject({ collection: 'installations', order: 5 })
     expect(record.outputContract).toEqual(installationOutputContract('after-hours-sign', 442))
     expect(record.composition.clips).toHaveLength(9)
-    expect(record.composition.propertyTracks).toHaveLength(19)
+    expect(record.composition.propertyTracks).toHaveLength(20)
     expect(record.composition.patternInstances).toHaveLength(3)
   })
 
@@ -211,11 +212,12 @@ describe('After Hours delivered Installation Show (#1196)', () => {
   })
 
   it('authors every relay and chase key in Steady on the common 250 ms grid', () => {
-    const tracks = record.composition.propertyTracks.filter(t => t.id === 'weak-health' || t.id === 'chase-direction' || t.id.endsWith('-opacity'))
+    const tracks = record.composition.propertyTracks.filter(t => t.id === 'weak-health' || t.id === 'chase-direction' || t.id === 'border-dead-bulb' || t.id.endsWith('-opacity'))
     const keys = tracks.flatMap(t => t.keyframes.filter(k => k.timeMs >= 16000 && k.timeMs < 40000))
     expect(keys.length).toBeGreaterThan(0)
     for (const key of keys) expect(key.timeMs % 250, `${key.id} at ${key.timeMs}`).toBe(0)
     expect(record.composition.propertyTracks.find(t => t.id === 'chase-direction')?.keyframes.map(k => [k.timeMs, k.value])).toEqual([[0, 1], [24000, 0.5], [24250, 1]])
+    expect(record.composition.propertyTracks.find(t => t.id === 'border-dead-bulb')?.keyframes.map(k => [k.timeMs, k.value])).toEqual([[0, 2], [28250, .98]])
   })
 
   it('hints at failure under the arrow load', () => {
@@ -227,14 +229,63 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     expectZone(65400, 2, dark)
     for (const n of [0, 1, 3]) expectZone(65400, n, rgb => lit(rgb) && red(rgb))
     for (const n of [5, 6, 7, 8]) expectZone(65400, n, dark)
-    expect(borderIndices(frameAt(65400))).toHaveLength(47)
+    const indices = borderIndices(frameAt(65400))
+    expect(indices).not.toContain(23)
+    expect(indices).toHaveLength(indices[0] === 2 ? 46 : 47)
   })
 
-  it('shorts every pixel white at 80.3 s', () => {
+  it('shorts 441 pixels white while the dead border bulb stays black at 80.3 s', () => {
     const pixels = frameAt(80300)
     expect(pixels).toHaveLength(442)
-    expect(pixels.every(white)).toBe(true)
+    expect(pixels.filter(white)).toHaveLength(441)
+    expect(pixels[260]).toEqual([0, 0, 0])
   })
+
+  it.each(['fast', 'fidelity'] as const)('loses only bulb 260 after 28.25 s and restores its chase turn next lap (%s)', async fidelity => {
+    const comparison = structuredClone(record)
+    comparison.composition.propertyTracks = comparison.composition.propertyTracks.filter(t => t.id !== 'border-dead-bulb')
+    for (const clip of comparison.composition.clips) if (clip.id === 'border') for (const key of clip.appearance.keys) delete key.value.aperture
+    const file = buildShowFileBundle(comparison, { patterns: [], maps: [] }, { appVersion: 'after-hours-test', exportedAt: '2026-10-23T00:00:00.000Z' })
+    const opened = await parseShowFileBundle(await serializeShowFileBundle(file.bundle), { acceptV2: true })
+    if (opened.version !== 2) throw new Error('wrong export version')
+    const comparisonCapture = captureShowStageEditV2(opened.show, { patterns: [], libraries: [], maps: [], profiles: [], stageMap: resolveShowV2StageMap(opened.show.stageMapId, []) })
+    if (comparisonCapture.prepared.status !== 'ready') throw new Error('comparison failed preparation')
+    const comparisonArtifact = comparisonCapture.prepared.bundle.artifact
+    const exported = buildShowEpeExportV2(opened.show, comparisonArtifact.code)
+    if (exported.status !== 'exported') throw new Error(exported.message)
+    const source = parseEpe(exported.text).src
+    const makeRuntime = (code: string) => createFastReplayRuntime({ code, fxCode: emitFixedPoint(code), metadata: artifact.metadata, dimension: 2 }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity })
+    const current = makeRuntime(delivered), baseline = makeRuntime(source)
+    let outsideError = 0, equalWindowError = 0, deadError = 0, missedTurns = 0, restoredTurns = 0
+    for (let frame = 0; frame <= 3390; frame++) {
+      const t = frame * (1000 / 30)
+      const pixels = current.advanceTo(t, { stepMs: 1000 / 30 }).pixels
+      const before = baseline.advanceTo(t, { stepMs: 1000 / 30 }).pixels
+      for (let i = 0; i < 442; i++) for (let c = 0; c < 3; c++) {
+        const error = Math.abs(pixels[i][c] - before[i][c])
+        if (i !== 260) outsideError = Math.max(outsideError, error)
+        if (t < 28225 || t > 96000) equalWindowError = Math.max(equalWindowError, error)
+      }
+      if (t >= 28275 && t < 96000) deadError = Math.max(deadError, ...pixels[260].map(Math.abs))
+      if (t >= 28250 && t <= 29000 && lit(before[260]) && dark(pixels[260])) missedTurns++
+      if (t > 108000 && lit(pixels[260]) && lit(before[260])) restoredTurns++
+    }
+    expect({ outsideError, equalWindowError, deadError }).toEqual({ outsideError: 0, equalWindowError: 0, deadError: 0 })
+    expect(missedTurns).toBeGreaterThan(0)
+    expect(restoredTurns).toBeGreaterThan(0)
+    const playback = makeRuntime(delivered), comparisonPlayback = makeRuntime(source)
+    for (const t of [28225, 28275, 80300, 108275, 112025]) {
+      const pixels = playback.advanceTo(t, { stepMs: 25 }).pixels
+      const before = comparisonPlayback.advanceTo(t, { stepMs: 25 }).pixels
+      expectEqual(pixels, makeRuntime(delivered).advanceTo(t, { stepMs: 25 }).pixels)
+      if (t === 28225 || t > 96000) expectEqual(pixels, before)
+      else expect(pixels[260]).toEqual([0, 0, 0])
+      if (t === 80300) {
+        expect(before.every(white)).toBe(true)
+        expect(pixels.filter(white)).toHaveLength(441)
+      }
+    }
+  }, 30_000)
 
   it('leaves only the broken O glowing at 87 s', () => {
     expectZone(87000, 2, rgb => lit(rgb) && red(rgb))
