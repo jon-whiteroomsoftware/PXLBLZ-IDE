@@ -2488,6 +2488,8 @@ function afterHoursInstallationV2(): ShowRecordV2 {
     propertyTrack(id, target, 0, end, keys.map(([time, value, easing], n) => propertyKey(`${id}-${n}`, time, value, easing ?? HOLD)))
   const zones = physicalZones(['F', 'O', 'Second O', 'D', 'Border', 'Arrow 1', 'Arrow 2', 'Arrow 3', 'Arrow head'], [50, 60, 60, 67, 141, 16, 16, 16, 16])
   const lamps = ['f', 'o1', 'o2', 'd', 'border', 'arrow1', 'arrow2', 'arrow3', 'head']
+  // Shared Effect identity retains placement-specific values and Clip-scoped tracks.
+  const effectOwnerId = (id: string) => id === 'o2' || id === 'border' ? id : 'tube'
   const short: Key[] = [[80_250, 1, CUBIC_OUT], [81_050, 0]]
   const opacity = (id: string, keys: Key[]) => track(`${id}-opacity`, { kind: 'clip-opacity', clipId: id }, [...keys, ...short])
   return nativeShowV2({
@@ -2506,8 +2508,8 @@ function afterHoursInstallationV2(): ShowRecordV2 {
       const [highlightR, highlightG, highlightB] = index < 4 ? [1, 0.08, 0.02] : [0.16, 0.36, 1]
       const zone = zones[index].id
       return clip(id, id === 'o2' ? 'weak' : id === 'border' ? 'chase' : 'tube', zone, mainLayerId(zone), 0, end, { effects: [
-        { id: `${id}-tint`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR, highlightG, highlightB },
-        { id: `${id}-white`, kind: 'color-map', amount: 0, shadowR: 0.6, shadowG: 0.6, shadowB: 0.6, highlightR: 0.6, highlightG: 0.6, highlightB: 0.6 },
+        { id: `${effectOwnerId(id)}-tint`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR, highlightG, highlightB },
+        { id: `${effectOwnerId(id)}-white`, kind: 'color-map', amount: 0, shadowR: 0.6, shadowG: 0.6, shadowB: 0.6, highlightR: 0.6, highlightG: 0.6, highlightB: 0.6 },
       ] })
     }),
     propertyTracks: [
@@ -2529,7 +2531,7 @@ function afterHoursInstallationV2(): ShowRecordV2 {
         }
         return opacity(id, keys)
       }),
-      ...lamps.map(id => track(`${id}-white-amount`, { kind: 'clip-effect', clipId: id, effectId: `${id}-white`, effectKind: 'color-map', parameterId: 'amount' },
+      ...lamps.map(id => track(`${id}-white-amount`, { kind: 'clip-effect', clipId: id, effectId: `${effectOwnerId(id)}-white`, effectKind: 'color-map', parameterId: 'amount' },
         id === 'o2' ? [[0, 0], ...short] : [[0, 0], [80_250, 1]])),
     ],
     markers: [chapter('m-warmup', 0, 'Warm-up'), chapter('m-steady', 16_000, 'Steady'), chapter('m-hint', 40_000, 'Hint'), chapter('m-failure', 56_000, 'Failure'), chapter('m-short', 80_000, 'The short'), chapter('m-afterglow', 81_000, 'Afterglow'), chapter('m-out', 92_000, 'Out')],

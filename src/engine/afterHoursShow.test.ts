@@ -107,7 +107,8 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     if (prepared.status !== 'ready') throw new Error('compile refused')
     expect(prepared.provenance.derivedSceneIds).toHaveLength(1)
     const resources = artifact.summary.resources
-    // #1196 measured: artifactBytes 67,733; persistentGlobals 201; totalWords 1,338;
+    // #1196 recensus: shared healthy-tube Effect IDs remove duplicate generated state/code;
+    // measured artifactBytes 42,871; persistentGlobals 117; totalWords 1,338;
     // remainingWords 8,902; time sections 1.
     expect(resources.blockers).toEqual([])
     expect(resources.artifactBytes).toBeLessThan(68_384)
