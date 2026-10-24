@@ -1,5 +1,5 @@
 import type { ShowClipEffect } from './personalContentRecords'
-import { showEffectParameterNames } from './showEffects'
+import { isShowColorEffect, showEffectParameterNames } from './showEffects'
 
 export interface ShowGeneratedEffectKernelMember {
   id: string
@@ -21,7 +21,7 @@ export interface ShowGeneratedEffectKernelMember {
 
 export interface ShowGeneratedEffectKernelGroup {
   id: string
-  family: 'affine-scale'
+  family: 'affine-scale' | 'affine-scale-rotate-translate'
   memberIds: string[]
   parameterNames: string[]
   privateStatePolicy: 'member-owned'
@@ -97,6 +97,7 @@ export const SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION = {
 interface Candidate {
   member: ShowGeneratedEffectKernelMember
   key: string
+  family: ShowGeneratedEffectKernelGroup['family']
 }
 
 export function planShowGeneratedEffectKernels(
@@ -105,11 +106,15 @@ export function planShowGeneratedEffectKernels(
   const candidates: Candidate[] = []
   const unsupported = new Set<string>()
   for (const member of members) {
-    if (!isNarrowScaleFamily(member)) {
+    if (isNarrowScaleFamily(member)) {
+      candidates.push({ member, key: structuralKey(member), family: 'affine-scale' })
+    } else if (isScaleRotateTranslateFamily(member)) {
+      // Only the arithmetic is shared. All parameter values, clocks, Controls,
+      // output Effects and adaptation remain in the member's own update path.
+      candidates.push({ member, key: 'affine-scale-rotate-translate', family: 'affine-scale-rotate-translate' })
+    } else {
       unsupported.add(member.id)
-      continue
     }
-    candidates.push({ member, key: structuralKey(member) })
   }
 
   const byKey = new Map<string, Candidate[]>()
@@ -122,10 +127,12 @@ export function planShowGeneratedEffectKernels(
   const repeated = [...byKey.values()].filter((group) => group.length >= 2)
   const selectedIds = new Set(repeated.flatMap((group) => group.map((candidate) => candidate.member.id)))
   const groups = repeated.map((group, index): ShowGeneratedEffectKernelGroup => ({
-    id: `affine-scale-${index}`,
-    family: 'affine-scale',
+    id: `${group[0].family}-${index}`,
+    family: group[0].family,
     memberIds: group.map((candidate) => candidate.member.id),
-    parameterNames: ['x', 'y'],
+    parameterNames: group[0].family === 'affine-scale'
+      ? ['x', 'y']
+      : ['scale.x', 'scale.y', 'rotate.turns', 'translate.x', 'translate.y'],
     privateStatePolicy: 'member-owned',
     controlPolicy: 'member-owned',
     clockPolicy: 'member-owned',
@@ -171,4 +178,12 @@ function structuralKey(member: ShowGeneratedEffectKernelMember): string {
     adaptationShape: member.adaptationShape,
     compositionEnvironment: member.compositionEnvironment,
   })
+}
+
+function isScaleRotateTranslateFamily(member: ShowGeneratedEffectKernelMember): boolean {
+  return !member.compositionEnvironment.staticPlanEffects
+    && member.effects[0]?.kind === 'scale'
+    && member.effects[1]?.kind === 'rotate'
+    && member.effects[2]?.kind === 'translate'
+    && member.effects.slice(3).every(isShowColorEffect)
 }

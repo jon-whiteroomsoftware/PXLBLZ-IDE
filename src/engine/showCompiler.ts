@@ -814,14 +814,14 @@ export interface ShowCompileSummary {
       selected: boolean
       representation: 'unrolled' | 'shared-parameterized'
       reason: 'selected' | 'disabled' | 'no-repeat'
-      family: 'affine-scale' | null
+      family: ShowGeneratedEffectKernelGroup['family'] | 'mixed' | null
       kernelCount: number
       memberCount: number
       parameterScalarGlobals: number
       sharedResultGlobals: number
       persistentGlobalsAvoided: number
       perPixelBranchesAdded: 0
-      qualification: typeof SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION
+      qualification: typeof SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION | null
       members: Array<{
         id: string
         status: 'selected' | 'unrolled'
@@ -3100,6 +3100,7 @@ export function compileShow(
   const generatedEffectKernelPersistentGlobalsAvoided = generatedEffectKernelPlan.groups.reduce((sum, group) => (
     sum + (group.memberIds.length - 1) * 6
   ), 0)
+  const generatedEffectKernelFamilies = new Set(generatedEffectKernelPlan.groups.map((group) => group.family))
   const metadata = buildMetadata(members, compiledOutputDimension, trailsSelected)
   const runtimeMetadata = inspectPatternMetadata(code)
   const runtimeGlobals = new Set(runtimeMetadata.patternVars)
@@ -3676,14 +3677,17 @@ export function compileShow(
         reason: !generatedEffectKernelSharing
           ? 'disabled'
           : generatedEffectKernelPlan.groups.length > 0 ? 'selected' : 'no-repeat',
-        family: generatedEffectKernelPlan.groups.length > 0 ? 'affine-scale' : null,
+        family: generatedEffectKernelFamilies.size > 1 ? 'mixed' : generatedEffectKernelPlan.groups[0]?.family ?? null,
         kernelCount: generatedEffectKernelPlan.groups.length,
         memberCount: selectedGeneratedEffectKernelMemberCount,
-        parameterScalarGlobals: selectedGeneratedEffectKernelMemberCount * 2,
+        parameterScalarGlobals: generatedEffectKernelPlan.groups.reduce((sum, group) => (
+          sum + group.memberIds.length * group.parameterNames.length
+        ), 0),
         sharedResultGlobals: generatedEffectKernelPlan.groups.length * 6,
         persistentGlobalsAvoided: generatedEffectKernelPersistentGlobalsAvoided,
         perPixelBranchesAdded: 0,
-        qualification: SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION,
+        qualification: generatedEffectKernelFamilies.has('affine-scale-rotate-translate')
+          ? null : SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION,
         members: generatedEffectKernelPlan.members,
       },
       contentKeys: describeContentKeySpecialization(expandedRecipe, members, routedOutputDimension),
@@ -10670,8 +10674,84 @@ function memberCoordinateTransformResetAssignments(member: CompiledMember): stri
 }
 
 interface SharedEffectKernelBinding {
+  family: ShowGeneratedEffectKernelGroup['family']
   functionName: string
   outputPrefix: string
+}
+
+// Preserve the operation-by-operation Pixelblaze form, including all temporary
+// assignments and the determinant guard. Shared kernels change storage, not math.
+function emitAffineEffectUpdate(
+  effects: ShowClipEffect[],
+  working: string,
+  output: string,
+  operationSuffix: (index: number) => string,
+  parameter: (effect: ShowClipEffect, name: string) => string,
+  localWorking = false,
+): string {
+  const operationAssignments = effects.flatMap((effect, index) => {
+    if (!['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)) return []
+    const suffix = operationSuffix(index)
+    const operation = effect.kind === 'translate'
+      ? `  var ${suffix}_a = 1
+  var ${suffix}_b = 0
+  var ${suffix}_c = 0
+  var ${suffix}_d = 1
+  var ${suffix}_tx = ${parameter(effect, 'x')}
+  var ${suffix}_ty = ${parameter(effect, 'y')}`
+      : effect.kind === 'rotate'
+        ? `  var ${suffix}_cos = cos(${parameter(effect, 'turns')} * PI2)
+  var ${suffix}_sin = sin(${parameter(effect, 'turns')} * PI2)
+  var ${suffix}_a = ${suffix}_cos
+  var ${suffix}_b = ${suffix}_sin
+  var ${suffix}_c = -${suffix}_sin
+  var ${suffix}_d = ${suffix}_cos
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
+        : effect.kind === 'scale'
+          ? `  var ${suffix}_a = ${parameter(effect, 'x')}
+  var ${suffix}_b = 0
+  var ${suffix}_c = 0
+  var ${suffix}_d = ${parameter(effect, 'y')}
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_d * 0.5`
+          : `  var ${suffix}_a = 1
+  var ${suffix}_b = ${parameter(effect, 'y')}
+  var ${suffix}_c = ${parameter(effect, 'x')}
+  var ${suffix}_d = 1
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
+    return [`${operation}
+  var ${suffix}_next_a = ${suffix}_a * ${working}_ma + ${suffix}_c * ${working}_mb
+  var ${suffix}_next_b = ${suffix}_b * ${working}_ma + ${suffix}_d * ${working}_mb
+  var ${suffix}_next_c = ${suffix}_a * ${working}_mc + ${suffix}_c * ${working}_md
+  var ${suffix}_next_d = ${suffix}_b * ${working}_mc + ${suffix}_d * ${working}_md
+  var ${suffix}_next_tx = ${suffix}_a * ${working}_mtx + ${suffix}_c * ${working}_mty + ${suffix}_tx
+  var ${suffix}_next_ty = ${suffix}_b * ${working}_mtx + ${suffix}_d * ${working}_mty + ${suffix}_ty
+  ${working}_ma = ${suffix}_next_a
+  ${working}_mb = ${suffix}_next_b
+  ${working}_mc = ${suffix}_next_c
+  ${working}_md = ${suffix}_next_d
+  ${working}_mtx = ${suffix}_next_tx
+  ${working}_mty = ${suffix}_next_ty`]
+  })
+  const declaration = localWorking ? 'var ' : ''
+  return `
+  ${declaration}${working}_ma = 1
+  ${declaration}${working}_mb = 0
+  ${declaration}${working}_mc = 0
+  ${declaration}${working}_md = 1
+  ${declaration}${working}_mtx = 0
+  ${declaration}${working}_mty = 0
+${operationAssignments.join('\n')}
+  var ${working}_det = ${working}_ma * ${working}_md - ${working}_mb * ${working}_mc
+  if (abs(${working}_det) < 0.000001) ${working}_det = ${working}_det < 0 ? -0.000001 : 0.000001
+  ${output}_a = ${working}_md / ${working}_det
+  ${output}_b = -${working}_mb / ${working}_det
+  ${output}_c = -${working}_mc / ${working}_det
+  ${output}_d = ${working}_ma / ${working}_det
+  ${output}_tx = (${working}_mc * ${working}_mty - ${working}_md * ${working}_mtx) / ${working}_det
+  ${output}_ty = (${working}_mb * ${working}_mtx - ${working}_ma * ${working}_mty) / ${working}_det`
 }
 
 function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: SharedEffectKernelBinding): {
@@ -10698,52 +10778,6 @@ function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: Shar
           `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
         ))
   ))
-  const operationAssignments = member.effects.flatMap((effect, index) => {
-    if (!['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)) return []
-    const suffix = `${member.prefix}_fx_o${index}`
-    const operation = effect.kind === 'translate'
-      ? `  var ${suffix}_a = 1
-  var ${suffix}_b = 0
-  var ${suffix}_c = 0
-  var ${suffix}_d = 1
-  var ${suffix}_tx = ${effectParameterVariable(member, effect.id, 'x')}
-  var ${suffix}_ty = ${effectParameterVariable(member, effect.id, 'y')}`
-      : effect.kind === 'rotate'
-        ? `  var ${suffix}_cos = cos(${effectParameterVariable(member, effect.id, 'turns')} * PI2)
-  var ${suffix}_sin = sin(${effectParameterVariable(member, effect.id, 'turns')} * PI2)
-  var ${suffix}_a = ${suffix}_cos
-  var ${suffix}_b = ${suffix}_sin
-  var ${suffix}_c = -${suffix}_sin
-  var ${suffix}_d = ${suffix}_cos
-  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
-  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
-        : effect.kind === 'scale'
-          ? `  var ${suffix}_a = ${effectParameterVariable(member, effect.id, 'x')}
-  var ${suffix}_b = 0
-  var ${suffix}_c = 0
-  var ${suffix}_d = ${effectParameterVariable(member, effect.id, 'y')}
-  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5
-  var ${suffix}_ty = 0.5 - ${suffix}_d * 0.5`
-          : `  var ${suffix}_a = 1
-  var ${suffix}_b = ${effectParameterVariable(member, effect.id, 'y')}
-  var ${suffix}_c = ${effectParameterVariable(member, effect.id, 'x')}
-  var ${suffix}_d = 1
-  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
-  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
-    return [`${operation}
-  var ${suffix}_next_a = ${suffix}_a * ${member.prefix}_fx_ma + ${suffix}_c * ${member.prefix}_fx_mb
-  var ${suffix}_next_b = ${suffix}_b * ${member.prefix}_fx_ma + ${suffix}_d * ${member.prefix}_fx_mb
-  var ${suffix}_next_c = ${suffix}_a * ${member.prefix}_fx_mc + ${suffix}_c * ${member.prefix}_fx_md
-  var ${suffix}_next_d = ${suffix}_b * ${member.prefix}_fx_mc + ${suffix}_d * ${member.prefix}_fx_md
-  var ${suffix}_next_tx = ${suffix}_a * ${member.prefix}_fx_mtx + ${suffix}_c * ${member.prefix}_fx_mty + ${suffix}_tx
-  var ${suffix}_next_ty = ${suffix}_b * ${member.prefix}_fx_mtx + ${suffix}_d * ${member.prefix}_fx_mty + ${suffix}_ty
-  ${member.prefix}_fx_ma = ${suffix}_next_a
-  ${member.prefix}_fx_mb = ${suffix}_next_b
-  ${member.prefix}_fx_mc = ${suffix}_next_c
-  ${member.prefix}_fx_md = ${suffix}_next_d
-  ${member.prefix}_fx_mtx = ${suffix}_next_tx
-  ${member.prefix}_fx_mty = ${suffix}_next_ty`]
-  })
   // #558: animated frame-invariant color-effect coefficients refresh in the
   // same per-frame hook as the affine matrix (parameters are always written
   // before the advance/update call).
@@ -10751,25 +10785,14 @@ function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: Shar
   const colorUpdateLines = member.animatedEffects
     ? colorDefs.map((def) => `  ${def.name} = ${def.expression}`)
     : []
-  const updateFunction = `function ${member.prefix}_fx_update() {${hasAffine ? `
-  ${member.prefix}_fx_ma = 1
-  ${member.prefix}_fx_mb = 0
-  ${member.prefix}_fx_mc = 0
-  ${member.prefix}_fx_md = 1
-  ${member.prefix}_fx_mtx = 0
-  ${member.prefix}_fx_mty = 0
-${operationAssignments.join('\n')}
-  var ${member.prefix}_fx_det = ${member.prefix}_fx_ma * ${member.prefix}_fx_md - ${member.prefix}_fx_mb * ${member.prefix}_fx_mc
-  if (abs(${member.prefix}_fx_det) < 0.000001) ${member.prefix}_fx_det = ${member.prefix}_fx_det < 0 ? -0.000001 : 0.000001
-  ${member.prefix}_fx_a = ${member.prefix}_fx_md / ${member.prefix}_fx_det
-  ${member.prefix}_fx_b = -${member.prefix}_fx_mb / ${member.prefix}_fx_det
-  ${member.prefix}_fx_c = -${member.prefix}_fx_mc / ${member.prefix}_fx_det
-  ${member.prefix}_fx_d = ${member.prefix}_fx_ma / ${member.prefix}_fx_det
-  ${member.prefix}_fx_tx = (${member.prefix}_fx_mc * ${member.prefix}_fx_mty - ${member.prefix}_fx_md * ${member.prefix}_fx_mtx) / ${member.prefix}_fx_det
-  ${member.prefix}_fx_ty = (${member.prefix}_fx_mb * ${member.prefix}_fx_mtx - ${member.prefix}_fx_ma * ${member.prefix}_fx_mty) / ${member.prefix}_fx_det` : ''}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
+  const updateFunction = `function ${member.prefix}_fx_update() {${hasAffine ? emitAffineEffectUpdate(
+    member.effects, `${member.prefix}_fx`, `${member.prefix}_fx`,
+    (index) => `${member.prefix}_fx_o${index}`,
+    (effect, name) => effectParameterVariable(member, effect.id, name),
+  ) : ''}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
 }`
   const sharedUpdateFunction = sharedKernel
-    ? `function ${member.prefix}_fx_update() {${emitSharedScaleMemberUpdate(member, sharedKernel)}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
+    ? `function ${member.prefix}_fx_update() {${emitSharedEffectMemberUpdate(member, sharedKernel)}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
 }`
     : ''
   return {
@@ -11222,14 +11245,47 @@ function ${binding.functionName}(x, y) {
 }`
 }
 
-function emitSharedScaleMemberUpdate(member: CompiledMember, binding: SharedEffectKernelBinding): string {
+function emitSharedScaleRotateTranslateKernel(binding: SharedEffectKernelBinding): string {
+  const output = binding.outputPrefix
+  // Synthetic descriptors drive the same emitter as private member updates.
+  // Values live in the five arguments, never in shared member/Pattern state.
+  const effects: ShowClipEffect[] = [
+    { id: 'scale', kind: 'scale', x: 1, y: 1 },
+    { id: 'rotate', kind: 'rotate', turns: 0 },
+    { id: 'translate', kind: 'translate', x: 0, y: 0 },
+  ]
+  const body = emitAffineEffectUpdate(
+    effects, 'k', output, (index) => `o${index}`,
+    (effect, name) => `${effect.id}_${name}`, true,
+  )
+  return `var ${output}_a = 1
+var ${output}_b = 0
+var ${output}_c = 0
+var ${output}_d = 1
+var ${output}_tx = 0
+var ${output}_ty = 0
+function ${binding.functionName}(scale_x, scale_y, rotate_turns, translate_x, translate_y) {${body}
+}`
+}
+
+function emitSharedEffectMemberUpdate(member: CompiledMember, binding: SharedEffectKernelBinding): string {
   const scale = member.effects.find((effect) => effect.kind === 'scale')
   if (!scale) throw new Error(`Shared scale kernel member "${member.id}" has no Scale Effect.`)
   const x = effectParameterVariable(member, scale.id, 'x')
   const y = effectParameterVariable(member, scale.id, 'y')
+  const args = [x, y]
+  if (binding.family === 'affine-scale-rotate-translate') {
+    const rotate = member.effects[1]
+    const translate = member.effects[2]
+    args.push(
+      effectParameterVariable(member, rotate.id, 'turns'),
+      effectParameterVariable(member, translate.id, 'x'),
+      effectParameterVariable(member, translate.id, 'y'),
+    )
+  }
   const output = binding.outputPrefix
   return `
-  ${binding.functionName}(${x}, ${y})
+  ${binding.functionName}(${args.join(', ')})
   ${member.prefix}_fx_a = ${output}_a
   ${member.prefix}_fx_b = ${output}_b
   ${member.prefix}_fx_c = ${output}_c
@@ -11295,8 +11351,9 @@ function emitRuntimePrelude(
   const sharedEffectKernels = sharedEffectKernelPlan.groups.map((group, index) => ({
     group,
     binding: {
-      functionName: `__pxlblz_show_fxk_scale_${index}`,
-      outputPrefix: `__pxlblz_show_fxk_scale_${index}`,
+      family: group.family,
+      functionName: `__pxlblz_show_fxk_${group.family === 'affine-scale' ? 'scale' : 'scale_rotate_translate'}_${index}`,
+      outputPrefix: `__pxlblz_show_fxk_${group.family === 'affine-scale' ? 'scale' : 'scale_rotate_translate'}_${index}`,
     } satisfies SharedEffectKernelBinding,
   }))
   const sharedEffectKernelByMemberId = new Map(sharedEffectKernels.flatMap(({ group, binding }) => (
@@ -11702,7 +11759,8 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),
     ...(vignetteScalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(vignetteScalarFields)] : []),
-    ...sharedEffectKernels.map(({ group, binding }) => emitSharedScaleKernel(group, binding)),
+    ...sharedEffectKernels.map(({ group, binding }) => group.family === 'affine-scale'
+      ? emitSharedScaleKernel(group, binding) : emitSharedScaleRotateTranslateKernel(binding)),
     ...memberVars,
     ...(usesHsv ? [`function __pxlblz_show_capture_rgb(slot, r, g, b) {
   ${captureBranches}

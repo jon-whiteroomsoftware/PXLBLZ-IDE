@@ -1,5 +1,10 @@
 import { createFastReplayRuntime } from './fastReplay'
 import { compileShow, type GeneratedShowArtifact, type ShowRecipe } from './showCompiler'
+import type { ShowClipEffect } from './personalContentRecords'
+import { buildShowEpeExportV2 } from './showEpeExportV2'
+import { parseEpe } from './epeImport'
+import { emitFixedPoint } from './fxEmit'
+import { convertibleV2Record } from '../test/showEpeV2TestSupport'
 
 function repeatedScaleRecipe(memberCount: number, incompatibleIndex = -1): ShowRecipe {
   const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 15 }] }]
@@ -50,6 +55,164 @@ function repeatedScaleRecipe(memberCount: number, incompatibleIndex = -1): ShowR
     loopDurationMs: memberCount * 1_000,
   }
 }
+
+function affineRecipe(simultaneous = false, scale = 0.8, turns = 0.25): ShowRecipe {
+  const recipe = repeatedScaleRecipe(3, 2)
+  for (const [index, clip] of recipe.clips.entries()) {
+    clip.source = `export var gain = ${0.3 + index * 0.1}
+export var phase = 0
+export function sliderGain(v) { gain = v }
+export function beforeRender(delta) { phase += delta / 10000 }
+export function render2D(index, x, y) { rgb(x * gain, y * gain, wave(phase + index / pixelCount)) }`
+    clip.controlTargets = { sliderGain: 0.3 + index * 0.2 }
+    if (index < 2) clip.effects = [
+      { id: `scale-${index}`, kind: 'scale', x: scale, y: index ? -0.7 : 0.9 },
+      { id: `rotate-${index}`, kind: 'rotate', turns: turns + index * 0.25 },
+      { id: `translate-${index}`, kind: 'translate', x: index * 0.1, y: -0.15 },
+      index === 0 ? { id: 'hue', kind: 'hue', turns: 0.1 }
+        : { id: 'key', kind: 'chroma-key', color: '#123456', tolerance: 0.1, softness: 0 },
+    ] satisfies ShowClipEffect[]
+  }
+  const scenes = recipe.routedSceneSequence!.scenes
+  for (const [index, scene] of scenes.entries()) {
+    scene.placements[0].effects = recipe.clips[index].effects
+    if (index === 1) {
+      const track = scene.propertyTracks![0]
+      if (track.target.kind !== 'placement-effect') throw new Error('fixture target changed')
+      track.target.effectId = 'rotate-1'
+      track.target.effectKind = 'rotate'
+      track.target.parameterId = 'turns'
+      track.keyframes[0].value = turns
+      track.keyframes[1].value = turns + 0.5
+    }
+  }
+  if (simultaneous) {
+    const zones = recipe.clips.map((clip, i) => ({ id: clip.id, name: clip.id, ranges: [{ start: i * 5, end: i === 2 ? 15 : i * 5 + 4 }] }))
+    recipe.zones = zones
+    recipe.routingLayouts = [{ id: 'main', name: 'main', zones }]
+    for (const [index, scene] of scenes.entries()) {
+      scene.placements = recipe.clips.map((clip, i) => ({
+        placementId: `placement-${index}-${i}`, clipId: clip.id, zoneName: clip.id, effects: clip.effects,
+      }))
+      const target = scene.propertyTracks![0].target
+      if (target.kind !== 'placement-effect') throw new Error('fixture target changed')
+      target.placementId = `placement-${index}-${index}`
+      if (index % 2) scene.placements.reverse()
+      if (index < 2) scene.transitionOut = { kind: 'crossfade', durationMs: 200 }
+    }
+  }
+  return recipe
+}
+
+function wholeFrames(recipe: ShowRecipe) {
+  const shared = compileShow(recipe, {})
+  const original = compileShow(recipe, {}, { generatedEffectKernelSharing: false })
+  for (const fidelity of ['fast', 'fidelity'] as const) {
+    const replay = (artifact: GeneratedShowArtifact) => {
+      const exported = buildShowEpeExportV2(convertibleV2Record(), artifact.code, { id: '1210-kernel', stampedAt: '2026-10-24T00:00:00.000Z' })
+      if (exported.status !== 'exported') throw new Error(exported.message)
+      const code = parseEpe(exported.text).src
+      return createFastReplayRuntime({ code, fxCode: emitFixedPoint(code), metadata: artifact.metadata, dimension: 2 }, {
+        mapPoints: Array.from({ length: 16 }, (_, i) => ({ sample: [(i % 4) / 3, Math.floor(i / 4) / 3] })), randomSeed: 1210, fidelity,
+      })
+    }
+    const a = replay(shared), b = replay(original)
+    const initialA = a.snapshot(), initialB = b.snapshot()
+    let previous = 0
+    for (const time of [0, 1, 499, 500, 999, 1000, 1001, 1199, 1200, 1999, 2000, 2999, 3000, 3001, 6100, 0, 750, 750, 0, 1250]) {
+      if (time < previous) { a.restore(initialA); b.restore(initialB) }
+      const actual = Array.from(a.advanceTo(time, { stepMs: 25, forceFullIntermediateRender: true }).frame)
+      const expected = Array.from(b.advanceTo(time, { stepMs: 25, forceFullIntermediateRender: true }).frame)
+      expect(actual.every(Number.isFinite), `${fidelity}/${time}: finite shared RGB`).toBe(true)
+      expect(expected.every(Number.isFinite), `${fidelity}/${time}: finite original RGB`).toBe(true)
+      expect(actual, `${fidelity}/${time}: complete delivered Stage`).toEqual(expected)
+      previous = time
+    }
+  }
+  return { shared, original }
+}
+
+describe('shared Scale Rotate Translate emission (#1210)', () => {
+  it('emits the measured five-input, 45-local form and preserves delivered frames', () => {
+    const recipe = affineRecipe()
+    const before = structuredClone(recipe)
+    const { shared, original } = wholeFrames(recipe)
+    const helper = shared.expandedCode.match(/function __pxlblz_show_fxk_scale_rotate_translate_0\(([^)]*)\) \{([\s\S]*?)^\}/m)
+    expect(helper).not.toBeNull()
+    expect(helper![1].split(',')).toHaveLength(5)
+    expect(helper![2].match(/\bvar /g)).toHaveLength(45)
+    expect(shared.summary.specializations.generatedEffectKernels).toMatchObject({
+      family: 'affine-scale-rotate-translate', memberCount: 2, parameterScalarGlobals: 10,
+      sharedResultGlobals: 6, persistentGlobalsAvoided: 6, qualification: null, perPixelBranchesAdded: 0,
+    })
+    expect(Buffer.byteLength(shared.code)).toBeLessThan(Buffer.byteLength(original.code))
+    expect(shared.summary.resources.persistentGlobals).toBeLessThan(original.summary.resources.persistentGlobals)
+    expect(shared.summary.resources.totalWords).toBeLessThanOrEqual(original.summary.resources.totalWords)
+    expect(recipe).toEqual(before)
+  })
+
+  it('retains private matrices and color work through simultaneous Zones, alternating updates and crossfades', () => {
+    const { shared } = wholeFrames(affineRecipe(true))
+    expect(shared.summary.specializations.generatedEffectKernels.family).toBe('affine-scale-rotate-translate')
+  })
+
+  it('retains absent Luma/Chroma identity tolerance -1 and softness 0 across placements', () => {
+    const recipe = affineRecipe(true)
+    for (const [index, scene] of recipe.routedSceneSequence!.scenes.entries()) {
+      for (const placement of scene.placements) {
+        if (placement.clipId === 'member-0' && index === 0) placement.effects = [
+          ...placement.effects!.slice(0, 3),
+          { id: 'luma', kind: 'luma-key', target: 0.5, tolerance: 0.05, softness: 0 },
+        ]
+        if (placement.clipId === 'member-1' && index === 2) placement.effects = placement.effects!.slice(0, 3)
+      }
+    }
+    const { shared } = wholeFrames(recipe)
+    expect(shared.summary.specializations.generatedEffectKernels.family).toBe('affine-scale-rotate-translate')
+    expect(shared.expandedCode).toMatch(/_tolerance = -1/)
+    expect(shared.expandedCode).toMatch(/_softness = 0/)
+  })
+
+  it.each(['single', 'static', 'incomplete', 'reordered', 'coordinate-tail'])(
+    'preserves the original unrolled source for %s affine members', (shape) => {
+      const recipe = affineRecipe()
+      for (const [index, scene] of recipe.routedSceneSequence!.scenes.entries()) {
+        const effects = recipe.clips[index].effects!
+        if (index < 2) {
+          if (shape === 'incomplete' || (shape === 'single' && index === 1)) effects.splice(2, 1)
+          if (shape === 'reordered') [effects[0], effects[1]] = [effects[1], effects[0]]
+          if (shape === 'coordinate-tail') effects.push({ id: 'extra', kind: 'shear', x: 0.1, y: 0 })
+        }
+        if (shape === 'static') scene.propertyTracks = []
+      }
+      const original = compileShow(recipe, {}, { generatedEffectKernelSharing: false })
+      const candidate = compileShow(recipe, {})
+      expect(candidate.summary.specializations.generatedEffectKernels.selected).toBe(false)
+      expect(candidate.expandedCode).toBe(original.expandedCode)
+    },
+  )
+
+  it.each([[-0.8, -0.5], [0, 0], [0.0000001, 0.5], [-0.0000001, 1]])(
+    'retains guard and operator order for scale %s and rotation %s', (scale, turns) => {
+      const { shared } = wholeFrames(affineRecipe(false, scale, turns))
+      expect(shared.summary.specializations.generatedEffectKernels.selected).toBe(true)
+    },
+  )
+
+  it('accounts for mixed families without extending Scale hardware qualification', () => {
+    const recipe = repeatedScaleRecipe(4)
+    const affine = affineRecipe()
+    for (let i = 0; i < 2; i++) {
+      recipe.clips[i] = affine.clips[i]
+      recipe.routedSceneSequence!.scenes[i] = affine.routedSceneSequence!.scenes[i]
+    }
+    const shared = compileShow(recipe, {})
+    expect(shared.summary.specializations.generatedEffectKernels).toMatchObject({
+      family: 'mixed', kernelCount: 2, memberCount: 4, parameterScalarGlobals: 14,
+      sharedResultGlobals: 12, persistentGlobalsAvoided: 12, qualification: null,
+    })
+  })
+})
 
 describe('shared generated Effect kernel emission (#538)', () => {
   it('emits one scale kernel while retaining member-owned matrices', () => {

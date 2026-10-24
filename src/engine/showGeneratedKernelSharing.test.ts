@@ -28,6 +28,61 @@ function member(
   }
 }
 
+function affineMember(id: string): ShowGeneratedEffectKernelMember {
+  return member(id, { effects: [
+    { id: `${id}-s`, kind: 'scale', x: 0.8, y: 0.9 },
+    { id: `${id}-r`, kind: 'rotate', turns: 0.25 },
+    { id: `${id}-t`, kind: 'translate', x: 0.1, y: -0.1 },
+  ] })
+}
+
+describe('Scale Rotate Translate kernel selection (#1210)', () => {
+  it('shares arithmetic independently of values, track shape, output and adaptation', () => {
+    const a = affineMember('a'), b = affineMember('b')
+    a.effects.push({ id: 'hue', kind: 'hue', turns: 0.2 })
+    b.effects[0] = { id: 'different', kind: 'scale', x: -0.5, y: 0 }
+    b.effects.push({ id: 'key', kind: 'chroma-key', color: '#123456', tolerance: 0.1, softness: 0 })
+    b.animatedParameterPaths = ['rotate.turns']
+    b.adaptationShape.mirror = true
+    b.compositionEnvironment.contentKey = true
+    b.compositionEnvironment.outputDimension = 1
+    const before = structuredClone([a, b])
+    expect(planShowGeneratedEffectKernels([a, b]).groups).toEqual([{
+      id: 'affine-scale-rotate-translate-0', family: 'affine-scale-rotate-translate',
+      memberIds: ['a', 'b'], parameterNames: ['scale.x', 'scale.y', 'rotate.turns', 'translate.x', 'translate.y'],
+      privateStatePolicy: 'member-owned', controlPolicy: 'member-owned', clockPolicy: 'member-owned', perPixelBranchesAdded: 0,
+    }])
+    expect([a, b]).toEqual(before)
+  })
+
+  it('declines empty and single-member inputs', () => {
+    expect(planShowGeneratedEffectKernels([]).groups).toEqual([])
+    expect(planShowGeneratedEffectKernels([affineMember('a')]).members).toEqual([
+      { id: 'a', status: 'unrolled', reason: 'no-repeat' },
+    ])
+  })
+
+  it.each(['empty', 'static', 'incomplete', 'reordered', 'shear', 'other-prefix', 'affine-tail', 'wrap-tail', 'distortion-tail', 'color-prefix'])(
+    'refuses %s even when repeated', (shape) => {
+      const a = affineMember('a'), b = affineMember('b')
+      for (const item of [a, b]) {
+        if (shape === 'empty') item.effects = []
+        if (shape === 'static') item.compositionEnvironment.staticPlanEffects = true
+        if (shape === 'incomplete') item.effects.pop()
+        if (shape === 'reordered') item.effects.reverse()
+        if (shape === 'shear') item.effects[1] = { id: 'shear', kind: 'shear', x: 0.2, y: 0 }
+        if (shape === 'other-prefix') item.effects[0] = { id: 'shear-first', kind: 'shear', x: 0.2, y: 0 }
+        if (shape === 'affine-tail') item.effects.push({ id: 'extra', kind: 'translate', x: 0, y: 0 })
+        if (shape === 'wrap-tail') item.effects.push({ id: 'wrap', kind: 'wrap' })
+        if (shape === 'distortion-tail') item.effects.push({ id: 'swirl', kind: 'swirl', amount: 0.2, radius: 0.5, centerX: 0.5, centerY: 0.5 })
+        if (shape === 'color-prefix') item.effects.unshift({ id: 'hue', kind: 'hue', turns: 0.2 })
+      }
+      expect(planShowGeneratedEffectKernels([a, b]).groups).toEqual([])
+      expect(planShowGeneratedEffectKernels([a, b]).members.every((item) => item.reason === 'unsupported-family')).toBe(true)
+    },
+  )
+})
+
 describe('shared generated Effect kernels (#538)', () => {
   it('groups the same animated affine structure while parameterizing ids and values', () => {
     const plan = planShowGeneratedEffectKernels([
