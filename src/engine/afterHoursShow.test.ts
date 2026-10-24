@@ -120,6 +120,7 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     const resources = artifact.summary.resources
     // #1196 recensus: shared healthy-tube Effect IDs remove duplicate generated state/code;
     // timed dead-bulb recensus: measured artifactBytes 45,125 (delivered 47,016);
+    // brighter chase recensus: measured artifactBytes 45,134 (delivered 47,025);
     // persistentGlobals 117; totalWords 1,338;
     // remainingWords 8,902; time sections 1.
     expect(resources.blockers).toEqual([])
@@ -166,6 +167,28 @@ describe('After Hours delivered Installation Show (#1196)', () => {
     const sets = [20000, 20250, 20500].map(t => borderIndices(frameAt(t)))
     sets.forEach(indices => expect(indices).toHaveLength(47))
     for (let n = 1; n < sets.length; n++) expect(sets[n]).toEqual(sets[n - 1].map(i => (i + 1) % 141).sort((a, b) => a - b))
+  })
+
+  it.each(['fast', 'fidelity'] as const)('delivers brighter isolated bulbs without changing the arrow or word (%s)', fidelity => {
+    const runtime = createFastReplayRuntime({
+      code: delivered, fxCode: emitFixedPoint(delivered), metadata: artifact.metadata, dimension: 2,
+    }, { mapPoints: bundle.presentation.layout.mapPoints, randomSeed: 7, fidelity })
+    const pixels = runtime.advanceTo(16500, { stepMs: 25 }).pixels
+    const indices = borderIndices(pixels)
+    expect(indices).toHaveLength(47)
+    expect(indices.slice(1).every((value, n) => value - indices[n] === 3)).toBe(true)
+    const runs = zone(pixels, 4).map(lit).reduce<number[]>((runs, on) => {
+      if (on) runs[runs.length - 1]++
+      else runs.push(0)
+      return runs
+    }, [0])
+    expect(Math.max(...runs)).toBe(1)
+    const expectRgb = (actual: Rgb, expected: Rgb) => actual.forEach((value, c) => expect(Math.abs(value - expected[c])).toBeLessThanOrEqual(2 / 65536))
+    for (const rgb of zone(pixels, 4).filter(lit)) expectRgb(rgb, [.1184, .2664, .74])
+    const arrow = [5, 6, 7, 8].flatMap(n => zone(pixels, n))
+    expect(arrow.filter(lit)).toHaveLength(64)
+    for (const rgb of arrow) expectRgb(rgb, [.112, .252, .7])
+    for (const rgb of pixels.slice(0, 237)) expectRgb(rgb, [1, .08, .02])
   })
 
   it('resets and spells the word on one relay sequence while the arrow stays dark', () => {

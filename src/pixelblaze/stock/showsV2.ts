@@ -2525,7 +2525,7 @@ function afterHoursInstallationV2(): ShowRecordV2 {
       opacity('f', [[0, 0], [4000, 1], [4250, 0], [4500, 1], [4750, 0], [5000, 1], [20000, 0], [20250, 1]]),
       opacity('o1', [[0, 0], [6000, 1], [6250, 0], [6500, 1], [7000, 0], [7250, 1], [20000, 0], [20500, 1]]),
       opacity('d', [[0, 0], [8000, 1], [8500, 0], [8750, 1], [20000, 0], [21250, 1]]),
-      opacity('border', [[0, 0], [12000, 0.6], [12250, 0], [12500, 0.6], [12750, 0], [13000, 0.6]]),
+      opacity('border', [[0, 0], [12000, 0.74], [12250, 0], [12500, 0.74], [12750, 0], [13000, 0.74]]),
       track('chase-direction', { kind: 'instance-control', instanceId: 'chase', exportName: 'sliderDirection' }, [[0, 1], [24000, 0.5], [24250, 1]]),
       track('border-dead-bulb', { kind: 'clip-aperture', clipId: 'border', property: 'x' }, [[0, 2], [28250, .98]]),
       ...['arrow1', 'arrow2', 'arrow3', 'head'].map((id, index) => {

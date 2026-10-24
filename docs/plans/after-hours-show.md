@@ -396,9 +396,14 @@ controls, Health and Seed.
   at 80.25 s. Then opacity decays on a cubic-out curve to 0 by 81.05 s; on the
   second O, the white amount decays instead, so it can return. There is no Transition.
 - **Colour:** tint color-maps from black to the colour. Letters run to
-  (1, 0.08, 0.02); furniture to (0.16, 0.36, 1) at opacity 0.6 for the border
-  and 0.7 for the arrow. By Rec. 709 luminance both stay below the word: 0.22
-  and 0.25 against 0.27. A solid color-map, with shadow equal to highlight, is
+  (1, 0.08, 0.02); furniture to (0.16, 0.36, 1) at opacity 0.74 for the border
+  and 0.7 for the arrow. Jon asked for brighter marching bulbs after the relay
+  preview: the border's former 0.6 opacity was its limiter. The new level is
+  23.3% higher, with each bulb still one lit pixel and two dark slots between
+  lit bulbs. By Rec. 709 luminance both stay below the word: about 0.269
+  and 0.255 against 0.271. Full border opacity would exceed the word's per-lamp
+  luminance, so this brightness pass keeps the existing hierarchy and width.
+  A solid color-map, with shadow equal to highlight, is
   wrong for colour: it would erase the tube's on and off and the chase's bulbs.
 - **The short's white** is the one solid color-map, (0.6, 0.6, 0.6). Erasing
   the source is its job: at amount 1, every pixel of every lamp turns white at
