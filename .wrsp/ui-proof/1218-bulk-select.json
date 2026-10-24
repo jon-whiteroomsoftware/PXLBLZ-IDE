@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "issue": "1218",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-select-1218",
+  "operation": "Synthetic authenticated Controller inventory via repository Playwright runner and unchanged fake relay fixture: Saved and Other normal, selection and cancelled delete confirmation states at 1440x1000 and 768x1000. Checked Run labels, disabled running row, Saved without Import, section-switch reset, keyboard selection/Done/Cancel, no section Refresh, confirmation names, browser errors and viewport overflow. At <=640px inventory is hidden by existing layout outside #1218's scope, CSS src/index.css:479-482.",
+  "captures": [
+    ".wrsp/ui-proof/1218-bulk-1440-saved-normal.png",
+    ".wrsp/ui-proof/1218-bulk-1440-saved-select.png",
+    ".wrsp/ui-proof/1218-bulk-1440-saved-confirm.png",
+    ".wrsp/ui-proof/1218-bulk-1440-other-normal.png",
+    ".wrsp/ui-proof/1218-bulk-1440-other-select.png",
+    ".wrsp/ui-proof/1218-bulk-1440-other-confirm.png",
+    ".wrsp/ui-proof/1218-bulk-768-saved-normal.png",
+    ".wrsp/ui-proof/1218-bulk-768-saved-select.png",
+    ".wrsp/ui-proof/1218-bulk-768-saved-confirm.png",
+    ".wrsp/ui-proof/1218-bulk-768-other-normal.png",
+    ".wrsp/ui-proof/1218-bulk-768-other-select.png",
+    ".wrsp/ui-proof/1218-bulk-768-other-confirm.png"
+  ],
+  "capturedAtCommit": "0880cc2df8bd557a5127e695b6c676d71aaae8de"
+}
