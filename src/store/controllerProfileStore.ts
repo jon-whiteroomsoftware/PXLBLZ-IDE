@@ -650,6 +650,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     const active = live.activeIp ? live.controllers[live.activeIp] : undefined
     if (!profile || !active || active.phase !== 'live') return
     if (profile.deviceId && !sameControllerDeviceId(active.deviceId, profile.deviceId)) return
+    if (!profile.deviceId && (!profile.lastSeenIp || profile.lastSeenIp !== live.activeIp)) return
     liveMetadataRefreshGeneration += 1
     const generation = liveMetadataRefreshGeneration
     const startWriteOp = profileWriteSeq

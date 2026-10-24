@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -454,6 +454,83 @@ describe('controllerProfileStore', () => {
       },
     })
     expect(useControllerProfileStore.getState().profiles[0].board.firmwareUpdate).toBeUndefined()
+  })
+
+  it.each([
+    { activeIp: '192.168.1.10', profileIp: '192.168.1.11' },
+    { activeIp: null, profileIp: '192.168.1.11' },
+    { activeIp: '192.168.1.11', profileIp: undefined },
+  ])('preserves a no-ID profile without matching active address: %j', async ({ activeIp, profileIp }) => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-no-id',
+      deviceName: 'Scenario Shelf',
+      ip: profileIp,
+      firmwareVersion: '3.66',
+      firmwareUpdate: { state: 'available', checkedAt: 100, firmwareVersion: '3.66' },
+      now: 1,
+    })
+    const personal = memoryProvider([profile])
+    setPersonalContentProvider(personal)
+    const provider = new FakeControllerProvider()
+    provider.config = { name: 'Scenario Controller', firmwareVersion: '3.51', pixelCount: 128 }
+    const getConfig = vi.spyOn(provider, 'getConfig')
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.1.10': { ip: '192.168.1.10', phase: 'live', nickname: 'Scenario Controller', firmwareVersion: '3.51', mapDim: 3 },
+        '192.168.1.11': { ip: '192.168.1.11', phase: 'live', nickname: 'Scenario Shelf', firmwareVersion: '3.66', mapDim: 3 },
+      },
+      activeIp,
+    })
+    const getPixelMapData = vi.spyOn(provider, 'getPixelMapData')
+    await useControllerProfileStore.getState().loadProfiles()
+    const before = structuredClone(useControllerProfileStore.getState().profiles)
+
+    await useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+
+    expect(useControllerProfileStore.getState().profiles).toEqual(before)
+    expect(await personal.listControllerProfiles()).toEqual(before)
+    expect(getConfig).not.toHaveBeenCalled()
+    expect(getPixelMapData).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a no-ID profile when its last-seen IP matches the active Controller', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-no-id',
+      deviceName: 'Scenario Shelf',
+      ip: '192.168.1.11',
+      firmwareVersion: '3.66',
+      firmwareUpdate: { state: 'available', checkedAt: 100, firmwareVersion: '3.66' },
+      now: 1,
+    })
+    const personal = memoryProvider([profile])
+    setPersonalContentProvider(personal)
+    const provider = new FakeControllerProvider()
+    provider.config = { name: 'Scenario Shelf refreshed', firmwareVersion: '3.66', pixelCount: 128 }
+    const getConfig = vi.spyOn(provider, 'getConfig')
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      controllers: {
+        '192.168.1.11': { ip: '192.168.1.11', phase: 'live', nickname: 'Scenario Shelf', mapDim: 3 },
+      },
+      activeIp: '192.168.1.11',
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
+
+    const refreshed = useControllerProfileStore.getState().profiles[0]
+    expect(refreshed).toMatchObject({
+      name: 'Scenario Shelf refreshed',
+      lastKnownDeviceName: 'Scenario Shelf refreshed',
+      lastSeenIp: '192.168.1.11',
+      lastKnownPixelCount: 128,
+      lastKnownMapDim: 3,
+      board: profile.board,
+    })
+    expect(validateControllerProfile(refreshed)).toEqual({ ok: true, errors: [] })
+    expect(await personal.listControllerProfiles()).toEqual([refreshed])
+    expect(getConfig).toHaveBeenCalledTimes(1)
   })
 
   it('discards a stale metadata refresh after a newer profile rename settles', async () => {
