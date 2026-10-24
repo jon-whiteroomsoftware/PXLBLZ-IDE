@@ -5,6 +5,7 @@ import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-libra
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerBar } from './ControllerBar'
+import { ControllerProfilePage } from './ControllerProfilePage'
 import {
   useControllerStore,
   __resetControllerProviders,
@@ -356,6 +357,7 @@ describe('ControllerBar', () => {
   })
 
   it('adds a firmware reminder without replacing the connected status dot', () => {
+    seedSignedInProfiles([])
     useControllerStore.setState({
       extensionPresent: true,
       activeIp: '10.0.0.5',
@@ -381,13 +383,14 @@ describe('ControllerBar', () => {
     seedLiveController()
     useControllerStore.setState((state) => ({ controllers: {
       ...state.controllers,
-      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareUpdateState: 'available' },
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareUpdateState: 'available',
+        firmwareVersion: '3.67', firmwareUpdateObservedVersion: '3.67', firmwareUpdateCheckedAt: 123 },
     } }))
     seedSignedInProfiles([
       profile('other', 'pixelblaze_pb32_other', 3),
       profile('matching', 'pixelblaze_pb32_3cd4ee549434', 2),
     ])
-    render(<ControllerBar />)
+    const bar = render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
     const firmware = screen.getByRole('button', { name: 'Firmware update available' })
     expect(firmware.parentElement?.closest('button')).toBeNull()
@@ -400,10 +403,16 @@ describe('ControllerBar', () => {
     expect(window.location.pathname).toBe('/studio/controllers/matching')
     expect(screen.queryByTestId('controller-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Toggle Desk panel' })).toHaveAttribute('aria-expanded', 'false')
+    bar.unmount()
+    render(<ControllerProfilePage profileId="matching" />)
+    expect(screen.getByText('Firmware update available')).toBeInTheDocument()
+    expect(screen.getByText('v3.67 installed · Settings → Updates')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Pixelblaze' })).toHaveAttribute('href', 'http://10.0.0.5/')
     await settleControllerAsync()
   })
 
   it('has no firmware navigation button for current firmware', async () => {
+    seedSignedInProfiles([])
     seedLiveController()
     useControllerStore.setState((state) => ({ controllers: {
       ...state.controllers,
@@ -412,6 +421,62 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     expect(screen.queryByRole('button', { name: 'Firmware update available' })).not.toBeInTheDocument()
     await settleControllerAsync()
+  })
+
+  it.each([
+    { kind: 'gallery' as const, authenticated: true },
+    { kind: 'gallery' as const, authenticated: false },
+    { kind: 'studio' as const, authenticated: false },
+  ])('hides outdated firmware in $kind with authenticated=$authenticated', async ({ kind, authenticated }) => {
+    seedLiveController(null)
+    if (authenticated) seedSignedInProfiles([])
+    useRouterStore.setState({ route: kind === 'studio' ? { kind, entity: null } : { kind } })
+    useControllerStore.setState((state) => ({ controllers: {
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareUpdateState: 'available' },
+    } }))
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    expect(screen.queryByRole('button', { name: 'Firmware update available' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Firmware update available')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open Pixelblaze' })).not.toBeInTheDocument()
+    expect(useControllerProfileStore.getState().profiles).toEqual([])
+    await act(async () => {})
+  })
+
+  it('retains the selected deviceId-less Controller notice through navigation into its created detail', async () => {
+    const user = userEvent.setup()
+    seedLiveController(null)
+    seedSignedInProfiles([])
+    useControllerStore.setState((state) => ({ controllers: {
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareVersion: '3.67',
+        firmwareUpdateState: 'available', firmwareUpdateCheckedAt: 123,
+        firmwareUpdateObservedVersion: '3.67' },
+      '10.0.0.6': { ip: '10.0.0.6', nickname: 'Shelf', phase: 'live', mapDim: 2,
+        deviceId: null, firmwareVersion: '3.66', firmwareUpdateState: 'available',
+        firmwareUpdateCheckedAt: 456, firmwareUpdateObservedVersion: '3.66' },
+    } }))
+    const bar = render(<ControllerBar />)
+    const icons = screen.getAllByRole('button', { name: 'Firmware update available' })
+    for (let i = 0; i < 30 && document.activeElement !== icons[1]; i++) await user.tab()
+    expect(icons[1]).toHaveFocus()
+    await user.keyboard('{Enter}')
+    const route = useRouterStore.getState().route
+    expect(route.kind).toBe('studio')
+    if (route.kind !== 'studio' || route.entity?.kind !== 'controllers' || !route.entity.id) {
+      throw new Error('Expected selected Controller detail route')
+    }
+    expect(window.location.pathname).toBe(`/studio/controllers/${route.entity.id}`)
+    expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      id: route.entity.id, name: 'Shelf', lastSeenIp: '10.0.0.6',
+    })
+    bar.unmount()
+    render(<ControllerProfilePage profileId={route.entity.id} />)
+    expect(screen.getByText('Firmware update available')).toBeInTheDocument()
+    expect(screen.getByText('v3.66 installed · Settings → Updates')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open Pixelblaze' })).toHaveAttribute('href', 'http://10.0.0.6/')
+    expect(screen.queryByText('v3.67 installed · Settings → Updates')).not.toBeInTheDocument()
+    await act(async () => {})
   })
 
   it('a pending pill keeps a known name (no IP flash on reconnect churn)', () => {

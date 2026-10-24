@@ -23,6 +23,7 @@ import {
   normalizeControllerInputs,
   withControllerFirmwareUpdateReport,
   type ControllerBindingTarget,
+  type ControllerFirmwareUpdateObservation,
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
@@ -44,6 +45,7 @@ interface ControllerProfileState {
     deviceName?: string
     ip?: string
     firmwareVersion?: string
+    firmwareUpdate?: ControllerFirmwareUpdateObservation
   }) => Promise<ControllerProfile>
   removeProfile: (id: string) => Promise<void>
   ensureProfileForLiveController: (
@@ -117,6 +119,7 @@ export function defaultControllerProfile(seed: {
   deviceName?: string
   ip?: string
   firmwareVersion?: string
+  firmwareUpdate?: ControllerFirmwareUpdateObservation
   now?: number
 } = {}): ControllerProfile {
   const name = seed.name ?? seed.deviceName ?? 'Untitled Controller'
@@ -130,6 +133,7 @@ export function defaultControllerProfile(seed: {
     board: {
       kind: 'pixelblaze-v3-standard',
       ...(seed.firmwareVersion ? { firmwareVersion: seed.firmwareVersion } : {}),
+      ...(seed.firmwareUpdate ? { firmwareUpdate: seed.firmwareUpdate } : {}),
     },
     inputs: [],
     globalTransforms: [

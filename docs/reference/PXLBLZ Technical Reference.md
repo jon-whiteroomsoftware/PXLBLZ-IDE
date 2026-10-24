@@ -621,6 +621,10 @@ routes through a blackout helper so tail LEDs do not freeze lit. Firmware
 update availability is checked through the Controller's first-party protocol,
 cached per identity, and persisted on the profile as the last conclusive
 observation; PXLBLZ never installs firmware.
+The firmware-update action and full profile notice appear only in authenticated
+Studio. Gallery and signed-out use show neither; the Controller panel never
+shows the notice. Profile creation from a live Controller carries its existing
+conclusive firmware observation even when the device id is unavailable.
 
 ## 16. Controller profiles
 

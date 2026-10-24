@@ -1,5 +1,9 @@
 import { canonicalControllerDeviceId, sameControllerDeviceId } from './controllerIdentity'
-import type { ControllerProfile } from './controllerProfile'
+import {
+  withControllerFirmwareUpdateReport,
+  type ControllerProfile,
+  type ControllerFirmwareUpdateObservation,
+} from './controllerProfile'
 import type { FirmwareUpdateState } from './firmwareUpdate'
 
 export interface ControllerProfileJoinTarget {
@@ -31,12 +35,20 @@ export function controllerProfileCreateSeed(target: ControllerProfileJoinTarget)
   deviceName?: string
   ip: string
   firmwareVersion?: string
+  firmwareUpdate?: ControllerFirmwareUpdateObservation
 } {
+  const board = withControllerFirmwareUpdateReport({ kind: 'pixelblaze-v3-standard' }, {
+    firmwareVersion: target.firmwareVersion,
+    state: target.firmwareUpdateState,
+    checkedAt: target.firmwareUpdateCheckedAt,
+    observedFirmwareVersion: target.firmwareUpdateObservedVersion,
+  })
   return {
     name: target.nickname ?? `Controller ${target.ip}`,
     ...(target.deviceId ? { deviceId: canonicalControllerDeviceId(target.deviceId) } : {}),
     ...(target.nickname ? { deviceName: target.nickname } : {}),
     ...(target.firmwareVersion ? { firmwareVersion: target.firmwareVersion } : {}),
+    ...(board.firmwareUpdate ? { firmwareUpdate: board.firmwareUpdate } : {}),
     ip: target.ip,
   }
 }

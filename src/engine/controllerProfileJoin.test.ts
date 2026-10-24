@@ -37,6 +37,22 @@ describe('controller profile join', () => {
     expect(findControllerProfileForDevice([profile('ctrl-1', undefined, 1)], null)).toBeNull()
   })
 
+  it.each([
+    { state: 'available' as const, observed: '3.67', expected: 'available' },
+    { state: 'complete' as const, observed: '3.67', expected: 'current' },
+    { state: 'checking' as const, observed: '3.67', expected: undefined },
+    { state: 'available' as const, observed: '3.66', expected: undefined },
+  ])('projects the existing $state firmware report with observed $observed into an unclaimed seed', ({ state, observed, expected }) => {
+    const target = { ip: '10.0.0.6', deviceId: null, firmwareVersion: '3.67',
+      firmwareUpdateState: state, firmwareUpdateCheckedAt: 123, firmwareUpdateObservedVersion: observed }
+    const before = { ...target }
+    expect(controllerProfileCreateSeed(target)).toEqual({
+      name: 'Controller 10.0.0.6', ip: '10.0.0.6', firmwareVersion: '3.67',
+      ...(expected ? { firmwareUpdate: { state: expected, checkedAt: 123, firmwareVersion: '3.67' } } : {}),
+    })
+    expect(target).toEqual(before)
+  })
+
   it('prepares a profile seed from claimed and unclaimed live targets', () => {
     expect(controllerProfileCreateSeed({
       ip: '192.168.8.224',

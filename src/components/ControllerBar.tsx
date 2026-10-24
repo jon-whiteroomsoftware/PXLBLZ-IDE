@@ -387,6 +387,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const ensureProfileForLiveController = useControllerProfileStore((s) => s.ensureProfileForLiveController)
   const refreshLiveMetadata = useControllerProfileStore((s) => s.refreshLiveMetadata)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
+  const inStudio = useRouterStore((s) => s.route.kind === 'studio')
   const navigate = useRouterStore((s) => s.navigate)
 
   const [open, setOpen] = useState(false)
@@ -604,7 +605,8 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
             active={ip === activeIp}
             panelOpen={ip === panelOpenIp}
             authorizationNeededIp={controllers[ip].authorizationNeededIp}
-            firmwareUpdateAvailable={controllers[ip].firmwareUpdateState === 'available'}
+            firmwareUpdateAvailable={inStudio && personalWorkspaceAuthenticated
+              && controllers[ip].firmwareUpdateState === 'available'}
             managedRefreshPhase={controllerProfile
               ? controllerReconciliations[controllerProfile.id]?.phase
               : undefined}
