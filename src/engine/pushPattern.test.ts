@@ -88,6 +88,46 @@ describe('Controller replacement overlap policy (#547)', () => {
 })
 
 describe('pushPattern — run-only (default)', () => {
+  it('reports the complete validated compile input once before transmission', async () => {
+    const bytes = goodBytecode(32)
+    const provider = makeProvider({ compile: vi.fn().mockResolvedValue(bytes) })
+    const onCompiledArtifact = vi.fn(async (compiled) => {
+      expect(compiled).toEqual({ source: '// banner\nsource', byteLength: 32 })
+      expect(provider.pushBytecode).not.toHaveBeenCalled()
+      expect(provider.getActiveProgramBytecodeSize).not.toHaveBeenCalled()
+    })
+    const { deps } = makeDeps({ provider, source: '// banner\nsource', onCompiledArtifact })
+    await pushPattern(deps)
+    expect(onCompiledArtifact).toHaveBeenCalledTimes(1)
+    expect(provider.compile).toHaveBeenCalledExactlyOnceWith(deps.source)
+    expect(provider.pushBytecode).toHaveBeenCalledWith(bytes, expect.anything())
+    expect(vi.mocked(provider.pushBytecode).mock.calls[0][0]).toBe(bytes)
+    expect(bytes).toEqual(goodBytecode(32))
+  })
+
+  it('rechecks the session after awaiting artifact capture', async () => {
+    let current = true
+    const provider = makeProvider()
+    const { deps } = makeDeps({
+      provider,
+      onCompiledArtifact: async () => { await Promise.resolve(); current = false },
+      assertDeviceSession: () => { if (!current) throw new Error('stale') },
+    })
+    await expect(pushPattern(deps)).rejects.toThrow('stale')
+    expect(provider.getActiveProgramBytecodeSize).not.toHaveBeenCalled()
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+  })
+
+  it.each(['malformed', 'failed', 'missing'] as const)('does not capture a %s compile', async (kind) => {
+    const provider = makeProvider({ compile: kind === 'failed'
+      ? vi.fn().mockRejectedValue(new Error('compile failed'))
+      : vi.fn().mockResolvedValue(kind === 'malformed' ? badBytecode() : undefined) })
+    const onCompiledArtifact = vi.fn()
+    await expect(pushPattern(makeDeps({ provider, onCompiledArtifact }).deps)).rejects.toThrow()
+    expect(onCompiledArtifact).not.toHaveBeenCalled()
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+  })
+
   it('revalidates the device session after compilation before any device write (#851)', async () => {
     let sessionCurrent = true
     const provider = makeProvider({
@@ -98,6 +138,7 @@ describe('pushPattern — run-only (default)', () => {
     })
     const { deps } = makeDeps({
       provider,
+      onCompiledArtifact: vi.fn(),
       assertDeviceSession: () => {
         if (!sessionCurrent) throw new Error('Controller session changed before Show delivery')
       },
@@ -106,6 +147,7 @@ describe('pushPattern — run-only (default)', () => {
     await expect(pushPattern(deps)).rejects.toThrow('Controller session changed before Show delivery')
     expect(provider.pushBytecode).not.toHaveBeenCalled()
     expect(provider.saveProgram).not.toHaveBeenCalled()
+    expect(deps.onCompiledArtifact).not.toHaveBeenCalled()
   })
 
   it('mints a throwaway id and loads + runs via pushBytecode, never touching the binding', async () => {

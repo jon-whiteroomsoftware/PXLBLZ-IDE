@@ -113,6 +113,9 @@ export interface PushPatternDeps {
    * mutation. Reads and compilation may await; a stale session must never cross
    * the final write boundary. */
   assertDeviceSession?: () => void
+  /** Observe the validated full serialized artifact before any drain or upload.
+   * Awaited observers must retain the caller's device-session validity. */
+  onCompiledArtifact?: (compiled: { source: string; byteLength: number }) => void | Promise<void>
 }
 
 export interface PushPatternResult {
@@ -171,6 +174,11 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   const bytecode = await deps.provider.compile(deps.source)
   if (!bytecodeHeaderReconciles(bytecode)) {
     throw new Error('Compiled bytecode failed its header sanity check; not pushing')
+  }
+  if (deps.onCompiledArtifact) {
+    deps.assertDeviceSession?.()
+    await deps.onCompiledArtifact({ source: deps.source, byteLength: bytecode.byteLength })
+    deps.assertDeviceSession?.()
   }
 
   // Run-only: throwaway id, load + run, no list read and no binding (the #236 reframe).

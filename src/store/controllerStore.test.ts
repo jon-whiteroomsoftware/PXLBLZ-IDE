@@ -39,6 +39,7 @@ import {
   setPersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import { bundle } from '@/engine/bundle'
+import { priceShowArtifact, sha256CompleteCompileInput } from '@/engine/showArtifactPricing'
 import {
   __resetControllerProfileWriteQueue,
   queueControllerProfileWrite,
@@ -1701,6 +1702,110 @@ describe('controllerStore (keyed)', () => {
       worstInstantRenderersPerPixel: 1,
     }
 
+    const pricingArtifact = {
+      artifactId: 'show:pricing', source: '// banner\n' + PATTERN_SRC,
+      name: 'Pricing', persist: false, compilePressure: GENERATED_ARTIFACT_PRESSURE,
+      artifactStamp: { kind: 'show' as const, id: 'pricing', name: 'Pricing' },
+    }
+
+    it('keeps exact compilation transient and falls back after a new live epoch', async () => {
+      expect(store().lastShowArtifactCompilation).toBeNull()
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      await store().pushGeneratedArtifact(pricingArtifact)
+      const sourceSha256 = await sha256CompleteCompileInput(provider.compiledSources[0])
+      const measurement = store().lastShowArtifactCompilation
+      const status = provider.getStatus()
+      if (status.kind !== 'connected') throw new Error('Expected connected Controller')
+      expect(measurement).toEqual({
+        controllerId: status.controller.id,
+        liveEpoch: store().controllers['10.0.0.5'].liveEpoch,
+        sourceSha256, byteLength: provider.compileResult.byteLength,
+      })
+      expect(JSON.parse(localStorage.getItem('pixelblaze-controller')!).state)
+        .not.toHaveProperty('lastShowArtifactCompilation')
+      await provider.disconnect()
+      await provider.connect({ address: '10.0.0.5' })
+      expect(priceShowArtifact({ estimatedBytes: 100, sourceSha256, measurement,
+        context: { controllerId: measurement!.controllerId,
+          liveEpoch: store().controllers['10.0.0.5'].liveEpoch! },
+      }).kind).toBe('estimate')
+      useControllerStore.setState(controllerInitialState)
+      expect(store().lastShowArtifactCompilation).toBeNull()
+    })
+
+    it.each(['reconnect', 'selection', 'reconnect-hash-failure'] as const)(
+      'rejects a %s during hashing', async (change) => {
+        await store().addController('10.0.0.5')
+        const provider = created.get('10.0.0.5')!
+        const started = deferred<void>()
+        const digest = deferred<ArrayBuffer>()
+        const spy = vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(() => {
+          started.resolve()
+          return digest.promise
+        })
+        try {
+          const pushing = store().pushGeneratedArtifact(pricingArtifact)
+          await started.promise
+          if (change !== 'selection') {
+            await provider.disconnect()
+            await provider.connect({ address: '10.0.0.5' })
+          } else {
+            useControllerStore.setState({ activeIp: '10.0.0.6' })
+          }
+          if (change === 'reconnect-hash-failure') digest.reject(new Error('hash unavailable'))
+          else digest.resolve(new Uint8Array(32).buffer)
+          await pushing
+          expect(store().lastShowArtifactCompilation).toBeNull()
+          expect(provider.pushed).toHaveLength(0)
+          expect(store().artifactPushResult).toMatchObject({
+            ok: false, message: 'Controller session changed before Show delivery',
+          })
+        } finally { spy.mockRestore() }
+      },
+    )
+
+    it('rejects a selection change during compilation without a prepared session', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      provider.compile = async () => {
+        useControllerStore.setState({ activeIp: '10.0.0.6' })
+        return provider.compileResult
+      }
+      await store().pushGeneratedArtifact(pricingArtifact)
+      expect(store().lastShowArtifactCompilation).toBeNull()
+      expect(provider.pushed).toHaveLength(0)
+      expect(store().artifactPushResult).toMatchObject({
+        ok: false, message: 'Controller session changed before Show delivery',
+      })
+    })
+
+    it('treats only a hash failure as advisory and clears the previous record before compilation', async () => {
+      await store().addController('10.0.0.5')
+      await store().pushGeneratedArtifact(pricingArtifact)
+      expect(store().lastShowArtifactCompilation).not.toBeNull()
+      const provider = created.get('10.0.0.5')!
+      const originalCompile = provider.compile.bind(provider)
+      provider.compile = (source) => {
+        expect(store().lastShowArtifactCompilation).toBeNull()
+        return originalCompile(source)
+      }
+      const spy = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error('hash unavailable'))
+      try { await store().pushGeneratedArtifact(pricingArtifact) } finally { spy.mockRestore() }
+      expect(store().lastShowArtifactCompilation).toBeNull()
+      expect(store().artifactPushResult).toMatchObject({ ok: true })
+      expect(provider.pushed).toHaveLength(2)
+    })
+
+    it('retains the compiled measurement when saving the upload fails', async () => {
+      await store().addController('10.0.0.5')
+      const provider = created.get('10.0.0.5')!
+      provider.saveProgram = async () => { throw new Error('upload failed') }
+      await store().pushGeneratedArtifact({ ...pricingArtifact, persist: true })
+      expect(store().artifactPushResult).toMatchObject({ ok: false })
+      expect(store().lastShowArtifactCompilation).toMatchObject({ byteLength: 16 })
+    })
+
     it('compiles + pushes the active pattern and records a created binding', async () => {
       await store().addController('10.0.0.5')
       usePatternStore.setState({ activePatternId: 'pat-1' })
@@ -1921,6 +2026,7 @@ describe('controllerStore (keyed)', () => {
 
       expect(provider.pushed).toHaveLength(0)
       expect(provider.saved).toHaveLength(0)
+      expect(store().lastShowArtifactCompilation).toBeNull()
       expect(store().artifactPushResult).toEqual({
         ok: false,
         message: 'Controller session changed before Show delivery',
@@ -2029,6 +2135,7 @@ describe('controllerStore (keyed)', () => {
         artifactId: 'show:show-session-reconnect',
         mode: 'run',
       })
+      expect(store().lastShowArtifactCompilation).toBeNull()
     })
 
     it('applies active profile transforms before signing a generated Show (#777)', async () => {
@@ -2075,6 +2182,11 @@ describe('controllerStore (keyed)', () => {
 
       const controller = store().controllers['10.0.0.5']
       expect(created.get('10.0.0.5')!.compiledSources[0]).toContain('__px_cappedHsv')
+      expect(store().lastShowArtifactCompilation).toEqual({
+        controllerId: 'pixelblaze_pb32_show', liveEpoch: controller.liveEpoch,
+        sourceSha256: await sha256CompleteCompileInput(created.get('10.0.0.5')!.compiledSources[0]),
+        byteLength: 16,
+      })
       expect(store().lastSavedSource['10.0.0.5']['show:show-1']).toBe(source)
       expect((await getPushRecords())['10.0.0.5']['show:show-1']).toMatchObject({
         transforms: ['show', 'power-cap'],
@@ -2143,6 +2255,9 @@ describe('controllerStore (keyed)', () => {
     it('surfaces a generated Show compile failure without pushing (#429)', async () => {
       await store().addController('10.0.0.5')
       created.get('10.0.0.5')!.compileError = new Error('Show compile failed on device')
+      useControllerStore.setState({ lastShowArtifactCompilation: {
+        controllerId: 'old', liveEpoch: 0, sourceSha256: 'a'.repeat(64), byteLength: 8,
+      } })
 
       await store().pushGeneratedArtifact({
         artifactId: 'show:show-1',
@@ -2154,6 +2269,7 @@ describe('controllerStore (keyed)', () => {
       })
 
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
+      expect(store().lastShowArtifactCompilation).toBeNull()
       expect(store().pushResult).toBeNull()
       expect(store().artifactPushResult).toEqual({
         ok: false,
@@ -2177,6 +2293,7 @@ describe('controllerStore (keyed)', () => {
       })
 
       expect(store().rendererPausedByPxlblz).toEqual({ '10.0.0.5': true })
+      expect(store().lastShowArtifactCompilation).toMatchObject({ byteLength: 16 })
       expect(store().rendererStates['10.0.0.5']).toEqual({
         acknowledged: 'unknown',
         pending: null,

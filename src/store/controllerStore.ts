@@ -32,6 +32,7 @@ import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
+import { sha256CompleteCompileInput, type ShowArtifactCompilationRecord } from '@/engine/showArtifactPricing'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
@@ -183,6 +184,8 @@ export interface ControllerReconciliationState {
 }
 
 interface ControllerConnectionState {
+  /** Transient exact compile evidence; reusable only for the same source and live epoch. */
+  lastShowArtifactCompilation: ShowArtifactCompilationRecord | null
   /** Is the relay extension installed/reachable? Global — drives the entry button's
    *  no-extension vs ready states. */
   extensionPresent: boolean
@@ -401,6 +404,7 @@ export type ArtifactPushResult = PushResult & {
 }
 
 export const controllerInitialState = {
+  lastShowArtifactCompilation: null as ShowArtifactCompilationRecord | null,
   extensionPresent: false,
   controllers: {} as Record<string, ControllerEntry>,
   rendererStates: {} as Record<string, ControllerRendererState>,
@@ -1502,7 +1506,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               controllerId,
               () => {
                 const provider = getControllerProvider()
+                const status = provider.getStatus()
+                const liveEpoch = get().controllers[controllerId]?.liveEpoch
                 const expectedControllerSession = artifact.expectedControllerSession
+                  ?? (status.kind === 'connected' && liveEpoch != null
+                    ? { ...status.controller, liveEpoch }
+                    : undefined)
                 const assertDeviceSession = expectedControllerSession
                   ? () => {
                       if (
@@ -1515,6 +1524,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
                       }
                     }
                   : undefined
+                // Compilation evidence survives upload failure, but never a stale
+                // asynchronous hash completion. It is excluded from persistence.
+                set({ lastShowArtifactCompilation: null })
                 return pushPattern({
                   provider,
                   controllerId,
@@ -1532,6 +1544,23 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
                   ...(assertDeviceSession ? { assertDeviceSession } : {}),
+                  onCompiledArtifact: async (compiled) => {
+                    let sourceSha256: string
+                    try {
+                      sourceSha256 = await sha256CompleteCompileInput(compiled.source)
+                    } catch {
+                      assertDeviceSession?.()
+                      return
+                    }
+                    assertDeviceSession?.()
+                    if (!expectedControllerSession) return
+                    set({ lastShowArtifactCompilation: {
+                      controllerId: expectedControllerSession.id,
+                      liveEpoch: expectedControllerSession.liveEpoch,
+                      sourceSha256,
+                      byteLength: compiled.byteLength,
+                    } })
+                  },
                 })
               },
             )
