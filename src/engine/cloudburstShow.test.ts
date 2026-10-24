@@ -18,14 +18,14 @@ import { validateShowRecordV2, type ShowRecordV2 } from './showCompositionV2'
 const ID = 'stock-show-installation-cloudburst'
 const record = stockShowV2ById(ID)!
 const MODES = ['fast', 'fidelity'] as const
-const SLOW = 180_000
+const SLOW = 60_000
 type Mode = typeof MODES[number]
 type Rgb = number[]
 const FRAME = 1000 / 30
 const ZONES = [[0, 159], [160, 479], [480, 959]] as const
 const WATER_LINES = [0.060, 0.185, 0.310, 0.716]
-const HELD = [17_500, 22_500, 27_000, 33_000]
-const ZERO_OFFSET = [0, 12_500, 50_625, 52_000]
+const HELD = [6_500, 11_500, 16_000, 22_000]
+const ZERO_OFFSET = [0, 3_333, 39_625, 41_000]
 const HELD_LIT = [[0.10, 0, 0], [0.40, 0.10, 0], [0.70, 0.40, 0.10], [1, 1, 1]]
 
 function deliver(show: ShowRecordV2) {
@@ -185,25 +185,25 @@ function flashWindows(frames: Rgb[][]) {
 
 const coda = record.composition.clips.find(clip => clip.id === 'rain-coda')!
 const codaEndMs = coda.startMs + coda.durationMs
-const DRAIN_END = 50_625
-const TAIL_FROM = 50_000
+const DRAIN_END = 39_625
+const TAIL_FROM = 39_000
 const TUBE = 20
 type Sample = { t: number, pixels: Rgb[] }
 const black = (rgb: Rgb) => rgb.every(channel => channel === 0)
 
 /**
  * One continuous delivered replay from 0 at `fps`: every frame when `keepAll`,
- * and the tail from 50 s with extra exact samples at the coda boundaries. Each
+ * and the tail from 39 s with extra exact samples at the coda boundaries. Each
  * extra sample advances a snapshot and restores it, so the fixed timestep the
  * frames see is unchanged.
  */
 function replay(mode: Mode, fps: number, keepAll: boolean) {
   const step = 1000 / fps
-  const probes = [DRAIN_END + step, 53_125, coda.startMs, codaEndMs - 1, codaEndMs - 0.5].sort((a, b) => a - b)
+  const probes = [DRAIN_END + step, 42_125, coda.startMs, codaEndMs - 1, codaEndMs - 0.5].sort((a, b) => a - b)
   const runtime = show.runtime(mode)
   const frames: Rgb[][] = []
   const tail: Sample[] = []
-  for (let n = 0; n * step < 60_000 - 1e-6; n++) {
+  for (let n = 0; n * step < 49_000 - 1e-6; n++) {
     const t = n * step
     for (const p of probes) {
       if (n === 0 || p <= (n - 1) * step + 1e-6 || p >= t - 1e-6) continue
@@ -291,6 +291,20 @@ function expectLastDrops(samples: Sample[], fps: number, label: string) {
 }
 
 describe('Cloudburst delivered Installation Show (#1200)', () => {
+  it.each(MODES)('compresses the opening to dry ground before 4000 ms and visible accumulation by 4500 ms (%s)', async mode => {
+    const file = buildShowFileBundle(record, { patterns: [], maps: [] }, { appVersion: 'cloudburst-test', exportedAt: '2026-10-24T00:00:00.000Z' })
+    const reopened = await parseShowFileBundle(await serializeShowFileBundle(file.bundle), { acceptV2: true })
+    if (reopened.version !== 2) throw new Error('wrong export version')
+    expect(reopened.show.composition.showEndMs).toBe(49_000)
+    const water = deliver(waterOnly(true)).runtime(mode)
+    for (const t of [0, 1_333, 2_667, 3_999, 4_000]) {
+      expect(water.advanceTo(t, { stepMs: FRAME }).pixels.filter(visible), `${mode} dry at ${t}`).toHaveLength(0)
+    }
+    for (const t of [4_500, 4_625, 5_000]) {
+      expect(water.advanceTo(t, { stepMs: FRAME }).pixels.filter(visible).length, `${mode} accumulation at ${t}`).toBeGreaterThan(0)
+    }
+  }, 60_000)
+
   it('validates, reopens unchanged, renders the 960-sample 3D Stage and fits the artifact budgets', async () => {
     expect(validateShowRecordV2(record)).toEqual([])
     const file = buildShowFileBundle(record, { patterns: [], maps: [] }, { appVersion: 'cloudburst-test', exportedAt: '2026-10-22T00:00:00.000Z' })
@@ -304,7 +318,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     expect(nativeDimension(show.artifact.metadata.renderFns)).toBe(3)
     expect(record.outputContract).toEqual(installationOutputContract('cloudburst-chandelier', 960))
     expect(record.composition.executionModel).toBe('deterministic-loop')
-    expect(record.composition.showEndMs).toBe(60_000)
+    expect(record.composition.showEndMs).toBe(49_000)
     expect(record.composition.patternInstances.map(instance => instance.pattern)).toEqual([
       { kind: 'stock', id: 'TubeRain3D' }, { kind: 'stock', id: 'LumaPlane3D' }, { kind: 'stock', id: 'Koi3D' },
     ])
@@ -331,6 +345,26 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     expect(actualWords).toBeLessThanOrEqual(10_240)
   }, SLOW)
 
+  it('retains every authored timing boundary, including appearance keys and active durations', () => {
+    const c = record.composition
+    expect(c.layoutOccurrences.map(o => [o.startMs, o.durationMs])).toEqual([[0, 49_000]])
+    expect(c.clips.map(clip => [clip.startMs, clip.durationMs, clip.appearance.keys.map(key => key.timeMs)])).toEqual([
+      [0, 19_625, [0]], [1_333, 18_292, [1_333]], [2_667, 16_958, [2_667]],
+      [19_625, 24_375, [19_625]],
+      [44_000, 4_375, [44_000]],
+      ...Array.from({ length: 3 }, () => [0, 49_000, [0]]),
+      ...Array.from({ length: 3 }, () => [29_000, 10_000, [29_000]]),
+    ])
+    expect(c.propertyTracks.map(track => [track.activeStartMs, track.activeDurationMs, track.keyframes.map(key => key.timeMs)])).toEqual([
+      [0, 49_000, [0, 19_625, 44_000]],
+      [0, 49_000, [0, 1_333, 2_667, 44_000, 48_375]],
+      [0, 49_000, [27, 167, 4_000, 4_625]],
+      [0, 49_000, [0, 4_000, 4_625, 9_000, 9_625, 14_000, 14_625, 19_000, 19_625, 39_000, 39_625, 49_000]],
+      ...Array.from({ length: 3 }, () => [29_000, 10_000, [29_000, 31_500, 36_500, 39_000]]),
+    ])
+    expect(c.markers.map(marker => marker.timeMs)).toEqual([0, 1_333, 4_000, 19_000, 19_625, 29_000, 39_000, 39_625])
+  }, 60_000)
+
   it.each(MODES)('shares water Effect identities without changing delivered frames (%s)', mode => {
     const waterClips = record.composition.clips.filter(clip => clip.instanceId === 'water')
     expect(waterClips).toHaveLength(3)
@@ -355,8 +389,8 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       currentBytes: new TextEncoder().encode(show.delivered).length,
       comparatorBytes: new TextEncoder().encode(comparator.delivered).length,
     })
-    const samples = [0, 50, 100, 625, 5_000, 10_000, 15_000, 15_625, 20_000, 20_625,
-      25_000, 25_625, 30_000, 30_625, 40_000, 42_500, 47_500, 50_000, 50_625, 55_000, 59_375, 60_000]
+    const samples = [0, 13, 27, 167, 1_333, 2_667, 4_000, 4_625, 9_000, 9_625,
+      14_000, 14_625, 19_000, 19_625, 29_000, 31_500, 36_500, 39_000, 39_625, 44_000, 48_375, 49_000]
     for (const fps of [30, 60]) {
       const current = show.runtime(mode), reference = comparator.runtime(mode)
       const start = current.snapshot(), referenceStart = reference.snapshot()
@@ -377,14 +411,14 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       for (const t of samples) compare(t, FRAME)
       current.restore(start)
       reference.restore(referenceStart)
-      compare(22_500, FRAME)
-      console.info('Cloudburst water identity boundaries and restore', { mode, fps, samples: samples.length, restoredMs: 22_500, maxDelta: 0 })
+      compare(11_500, FRAME)
+      console.info('Cloudburst water identity boundaries and restore', { mode, fps, samples: samples.length, restoredMs: 11_500, maxDelta: 0 })
     }
   }, SLOW)
 
   it.each(MODES)('delivers stationary floor anchors only on active rain tubes (%s)', mode => {
     const anchor = deliver(rainOnly())
-    for (const [t, count] of [[2_500, 8], [7_500, 24], [12_500, 48]]) {
+    for (const [t, count] of [[667, 8], [2_000, 24], [3_333, 48]]) {
       const a = anchor.frameAt(mode, t), b = anchor.frameAt(mode, t + 625)
       const lit = a.flatMap((rgb, i) => visible(rgb) ? [i] : [])
       expect(lit).toHaveLength(count)
@@ -396,28 +430,28 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       }
       expect(Math.max(...a.flat())).toBeCloseTo(0.16, 4)
     }
-    for (const t of [0, 50, 100, 15_625, 30_625, 55_000, 59_375, 60_000]) expect(anchor.frameAt(mode, t).flat().every(v => v === 0), `anchor black at ${t}`).toBe(true)
+    for (const t of [0, 13, 27, 4_625, 19_625, 44_000, 48_375, 49_000]) expect(anchor.frameAt(mode, t).flat().every(v => v === 0), `anchor black at ${t}`).toBe(true)
   }, SLOW)
 
   it.each(MODES)('seeks and restores the actual opening without adding a loop seam (%s)', mode => {
     const runtime = show.runtime(mode), start = runtime.snapshot()
-    const reference = performance(mode)[frameIndex(12_500)]
-    expect(maxDelta(runtime.advanceTo(12_500, { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
+    const reference = performance(mode)[frameIndex(3_333)]
+    expect(maxDelta(runtime.advanceTo(frameTime(frameIndex(3_333)), { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
     runtime.restore(start)
-    expect(maxDelta(runtime.advanceTo(12_500, { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
+    expect(maxDelta(runtime.advanceTo(frameTime(frameIndex(3_333)), { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
     const noGlow = deliver({ ...record, composition: { ...record.composition,
       propertyTracks: record.composition.propertyTracks.filter(track => track.id !== 'rain-landing-glow'),
     } })
     const noNewRainControls = deliver(withoutNewRainControls(record))
     for (const fps of [30, 60]) {
       const stepMs = 1000 / fps
-      const deltas = [0, 60_000 - stepMs, 60_000].map(t => maxDelta(
+      const deltas = [0, 49_000 - stepMs, 49_000].map(t => maxDelta(
         show.runtime(mode).advanceTo(t, { stepMs }).pixels,
         noGlow.runtime(mode).advanceTo(t, { stepMs }).pixels,
       ))
       console.info('Cloudburst landing glow seam', mode, fps, deltas)
       expect(deltas).toEqual([0, 0, 0])
-      const combinedDeltas = [0, 60_000 - stepMs, 60_000].map(t => maxDelta(
+      const combinedDeltas = [0, 49_000 - stepMs, 49_000].map(t => maxDelta(
         show.runtime(mode).advanceTo(t, { stepMs }).pixels,
         noNewRainControls.runtime(mode).advanceTo(t, { stepMs }).pixels,
       ))
@@ -472,14 +506,14 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
           expect(zoneIndices(n).filter(i => ys[i] > WATER_LINES[level] + 0.05 && visible(pixels[i])), `${mode} air ${n} at ${t}`).toEqual([])
         }
       })
-      const occlusion = [[17_500, 18_000], [22_500, 23_000], [27_000, 27_200], [33_000, 34_000]]
+      const occlusion = [[6_500, 7_000], [11_500, 12_000], [16_000, 16_200], [22_000, 23_000]]
       occlusion.forEach((times, level) => {
         const deep = points.flatMap((_, i) => ys[i] <= WATER_LINES[level] - 0.05 ? [i] : [])
         for (const t of times) {
           expect(maxDelta(show.frameAt(mode, t), keyed.frameAt(mode, t), deep), `${mode} occlusion at ${t}`).toBeLessThan(1e-6)
         }
       })
-      for (const t of [50_625, 51_000, 52_000, 55_000]) {
+      for (const t of [39_625, 40_000, 41_000, 44_000]) {
         expect(show.frameAt(mode, t).filter(visible), `${mode} drained at ${t}`).toHaveLength(0)
       }
     }
@@ -493,36 +527,36 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     expect(frames.findIndex(pixels => pixels.some(white)), `${mode} first white frame`).toBe(-1)
     const ringLit = (from: number, to: number, n: number) => frames.slice(frameIndex(from), frameIndex(to) + 1)
       .some(pixels => zoneIndices(n).some(i => visible(pixels[i])))
-    for (const [t, rings] of [[2_500, [true, false, false]], [7_500, [true, true, false]], [12_500, [true, true, true]]] as const) {
-      expect([0, 1, 2].map(n => ringLit(t - 500, t + 500, n)), `${mode} rings at ${t}`).toEqual(rings)
+    for (const [t, rings] of [[667, [true, false, false]], [2_000, [true, true, false]], [3_333, [true, true, true]]] as const) {
+      expect([0, 1, 2].map(n => ringLit(t - 100, t + 100, n)), `${mode} rings at ${t}`).toEqual(rings)
     }
-    const still = frames[frameIndex(33_000)]
-    for (let n = frameIndex(33_000); n <= frameIndex(37_000); n++) expect(maxDelta(frames[n], still), `${mode} still at ${frameTime(n)}`).toBeLessThan(1e-9)
+    const still = frames[frameIndex(22_000)]
+    for (let n = frameIndex(22_000); n <= frameIndex(26_000); n++) expect(maxDelta(frames[n], still), `${mode} still at ${frameTime(n)}`).toBeLessThan(1e-9)
   }, SLOW)
 
   it.each(MODES)('seeks deterministically into the rise (%s)', (mode) => {
-    const reference = performance(mode)[frameIndex(22_500)]
-    expect(maxDelta(show.frameAt(mode, frameTime(frameIndex(22_500))), reference)).toBeLessThan(1e-9)
+    const reference = performance(mode)[frameIndex(11_500)]
+    expect(maxDelta(show.frameAt(mode, frameTime(frameIndex(11_500))), reference)).toBeLessThan(1e-9)
     const runtime = show.runtime(mode)
     const start = runtime.snapshot()
-    runtime.advanceTo(33_000, { stepMs: FRAME })
+    runtime.advanceTo(22_000, { stepMs: FRAME })
     runtime.restore(start)
-    expect(maxDelta(runtime.advanceTo(frameTime(frameIndex(22_500)), { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
+    expect(maxDelta(runtime.advanceTo(frameTime(frameIndex(11_500)), { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
   }, SLOW)
 
   it.each(MODES)('swims one gold koi lap on the Middle ring above the teal (%s)', (mode) => {
     const frames = performance(mode)
     const noKoi = deliver(withoutKoi())
     const middle = zoneIndices(1)
-    for (const t of [42_500, 43_000, 44_000, 45_000, 47_500]) {
+    for (const t of [31_500, 32_000, 33_000, 34_000, 36_500]) {
       const full = show.frameAt(mode, t)
       const base = noKoi.frameAt(mode, t)
       expect(middle.filter(i => full[i][0] - base[i][0] > 0.02).length, `${mode} koi red at ${t}`).toBeGreaterThan(0)
     }
-    const at45 = show.frameAt(mode, 45_000)
+    const at45 = show.frameAt(mode, 34_000)
     expect(middle.some(i => at45[i][0] > 0.3 && at45[i][0] > at45[i][2]), `${mode} gold over teal`).toBe(true)
     let maxRed = 0
-    for (let n = frameIndex(42_500); n <= frameIndex(47_500); n++) {
+    for (let n = frameIndex(31_500); n <= frameIndex(36_500); n++) {
       const pixels = frames[n]
       const body = middle.filter(i => pixels[i][0] > 0.3)
       maxRed = Math.max(maxRed, ...middle.map(i => pixels[i][0]))
@@ -549,15 +583,36 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
   // Authorized opening anchors/splash exceptions:
   // https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6378412007
   // https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6378424773
-  it.each(MODES)('preserves approved B outside the authorized rain controls (%s)', async (mode) => {
+  it.each(MODES)('preserves approved B values and delivered behavior under the authorized timing and rain controls (%s)', async (mode) => {
     const reopened = await parseShowFileBundle(readFileSync(new URL('../test/fixtures/cloudburstApprovedB.pxlshow', import.meta.url)), { acceptV2: true })
     if (reopened.version !== 2) throw new Error('wrong fixture version')
-    const approved = reopened.show
+    // Normalize only the authorized authored timing. This does not assert that
+    // elapsed-time-driven rain matches frames shifted from the historical score.
+    const approved = structuredClone(reopened.show)
+    const time = (t: number) => t <= 15_000 ? Math.round(t * 4 / 15) : t - 11_000
+    const interval = (entry: { startMs: number, durationMs: number }) => {
+      const end = time(entry.startMs + entry.durationMs)
+      entry.startMs = time(entry.startMs)
+      entry.durationMs = end - entry.startMs
+    }
+    approved.composition.showEndMs = time(approved.composition.showEndMs)
+    for (const entry of approved.composition.layoutOccurrences) interval(entry)
+    for (const clip of approved.composition.clips) {
+      interval(clip)
+      for (const key of clip.appearance.keys) key.timeMs = time(key.timeMs)
+    }
+    for (const track of approved.composition.propertyTracks) {
+      const end = time(track.activeStartMs + track.activeDurationMs)
+      track.activeStartMs = time(track.activeStartMs)
+      track.activeDurationMs = end - track.activeStartMs
+      for (const key of track.keyframes) key.timeMs = time(key.timeMs)
+    }
+    for (const marker of approved.composition.markers) marker.timeMs = time(marker.timeMs)
     const withoutCoda = (entry: ShowRecordV2) => ({
       ...entry,
       composition: {
         ...entry.composition,
-        clips: entry.composition.clips.filter(clip => clip.id !== 'rain-coda'),
+        clips: entry.composition.clips.filter(clip => clip.id !== 'rain-coda' && clip.id !== 'rain-phase-recovery'),
         propertyTracks: entry.composition.propertyTracks.filter(track => !track.id.startsWith('rain-')),
         markers: entry.composition.markers.filter(marker => marker.id !== 'm-last-drop'),
       },
@@ -570,7 +625,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     for (let n = 0; frameTime(n) < coda.startMs; n++) {
       const approvedPixels = runtime.advanceTo(frameTime(n), { stepMs: FRAME }).pixels
       expect(maxDelta(approvedPixels, disabled.advanceTo(frameTime(n), { stepMs: FRAME }).pixels), `${mode} disabled at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
-      if (frameTime(n) >= 30_625) expect(maxDelta(approvedPixels, frames[n]), `${mode} actual at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
+      if (frameTime(n) >= 19_625) expect(maxDelta(approvedPixels, frames[n]), `${mode} actual at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
     }
   }, SLOW)
 })

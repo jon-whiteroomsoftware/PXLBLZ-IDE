@@ -2644,11 +2644,17 @@ function emberFloePortableV2(): ShowRecordV2 {
 // most two at once, each ending before the Clip closes. The delivered replay
 // measures one drop in Fast and two in Precise.
 function cloudburstInstallationV2(): ShowRecordV2 {
-  const end = 60_000
+  // Authored opening compressed from 15 s to 4 s; later intervals retain their lengths.
+  const end = 49_000
+  const rainEndMs = 19_625
+  const koiMs = 29_000
+  const koiEndMs = 39_000
   const HOLD: ShowStructuredEasing = { curve: 'hold', at: 1 }
-  const codaMs = 55_000
-  const codaEndMs = 59_375
+  const codaMs = 44_000
+  const codaEndMs = 48_375
   const mainSpeed = 0.12
+  // Restore the removed 11 s of TubeRain3D's accumulated flow while invisible.
+  const gapSpeed = mainSpeed + 11 * (0.35 + mainSpeed * 1.3) / (1.3 * ((codaMs - rainEndMs) / 1000))
   const codaDensity = 0.0575
   type Key = [number, number, ShowStructuredEasing?]
   const track = (id: string, target: Parameters<typeof propertyTrack>[1], startMs: number, durationMs: number, keys: Key[]) =>
@@ -2660,7 +2666,7 @@ function cloudburstInstallationV2(): ShowRecordV2 {
     { id: 'water-teal', kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 0, highlightG: 0.45, highlightB: 0.5 },
     { id: 'water-key', kind: 'luma-key', target: 0, tolerance: 0.2, softness: 0.05 },
   ]
-  const rainStarts = [0, 5_000, 10_000]
+  const rainStarts = [0, 1_333, 2_667]
   return nativeShowV2({
     id: 'stock-show-installation-cloudburst', name: 'Cloudburst Installation',
     stageMapId: 'cloudburst-chandelier', outputContract: installationOutputContract('cloudburst-chandelier', 960),
@@ -2677,29 +2683,32 @@ function cloudburstInstallationV2(): ShowRecordV2 {
       instance('koi', 'Koi3D', 1, { sliderLoopInterval: 0.5, sliderSize: 0.75, sliderHue: 0.12, sliderHeight: 0.5 }),
     ],
     clips: [
-      ...rings.map((ring, n) => clip(`rain-${ring}`, 'rain', zones[n].id, mainLayerId(zones[n].id), rainStarts[n], 30_625 - rainStarts[n])),
+      ...rings.map((ring, n) => clip(`rain-${ring}`, 'rain', zones[n].id, mainLayerId(zones[n].id), rainStarts[n], rainEndMs - rainStarts[n])),
+      clip('rain-phase-recovery', 'rain', zones[0].id, mainLayerId(zones[0].id), rainEndMs, codaMs - rainEndMs, { opacity: 0 }),
       clip('rain-coda', 'rain', zones[0].id, mainLayerId(zones[0].id), codaMs, codaEndMs - codaMs),
       ...rings.map((ring, n) => clip(`water-${ring}`, 'water', zones[n].id, overlayLayerId(zones[n].id, 1), 0, end, { effects: water() })),
-      ...rings.map((ring, n) => clip(`koi-${ring}`, 'koi', zones[n].id, overlayLayerId(zones[n].id, 2), 40_000, 10_000, { opacity: 0, effects: [keyBlack(`koi-${ring}-key`)] })),
+      ...rings.map((ring, n) => clip(`koi-${ring}`, 'koi', zones[n].id, overlayLayerId(zones[n].id, 2), koiMs, koiEndMs - koiMs, { opacity: 0, effects: [keyBlack(`koi-${ring}-key`)] })),
     ],
     propertyTracks: [
+      track('rain-phase-recovery', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderSpeed' }, 0, end,
+        [[0, mainSpeed], [rainEndMs, gapSpeed], [codaMs, mainSpeed]]),
       track('rain-density', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderDensity' }, 0, end,
-        [[0, 0.15], [5_000, 0.5], [10_000, 0.85], [codaMs, codaDensity], [codaEndMs, 0.15]]),
+        [[0, 0.15], [1_333, 0.5], [2_667, 0.85], [codaMs, codaDensity], [codaEndMs, 0.15]]),
       track('rain-landing-glow', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderLandingGlow' }, 0, end,
         // Initial black, first-beat glow, then water handoff; terminal black holds to Show End.
-        [[100, 0, LINEAR], [625, 0.16, HOLD], [15_000, 0.16, SINE_OUT], [15_625, 0, HOLD]]),
+        [[27, 0, LINEAR], [167, 0.16, HOLD], [4_000, 0.16, SINE_OUT], [4_625, 0, HOLD]]),
       // Each rise and the drain take one 625 ms beat; every level between holds.
       track('water-offset', { kind: 'instance-control', instanceId: 'water', exportName: 'sliderOffset' }, 0, end, [
-        [0, 0], [15_000, 0, CUBIC_OUT], [15_625, 0.03], [20_000, 0.03, CUBIC_OUT], [20_625, 0.0925], [25_000, 0.0925, CUBIC_OUT],
-        [25_625, 0.155], [30_000, 0.155, CUBIC_OUT], [30_625, 0.358], [50_000, 0.358, CUBIC_IN], [50_625, 0], [60_000, 0],
+        [0, 0], [4_000, 0, CUBIC_OUT], [4_625, 0.03], [9_000, 0.03, CUBIC_OUT], [9_625, 0.0925], [14_000, 0.0925, CUBIC_OUT],
+        [14_625, 0.155], [19_000, 0.155, CUBIC_OUT], [19_625, 0.358], [39_000, 0.358, CUBIC_IN], [39_625, 0], [49_000, 0],
       ]),
-      ...rings.map(ring => track(`koi-${ring}-opacity`, { kind: 'clip-opacity', clipId: `koi-${ring}` }, 40_000, 10_000,
-        [[40_000, 0, SINE_IN_OUT], [42_500, 1], [47_500, 1, SINE_IN_OUT], [50_000, 0]])),
+      ...rings.map(ring => track(`koi-${ring}-opacity`, { kind: 'clip-opacity', clipId: `koi-${ring}` }, koiMs, koiEndMs - koiMs,
+        [[29_000, 0, SINE_IN_OUT], [31_500, 1], [36_500, 1, SINE_IN_OUT], [39_000, 0]])),
     ],
     markers: [
-      chapter('m-drizzle', 0, 'Drizzle'), chapter('m-downpour', 5_000, 'Downpour'), chapter('m-rising', 15_000, 'Rising'),
-      chapter('m-last-rise', 30_000, 'Last rise'), chapter('m-submerged', 30_625, 'Submerged'), chapter('m-koi', 40_000, 'Koi'),
-      chapter('m-drain', 50_000, 'Drain'), chapter('m-last-drop', 50_625, 'Last drops'),
+      chapter('m-drizzle', 0, 'Drizzle'), chapter('m-downpour', 1_333, 'Downpour'), chapter('m-rising', 4_000, 'Rising'),
+      chapter('m-last-rise', 19_000, 'Last rise'), chapter('m-submerged', 19_625, 'Submerged'), chapter('m-koi', 29_000, 'Koi'),
+      chapter('m-drain', 39_000, 'Drain'), chapter('m-last-drop', 39_625, 'Last drops'),
     ],
   })
 }

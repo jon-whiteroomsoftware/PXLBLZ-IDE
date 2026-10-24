@@ -521,7 +521,10 @@ The Shows list ships learning material beneath your own:
   no white. A gold koi swims ten seconds round the Middle ring, the water
   drains in one beat, and in the coda the last drops fall through the empty
   dark: one to three drops, at most two at once, down Inner tubes. The
-  TubeRain3D head-entry fix is separate (#1206).
+  TubeRain3D head-entry fix is separate (#1206). The AH8 opening candidate
+  compresses establishment to 4 s in a 49 s loop: first water rise 4-4.625 s,
+  koi 29-39 s, drain 39-39.625 s, and coda 44-48.375 s. Visual acceptance
+  is pending; these timings are not yet approved for publication.
 
 Edit them freely. Changes live in a session draft, **Reset** or a reload
 restores the shipped version, and **Clone** keeps your variant.

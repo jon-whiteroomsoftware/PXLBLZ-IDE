@@ -8,38 +8,48 @@ Cloudburst is built as the stock Installation Show
 `cloudburst-chandelier` map. #1198 has landed: a 3D Installation Stage now
 delivers a render3D member's xyz, so the Show renders.
 
-- **Score B** ([decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6337003222)):
+- **AH8 opening candidate; visual acceptance pending.** The authored opening
+  is compressed from 15 s to 4 s; all later events move 11 s earlier. The
+  deterministic loop is 49 s. Rain enters Inner at 0, Middle at 1.333 s and
+  Outer at 2.667 s. Water starts accumulating at 4 s and completes its first
+  rise at 4.625 s. Subsequent rise starts are 9, 14 and 19 s; full submersion
+  holds from 19.625 to 29 s. This candidate is neither Jon-approved nor shipped.
+- **Score B values retained** ([decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6337003222)):
   three shared instances (TubeRain3D, LumaPlane3D, Koi3D) over three physical
   Zones (Inner, Middle, Outer). Cool rain; four held teal levels, each rise and
-  the drain one 625 ms beat; the last rise at 30 s covers every ring. There is
-  no white. One gold koi swims a full ten seconds (40-50 s) on the Middle ring.
+  the drain one 625 ms beat; the last rise at 19 s covers every ring. There is
+  no white. One gold koi swims a full ten seconds (29-39 s) on the Middle ring.
 - **Accepted water-key deviation.** The water Clips' luma key (target 0,
   tolerance 0.20, softness 0.05) is an accepted deviation (decision
   6337003222). Its margin is raw dry luma below 0.20 and submerged luma above
   0.25 in every applicable Zone, in Fast and Precise. No threshold tuning.
-- **Coda: row 8.** Inner rain coda Clip 55.000-59.375 s, Speed 0.12 (the main
-  speed throughout), Density 0.0575. The premise is exactly "the last drops
+- **Coda: row 8 values, retimed.** Inner rain coda Clip 44.000-48.375 s, visible Speed 0.12,
+  Density 0.0575. A zero-opacity continuation of the shared rain instance from
+  19.625 to 44 s runs Speed 0.29565285996055224, restoring the accumulated
+  flow removed by the 11 s compression; visible rain keeps Speed 0.12.
+  The premise is exactly "the last drops
   fall through the empty dark": one to three complete Inner-tube drops, at
   most two at once; each head enters at the top and each tail leaves the
   bottom before the Clip closes
   ([R decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6339423482),
   [final ruling](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6339784729)).
-  Fast and Precise may differ in count and tubes: the delivered replay
-  measures one drop in Fast (tube 1) and two in Precise (tubes 4 and 1), at
-  30 and 60 fps.
+  Delivered replay measures one drop in Fast and two in Precise at 30/60 fps,
+  retaining their measured first-light times relative to drain.
 - **Drain tolerance.** Darkness begins one frame after the drain key, at
-  50.625 + 1/fps seconds at the replay's rate (#1204). From there every frame is
+  39.625 + 1/fps seconds at the replay's rate (#1204). From there every frame is
   exactly black until the first coda light, at least 2.5 s later. The
   TubeRain3D head-entry fix is separate (#1206).
-- **Measured artifact.** 62,179 compiled bytes, 64,278 delivered source bytes
-  (the reopened EPE source is identical), 136 persistent globals, 2,892
-  words, no blockers; all under the 68,384 B proxy, 256 globals and 10,240
-  words.
+- **Measured candidate artifact.** 52,512 compiled bytes, 54,681 delivered
+  source bytes, 124 persistent globals, 2,908 ledger words plus 3,840 rain
+  geometry words: 6,748 bounded VM words, no blockers. Limits remain
+  68,384 B, 256 globals and 10,240 words. At 30 fps, keyed water first exceeds
+  RGB sum 0.02 at 4.033 s in both modes; 4 s is the authored start.
 - **Proof.** `src/engine/cloudburstShow.test.ts` judges the exported EPE
   through `parseEpe` and the fast replay on the real map. The exported
   [`cloudburst.pxlshow`](../proof/cloudburst-show/cloudburst.pxlshow) and
   [`cloudburst.epe`](../proof/cloudburst-show/cloudburst.epe) live in
-  `docs/proof/cloudburst-show/`, with Stage captures.
+  `docs/proof/cloudburst-show/`, with historical Stage captures. These artifacts
+  predate AH8 and do not prove its visual acceptance.
 - **Unmeasured.** Hardware bytecode, physical frame rate and physical colour.
 
 Everything below is the #1193 design record, kept as history. Its two
