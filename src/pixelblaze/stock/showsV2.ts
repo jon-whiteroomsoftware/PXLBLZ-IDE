@@ -2707,6 +2707,13 @@ function cloudburstInstallationV2(): ShowRecordV2 {
       ]),
       ...rings.map(ring => track(`koi-${ring}-opacity`, { kind: 'clip-opacity', clipId: `koi-${ring}` }, koiMs, koiEndMs - koiMs,
         [[29_000, 0, SINE_IN_OUT], [31_500, 1], [36_500, 1, SINE_IN_OUT], [39_000, 0]])),
+      track('koi-dart-speed', { kind: 'instance-time-scale', instanceId: 'koi' }, koiMs, koiEndMs - koiMs, [
+        [29_000, 0.5],
+        [31_000, 0.5, LINEAR], [31_080, 4], [31_250, 4, SINE_IN_OUT], [31_750, 0.5],
+        [34_000, 0.5, LINEAR], [34_080, 4], [34_250, 4, SINE_IN_OUT], [34_750, 0.5],
+        [37_000, 0.5, LINEAR], [37_080, 4], [37_250, 4, SINE_IN_OUT], [37_750, 0.5],
+        [39_000, 0.5],
+      ]),
     ],
     markers: [
       chapter('m-drizzle', 0, 'Drizzle'), chapter('m-downpour', 1_333, 'Downpour'), chapter('m-rising', 4_000, 'Rising'),

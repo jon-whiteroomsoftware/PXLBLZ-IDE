@@ -8,17 +8,19 @@ Cloudburst is built as the stock Installation Show
 `cloudburst-chandelier` map. #1198 has landed: a 3D Installation Stage now
 delivers a render3D member's xyz, so the Show renders.
 
-- **AH8 opening candidate; visual acceptance pending.** The authored opening
+- **Accepted compressed opening** ([decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6386444623)). The authored opening
   is compressed from 15 s to 4 s; all later events move 11 s earlier. The
   deterministic loop is 49 s. Rain enters Inner at 0, Middle at 1.333 s and
   Outer at 2.667 s. Water starts accumulating at 4 s and completes its first
   rise at 4.625 s. Subsequent rise starts are 9, 14 and 19 s; full submersion
-  holds from 19.625 to 29 s. This candidate is neither Jon-approved nor shipped.
+  holds from 19.625 to 29 s. Jon accepted Cloudburst; publication is separate.
 - **Score B values retained** ([decision](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6337003222)):
   three shared instances (TubeRain3D, LumaPlane3D, Koi3D) over three physical
   Zones (Inner, Middle, Outer). Cool rain; four held teal levels, each rise and
   the drain one 625 ms beat; the last rise at 19 s covers every ring. There is
-  no white. One gold koi swims a full ten seconds (29-39 s) on the Middle ring.
+  no white. One gold koi swims a full ten seconds (29-39 s) on the Middle ring:
+  slow cruise, three sharp darts at 31, 34 and 37 s with soft releases, then
+  slow cruise again. A Show-owned time-scale track preserves Koi3D and its controls.
 - **Accepted water-key deviation.** The water Clips' luma key (target 0,
   tolerance 0.20, softness 0.05) is an accepted deviation (decision
   6337003222). Its margin is raw dry luma below 0.20 and submerged luma above
@@ -28,8 +30,9 @@ delivers a render3D member's xyz, so the Show renders.
   19.625 to 29 s applies Speed 0.29565285996055224. Shared member continuity
   retains that Speed and advances `beforeRender` without rain pixel evaluations
   from 29 to 44 s, restoring the accumulated flow removed by the 11 s
-  compression; visible rain keeps Speed 0.12. AH9 preserves every whole-Show
-  RGB channel against AH8 in Fast/Precise at 30/60 fps over the full 49 s.
+  compression; visible rain keeps Speed 0.12. With the accepted darts merged,
+  the opening before 29 s and coda from 44 through 49 s preserve every RGB
+  channel against frozen `a16eb1bc` in Fast/Precise at 30/60 fps.
   The premise is exactly "the last drops
   fall through the empty dark": one to three complete Inner-tube drops, at
   most two at once; each head enters at the top and each tail leaves the
@@ -42,17 +45,24 @@ delivers a render3D member's xyz, so the Show renders.
   39.625 + 1/fps seconds at the replay's rate (#1204). From there every frame is
   exactly black until the first coda light, at least 2.5 s later. The
   TubeRain3D head-entry fix is separate (#1206).
-- **Measured candidate artifact.** 50,218 compiled bytes, 52,386 delivered
+- **Measured combined artifact.** 52,024 compiled bytes, 54,192 delivered
   source bytes, 125 persistent globals, 2,908 ledger words plus 3,840 rain
   geometry words: 6,748 bounded VM words, no blockers. Limits remain
   68,384 B, 256 globals and 10,240 words. At 30 fps, keyed water first exceeds
   RGB sum 0.02 at 4.033 s in both modes; 4 s is the authored start.
+  The dart track adds 1,806 source bytes and no globals or words to AH9.
 - **Proof.** `src/engine/cloudburstShow.test.ts` judges the exported EPE
   through `parseEpe` and the fast replay on the real map. The exported
-  [`cloudburst.pxlshow`](../proof/cloudburst-show/cloudburst.pxlshow) and
+  historical [`cloudburst.pxlshow`](../proof/cloudburst-show/cloudburst.pxlshow) and
   [`cloudburst.epe`](../proof/cloudburst-show/cloudburst.epe) live in
   `docs/proof/cloudburst-show/`, with historical Stage captures. These artifacts
-  predate AH8 and do not prove its visual acceptance.
+  predate AH8. Combined reopened exports, cadence measurements and capture
+  commands are saved under `.wrsp/1200-combined/` for the developer's handoff.
+  Dart motion uses paired exported runtimes with identical seeds, cadence and
+  prior dart history: removing only the current boost supplies its cruise
+  counterfactual over the same rendered gold-centroid window. The required
+  rate increase remains at least 3×; an independently replayed candidate
+  with that boost removed must fail the same check.
 - **Unmeasured.** Hardware bytecode, physical frame rate and physical colour.
 
 Everything below is the #1193 design record, kept as history. Its two

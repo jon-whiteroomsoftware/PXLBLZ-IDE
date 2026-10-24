@@ -35,7 +35,7 @@ function deliver(show: ShowRecordV2) {
   if (capture.prepared.status !== 'ready') throw new Error(`${show.id} failed preparation`)
   const bundle = capture.prepared.bundle
   const artifact = bundle.artifact
-  const exported = buildShowEpeExportV2(show, artifact.code)
+  const exported = buildShowEpeExportV2(show, artifact.code, { stampedAt: '2026-10-24T00:00:00.000Z' })
   if (exported.status !== 'exported') throw new Error(exported.message)
   const delivered = parseEpe(exported.text).src
   const runtime = (fidelity: Mode) => createFastReplayRuntime({
@@ -63,19 +63,25 @@ function waterOnly(keyed: boolean): ShowRecordV2 {
   }
 }
 
-function withoutKoi(): ShowRecordV2 {
-  const c = record.composition
+function withoutKoi(entry: ShowRecordV2 = record): ShowRecordV2 {
+  const c = entry.composition
   const koiClips = new Set(c.clips.filter(clip => clip.instanceId === 'koi').map(clip => clip.id))
   return {
-    ...record, id: `${ID}-no-koi`,
+    ...entry, id: `${ID}-no-koi`,
     composition: {
       ...c,
       clips: c.clips.filter(clip => !koiClips.has(clip.id)),
       patternInstances: c.patternInstances.filter(instance => instance.id !== 'koi'),
       propertyTracks: c.propertyTracks.filter(track => !('clipId' in track.target && koiClips.has(track.target.clipId))
-        && !(track.target.kind === 'instance-control' && track.target.instanceId === 'koi')),
+        && !('instanceId' in track.target && track.target.instanceId === 'koi')),
     },
   }
+}
+
+function withoutKoiDart(entry: ShowRecordV2): ShowRecordV2 {
+  return { ...entry, composition: { ...entry.composition,
+    propertyTracks: entry.composition.propertyTracks.filter(track => track.id !== 'koi-dart-speed'),
+  } }
 }
 
 const show = deliver(record)
@@ -361,8 +367,21 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       [0, 49_000, [27, 167, 4_000, 4_625]],
       [0, 49_000, [0, 4_000, 4_625, 9_000, 9_625, 14_000, 14_625, 19_000, 19_625, 39_000, 39_625, 49_000]],
       ...Array.from({ length: 3 }, () => [29_000, 10_000, [29_000, 31_500, 36_500, 39_000]]),
+      [29_000, 10_000, [29_000, 31_000, 31_080, 31_250, 31_750, 34_000, 34_080, 34_250, 34_750, 37_000, 37_080, 37_250, 37_750, 39_000]],
     ])
     expect(c.markers.map(marker => marker.timeMs)).toEqual([0, 1_333, 4_000, 19_000, 19_625, 29_000, 39_000, 39_625])
+    const dart = c.propertyTracks.find(track => track.id === 'koi-dart-speed')!
+    expect(dart.target).toEqual({ kind: 'instance-time-scale', instanceId: 'koi' })
+    expect(dart.keyframes.map(key => [key.timeMs, key.value, key.easing])).toEqual([
+      [29_000, 0.5, { curve: 'hold', at: 1 }],
+      ...[31_000, 34_000, 37_000].flatMap(start => [
+        [start, 0.5, { curve: 'linear' }],
+        [start + 80, 4, { curve: 'hold', at: 1 }],
+        [start + 250, 4, { curve: 'sine', direction: 'in-out' }],
+        [start + 750, 0.5, { curve: 'hold', at: 1 }],
+      ]),
+      [39_000, 0.5, { curve: 'hold', at: 1 }],
+    ])
   }, 60_000)
 
   it.each(MODES)('shares water Effect identities without changing delivered frames (%s)', mode => {
@@ -443,20 +462,24 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       propertyTracks: record.composition.propertyTracks.filter(track => track.id !== 'rain-landing-glow'),
     } })
     const noNewRainControls = deliver(withoutNewRainControls(record))
+    const noDart = deliver(withoutKoiDart(record))
     for (const fps of [30, 60]) {
       const stepMs = 1000 / fps
-      const deltas = [0, 49_000 - stepMs, 49_000].map(t => maxDelta(
-        show.runtime(mode).advanceTo(t, { stepMs }).pixels,
-        noGlow.runtime(mode).advanceTo(t, { stepMs }).pixels,
-      ))
+      const actual = show.runtime(mode), glowDisabled = noGlow.runtime(mode)
+      const rainDisabled = noNewRainControls.runtime(mode), dartDisabled = noDart.runtime(mode)
+      const deltas: number[] = [], combinedDeltas: number[] = [], dartDeltas: number[] = []
+      for (const t of [0, 49_000 - stepMs, 49_000]) {
+        const pixels = actual.advanceTo(t, { stepMs }).pixels
+        deltas.push(maxDelta(pixels, glowDisabled.advanceTo(t, { stepMs }).pixels))
+        combinedDeltas.push(maxDelta(pixels, rainDisabled.advanceTo(t, { stepMs }).pixels))
+        dartDeltas.push(maxDelta(pixels, dartDisabled.advanceTo(t, { stepMs }).pixels))
+      }
       console.info('Cloudburst landing glow seam', mode, fps, deltas)
       expect(deltas).toEqual([0, 0, 0])
-      const combinedDeltas = [0, 49_000 - stepMs, 49_000].map(t => maxDelta(
-        show.runtime(mode).advanceTo(t, { stepMs }).pixels,
-        noNewRainControls.runtime(mode).advanceTo(t, { stepMs }).pixels,
-      ))
       console.info('Cloudburst combined rain controls seam', mode, fps, combinedDeltas)
       expect(combinedDeltas).toEqual([0, 0, 0])
+      console.info('Cloudburst koi dart seam', mode, fps, dartDeltas)
+      expect(dartDeltas).toEqual([0, 0, 0])
     }
   }, SLOW)
 
@@ -547,13 +570,15 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
   it.each(MODES)('swims one gold koi lap on the Middle ring above the teal (%s)', (mode) => {
     const frames = performance(mode)
     const noKoi = deliver(withoutKoi())
+    expect(noKoi.delivered).toBe(deliver(withoutKoi(withoutKoiDart(record))).delivered)
+    const noKoiRuntime = noKoi.runtime(mode)
     const middle = zoneIndices(1)
     for (const t of [31_500, 32_000, 33_000, 34_000, 36_500]) {
-      const full = show.frameAt(mode, t)
-      const base = noKoi.frameAt(mode, t)
+      const full = frames[frameIndex(t)]
+      const base = noKoiRuntime.advanceTo(t, { stepMs: FRAME }).pixels
       expect(middle.filter(i => full[i][0] - base[i][0] > 0.02).length, `${mode} koi red at ${t}`).toBeGreaterThan(0)
     }
-    const at45 = show.frameAt(mode, 34_000)
+    const at45 = frames[frameIndex(34_000)]
     expect(middle.some(i => at45[i][0] > 0.3 && at45[i][0] > at45[i][2]), `${mode} gold over teal`).toBe(true)
     let maxRed = 0
     for (let n = frameIndex(31_500); n <= frameIndex(36_500); n++) {
@@ -566,6 +591,84 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       if (tubes.length === 2) expect([1, 15], `${mode} adjacent at ${frameTime(n)}`).toContain(tubes[1] - tubes[0])
     }
     expect(maxRed).toBeGreaterThan(0.3)
+  }, SLOW)
+
+  it.each(MODES)('cruises, darts three times and releases to a slow gold cruise (%s)', mode => {
+    const middle = zoneIndices(1)
+    const appendAngle = (angles: number[], pixels: Rgb[], t: number) => {
+      let x = 0, z = 0, weight = 0
+      for (const i of middle) {
+        const red = pixels[i][0]
+        x += red * (points[i].sample[0] - 0.5)
+        z += red * (points[i].sample[2] - 0.5)
+        weight += red
+      }
+      expect(weight, `${mode} gold centroid at ${t}`).toBeGreaterThan(0)
+      const angle = Math.atan2(z, x)
+      const previous = angles[angles.length - 1]
+      angles.push(previous === undefined ? angle : previous + Math.atan2(Math.sin(angle - previous), Math.cos(angle - previous)))
+    }
+    const assertDart = (dartRate: number, cruiseRate: number, direction: number) => {
+      expect(dartRate * direction).toBeGreaterThanOrEqual(3 * cruiseRate * direction)
+    }
+    for (const fps of [30, 60]) {
+      const stepMs = 1000 / fps
+      const index = (t: number) => Math.round(t / stepMs)
+      const time = (n: number) => n * stepMs
+      const first = index(29_500), last = index(38_500)
+      const window = (angles: number[], start: number, end: number) => {
+        const a = index(start), b = index(end)
+        const distance = angles[b - first] - angles[a - first]
+        return { startMs: time(a), endMs: time(b), distance, rate: distance / ((time(b) - time(a)) / 1000) }
+      }
+      for (const start of [31_000, 34_000, 37_000]) {
+        // Same history, seed and cadence; only this pulse's two boost values
+        // change. Earlier pulses, easing, activation and all other records stay.
+        const cruiseRecord = structuredClone(record)
+        const track = cruiseRecord.composition.propertyTracks.find(t => t.id === 'koi-dart-speed')!
+        const originalTrack = record.composition.propertyTracks.find(t => t.id === track.id)!
+        for (const key of track.keyframes) if (key.timeMs === start + 80 || key.timeMs === start + 250) key.value = 0.5
+        expect(withoutKoiDart(cruiseRecord)).toEqual(withoutKoiDart(record))
+        expect({ ...track, keyframes: originalTrack.keyframes }).toEqual(originalTrack)
+        expect(track.keyframes.map((key, i) => ({ ...key, value: originalTrack.keyframes[i].value }))).toEqual(originalTrack.keyframes)
+        expect(track.keyframes.flatMap((key, i) => key.value === originalTrack.keyframes[i].value ? [] : [
+          [key.timeMs, originalTrack.keyframes[i].value, key.value],
+        ])).toEqual([[start + 80, 4, 0.5], [start + 250, 4, 0.5]])
+        const candidate = show.runtime(mode)
+        const counterfactual = deliver(cruiseRecord).runtime(mode)
+        // Fault injection at the same exported/rendered boundary: the candidate
+        // also loses the current boost, so the unchanged >=3x oracle must fail.
+        const fault = deliver(structuredClone(cruiseRecord)).runtime(mode)
+        const angles: number[] = [], cruiseAngles: number[] = [], faultAngles: number[] = []
+        let prefixDelta = 0, faultDelta = 0
+        for (let n = 0; n <= last; n++) {
+          const options = { stepMs, forceFullIntermediateRender: true }
+          const full = candidate.advanceTo(time(n), options).pixels
+          const cruise = counterfactual.advanceTo(time(n), options).pixels
+          const faulty = fault.advanceTo(time(n), options).pixels
+          if (time(n) < start) prefixDelta = Math.max(prefixDelta, maxDelta(full, cruise))
+          faultDelta = Math.max(faultDelta, maxDelta(cruise, faulty))
+          if (n >= first) {
+            appendAngle(angles, full, time(n))
+            appendAngle(cruiseAngles, cruise, time(n))
+            appendAngle(faultAngles, faulty, time(n))
+          }
+        }
+        expect(prefixDelta, `${mode}/${fps} identical prefix before ${start}`).toBe(0)
+        expect(faultDelta).toBe(0)
+        const quiet = [[30_000, 30_500], [32_000, 33_000], [35_000, 36_000], [38_000, 38_500]].map(([a, b]) => window(angles, a, b))
+        const darts = [31_000, 34_000, 37_000].map(t => window(angles, t, t + 750))
+        const dart = window(angles, start, start + 750)
+        const cruise = window(cruiseAngles, start, start + 750)
+        const faulty = window(faultAngles, start, start + 750)
+        const direction = Math.sign(quiet[0].distance)
+        console.info('Cloudburst koi causal angular windows', mode, fps, JSON.stringify({ start, prefixDelta, direction, quiet, darts, dart, cruise, ratio: dart.rate / cruise.rate, faultRatio: faulty.rate / cruise.rate }))
+        for (const observation of [...quiet, ...darts, cruise]) expect(observation.distance * direction).toBeGreaterThan(0)
+        for (const observation of darts) expect(quiet[quiet.length - 1].rate * direction).toBeLessThan(observation.rate * direction)
+        expect(() => assertDart(faulty.rate, cruise.rate, direction)).toThrow()
+        assertDart(dart.rate, cruise.rate, direction)
+      }
+    }
   }, SLOW)
 
   // Darkness starts one frame after the drain key at the replay's rate, per
@@ -618,14 +721,14 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
       },
     })
     // Expand losslessly shared water identities to the historical placement IDs.
-    expect(withoutCoda(withoutNewRainControls(withPlacementWaterEffectIds(record)))).toEqual(withoutCoda(approved))
+    expect(withoutCoda(withoutKoiDart(withoutNewRainControls(withPlacementWaterEffectIds(record))))).toEqual(withoutCoda(approved))
     const frames = performance(mode)
     const runtime = deliver(approved).runtime(mode)
-    const disabled = deliver(withoutNewRainControls(record)).runtime(mode)
+    const disabled = deliver(withoutKoiDart(withoutNewRainControls(record))).runtime(mode)
     for (let n = 0; frameTime(n) < coda.startMs; n++) {
       const approvedPixels = runtime.advanceTo(frameTime(n), { stepMs: FRAME }).pixels
       expect(maxDelta(approvedPixels, disabled.advanceTo(frameTime(n), { stepMs: FRAME }).pixels), `${mode} disabled at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
-      if (frameTime(n) >= 19_625) expect(maxDelta(approvedPixels, frames[n]), `${mode} actual at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
+      if (frameTime(n) >= 19_625 && (frameTime(n) < 29_000 || frameTime(n) >= 39_000)) expect(maxDelta(approvedPixels, frames[n]), `${mode} actual at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
     }
   }, SLOW)
 })
