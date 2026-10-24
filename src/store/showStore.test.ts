@@ -1165,13 +1165,21 @@ describe('built-in Show session drafts (#363)', () => {
     expect(ids.filter((id) => !stockShowV2ById(id))).toEqual([])
   })
 
-  it('refuses a non-built-in id with no stored v2 row', async () => {
+  it.each(['show-not-stored', 'stock-show-retired'])('refuses %s with no stored v2 row', async (id) => {
     memoryProviderV2()
-    await expect(useShowStore.getState().openShowV2Pilot('show-not-stored')).resolves.toEqual({
+    await expect(useShowStore.getState().openShowV2Pilot(id)).resolves.toEqual({
       status: 'refused',
-      issues: [{ code: 'invalid-v1', path: 'id', message: 'Show "show-not-stored" is unavailable.' }],
+      issues: [{ code: 'invalid-v1', path: 'id', message: `Show "${id}" is unavailable.` }],
     })
-    expect(useShowStore.getState().showV2Pilots['show-not-stored']).toBeUndefined()
+    expect(useShowStore.getState().showV2Pilots[id]).toBeUndefined()
+  })
+
+  it('opens a materialized personal Show under an unknown stock id without substitution', async () => {
+    const record = { ...structuredClone(stockShowV2ById(STOCK_ID)!), id: 'stock-show-retired' }
+    memoryProviderV2([record])
+    await expect(useShowStore.getState().openShowV2Pilot(record.id)).resolves.toEqual({ status: 'ready', record })
+    expect(useShowStore.getState().showV2Pilots[record.id]).toEqual(record)
+    expect(useShowStore.getState().isShowV2LessonDraft(record.id)).toBe(false)
   })
 
   it('keeps complete stock draft records and history paired across stale-stamped edits (#948)', async () => {

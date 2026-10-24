@@ -18,7 +18,7 @@
 // against converted legacy records rather than two outputs of one builder.
 // #1042 retires the legacy builder after migration.
 import type { ShowClipEffect, ShowClipViewport, ShowStructuredEasing } from '@/engine/personalContentRecords'
-import type { ShowPropertyKeyframeV2, ShowPropertyTrackV2, ShowRecordV2, ShowTransitionV2 } from '@/engine/showCompositionV2'
+import type { ShowRecordV2, ShowTransitionV2 } from '@/engine/showCompositionV2'
 import {
   CUBIC_IN,
   CUBIC_IN_OUT,
@@ -94,7 +94,6 @@ export const STOCK_SHOWS_V2: readonly ShowRecordV2[] = [
   blackSunInstallationV2(),
   afterHoursInstallationV2(),
   emberFloePortableV2(),
-  phaseV2(),
   cloudburstInstallationV2(),
 ]
 
@@ -2626,87 +2625,6 @@ function emberFloePortableV2(): ShowRecordV2 {
       chapter('m-blaze', 50_000, 'Blaze'),
       chapter('m-shoreline', 60_000, 'Shoreline'),
       chapter('m-thaw', 80_000, 'Thaw'),
-    ],
-  })
-}
-
-// Phase (#1205): two independent striped voices drift apart and lock together.
-function phaseV2(): ShowRecordV2 {
-  const bar = (bars: number) => Math.round(bars * 2_400)
-  const end = bar(30)
-  const snapMs = 600
-  const zones = logicalZones(['Stage'], PORTABLE_REFERENCE_PIXELS)
-  const controls = {
-    sliderLoopInterval: 0.24, sliderDirection: 1, sliderSpacing: 0.3333,
-    sliderWidth: 0.5, sliderFeather: 0.12, sliderLean: 0.5, sliderAngle: 0.25,
-  }
-  const tint = (r: number, g: number, b: number): ShowClipEffect => ({
-    id: 'tint', kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0,
-    highlightR: r, highlightG: g, highlightB: b,
-  })
-  let key = 0
-  const speed: ShowPropertyKeyframeV2[] = [propertyKey(`clock-${++key}`, 0, 1, LINEAR)]
-  for (const endBar of [4, 6, 8, 10, 12, 14, 16, 18]) speed.push(
-    propertyKey(`clock-${++key}`, bar(endBar - 1), 1, SINE_IN_OUT),
-    propertyKey(`clock-${++key}`, bar(endBar - 0.5), 1.5, SINE_IN_OUT),
-    propertyKey(`clock-${++key}`, bar(endBar), 1, LINEAR),
-  )
-  for (const endBar of [20, 22, 24, 25, 25.5, 26, 26.5, 27]) speed.push(
-    propertyKey(`clock-${++key}`, bar(endBar) - snapMs, 1, SINE_IN_OUT),
-    propertyKey(`clock-${++key}`, bar(endBar) - snapMs / 2, 3, SINE_IN_OUT),
-    propertyKey(`clock-${++key}`, bar(endBar), 1, LINEAR),
-  )
-  const width = (id: string): ShowPropertyTrackV2 => propertyTrack(
-    `width-${id}`, { kind: 'instance-control', instanceId: id, exportName: 'sliderWidth' }, 0, end, [
-      propertyKey(`width-${id}-1`, bar(10), 0.5, SINE_IN_OUT),
-      propertyKey(`width-${id}-2`, bar(11), 0.25, LINEAR),
-      propertyKey(`width-${id}-3`, bar(18), 0.25, SINE_IN_OUT),
-      propertyKey(`width-${id}-4`, bar(19), 0.5, LINEAR),
-    ],
-  )
-  const tracks: ShowPropertyTrackV2[] = [
-    propertyTrack('phaser-clock', { kind: 'instance-time-scale', instanceId: 'phaser' }, 0, end, speed),
-    width('anchor'), width('phaser'),
-    propertyTrack('phaser-entry', { kind: 'clip-view', clipId: 'phaser-voice', property: 'brightness' }, 0, end, [
-      propertyKey('entry-1', 0, 0, LINEAR),
-      propertyKey('entry-2', bar(2) - 50, 0, LINEAR),
-      propertyKey('entry-3', bar(2), 1, LINEAR),
-      propertyKey('entry-4', bar(29) - 50, 1, LINEAR),
-      propertyKey('entry-5', bar(29), 0, LINEAR),
-    ]),
-    propertyTrack('phaser-white', { kind: 'clip-effect', clipId: 'phaser-voice', effectId: 'tint', effectKind: 'color-map', parameterId: 'amount' }, 0, end, [
-      propertyKey('white-0', 0, 1, LINEAR),
-      propertyKey('white-1', bar(27) - 50, 1, LINEAR),
-      propertyKey('white-2', bar(27), 0, LINEAR),
-      propertyKey('white-3', bar(27.25), 0, CUBIC_OUT),
-      propertyKey('white-4', bar(27.75), 1, LINEAR),
-    ]),
-  ]
-  const phaserEffects: ShowClipEffect[] = [
-    tint(1, 0.54, 0),
-    { id: 'key', kind: 'luma-key', target: 0, tolerance: 0.05, softness: 0.1 },
-  ]
-  return nativeShowV2({
-    id: 'stock-show-phase',
-    name: 'Phase',
-    zones,
-    zoneLayouts: [singleLayout(zones)],
-    stageMapId: 'plane',
-    outputContract: portableOutputContract(),
-    executionModel: 'deterministic-loop',
-    showEndMs: end,
-    patternInstances: [instance('anchor', 'LumaStripes', 1, controls), instance('phaser', 'LumaStripes', 1, controls)],
-    layers: [mainLayer('zone-1', 'Anchor'), overlayLayer('zone-1', 1, 'Phaser')],
-    clips: [
-      clip('anchor-voice', 'anchor', 'zone-1', mainLayerId('zone-1'), 0, end, { effects: [tint(0.09, 0.25, 1)] }),
-      clip('phaser-voice', 'phaser', 'zone-1', overlayLayerId('zone-1', 1), 0, end, { effects: phaserEffects }),
-    ],
-    layoutOccurrences: [occurrence(1, 'layout-main', 0, end)],
-    propertyTracks: tracks,
-    markers: [
-      chapter('scene-marker:anchor', 0, 'Anchor'), chapter('scene-marker:phase', bar(2), 'Phase'),
-      chapter('scene-marker:count', bar(10), 'Count'), chapter('scene-marker:clap', bar(18), 'Clap'),
-      chapter('scene-marker:unison', bar(27), 'Unison'),
     ],
   })
 }
