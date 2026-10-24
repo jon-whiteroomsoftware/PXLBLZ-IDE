@@ -88,6 +88,7 @@ export function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | un
     ...(adaptation?.steppedClock
       ? { steppedClock: { stepMs: clampNumber(adaptation.steppedClock.stepMs, 16, 60000) } }
       : {}),
+    ...(adaptation?.stepCalendar ? { stepCalendar: structuredClone(adaptation.stepCalendar) } : {}),
   }
 }
 
@@ -237,7 +238,7 @@ export function compileMember(
   const usesMapPixels = coordinateMapBuiltins.has('mapPixels')
   const restartRuntimeFacilities: ShowPatternRestartRuntimeFacility[] = [
     ...(code.includes(`${prefix}_time`) ? ['elapsed-clock' as const] : []),
-    ...(adaptation.steppedClock ? ['stepped-clock' as const] : []),
+    ...(adaptation.steppedClock || adaptation.stepCalendar ? ['stepped-clock' as const] : []),
     ...(coordinateTransformBuiltins.size > 0 ? ['coordinate-transform' as const] : []),
     ...(usesPaint ? ['palette' as const] : []),
     ...(usesMapPixels ? ['map-pixels' as const] : []),

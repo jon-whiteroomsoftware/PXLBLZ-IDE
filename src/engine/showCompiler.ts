@@ -6,6 +6,15 @@ import {
   type ControllerZone,
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
+import type { ShowStepCalendar } from './showStepClockPlan'
+import {
+  emitStepCalendarLoopPrelude,
+  emitStepCalendarMember,
+  emitStepCalendarSharedHelpers,
+  STEP_CALENDAR_TICK_LINE,
+  stepCalendarResetLines,
+  type StepCalendarSpec,
+} from './showStepClockEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
@@ -221,6 +230,7 @@ export interface ShowClipAdaptation {
   mirror: boolean
   lightShutter?: ShowLightShutter
   steppedClock?: ShowSteppedClock
+  stepCalendar?: ShowStepCalendar
   timeOffsetMs: number
 }
 
@@ -1997,6 +2007,7 @@ function buildPatternOutputReuseAnalysis(
             timeScale: placement.timeScale ?? member.adaptation.timeScale,
             timeOffsetMs: member.adaptation.timeOffsetMs,
             steppedClock: member.adaptation.steppedClock ?? null,
+            ...(member.adaptation.stepCalendar ? { stepCalendar: member.adaptation.stepCalendar } : {}),
             lightShutter: member.adaptation.lightShutter ?? null,
           }),
           inputValuesKey: JSON.stringify({
@@ -2103,6 +2114,7 @@ function compiledPatternMachineKey(member: CompiledMember): string {
     animatedEffectParameterPaths: member.animatedEffectParameterPaths,
     lightShutter: member.adaptation.lightShutter ?? null,
     steppedClock: member.adaptation.steppedClock ?? null,
+    ...(member.adaptation.stepCalendar ? { stepCalendar: member.adaptation.stepCalendar } : {}),
   })
 }
 
@@ -2493,7 +2505,7 @@ function compileShowWithKernelFamilies(
         && !member.animatedEffects
         && member.evaluationPolicy === 'live'
         && !member.adaptation.lightShutter
-        && !member.adaptation.steppedClock,
+        && !memberIsStepped(member),
       hasLiveControls: member.controls.length > 0,
     })))
     if (slotPlan.machinesReclaimed > 0) {
@@ -2942,6 +2954,9 @@ function compileShowWithKernelFamilies(
     },
   )
   for (const member of members) member.binding = bindingPolicies.get(member.id)
+  if (!expandedRecipe.routedSceneSequence && members.some(member => member.adaptation.stepCalendar)) {
+    throw new Error('compileShow step calendars require a routed Scene sequence.')
+  }
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(members, expandedRecipe.routedSceneSequence, {
         schedulerTable: options.schedulerTable,
@@ -3792,8 +3807,8 @@ function compileShowWithKernelFamilies(
           : 'full' as const,
         authoredEvaluationPolicy: member.evaluationPolicy,
         expectedActiveFraction: lightShutter?.duty ?? 1,
-        temporalPolicy: member.adaptation.steppedClock ? 'stepped-clock' as const : 'continuous' as const,
-        stepMs: member.adaptation.steppedClock?.stepMs ?? null,
+        temporalPolicy: memberIsStepped(member) ? 'stepped-clock' as const : 'continuous' as const,
+        stepMs: member.adaptation.stepCalendar ? null : member.adaptation.steppedClock?.stepMs ?? null,
         timeOffsetMs: member.adaptation.timeOffsetMs,
       }
     }),
@@ -5048,6 +5063,7 @@ function emitRoutedSceneSequenceShowCode(
   const exactCandidateEnabled = motionTransitionSharing !== 'none' && exactSharedMotionPlan !== null
   const familyKernelEnabled = exactCandidateEnabled && motionTransitionSharing !== 'structure'
   const activeIntervalsByMember = new Map<CompiledMember, Array<{ startMs: number; endMs: number }>>()
+  const mergedIntervalsByMemberId = new Map<string, Array<{ startMs: number; endMs: number }>>()
   const continuityWindowByMember = new Map<CompiledMember, { startMs: number; endMs: number }>()
   for (const segment of segments) {
     const activeScenes = segment.kind === 'transition'
@@ -5067,18 +5083,38 @@ function emitRoutedSceneSequenceShowCode(
       if (previous && interval.startMs <= previous.endMs) previous.endMs = Math.max(previous.endMs, interval.endMs)
       else merged.push({ ...interval })
     }
+    mergedIntervalsByMemberId.set(member.id, merged)
     if (merged.length > 1) continuityWindowByMember.set(member, {
       startMs: merged[0].startMs,
       endMs: merged[merged.length - 1].endMs,
     })
   }
+  const stepCalendars = new Map<string, StepCalendarSpec>(members.flatMap(member => {
+    const calendar = member.adaptation.stepCalendar
+    if (!calendar) return []
+    const continuityWindow = deterministicLoopReset ? continuityWindowByMember.get(member) : undefined
+    return [[member.id, {
+      prefix: member.prefix,
+      loopMs: totalMs,
+      windows: continuityWindow ? [continuityWindow] : mergedIntervalsByMemberId.get(member.id) ?? [],
+      initialStepMs: calendar.initialStepMs,
+      changes: calendar.changes,
+    }]]
+  }))
+  const calendarPrefixes = [...stepCalendars.values()].map(spec => spec.prefix)
   const continuityMembers = deterministicLoopReset ? [...continuityWindowByMember.keys()] : []
   const continuityMemberSet = new Set(continuityMembers)
   const advancedFlag = (member: CompiledMember) => `${member.prefix}_advanced_this_frame`
   const memberRuntimeResetLines = (member: CompiledMember) => [
     ...memberCoordinateTransformResetAssignments(member),
     `${member.elapsedName} = ${member.adaptation.timeOffsetMs / 1000}`,
-    ...(member.adaptation.steppedClock
+    ...(member.adaptation.stepCalendar
+      ? [
+          `${member.prefix}_step_pending_delta_blocks = 0`,
+          `${member.prefix}_step_pending_delta_ms = 0`,
+          ...stepCalendarResetLines(stepCalendars.get(member.id)!),
+        ]
+      : member.adaptation.steppedClock
       ? [
           `${member.prefix}_step_pending_half_ms = 0`,
           `${member.prefix}_step_half_phase = 0`,
@@ -5136,9 +5172,11 @@ ${indentBlock([...restartMemberResetLines(member), ...memberSlotOwnerResetLines(
   if (__pxlblz_show_loop_wrapped) {
 ${indentBlock(loopResetLines.join('\n'), 4)}
     delta = __pxlblz_show_elapsed_s * 1000
-  }${continuityMembers.length > 0 ? `
+  }${stepCalendars.size > 0 ? `\n  ${STEP_CALENDAR_TICK_LINE}` : ''}${continuityMembers.length > 0 ? `
 ${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}` : ''}`
-    : `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}`
+    : stepCalendars.size > 0
+      ? emitStepCalendarLoopPrelude(totalMs, calendarPrefixes)
+      : `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}`
   const hiddenContinuityFunction = continuityMembers.length > 0
     ? `function __pxlblz_show_advance_hidden_instances(delta) {
 ${continuityMembers.map((member) => {
@@ -6175,6 +6213,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
 
   const baselineCode = [
     emitRuntimePrelude(members, outputDimension, {
+      stepCalendars,
       includeHash: transitionBranches.includes('__pxlblz_show_hash01')
         || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01'))
         || stackWrappers.some((wrapper) => wrapper.includes('__pxlblz_show_hash01'))
@@ -6259,6 +6298,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions, ...restartLoopResetFunctions, ...restartAdvanceFunctions]
       : []),
     ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
+    ...(stepCalendars.size > 0 ? [emitStepCalendarSharedHelpers()] : []),
     `export function beforeRender(delta) {
   ${frameAdvancePrelude}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
@@ -6395,6 +6435,7 @@ ${indentBlock(body, 2)}
     const lastStack = scorePlan.stackPlanIndexByScene[scorePlan.stackPlanIndexByScene.length - 1]
     const candidateCode = [
       emitRuntimePrelude(members, 2, {
+        stepCalendars,
         includeHash: transitionRender.includes('__pxlblz_show_hash01')
           || exactStackPlans.some((plan) => plan.wrapper.includes('__pxlblz_show_hash01'))
           || ditherApertureUsed,
@@ -6421,6 +6462,7 @@ ${indentBlock(body, 2)}
         ? ['var __pxlblz_show_restart_primed = 0', ...restartDeclarations, ...restartResetFunctions, ...restartLoopResetFunctions, ...restartAdvanceFunctions]
         : []),
       ...(hiddenContinuityFunction ? [hiddenContinuityFunction] : []),
+      ...(stepCalendars.size > 0 ? [emitStepCalendarSharedHelpers()] : []),
       ...(scoreUsesSnapshot
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
         : []),
@@ -8728,7 +8770,7 @@ function memberQualifiesForDirectSink(
     && member.evaluationPolicy === 'live'
     && member.adaptation.brightness === 1
     && !member.adaptation.lightShutter
-    && !member.adaptation.steppedClock
+    && !memberIsStepped(member)
     && !member.vignetteScalarField
     && !member.coordinateFieldCapture
 }
@@ -11335,7 +11377,7 @@ function buildGeneratedEffectKernelPlan(
       adaptationShape: {
         mirror: member.needsMirrorMapping,
         lightShutter: Boolean(member.adaptation.lightShutter),
-        steppedClock: Boolean(member.adaptation.steppedClock),
+        steppedClock: memberIsStepped(member),
         brightnessScale: member.needsBrightnessScale,
       },
       compositionEnvironment: {
@@ -11357,6 +11399,50 @@ function buildGeneratedEffectKernelPlan(
   }
 }
 
+function emitSteppedMotionHelpers(member: CompiledMember): string[] {
+  return [
+    // Carry bounded milliseconds: remainder <16000, carry sum <32000.
+    `function ${member.prefix}_addSteppedMotionChunk(scaledDeltaMs) {
+  var blocks = floor(scaledDeltaMs / 16000)
+  var remainder = scaledDeltaMs - blocks * 16000
+  remainder = ${member.prefix}_step_pending_delta_ms + remainder
+  if (remainder >= 16000) {
+    remainder = remainder - 16000
+    blocks = blocks + 1
+  }
+  ${member.prefix}_step_pending_delta_blocks = ${member.prefix}_step_pending_delta_blocks + blocks
+  ${member.prefix}_step_pending_delta_ms = remainder
+}`,
+    // Split before scaling so even scale 4 never exceeds 32000 ms.
+    `function ${member.prefix}_addSteppedMotion(delta) {
+  while (delta > 8000) {
+    ${member.prefix}_addSteppedMotionChunk(8000 * ${member.prefix}_adapt_timeScale)
+    delta = delta - 8000
+  }
+  ${member.prefix}_addSteppedMotionChunk(delta * ${member.prefix}_adapt_timeScale)
+}`,
+    // Bound Pattern delta-ms arguments without overflowing a 16.16 value.
+    // Each callback observes its own private-clock advancement.
+    `function ${member.prefix}_deliverStepped(blocks, remainderMs) {
+${member.hasBeforeRender ? `  var called = 0
+  while (blocks >= 2) {
+    ${member.elapsedName} = ${member.elapsedName} + 32
+    ${member.beforeRenderName}(32000)
+    blocks = blocks - 2
+    called = 1
+  }
+  var finalDeltaMs = blocks * 16000 + remainderMs
+  if (finalDeltaMs > 0 || called == 0) {
+    ${member.elapsedName} = ${member.elapsedName} + finalDeltaMs / 1000
+    ${member.beforeRenderName}(finalDeltaMs)
+  }
+` : `  ${member.elapsedName} = ${member.elapsedName} + blocks * 16 + remainderMs / 1000
+`}
+  ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
+}`,
+  ]
+}
+
 function emitRuntimePrelude(
   members: CompiledMember[],
   outputDimension: ShowOutputDimension,
@@ -11370,6 +11456,7 @@ function emitRuntimePrelude(
     /** #572: emit capture/direct pairs with a function-valued binding
      * instead of the #557 per-pixel flag branch. */
     functionValuedSinks?: boolean
+    stepCalendars?: ReadonlyMap<string, StepCalendarSpec>
   } = {},
 ): string {
   const includeAdaptationMix = options.includeAdaptationMix ?? false
@@ -11424,7 +11511,21 @@ function emitRuntimePrelude(
     const rollingRefreshReplay = emitRollingRefreshReplay(member, 'index')
     const rollingRefreshCapture = emitRollingRefreshCapture(member, 'index')
     const steppedClock = member.adaptation.steppedClock
-    const steppedClockVars = steppedClock
+    const stepCalendar = member.adaptation.stepCalendar ? options.stepCalendars?.get(member.id) : undefined
+    if (member.adaptation.stepCalendar && !stepCalendar) {
+      throw new Error(`compileShow step calendar spec missing for member "${member.id}".`)
+    }
+    if (stepCalendar && lightShutter?.clockBehavior === 'freeze') {
+      throw new Error('compileShow step calendars do not support freeze shutters.')
+    }
+    const steppedClockVars = stepCalendar
+      ? [
+          `var ${member.prefix}_step_pending_delta_blocks = 0`,
+          `var ${member.prefix}_step_pending_delta_ms = 0`,
+          ...emitSteppedMotionHelpers(member),
+          emitStepCalendarMember(stepCalendar),
+        ]
+      : steppedClock
       ? [
           // Two bounded millisecond halves retain exact cadence boundaries in 16.16.
           `var ${member.prefix}_step_half_ms = ${steppedClock.stepMs / 2}`,
@@ -11433,45 +11534,7 @@ function emitRuntimePrelude(
           `var ${member.prefix}_step_pending_delta_blocks = 0`,
           `var ${member.prefix}_step_pending_delta_ms = 0`,
           `var ${member.prefix}_step_primed = 0`,
-          // Carry bounded milliseconds: remainder <16000, carry sum <32000.
-          `function ${member.prefix}_addSteppedMotionChunk(scaledDeltaMs) {
-  var blocks = floor(scaledDeltaMs / 16000)
-  var remainder = scaledDeltaMs - blocks * 16000
-  remainder = ${member.prefix}_step_pending_delta_ms + remainder
-  if (remainder >= 16000) {
-    remainder = remainder - 16000
-    blocks = blocks + 1
-  }
-  ${member.prefix}_step_pending_delta_blocks = ${member.prefix}_step_pending_delta_blocks + blocks
-  ${member.prefix}_step_pending_delta_ms = remainder
-}`,
-          // Split before scaling so even scale 4 never exceeds 32000 ms.
-          `function ${member.prefix}_addSteppedMotion(delta) {
-  while (delta > 8000) {
-    ${member.prefix}_addSteppedMotionChunk(8000 * ${member.prefix}_adapt_timeScale)
-    delta = delta - 8000
-  }
-  ${member.prefix}_addSteppedMotionChunk(delta * ${member.prefix}_adapt_timeScale)
-}`,
-          // Bound Pattern delta-ms arguments without overflowing a 16.16 value.
-          // Each callback observes its own private-clock advancement.
-          `function ${member.prefix}_deliverStepped(blocks, remainderMs) {
-${member.hasBeforeRender ? `  var called = 0
-  while (blocks >= 2) {
-    ${member.elapsedName} = ${member.elapsedName} + 32
-    ${member.beforeRenderName}(32000)
-    blocks = blocks - 2
-    called = 1
-  }
-  var finalDeltaMs = blocks * 16000 + remainderMs
-  if (finalDeltaMs > 0 || called == 0) {
-    ${member.elapsedName} = ${member.elapsedName} + finalDeltaMs / 1000
-    ${member.beforeRenderName}(finalDeltaMs)
-  }
-` : `  ${member.elapsedName} = ${member.elapsedName} + blocks * 16 + remainderMs / 1000
-`}
-  ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
-}`,
+          ...emitSteppedMotionHelpers(member),
           // #663: activation is boundary zero. Patterns compute render state in
           // beforeRender, and firmware never renders before delivering it, so
           // the first advance after activation/restart delivers immediately
@@ -11544,7 +11607,9 @@ ${member.hasBeforeRender ? `  var called = 0
             : []),
         ]
       : []
-    const advanceDelta = (delta: string, indent: string) => steppedClock
+    const advanceDelta = (delta: string, indent: string) => stepCalendar
+      ? `${indent}${member.prefix}_calAdvance()`
+      : steppedClock
       ? `${indent}${member.prefix}_advanceStepped(${delta})`
       : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta / 1000
@@ -12185,8 +12250,12 @@ function deterministicReplayTargetOverwrittenBindings(members: CompiledMember[])
 }
 
 
+function memberIsStepped(member: CompiledMember): boolean {
+  return Boolean(member.adaptation.steppedClock || member.adaptation.stepCalendar)
+}
+
 function describeTemporalPolicy(members: CompiledMember[]): ShowCompileSummary['temporalPolicy'] {
-  const steppedCount = members.filter((member) => member.adaptation.steppedClock).length
+  const steppedCount = members.filter(memberIsStepped).length
   if (steppedCount === 0) return 'continuous'
   if (steppedCount === members.length) return 'stepped-clock'
   return 'mixed'
