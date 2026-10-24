@@ -1,6 +1,5 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
-import { ExternalLink, Map as MapIcon } from 'lucide-react'
-import { inlineIcon } from '@/components/iconScale'
+import { Map as MapIcon } from 'lucide-react'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -253,39 +252,9 @@ export function ControllerPanel() {
   )
   const powerSummary = powerTelemetry ? describeControllerPowerSummary(powerTelemetry) : null
   const watchedVars = describeControllerVars(vars)
-  const installedFirmware = controllerEntry?.firmwareVersion
-    ? controllerEntry.firmwareVersion.startsWith('v')
-      ? controllerEntry.firmwareVersion
-      : `v${controllerEntry.firmwareVersion}`
-    : null
 
   return (
     <div className="controller-panel font-mono text-xs" data-testid="controller-panel">
-      {controllerEntry?.firmwareUpdateState === 'available' && (
-        <div
-          role="status"
-          className="mb-2 flex items-center justify-between gap-3 border-y border-amber-400/25 bg-amber-400/[0.04] px-2 py-1.5"
-        >
-          <div className="min-w-0 leading-tight">
-            <div className="font-semibold text-amber-300">Firmware update available</div>
-            <div
-              className="mt-0.5 truncate text-[10px] text-zinc-500"
-              data-layout-allow="overflow-x"
-            >
-              {installedFirmware ? `${installedFirmware} installed · ` : ''}Settings → Updates
-            </div>
-          </div>
-          <a
-            href={`http://${status.controller.address}/`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 focus:outline-none focus:underline"
-          >
-            Open Pixelblaze
-            <ExternalLink {...inlineIcon} aria-hidden />
-          </a>
-        </div>
-      )}
       <ControllerSection
         label="Pixelblaze"
         hint={PANEL_HINT}

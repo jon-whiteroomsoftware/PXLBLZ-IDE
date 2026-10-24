@@ -4,7 +4,7 @@ import type React from 'react'
 import { NumberField as UiNumberField } from '@/components/ui/number-field'
 import { DraftTextField } from '@/components/ui/draft-text-field'
 import { PercentageField as UiPercentageField } from '@/components/ui/percentage-field'
-import { CircleArrowUp, Plus } from 'lucide-react'
+import { ExternalLink, Plus } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
@@ -412,6 +412,12 @@ function ProfileStatus({
       !profile.board.firmwareUpdate.firmwareVersion
       || profile.board.firmwareUpdate.firmwareVersion === profile.board.firmwareVersion
     )
+  const installedFirmware = profile.board.firmwareVersion
+    ? profile.board.firmwareVersion.startsWith('v')
+      ? profile.board.firmwareVersion
+      : `v${profile.board.firmwareVersion}`
+    : null
+  const firmwareAddress = controller?.ip || profile.lastSeenIp
   return (
     <div className="border-b border-seam bg-zinc-950/35 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
@@ -446,19 +452,33 @@ function ProfileStatus({
           <FieldLabel>Firmware</FieldLabel>{' '}
           <span className="inline-flex items-center gap-1.5 font-mono text-zinc-300">
             {formatMaybe(profile.board.firmwareVersion)}
-            {firmwareUpdateAvailable && (
-              <span
-                role="status"
-                title="Last checked while this Controller was connected"
-                className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300"
-              >
-                <CircleArrowUp {...inlineIcon} aria-hidden />
-                Update available
-              </span>
-            )}
           </span>
         </span>
       </div>
+      {firmwareUpdateAvailable && (
+        <div
+          role="status"
+          className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-y border-amber-400/25 bg-amber-400/[0.04] px-2 py-1.5"
+        >
+          <div className="min-w-0 leading-tight">
+            <div className="font-semibold text-amber-300">Firmware update available</div>
+            <div className="mt-0.5 text-[10px] text-zinc-500">
+              {installedFirmware ? `${installedFirmware} installed · ` : ''}Settings → Updates
+            </div>
+          </div>
+          {firmwareAddress && (
+            <a
+              href={`http://${firmwareAddress}/`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 focus:outline-none focus:underline"
+            >
+              Open Pixelblaze
+              <ExternalLink {...inlineIcon} aria-hidden />
+            </a>
+          )}
+        </div>
+      )}
     </div>
   )
 }

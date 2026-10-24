@@ -373,7 +373,45 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
 
     expect(screen.getByTestId('controller-pill-dot')).toBeInTheDocument()
-    expect(screen.getByLabelText('Firmware update available for Desk')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Firmware update available' })).toBeInTheDocument()
+  })
+
+  it.each(['click', 'Enter'])('opens the matching firmware profile with %s and closes its panel', async (activation) => {
+    const user = userEvent.setup()
+    seedLiveController()
+    useControllerStore.setState((state) => ({ controllers: {
+      ...state.controllers,
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareUpdateState: 'available' },
+    } }))
+    seedSignedInProfiles([
+      profile('other', 'pixelblaze_pb32_other', 3),
+      profile('matching', 'pixelblaze_pb32_3cd4ee549434', 2),
+    ])
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const firmware = screen.getByRole('button', { name: 'Firmware update available' })
+    expect(firmware.parentElement?.closest('button')).toBeNull()
+    if (activation === 'click') await user.click(firmware)
+    else {
+      for (let i = 0; i < 30 && document.activeElement !== firmware; i++) await user.tab()
+      expect(firmware).toHaveFocus()
+      await user.keyboard('{Enter}')
+    }
+    expect(window.location.pathname).toBe('/studio/controllers/matching')
+    expect(screen.queryByTestId('controller-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Toggle Desk panel' })).toHaveAttribute('aria-expanded', 'false')
+    await settleControllerAsync()
+  })
+
+  it('has no firmware navigation button for current firmware', async () => {
+    seedLiveController()
+    useControllerStore.setState((state) => ({ controllers: {
+      ...state.controllers,
+      '10.0.0.5': { ...state.controllers['10.0.0.5'], firmwareUpdateState: 'current' },
+    } }))
+    render(<ControllerBar />)
+    expect(screen.queryByRole('button', { name: 'Firmware update available' })).not.toBeInTheDocument()
+    await settleControllerAsync()
   })
 
   it('a pending pill keeps a known name (no IP flash on reconnect churn)', () => {

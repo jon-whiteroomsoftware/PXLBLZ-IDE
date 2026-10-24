@@ -155,7 +155,7 @@ describe('ControllerPanel', () => {
   })
 
 
-  it('shows where to install available firmware in the Controller web UI', async () => {
+  it.each(['available', 'current'] as const)('keeps the %s firmware notice and action out of the popover', async (firmwareUpdateState) => {
     setControllerProvider(new ConnectedProvider())
     useControllerStore.setState({
       activeIp: '10.0.0.9',
@@ -165,18 +165,15 @@ describe('ControllerPanel', () => {
           phase: 'live',
           mapDim: 2,
           firmwareVersion: '3.67',
-          firmwareUpdateState: 'available',
+          firmwareUpdateState,
         },
       },
     })
 
     render(<ControllerPanel />)
 
-    expect(screen.getByText('Firmware update available')).toBeInTheDocument()
-    expect(screen.getByText(/v3\.67 installed/)).toBeInTheDocument()
-    const link = screen.getByRole('link', { name: 'Open Pixelblaze' })
-    expect(link).toHaveAttribute('href', 'http://10.0.0.9/')
-    expect(link).toHaveAttribute('target', '_blank')
+    expect(screen.queryByText('Firmware update available')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Open Pixelblaze' })).not.toBeInTheDocument()
     await settlePanelAsync()
   })
 

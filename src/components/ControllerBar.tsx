@@ -183,40 +183,44 @@ function ControllerPillButton({
           : 'Resume the active renderer'
   return (
     <span className="relative inline-flex">
-      {/* The whole pill is one toggle target — clicking anywhere on it (chip,
-          label, or status dot) opens/closes that Controller's panel. The IP is
-          shown in the open panel's header, so the pill carries no hover tooltip. */}
-      <button
-        type="button"
-        onClick={onActivate}
-        aria-label={`Toggle ${label} panel`}
-        aria-pressed={active}
-        aria-expanded={panelOpen}
-        data-testid="controller-pill"
-        data-active={active}
-        data-phase={phase}
-        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none focus:outline-none max-[430px]:gap-0.5 max-[430px]:px-0.5 ${
+      {/* Chip, label, and status dot toggle the panel; the firmware action
+          opens this Controller's profile independently. */}
+      <span
+        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none max-[430px]:gap-0.5 max-[430px]:px-0.5 ${
           active
             ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
             : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
         }`}
       >
-        <span className="text-zinc-400 group-hover:text-zinc-300">
-          <ChipGlyph />
-        </span>
-        <span data-controller-pill-label className="max-w-[10rem] truncate max-[430px]:hidden">{label}</span>
+        <button
+          type="button"
+          onClick={onActivate}
+          aria-label={`Toggle ${label} panel`}
+          aria-pressed={active}
+          aria-expanded={panelOpen}
+          data-testid="controller-pill"
+          data-active={active}
+          data-phase={phase}
+          className="inline-flex h-full items-center gap-1.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-400 max-[430px]:gap-0.5"
+        >
+          <span className="text-zinc-400 group-hover:text-zinc-300">
+            <ChipGlyph />
+          </span>
+          <span data-controller-pill-label className="max-w-[10rem] truncate max-[430px]:hidden">{label}</span>
+          {showDot && tone && <StatusDot tone={PILL_TONE[tone]} testId="controller-pill-dot" />}
+        </button>
         {firmwareUpdateAvailable && (
-          <span
-            role="img"
-            aria-label={`Firmware update available for ${label}`}
+          <button
+            type="button"
+            onClick={onProfile}
+            aria-label="Firmware update available"
             title="Firmware update available"
-            className="shrink-0 text-amber-400"
+            className="shrink-0 text-amber-400 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-400"
           >
             <CircleArrowUp {...controlIcon} aria-hidden />
-          </span>
+          </button>
         )}
-        {showDot && tone && <StatusDot tone={PILL_TONE[tone]} testId="controller-pill-dot" />}
-      </button>
+      </span>
 
       {(managedRefreshPhase === 'pending' || managedRefreshPhase === 'running') && (
         <button

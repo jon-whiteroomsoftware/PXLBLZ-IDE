@@ -87,7 +87,7 @@ browser. The code lives in `src/dev/controllerScenario.ts`.
 | `map-absent` | `No installed map` |
 | `map-error` | `Map unavailable` |
 | `count-mismatch` | `Ring` with the `256≠300` mismatch chip, 300 px |
-| `firmware-update` | The firmware update banner in the panel; `Update available` on the profile |
+| `firmware-update` | A focusable amber firmware button in the top-bar pill opens the matching profile; the full firmware notice and Open Pixelblaze link appear in profile status, with no notice in the panel |
 
 Every scenario also carries three Pattern controls (speed, mirror, hue), the
 power summary and one Variable, so those sections render with content.

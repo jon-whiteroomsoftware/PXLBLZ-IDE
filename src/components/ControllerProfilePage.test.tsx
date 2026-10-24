@@ -1597,11 +1597,16 @@ describe('ControllerProfilePage', () => {
     await settleProfileAsync()
   })
 
-  it('shows the last-known firmware update state read-only while the Controller is offline', () => {
+  it.each([
+    { liveIp: '10.0.0.9', savedIp: '10.0.0.8', expectedIp: '10.0.0.9' },
+    { liveIp: undefined, savedIp: '10.0.0.8', expectedIp: '10.0.0.8' },
+    { liveIp: undefined, savedIp: undefined, expectedIp: undefined },
+  ])('shows the full firmware notice with live $liveIp and saved $savedIp addresses', async ({ liveIp, savedIp, expectedIp }) => {
     const profile = seedProfile()
     useControllerProfileStore.setState({
       profiles: [{
         ...profile,
+        lastSeenIp: savedIp,
         board: {
           ...profile.board,
           firmwareVersion: '3.67',
@@ -1613,14 +1618,40 @@ describe('ControllerProfilePage', () => {
         },
       }],
     })
+    if (liveIp) useControllerStore.setState({ controllers: {
+      [liveIp]: { ip: liveIp, deviceId: profile.deviceId, phase: 'live', mapDim: 2 },
+    } })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.getByText('Offline')).toBeInTheDocument()
-    expect(screen.getByText('Update available')).toHaveAttribute(
-      'title',
-      'Last checked while this Controller was connected',
-    )
+    expect(screen.getByText(liveIp ? 'Connected' : 'Offline')).toBeInTheDocument()
+    expect(screen.getByText('Firmware update available')).toBeInTheDocument()
+    expect(screen.getByText('v3.67 installed · Settings → Updates')).toBeInTheDocument()
+    if (expectedIp) {
+      const link = screen.getByRole('link', { name: 'Open Pixelblaze' })
+      expect(link).toHaveAttribute('href', `http://${expectedIp}/`)
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link).toHaveAttribute('rel', 'noreferrer')
+    } else expect(screen.queryByRole('link', { name: 'Open Pixelblaze' })).not.toBeInTheDocument()
+    await settleProfileAsync()
+  })
+
+  it('omits the firmware notice for current firmware and mismatched observations', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({ profiles: [{ ...profile, board: {
+      ...profile.board,
+      firmwareVersion: '3.67',
+      firmwareUpdate: { state: 'current', checkedAt: 123, firmwareVersion: '3.67' },
+    } }] })
+    const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
+    expect(screen.queryByText('Firmware update available')).not.toBeInTheDocument()
+    act(() => useControllerProfileStore.setState({ profiles: [{ ...profile, board: {
+      ...profile.board,
+      firmwareVersion: '3.68',
+      firmwareUpdate: { state: 'available', checkedAt: 123, firmwareVersion: '3.67' },
+    } }] }))
+    rerender(<ControllerProfilePage profileId="ctrl-1" />)
+    expect(screen.queryByText('Firmware update available')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open Pixelblaze' })).not.toBeInTheDocument()
   })
 
