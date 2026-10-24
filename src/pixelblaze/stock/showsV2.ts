@@ -2730,9 +2730,9 @@ function cloudburstInstallationV2(): ShowRecordV2 {
   const zones = physicalZones(['Inner', 'Middle', 'Outer'], [160, 320, 480])
   const rings = ['inner', 'middle', 'outer']
   const keyBlack = (id: string): ShowClipEffect => ({ id, kind: 'luma-key', target: 0, tolerance: 0.03, softness: 0.08 })
-  const water = (ring: string): ShowClipEffect[] => [
-    { id: `water-${ring}-teal`, kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 0, highlightG: 0.45, highlightB: 0.5 },
-    { id: `water-${ring}-key`, kind: 'luma-key', target: 0, tolerance: 0.2, softness: 0.05 },
+  const water = (): ShowClipEffect[] => [
+    { id: 'water-teal', kind: 'color-map', amount: 1, shadowR: 0, shadowG: 0, shadowB: 0, highlightR: 0, highlightG: 0.45, highlightB: 0.5 },
+    { id: 'water-key', kind: 'luma-key', target: 0, tolerance: 0.2, softness: 0.05 },
   ]
   const rainStarts = [0, 5_000, 10_000]
   return nativeShowV2({
@@ -2743,7 +2743,7 @@ function cloudburstInstallationV2(): ShowRecordV2 {
     layoutOccurrences: [occurrence(1, 'layout-chandelier', 0, end)],
     layers: zones.flatMap(zone => [mainLayer(zone.id, 'Rain'), overlayLayer(zone.id, 1, 'Water'), overlayLayer(zone.id, 2, 'Koi')]),
     patternInstances: [
-      instance('rain', 'TubeRain3D', 1, { sliderHue: 0.6, sliderSaturation: 0.55, sliderLength: 0.6, sliderSpeed: mainSpeed, sliderDensity: 0.15 }),
+      instance('rain', 'TubeRain3D', 1, { sliderHue: 0.6, sliderSaturation: 0.55, sliderLength: 0.6, sliderSpeed: mainSpeed, sliderDensity: 0.15, sliderSplash: 0.1, sliderLandingGlow: 0 }),
       instance('water', 'LumaPlane3D', 1, {
         sliderDirection: 0.5, sliderSpacing: 1, sliderWidth: 0.5, sliderFeather: 0.04, sliderLean: 0.5,
         sliderTilt: 0, sliderAzimuth: 0, sliderOffset: 0,
@@ -2753,12 +2753,15 @@ function cloudburstInstallationV2(): ShowRecordV2 {
     clips: [
       ...rings.map((ring, n) => clip(`rain-${ring}`, 'rain', zones[n].id, mainLayerId(zones[n].id), rainStarts[n], 30_625 - rainStarts[n])),
       clip('rain-coda', 'rain', zones[0].id, mainLayerId(zones[0].id), codaMs, codaEndMs - codaMs),
-      ...rings.map((ring, n) => clip(`water-${ring}`, 'water', zones[n].id, overlayLayerId(zones[n].id, 1), 0, end, { effects: water(ring) })),
+      ...rings.map((ring, n) => clip(`water-${ring}`, 'water', zones[n].id, overlayLayerId(zones[n].id, 1), 0, end, { effects: water() })),
       ...rings.map((ring, n) => clip(`koi-${ring}`, 'koi', zones[n].id, overlayLayerId(zones[n].id, 2), 40_000, 10_000, { opacity: 0, effects: [keyBlack(`koi-${ring}-key`)] })),
     ],
     propertyTracks: [
       track('rain-density', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderDensity' }, 0, end,
         [[0, 0.15], [5_000, 0.5], [10_000, 0.85], [codaMs, codaDensity], [codaEndMs, 0.15]]),
+      track('rain-landing-glow', { kind: 'instance-control', instanceId: 'rain', exportName: 'sliderLandingGlow' }, 0, end,
+        // Initial black, first-beat glow, then water handoff; terminal black holds to Show End.
+        [[100, 0, LINEAR], [625, 0.16, HOLD], [15_000, 0.16, SINE_OUT], [15_625, 0, HOLD]]),
       // Each rise and the drain take one 625 ms beat; every level between holds.
       track('water-offset', { kind: 'instance-control', instanceId: 'water', exportName: 'sliderOffset' }, 0, end, [
         [0, 0], [15_000, 0, CUBIC_OUT], [15_625, 0.03], [20_000, 0.03, CUBIC_OUT], [20_625, 0.0925], [25_000, 0.0925, CUBIC_OUT],

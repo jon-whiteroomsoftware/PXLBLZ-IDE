@@ -79,6 +79,45 @@ function withoutKoi(): ShowRecordV2 {
 }
 
 const show = deliver(record)
+
+function rainOnly(): ShowRecordV2 {
+  const c = record.composition
+  return { ...record, composition: {
+    ...c,
+    patternInstances: c.patternInstances.filter(instance => instance.id === 'rain').map(instance => ({
+      ...instance, controlTargets: { ...instance.controlTargets, sliderDensity: 0, sliderSplash: 0 },
+    })),
+    clips: c.clips.filter(clip => clip.instanceId === 'rain'),
+    propertyTracks: c.propertyTracks.filter(track => track.target.kind === 'instance-control' && track.target.instanceId === 'rain')
+      .map(track => track.id === 'rain-density' ? { ...track, keyframes: track.keyframes.map(key => ({ ...key, value: 0 })) } : track),
+  } }
+}
+
+function withPlacementWaterEffectIds(entry: ShowRecordV2): ShowRecordV2 {
+  const result = structuredClone(entry)
+  for (const clip of result.composition.clips.filter(clip => clip.instanceId === 'water')) {
+    for (const key of clip.appearance.keys) {
+      for (const effect of key.value.effects ?? []) {
+        if (effect.id === 'water-teal') effect.id = `${clip.id}-teal`
+        if (effect.id === 'water-key') effect.id = `${clip.id}-key`
+      }
+    }
+  }
+  return result
+}
+
+function withoutNewRainControls(entry: ShowRecordV2): ShowRecordV2 {
+  return { ...entry, composition: { ...entry.composition,
+    patternInstances: entry.composition.patternInstances.map(instance => {
+      if (instance.id !== 'rain') return instance
+      const controlTargets = { ...instance.controlTargets }
+      delete controlTargets.sliderSplash
+      delete controlTargets.sliderLandingGlow
+      return { ...instance, controlTargets }
+    }),
+    propertyTracks: entry.composition.propertyTracks.filter(track => track.id !== 'rain-landing-glow'),
+  } }
+}
 const points = show.bundle.presentation.layout.mapPoints
 const ys = points.map(point => point.sample[1])
 const sum = ([r, g, b]: Rgb) => r + g + b
@@ -280,11 +319,120 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     const resources = show.artifact.summary.resources
     // #1200 B before coda calibration: 63,427 source bytes, 136 globals, 2,892 words.
     // Row 8 coda (one rain-speed track fewer): 62,179 bytes, 136 globals, 2,892 words.
+    // Resource analyzer counts runtime-sized arrays as zero elements. Include
+    // the four existing rain geometry arrays at the installed 960 LED count.
+    const actualWords = resources.totalWords + 4 * points.length
+    console.info('Cloudburst ledger', { compiledBytes: resources.artifactBytes, deliveredBytes: new TextEncoder().encode(show.delivered).length,
+      globals: resources.persistentGlobals, ledgerWords: resources.totalWords, actualWords })
     expect(resources.blockers).toEqual([])
     expect(resources.artifactBytes).toBeLessThan(68_384)
     expect(new TextEncoder().encode(show.delivered).length).toBeLessThan(68_384)
     expect(resources.persistentGlobals).toBeLessThan(256)
-    expect(resources.totalWords).toBeLessThanOrEqual(10_240)
+    expect(actualWords).toBeLessThanOrEqual(10_240)
+  }, SLOW)
+
+  it.each(MODES)('shares water Effect identities without changing delivered frames (%s)', mode => {
+    const waterClips = record.composition.clips.filter(clip => clip.instanceId === 'water')
+    expect(waterClips).toHaveLength(3)
+    const effects = waterClips.flatMap(clip => clip.appearance.keys.flatMap(key => key.value.effects ?? []))
+    expect(new Set(effects.map(effect => effect.id)).size).toBe(2)
+    const original = structuredClone(record)
+    const untrimmed = withPlacementWaterEffectIds(record)
+    expect(record).toEqual(original)
+    // Lossless identity reuse: restoring shared IDs changes no other field.
+    const shared = structuredClone(untrimmed)
+    for (const clip of shared.composition.clips.filter(clip => clip.instanceId === 'water')) {
+      for (const key of clip.appearance.keys) {
+        for (const effect of key.value.effects ?? []) {
+          if (effect.id === `${clip.id}-teal`) effect.id = 'water-teal'
+          if (effect.id === `${clip.id}-key`) effect.id = 'water-key'
+        }
+      }
+    }
+    expect(shared).toEqual(record)
+    const comparator = deliver(untrimmed)
+    console.info('Cloudburst water identity delivered source', {
+      currentBytes: new TextEncoder().encode(show.delivered).length,
+      comparatorBytes: new TextEncoder().encode(comparator.delivered).length,
+    })
+    const samples = [0, 50, 100, 625, 5_000, 10_000, 15_000, 15_625, 20_000, 20_625,
+      25_000, 25_625, 30_000, 30_625, 40_000, 42_500, 47_500, 50_000, 50_625, 55_000, 59_375, 60_000]
+    for (const fps of [30, 60]) {
+      const current = show.runtime(mode), reference = comparator.runtime(mode)
+      const start = current.snapshot(), referenceStart = reference.snapshot()
+      const compare = (t: number, stepMs: number) => {
+        const actual = current.advanceTo(t, { stepMs }).pixels
+        const expected = reference.advanceTo(t, { stepMs }).pixels
+        expect(actual).toHaveLength(960)
+        expect(expected).toHaveLength(960)
+        const delta = maxDelta(actual, expected)
+        expect(delta, `${mode} ${fps}fps at ${t}`).toBe(0)
+        return delta
+      }
+      let maximum = 0
+      for (let n = 0; n <= 60 * fps; n++) maximum = Math.max(maximum, compare(n * 1000 / fps, 1000 / fps))
+      console.info('Cloudburst water identity frames', { mode, fps, frames: 60 * fps + 1, maxDelta: maximum })
+      current.restore(start)
+      reference.restore(referenceStart)
+      for (const t of samples) compare(t, FRAME)
+      current.restore(start)
+      reference.restore(referenceStart)
+      compare(22_500, FRAME)
+      console.info('Cloudburst water identity boundaries and restore', { mode, fps, samples: samples.length, restoredMs: 22_500, maxDelta: 0 })
+    }
+  }, SLOW)
+
+  it.each(MODES)('delivers stationary floor anchors only on active rain tubes (%s)', mode => {
+    const anchor = deliver(rainOnly())
+    for (const [t, count] of [[2_500, 8], [7_500, 24], [12_500, 48]]) {
+      const a = anchor.frameAt(mode, t), b = anchor.frameAt(mode, t + 625)
+      const lit = a.flatMap((rgb, i) => visible(rgb) ? [i] : [])
+      expect(lit).toHaveLength(count)
+      expect(maxDelta(a, b)).toBe(0)
+      expect(new Set(lit.map(tubeOf)).size).toBe(count)
+      for (const i of lit) {
+        const [x, y, z] = points[i].sample
+        expect(y).toBe(Math.min(...points.filter(p => p.sample[0] === x && p.sample[2] === z).map(p => p.sample[1])))
+      }
+      expect(Math.max(...a.flat())).toBeCloseTo(0.16, 4)
+    }
+    for (const t of [0, 50, 100, 15_625, 30_625, 55_000, 59_375, 60_000]) expect(anchor.frameAt(mode, t).flat().every(v => v === 0), `anchor black at ${t}`).toBe(true)
+  }, SLOW)
+
+  it.each(MODES)('seeks and restores the actual opening without adding a loop seam (%s)', mode => {
+    const runtime = show.runtime(mode), start = runtime.snapshot()
+    const reference = performance(mode)[frameIndex(12_500)]
+    expect(maxDelta(runtime.advanceTo(12_500, { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
+    runtime.restore(start)
+    expect(maxDelta(runtime.advanceTo(12_500, { stepMs: FRAME }).pixels, reference)).toBeLessThan(1e-9)
+    const noGlow = deliver({ ...record, composition: { ...record.composition,
+      propertyTracks: record.composition.propertyTracks.filter(track => track.id !== 'rain-landing-glow'),
+    } })
+    const noNewRainControls = deliver(withoutNewRainControls(record))
+    for (const fps of [30, 60]) {
+      const stepMs = 1000 / fps
+      const deltas = [0, 60_000 - stepMs, 60_000].map(t => maxDelta(
+        show.runtime(mode).advanceTo(t, { stepMs }).pixels,
+        noGlow.runtime(mode).advanceTo(t, { stepMs }).pixels,
+      ))
+      console.info('Cloudburst landing glow seam', mode, fps, deltas)
+      expect(deltas).toEqual([0, 0, 0])
+      const combinedDeltas = [0, 60_000 - stepMs, 60_000].map(t => maxDelta(
+        show.runtime(mode).advanceTo(t, { stepMs }).pixels,
+        noNewRainControls.runtime(mode).advanceTo(t, { stepMs }).pixels,
+      ))
+      console.info('Cloudburst combined rain controls seam', mode, fps, combinedDeltas)
+      expect(combinedDeltas).toEqual([0, 0, 0])
+    }
+  }, SLOW)
+
+  it.each(MODES)('reports 960 LED startup and steady frame timing (%s)', mode => {
+    const start = globalThis.performance.now()
+    const runtime = show.runtime(mode)
+    runtime.advanceLive(0)
+    const initialized = globalThis.performance.now()
+    for (let i = 0; i < 120; i++) runtime.advanceLive(FRAME)
+    console.info('Cloudburst 960 LED timing', mode, { startupMs: initialized - start, frameMs: (globalThis.performance.now() - initialized) / 120 })
   }, SLOW)
 
   it('keys only the dry water out, with margins on every Zone in both modes', () => {
@@ -339,6 +487,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
 
   it.each(MODES)('never flashes, never shows white, enters ring by ring and holds still under water (%s)', (mode) => {
     const frames = performance(mode)
+    console.info('Cloudburst max flash-window violation fraction', mode, Math.max(...flashWindows(frames).map(window => window.fraction)))
     for (const window of flashWindows(frames)) expect(window.fraction, `${mode} second ${window.second}`).toBeLessThanOrEqual(0.25)
     const white = (rgb: Rgb) => sum(rgb) > 0.15 && Math.max(...rgb) - Math.min(...rgb) < 0.1 * Math.max(...rgb)
     expect(frames.findIndex(pixels => pixels.some(white)), `${mode} first white frame`).toBe(-1)
@@ -397,7 +546,10 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
   // Approved B (decision 6337003222), exported from incoming staged tree
   // f98e93cacdfe3204542a8acfe0970aa3f2150eaa. Its coda is incomplete; it is
   // preservation data for everything before the coda opens.
-  it.each(MODES)('keeps approved B pixel-identical before the coda opens (%s)', async (mode) => {
+  // Authorized opening anchors/splash exceptions:
+  // https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6378412007
+  // https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6378424773
+  it.each(MODES)('preserves approved B outside the authorized rain controls (%s)', async (mode) => {
     const reopened = await parseShowFileBundle(readFileSync(new URL('../test/fixtures/cloudburstApprovedB.pxlshow', import.meta.url)), { acceptV2: true })
     if (reopened.version !== 2) throw new Error('wrong fixture version')
     const approved = reopened.show
@@ -410,11 +562,15 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
         markers: entry.composition.markers.filter(marker => marker.id !== 'm-last-drop'),
       },
     })
-    expect(withoutCoda(record)).toEqual(withoutCoda(approved))
+    // Expand losslessly shared water identities to the historical placement IDs.
+    expect(withoutCoda(withoutNewRainControls(withPlacementWaterEffectIds(record)))).toEqual(withoutCoda(approved))
     const frames = performance(mode)
     const runtime = deliver(approved).runtime(mode)
+    const disabled = deliver(withoutNewRainControls(record)).runtime(mode)
     for (let n = 0; frameTime(n) < coda.startMs; n++) {
-      expect(maxDelta(runtime.advanceTo(frameTime(n), { stepMs: FRAME }).pixels, frames[n]), `${mode} at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
+      const approvedPixels = runtime.advanceTo(frameTime(n), { stepMs: FRAME }).pixels
+      expect(maxDelta(approvedPixels, disabled.advanceTo(frameTime(n), { stepMs: FRAME }).pixels), `${mode} disabled at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
+      if (frameTime(n) >= 30_625) expect(maxDelta(approvedPixels, frames[n]), `${mode} actual at ${frameTime(n)}`).toBeLessThanOrEqual(1e-9)
     }
   }, SLOW)
 })

@@ -213,6 +213,8 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderHeight: 'Lap height from 0 to 0.7 normalized y, with a small vertical sway.',
   },
   TubeRain3D: {
+    sliderLandingGlow: 'Still light at tube landing points; default off.',
+    sliderSplash: 'Fraction of landing drops with a tiny upward splash on evenly spaced vertical tubes; default off.',
     sliderSpeed: 'Downward travel speed along world y.',
     sliderDensity: 'Fraction of complete drops admitted, from dry to downpour.',
     sliderLength: 'Length of the fading tail above each bright head.',

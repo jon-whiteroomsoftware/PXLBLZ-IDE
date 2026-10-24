@@ -22,8 +22,9 @@ describe('Show render-target residual-headroom census (#514)', () => {
     // hold.
     // #1196 recensus: +NeonTube (corpus, array-free and fitting +1; rejections unchanged).
     // #1200 recensus: +LumaPlane3D, TubeRain3D, Koi3D (corpus +3; array-free +3, fitting +3; rejections unchanged).
+    // #1200 Splash/Landing Glow: TubeRain3D's four lazy map-derived arrays move array-free -1; other counts and rejections hold.
     expect(report.summary.stockPatternCount).toBe(106)
-    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(66)
+    expect(report.summary.stockPatternsWithNoMemberArrays).toBe(65)
     expect(report.summary.stockPatternsFittingResidualBudget).toBe(101)
     expect(report.summary.stockPatternRejections).toHaveLength(5)
     expect(report.summary.stockPatternRejections.map((entry) => entry.id)).toEqual([
