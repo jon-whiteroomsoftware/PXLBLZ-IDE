@@ -2547,7 +2547,7 @@ function afterHoursInstallationV2(): ShowRecordV2 {
 
 // Ember & Floe (#1199, design #1194): fire and ice hold a front line. Two
 // whole-Show Clips keep one clock per world; only the Zone Layout changes, so
-// the front moves in held steps, lengthens at each escalation (Front, Buckle,
+// the hard boundary eases between bar targets, lengthens at each escalation (Front, Buckle,
 // Teeth, Shatter 4, Shatter 8), detonates once in white, then lies down as a
 // soft Shoreline that thaws back to cold. Every section stays under 30 s
 // (#1197), and the white track is windowed to 1.25 s on the Ember Clip only:
