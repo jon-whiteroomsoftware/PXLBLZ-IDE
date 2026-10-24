@@ -11,8 +11,10 @@ he previews the build.
 
 **Recommendation in one paragraph.** Build Ember & Floe as a 90 s Portable 2D
 Show in which fire and ice share one Stage. Each element keeps its whole world
-inside its own territory, and the front line between them is the drama: war
-moves the front in held steps, and peace moves it smoothly. Intensity is the
+inside its own territory, and the front line between them is the drama: after
+the 7.5 s first ember, the vertical Front travels with sine-in-out easing between
+the existing bar positions. Its boundary stays hard; Shoreline alone uses the
+broad soft blend. Intensity is the
 length of the front: a straight line, then a buckled one, then teeth, then a
 4 × 4 checkerboard that doubles to 8 × 8. At the peak the board detonates in one white
 hit, and fire owns everything. Then ice rises underneath in a soft horizontal
@@ -23,6 +25,15 @@ one Clip each for the whole Show, six Zone Layouts in seven occurrences, two
 split-position tracks and one windowed white color-map. It needs no new Pattern.
 The prototype compiles to 48,439 B against the 68,384 B activation proxy, and
 passes the flash limit in every second.
+
+**2026-10-23 #1199 preview edit.** [Jon asked for smoother front motion](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1199#issuecomment-6378295794).
+This candidate uses easing only, retaining the bar positions, compressed worlds
+and hard Front boundary. The exported and
+reopened EPE diagnostic at 44 × 44, 30 Hz, seed 7 measured maximum adjacent
+rendered edge displacement of 5/5/7 columns before and 1/1/1 after easing in
+10-15 / 20-25 / 25-28.75 s. A hard edge still changes ownership one LED at a
+time; this is not subpixel blending. White, Blaze, Shoreline and loop timing
+stay unchanged. Prototype ledgers below retain the historical held-track costs.
 
 ## What changed from the draft
 
@@ -75,7 +86,8 @@ then a Full Stage takeover and a soft split on y) changes in four ways:
 **Two worlds, one front.** Fire and ice each keep their whole world inside
 their own territory. Only the territory changes. Gaining ground lets a world
 sprawl; losing ground compresses it; a broken front shatters both worlds into
-copies. War moves the front in held steps; peace moves it smoothly. The front
+copies. After the first ember at 7.5 s, the vertical Front advances and retreats
+with sine-in-out easing between bar targets, keeping its hard boundary. The front
 lengthens until it cannot hold, detonates in white, and then lies down
 horizontal.
 
@@ -117,10 +129,11 @@ horizontal.
 
 ### Motion verbs
 
-- **Lurch:** the front moves in held steps on the beat, forward and back.
+- **Advance and retreat:** the vertical Front eases between bar targets after
+  the first ember at 7.5 s, forward and back, then rests at its last key.
 - **Fracture:** the front changes shape, each step longer than the last.
-- **Glide:** in peace the front moves smoothly. It is the only smooth motion in
-  the piece.
+- **Glide:** Shoreline releases the vertical contest into horizontal drift,
+  with the piece's only broad soft blend.
 
 Each element keeps its own motion inside its territory (fire bounces, ice
 drifts); those are textures, not verbs.
@@ -128,8 +141,8 @@ drifts); those are textures, not verbs.
 ### Timing hierarchy
 
 - **Beat:** 625 ms (96 BPM).
-- **Bar:** 2.5 s. Front steps and Layout changes land on bars, compressing to
-  half bars at the end of the war.
+- **Bar:** 2.5 s. Front travel reaches its targets and Layout cuts land on bars,
+  compressing to half bars at the end of the war.
 - **Phrase:** 10 s, four bars.
 - **Arc:** nine phrases, 90 s, cold to cold.
 
@@ -138,7 +151,7 @@ drifts); those are textures, not verbs.
 | Section | Time | What happens |
 | --- | --- | --- |
 | Cold | 0-10 s | Ice alone. On bar 4 (7.5 s) the first ember: a sliver of fire at the left edge. |
-| Front | 10-30 s | The front lurches on each bar: fire gains twice, ice answers once, three times over, from 20% to 60%. The last bar compresses to half-bar steps and stalls at the middle. |
+| Front | 10-30 s | The vertical Front eases between bar targets: fire gains twice, ice answers once, three times over, from 20% to 60%. The last bar compresses to half-bar travel and rests at the middle from 28.75 s. |
 | Buckle | 30-40 s | The straight front buckles into a shallow zigzag, then into deep teeth at 35 s. |
 | Shatter | 40-50 s | A 4 × 4 checkerboard, then 8 × 8 at 45 s, where both worlds become confetti. |
 | White hit | 50 s | The board detonates: the whole Stage flashes white and decays to fire over 1.25 s. |
@@ -149,7 +162,10 @@ drifts); those are textures, not verbs.
 ### Invariants
 
 - Each element shows only its own texture and colour.
-- War moves the front only in held steps; only peace moves it smoothly. Peace
+- Cold stays ice-only until the first ember at 7.5 s; subsequent Front segments
+  use sine-in-out easing between the existing bar positions. Worlds remain
+  compressed into their territories and the boundary stays hard. Buckle, Teeth
+  and Shatter remain cuts; Shoreline alone uses the broad soft blend. Peace
   begins and ends on a held step: ice surfacing at 60 s and the last fire going
   out at the loop.
 - Each escalation lengthens the front; nothing else escalates. Measured as
@@ -161,7 +177,7 @@ drifts); those are textures, not verbs.
 
 ### Permitted variations
 
-The step sizes and order of the war; the beat (80 to 110 BPM); the buckle
+The travel distances and order of the war; the beat (80 to 110 BPM); the buckle
 amplitude and tooth count; the checker sizes, as long as the boundary-edge
 sequence stays increasing (Shatter 2, at 88 edges, is shorter than any Wave
 and cannot follow one); the
@@ -182,13 +198,14 @@ black voice and one full-field voice.
 - **The first answer** (the turn): ice pushes the front back. Now it is a war.
 - **Shatter 8** (compression peak): the front everywhere.
 - **The white hit** (major, once).
-- **The first glide** (the release): the first smooth motion in 60 s.
+- **The first glide** (the release): the turn from vertical contest to
+  horizontal drift, with the broad soft shoreline.
 
 ### Restraint rules
 
 - One Layout at a time and one front; no layered Effects on the Clips.
 - White once.
-- Steps no faster than half a bar.
+- Front targets and Layout cuts no faster than half a bar.
 - Ice at 70% brightness.
 - Fire gets three more blobs only at the detonation, so the change hides under
   the white.
@@ -200,9 +217,10 @@ black voice and one full-field voice.
 
 - **Fire against ice is a familiar trope.** The front-length law, not the
   colours, has to carry the piece. Answered by the redesign above.
-- **A compressed world reads as a glitch rather than as pressure.** Each step
-  rescales a world. The steps land on the beat and are held for a bar, so the
-  rescale reads as a lurch. Faster steps would read as jitter.
+- **A compressed world reads as a glitch rather than as pressure.** Front travel
+  rescales each world with sine-in-out easing between bar targets. Ownership
+  still advances one LED at a time at the hard edge; Buckle, Teeth and Shatter
+  cut on the beat and retain increasing front length.
 - **The shoreline's fire half goes dark.** Under Soft Split the fire samples
   Stage-wide coordinates, so blobs that drift into the lower half vanish under
   the ice. The prototype's 1:15 frame shows this. Mitigation for the build: hold
@@ -244,9 +262,9 @@ this packet.
 | Premise | 2 | 3 | One inferable law: two worlds, one front, and losing ground compresses your world. The draft was clear (fire against ice, conflict vertical, peace horizontal) but borrowed its force from a familiar pairing. |
 | Hierarchy | 2 | 2 | The front first, fire over ice by brightness, and white once. Residual risk: in the shatter both worlds become equal-weight confetti. That is intended as the compression peak, but it is the one flat moment. |
 | Palette roles | 2 | 3 | Structural: fire's black ground makes its blobs and the feather's glow; white is the single detonation; the violet contact glow exists only in peace. |
-| Motion grammar | 1 | 2 | Lurch, fracture and glide, with step against smooth as the war/peace law. The draft had no motion law beyond Layout changes. Not yet a 3: each world's own motion is untouched texture. |
+| Motion grammar | 1 | 2 | Advance and retreat, fracture and glide: eased vertical contest, escalating cuts, then horizontal drift with a broad soft blend. The draft had no motion law beyond Layout changes. Not yet a 3: each world's own motion is untouched texture. |
 | Temporal form | 1 | 3 | Cold, ember, war with answers, escalation by doubling, detonation, blaze, shoreline and thaw back to cold. The draft's sequence was a catalogue with an ending. |
-| Restraint | 2 | 2 | Ice alone for 7.5 s, white once, one Layout at a time, and the only smooth motion withheld for 60 s. The shatter is deliberately everything-on. |
+| Restraint | 2 | 2 | Ice alone for 7.5 s, white once, one Layout at a time, and the broad soft blend withheld until Shoreline at 60 s. Front travel keeps a hard boundary. The shatter is deliberately everything-on. |
 | Ordinary frame | 2 | 2 | The front frame is sound and immediate. The shoreline frame depends on where fire's blobs happen to be (see the failure modes). |
 | Surprise | 1 | 2 | Two meaningful turns: ice answers, and the war ends horizontal. The thaw back to cold makes the loop the return. |
 
@@ -277,10 +295,11 @@ labelled.
 
 ### Protected visual purchase
 
-The front line as the subject: a boundary between two worlds that moves in held
-steps, lengthens at every escalation, detonates once, and then lies down smoothly. The
+The front line as the subject: a hard boundary between two compressed worlds that
+eases between bar positions after the 7.5 s first ember, lengthens at every
+escalation, detonates once, and then lies down into soft horizontal drift. The
 purchase is the Layout sequence and the split-position tracks. Every fallback
-keeps the stepped front, an increasing front length, the detonation and the glide.
+keeps the eased hard front, an increasing front length, the detonation and the glide.
 
 ### Visual grammar
 
@@ -300,7 +319,9 @@ keeps the stepped front, an increasing front length, the detonation and the glid
   frequency 3), Shatter 4 and 8 (Checker), and Shoreline (Soft Split on y,
   feather 0.35).
 - **Front track:** a `layout-occurrence-split-position` track on occurrence 1,
-  with 12 held keys (`hold`, `at: 1`).
+  with the existing 12 positions and times: key 0 is held to preserve Cold until
+  7.5 s, keys 1-10 use sine-in-out easing to the next bar target, and key 11 is
+  held so the Front rests from 28.75 s.
 - **Shoreline track:** the same kind on occurrence 7, with four sine keys (1, 0.5,
   0.5, 0).
 - **Detonation:** a solid color-map on the Ember Clip, (0.75, 0.75, 0.75), whose
@@ -335,7 +356,8 @@ routed, never its state, so no Clip split or Transition is needed.
 | Expensive operations per active pixel | none set | Fire: 5 `hypot` (8 from 50 s). Ice: 4 `hypot` plus wrapping | Pattern sources |
 | Frame time or FPS | 15 FPS working floor (proposed, as After Hours) | Unmeasured. At 1,936 pixels it is likely under the floor on a Pixelblaze 3. Redline measured about 3 FPS at 2,000 pixels, and Vignette 8.2 FPS at 2,000 | Estimate only. `npm run devbench` in the build. A Portable Show runs at the Controller's pixel count, so the realistic targets are 16 × 16 to 32 × 32 panels |
 
-**Marginal costs**, measured on a two-Zone, two-voice Show at 1,936 pixels:
+**Historical held-track marginal costs**, measured on a two-Zone, two-voice
+prototype Show at 1,936 pixels before the #1199 easing edit:
 - Base (one Moving Split occurrence, two whole-Show Clips): 11,722 B, 43
   globals.
 - **About 2.4 to 2.8 KB** per extra Layout definition in use (Wave 2,492 B,
@@ -369,7 +391,7 @@ routed, never its state, so no Clip split or Transition is needed.
 
 | Occurrence | Layout | Time | Mechanism |
 | --- | --- | --- | --- |
-| 1 | Front | 0-30 s | Held keys: 0 → 0.08 (7.5 s) → 0.2 → 0.32 → 0.24 → 0.4 → 0.52 → 0.44 → 0.6 (25 s) → 0.46 (26.25) → 0.56 (27.5) → 0.5 (28.75) |
+| 1 | Front | 0-30 s | Hold 0 until the first ember at 7.5 s; sine-in-out travel thereafter: 0.08 (7.5 s) → 0.2 → 0.32 → 0.24 → 0.4 → 0.52 → 0.44 → 0.6 (25 s) → 0.46 (26.25) → 0.56 (27.5) → 0.5 (28.75), then hold |
 | 2 | Buckle | 30-35 s | Static |
 | 3 | Teeth | 35-40 s | Static |
 | 4, 5 | Shatter 4, 8 | 40-45, 45-50 s | Static |
@@ -383,7 +405,8 @@ routed, never its state, so no Clip split or Transition is needed.
 - **The windowed white color-map** (13.7 KB): the single detonation. Without it
   the Layout change still marks the peak, so it is the first purchase to
   economise.
-- **The front track** (about 2.6 KB for 12 keys): the war's lurch and answers.
+- **The front track** (historical held-track estimate: about 2.6 KB for 12 keys):
+  the war's eased advances and answers.
 - **The second voice through the feather** (runtime only): the contact glow.
 
 ### Measurement plan

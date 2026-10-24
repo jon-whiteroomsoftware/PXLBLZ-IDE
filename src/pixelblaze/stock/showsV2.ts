@@ -2600,7 +2600,8 @@ function emberFloePortableV2(): ShowRecordV2 {
     ],
     propertyTracks: [
       propertyTrack('track-front', { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'layout-occurrence:1' }, 0, 30_000,
-        front.map(([timeMs, value], index) => propertyKey(`front-${index}`, timeMs, value, held))),
+        // The first key preserves Cold; subsequent keys ease between bar targets.
+        front.map(([timeMs, value], index) => propertyKey(`front-${index}`, timeMs, value, index > 0 && index < 11 ? SINE_IN_OUT : held))),
       propertyTrack('track-shore', { kind: 'layout-occurrence-split-position', layoutOccurrenceId: 'layout-occurrence:7' }, 60_000, 30_000,
         shore.map(([timeMs, value, easing], index) => propertyKey(`shore-${index}`, timeMs, value, easing))),
       propertyTrack('track-hit', { kind: 'clip-effect', clipId: 'clip-ember', effectId: 'white', effectKind: 'color-map', parameterId: 'amount' }, 50_000, 1_250,

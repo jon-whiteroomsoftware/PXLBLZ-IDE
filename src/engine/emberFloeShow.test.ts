@@ -140,6 +140,17 @@ describe('Ember & Floe portable show (#1199)', () => {
       }
     }, 180_000)
 
+    it('limits adjacent rendered hard-front ownership travel to one column without freezing', () => {
+      const shares = frames.filter(({ t }) => t >= 10_000 && t <= 28_750)
+        .map(({ t, pixels }) => ({ t, share: fireShare(pixels) }))
+      const maxColumns = Math.max(...shares.slice(1).map((frame, index) =>
+        Math.abs(frame.share - shares[index].share) * GRID))
+      expect(maxColumns).toBeLessThanOrEqual(1 + 1e-9)
+      const distinctShares = new Set(shares.filter(({ t }) => t <= 15_000)
+        .map(({ share }) => Math.round(share * 1e9)))
+      expect(distinctShares.size).toBeGreaterThanOrEqual(6)
+    })
+
     // Port of telemetry/harness.ts's contrast-qualified extremum detector.
     function flashWindows(sampled: { pixels: Rgb[] }[]) {
       const direction = new Int8Array(mapPoints.length)
@@ -208,15 +219,15 @@ describe('Ember & Floe portable show (#1199)', () => {
       for (const timeMs of sampled) frames.set(timeMs, replay.advanceTo(timeMs, { stepMs: 33 }).pixels)
     }, 60_000)
 
-    it('opens cold: ice owns the whole Stage until the first step at 7.5 s', () => {
+    it('opens cold: ice owns the whole Stage until the first ember at 7.5 s', () => {
       expect(fireShare(at(5_000))).toBe(0)
       expect(fireShare(at(7_400))).toBe(0)
       expect(fireShare(at(7_600))).toBeGreaterThan(0.06)
     })
 
-    it('moves the front in held steps: the fire share matches the key table on and between keys', () => {
+    it('eases the front between bar targets: the rendered fire share follows sine-in-out travel', () => {
       // One grid column is 1/44 of the Stage, so the tolerance is one column.
-      for (const [timeMs, position] of [[7_600, 0.08], [12_400, 0.2], [13_000, 0.32], [21_000, 0.52], [28_750, 0.5]]) {
+      for (const [timeMs, position] of [[7_600, 0.080473118], [12_400, 0.319526882], [13_000, 0.312360680], [21_000, 0.492360680], [28_750, 0.5]]) {
         expect(fireShare(at(timeMs)), `${timeMs} ms`).toBeCloseTo(position, 1)
         expect(Math.abs(fireShare(at(timeMs)) - position), `${timeMs} ms`).toBeLessThanOrEqual(1 / GRID)
       }
