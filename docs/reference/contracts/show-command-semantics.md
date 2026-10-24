@@ -378,11 +378,10 @@ adjacent segment and replaces any retained restriction descriptor.
 refuses duplicate identities; Clips, appearance, Transitions and Show End stay
 fixed.
 
-Slice 1a-i (#1211) supports authoring and complete-record persistence of the
-step-length target. Compilation explicitly refuses it as
-`unsupported-property-target`, and legacy editor projections omit it until
-later capability slices. Clock emission, boundary behavior and EPE execution
-belong to 1a-ii.
+Step-length tracks support authoring and complete-record persistence.
+Compilation explicitly refuses them as `unsupported-property-target`, and
+legacy editor projections omit them. Storage acceptance therefore does not
+make a Show containing these tracks available for preview or export.
 
 Animation edits preserve unrelated track order; a new track is appended, and
 only the edited track's keyframes are sorted
