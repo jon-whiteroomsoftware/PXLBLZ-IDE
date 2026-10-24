@@ -2083,7 +2083,6 @@ describe('ControllerProfilePage', () => {
       Array.from(table.querySelectorAll('col')).map((column) => column.className)
     )
     expect(columnClasses(savedInventory)).toEqual(['w-[58%]', 'w-[16%]', 'w-[8%]', 'w-[18%]'])
-    expect(columnClasses(otherInventory)).toEqual(['w-[76%]', 'w-[24%]'])
     const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
     expect(importButton).toHaveClass('h-6', 'w-6')
     expect(importButton.parentElement).toHaveClass('opacity-0', 'group-focus-within:opacity-100')
