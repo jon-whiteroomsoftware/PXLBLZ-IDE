@@ -25,8 +25,11 @@ delivers a render3D member's xyz, so the Show renders.
   0.25 in every applicable Zone, in Fast and Precise. No threshold tuning.
 - **Coda: row 8 values, retimed.** Inner rain coda Clip 44.000-48.375 s, visible Speed 0.12,
   Density 0.0575. A zero-opacity continuation of the shared rain instance from
-  19.625 to 44 s runs Speed 0.29565285996055224, restoring the accumulated
-  flow removed by the 11 s compression; visible rain keeps Speed 0.12.
+  19.625 to 29 s applies Speed 0.29565285996055224. Shared member continuity
+  retains that Speed and advances `beforeRender` without rain pixel evaluations
+  from 29 to 44 s, restoring the accumulated flow removed by the 11 s
+  compression; visible rain keeps Speed 0.12. AH9 preserves every whole-Show
+  RGB channel against AH8 in Fast/Precise at 30/60 fps over the full 49 s.
   The premise is exactly "the last drops
   fall through the empty dark": one to three complete Inner-tube drops, at
   most two at once; each head enters at the top and each tail leaves the
@@ -39,8 +42,8 @@ delivers a render3D member's xyz, so the Show renders.
   39.625 + 1/fps seconds at the replay's rate (#1204). From there every frame is
   exactly black until the first coda light, at least 2.5 s later. The
   TubeRain3D head-entry fix is separate (#1206).
-- **Measured candidate artifact.** 52,512 compiled bytes, 54,681 delivered
-  source bytes, 124 persistent globals, 2,908 ledger words plus 3,840 rain
+- **Measured candidate artifact.** 50,218 compiled bytes, 52,386 delivered
+  source bytes, 125 persistent globals, 2,908 ledger words plus 3,840 rain
   geometry words: 6,748 bounded VM words, no blockers. Limits remain
   68,384 B, 256 globals and 10,240 words. At 30 fps, keyed water first exceeds
   RGB sum 0.02 at 4.033 s in both modes; 4 s is the authored start.

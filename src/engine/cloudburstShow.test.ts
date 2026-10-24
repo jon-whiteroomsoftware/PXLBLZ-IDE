@@ -350,7 +350,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     expect(c.layoutOccurrences.map(o => [o.startMs, o.durationMs])).toEqual([[0, 49_000]])
     expect(c.clips.map(clip => [clip.startMs, clip.durationMs, clip.appearance.keys.map(key => key.timeMs)])).toEqual([
       [0, 19_625, [0]], [1_333, 18_292, [1_333]], [2_667, 16_958, [2_667]],
-      [19_625, 24_375, [19_625]],
+      [19_625, 9_375, [19_625]],
       [44_000, 4_375, [44_000]],
       ...Array.from({ length: 3 }, () => [0, 49_000, [0]]),
       ...Array.from({ length: 3 }, () => [29_000, 10_000, [29_000]]),

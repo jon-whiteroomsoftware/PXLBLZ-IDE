@@ -2637,9 +2637,10 @@ function emberFloePortableV2(): ShowRecordV2 {
 // tolerance 0.2, softness 0.05) removes the dim zero-Offset plane, which would
 // otherwise leave the bottom LEDs half lit, and keeps the submerged teal opaque.
 // Invert keeps its source default of 0: the compiler sets only public sliders.
-// Rain Clips end under the water to save an evaluation per pixel; the shared
-// rain clock keeps running through the gap. The coda (row 8, R rulings on
-// #1200) reopens the Inner rain for 55-59.375 s at Density 0.0575 so the last
+// Visible rain ends under the water. The invisible Inner Clip latches the
+// recovery Speed until 29 s; shared beforeRender continuity then advances flow
+// without per-pixel rain work until the coda. The coda (row 8, R rulings on
+// #1200) reopens the Inner rain for 44-48.375 s at Density 0.0575 so the last
 // drops fall through the empty dark: one to three complete Inner-tube drops, at
 // most two at once, each ending before the Clip closes. The delivered replay
 // measures one drop in Fast and two in Precise.
@@ -2684,7 +2685,9 @@ function cloudburstInstallationV2(): ShowRecordV2 {
     ],
     clips: [
       ...rings.map((ring, n) => clip(`rain-${ring}`, 'rain', zones[n].id, mainLayerId(zones[n].id), rainStarts[n], rainEndMs - rainStarts[n])),
-      clip('rain-phase-recovery', 'rain', zones[0].id, mainLayerId(zones[0].id), rainEndMs, codaMs - rainEndMs, { opacity: 0 }),
+      // End on the existing koi boundary: a new boundary costs more source.
+      // The shared member retains Speed and advances beforeRender to the coda.
+      clip('rain-phase-recovery', 'rain', zones[0].id, mainLayerId(zones[0].id), rainEndMs, koiMs - rainEndMs, { opacity: 0 }),
       clip('rain-coda', 'rain', zones[0].id, mainLayerId(zones[0].id), codaMs, codaEndMs - codaMs),
       ...rings.map((ring, n) => clip(`water-${ring}`, 'water', zones[n].id, overlayLayerId(zones[n].id, 1), 0, end, { effects: water() })),
       ...rings.map((ring, n) => clip(`koi-${ring}`, 'koi', zones[n].id, overlayLayerId(zones[n].id, 2), koiMs, koiEndMs - koiMs, { opacity: 0, effects: [keyBlack(`koi-${ring}-key`)] })),
