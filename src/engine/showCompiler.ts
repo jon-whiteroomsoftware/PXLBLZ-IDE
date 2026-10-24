@@ -652,6 +652,13 @@ export interface ShowCompileSummary {
       enabled: boolean
       memberIds: string[]
     } | null
+    /** #1210: declared parameters unchanged by every routed placement and
+     * excluded from every animated writer. */
+    effectParameterHoisting: {
+      enabled: boolean
+      constantParameterCount: number
+      memberIds: string[]
+    } | null
     /** #591: every enabled Clip Viewport's aperture shape and edge treatment. */
     apertures: Array<{
       sceneIndex: number
@@ -1016,6 +1023,7 @@ export interface CompiledMember {
   controls: Array<{ exportName: string; functionName: string; valueName: string; initialValue: number }>
   effects: ShowClipEffect[]
   animatedEffects: boolean
+  constantEffectParameterBindings?: ReadonlySet<string>
   staticPlanEffects: boolean
   exactSpecializations: boolean
   outputGuarantees: ShowRendererOutputGuarantees
@@ -1254,6 +1262,9 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #571 per-pixel placement-prologue
    * rebinding elimination; production always uses the default `true`. */
   placementPrologueHoisting?: boolean
+  /** Counterfactual for #1210 constant routed Effect parameter writes;
+   * production defaults to true, independently of other specializations. */
+  effectParameterHoisting?: boolean
   /** #572 recorded negative, default `false`: rebinding sinks through
    * function-valued scalars adds one user-call hop (~1.9-3.4 us) per sink
    * call, exceeding the ~1.5 us flag branch it removes (-3.8 to -3.9% median
@@ -2305,7 +2316,11 @@ export function compileShow(
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
   const animatedEffectParameterPathsByClipId = new Map<string, Set<string>>()
+  const animatedEffectTargetsByClipId = new Map<string, Set<string>>()
   const addAnimatedEffectPath = (clipId: string, effectId: string, parameter: string) => {
+    const targets = animatedEffectTargetsByClipId.get(clipId) ?? new Set<string>()
+    targets.add(JSON.stringify([effectId, parameter]))
+    animatedEffectTargetsByClipId.set(clipId, targets)
     const clip = expandedRecipe.clips.find((candidate) => candidate.id === clipId)
     const effectIndex = clip?.effects?.findIndex((effect) => effect.id === effectId) ?? -1
     const effect = effectIndex >= 0 ? clip?.effects?.[effectIndex] : undefined
@@ -2410,6 +2425,16 @@ export function compileShow(
     }),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
+  if ((options.effectParameterHoisting ?? true) && expandedRecipe.routedSceneSequence) {
+    const placements = expandedRecipe.routedSceneSequence.scenes.flatMap((scene) => scene.placements)
+    for (const member of members) {
+      member.constantEffectParameterBindings = planConstantEffectParameterBindings(
+        member,
+        placements.filter((placement) => placement.clipId === member.id),
+        animatedEffectTargetsByClipId.get(member.id) ?? new Set<string>(),
+      )
+    }
+  }
   for (const member of members) {
     const snapshots = memberCoordinateTransformSnapshotDeclarations(member)
     if (snapshots.length > 0) member.code = `${member.code.trim()}\n${snapshots.join('\n')}`
@@ -3569,6 +3594,13 @@ export function compileShow(
             memberIds: members
               .filter((member) => member.binding?.uniformPrologueBinding === true)
               .map((member) => member.id),
+          }
+        : null,
+      effectParameterHoisting: expandedRecipe.routedSceneSequence
+        ? {
+            enabled: options.effectParameterHoisting ?? true,
+            constantParameterCount: members.reduce((sum, member) => sum + (member.constantEffectParameterBindings?.size ?? 0), 0),
+            memberIds: members.filter((member) => (member.constantEffectParameterBindings?.size ?? 0) > 0).map((member) => member.id),
           }
         : null,
       apertures: (() => {
@@ -8865,7 +8897,9 @@ function staticPlanEffectAssignmentsFromResolved(
   const parameterAssignments = resolved.flatMap((effect) => (
     ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
       ? []
-      : showEffectParameterNames(effect).map((parameter) => (
+      : showEffectParameterNames(effect).filter((parameter) => (
+          !member.constantEffectParameterBindings?.has(effectParameterVariable(member, effect.id, parameter))
+        )).map((parameter) => (
           `${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
         ))
   ))
@@ -8884,6 +8918,38 @@ function staticPlanEffectAssignmentsFromResolved(
       })()
     : []
   return [...parameterAssignments, ...matrixAssignments]
+}
+
+/** The declaration is sufficient only when every placement resolves to the
+ * same value and no later animated writer can change it. Missing Effects
+ * participate with their identity, just as in routed placement emission. */
+function planConstantEffectParameterBindings(
+  member: CompiledMember,
+  placements: readonly ShowRoutedScenePlacementRecipe[],
+  animatedTargets: ReadonlySet<string>,
+): ReadonlySet<string> {
+  const bindings = new Set<string>()
+  if (!member.animatedEffects || placements.length === 0) return bindings
+  const resolvedPlacements = placements.map((placement) => {
+    const authored = normalizeShowClipEffects(showClipTransformEffects(placement.transform, placement.effects, true))
+    return member.effects.map((template) => (
+      authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
+      ?? identityShowEffect(template)
+    ))
+  })
+  for (const [index, template] of member.effects.entries()) {
+    // Static-plan affine parameters have no declarations; their matrices
+    // remain bound by the existing baked-matrix writes.
+    if (member.staticPlanEffects && ['translate', 'rotate', 'scale', 'shear'].includes(template.kind)) continue
+    for (const parameter of showEffectParameterNames(template)) {
+      if (animatedTargets.has(JSON.stringify([template.id, parameter]))) continue
+      const value = effectParameterValue(template, parameter)
+      if (resolvedPlacements.every((effects) => effectParameterValue(effects[index], parameter) === value)) {
+        bindings.add(effectParameterVariable(member, template.id, parameter))
+      }
+    }
+  }
+  return bindings
 }
 
 function identityShowEffect(effect: ShowClipEffect): ShowClipEffect {
@@ -9129,16 +9195,18 @@ function emitSceneEffectTargets(
 ): string {
   if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
   const authored = normalizeShowClipEffects(effects, { preserveKeyIdentitySentinel: trustKeyIdentitySentinel })
-  // Every union template must be assigned every scene: parameter variables
-  // are shared across scenes, so a skipped assignment leaks the declaration
-  // value on the first pass and the previous scene's value after the Show
-  // loops. Scenes without an effect assign its identity (#821).
+  // Dynamic union parameters must be assigned every scene: shared variables
+  // otherwise leak the previous scene's value after a loop. Absent Effects
+  // still assign identity (#821); only proven constant declaration bindings
+  // can omit these writes (#1210).
   const resolved = member.effects.map((template) => (
     authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
       ?? identityShowEffect(template)
   ))
   return resolved.flatMap((effect) => (
-    showEffectParameterNames(effect).map((parameter) => (
+    showEffectParameterNames(effect).filter((parameter) => (
+      !member.constantEffectParameterBindings?.has(effectParameterVariable(member, effect.id, parameter))
+    )).map((parameter) => (
       `\n    ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
     ))
   )).join('')

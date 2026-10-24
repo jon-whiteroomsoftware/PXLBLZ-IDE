@@ -1198,7 +1198,12 @@ table-driven scheduler and Show score, shared Transition and Effect kernels,
 lifetime-colored Restart machines, frame-invariant hoisting, generated-wrapper
 inlining, small-loop unrolling, and boundary-latched route decode. Selection is
 automatic only where the result is provably equivalent and smaller or measured
-faster. Three guarantees constrain future work:
+faster. Constant routed Effect parameters omit placement writes only when every
+placement resolves to the declaration value and no animation targets that Effect
+ID and field; declarations and dynamic/identity resets remain. The independent
+`effectParameterHoisting: false` counterfactual and compile-summary selection
+support [source, resource and exact rendered-output evidence](../plans/archive/issue-1210-effect-parameter-hoisting-results.md).
+Three guarantees constrain future work:
 
 - Boundary-latched decode recomputes routing only at index 0 and at Zone
   boundaries, which is exact only because firmware renders pixels in ascending
