@@ -305,7 +305,7 @@ hardware knowledge lives:
 
   Each inventory section has **Select**. Check individual Patterns or use the
   header checkbox to select all eligible rows; running and pending-running
-  Patterns cannot be selected. **Play** remains available. Saved PXLBLZ Patterns
+  Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
   offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
   sections clears the previous selection. Batch Delete confirms the selected
   names once, then checks safety for each deletion. Both batch operations run
