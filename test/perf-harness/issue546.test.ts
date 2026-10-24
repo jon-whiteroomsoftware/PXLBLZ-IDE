@@ -23,27 +23,27 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
-        baseline: { sourceBytes: 78_612, physicalMachines: 19 },
+        baseline: { sourceBytes: 78_392, physicalMachines: 19 },
         selected: {
-          sourceBytes: 52_295,
+          sourceBytes: 52_075,
           physicalMachines: 7,
           auxiliaryCacheWords: 264,
           persistentGlobals: 181,
-          remainingArtifactBytes: 16_089,
+          remainingArtifactBytes: 16_309,
         },
-        sourceChangePercent: expect.closeTo(-33.48, 1),
+        sourceChangePercent: expect.closeTo(-33.57, 1),
       },
       {
         id: 'fixture-installation-composition',
-        baseline: { sourceBytes: 66_534, physicalMachines: 12 },
+        baseline: { sourceBytes: 66_209, physicalMachines: 12 },
         selected: {
-          sourceBytes: 58_997,
+          sourceBytes: 58_672,
           physicalMachines: 10,
           auxiliaryCacheWords: 204,
           persistentGlobals: 245,
-          remainingArtifactBytes: 9387,
+          remainingArtifactBytes: 9712,
         },
-        sourceChangePercent: expect.closeTo(-11.33, 1),
+        sourceChangePercent: expect.closeTo(-11.38, 1),
       },
     ])
   })

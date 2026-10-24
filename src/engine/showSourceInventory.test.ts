@@ -404,25 +404,25 @@ describe('Show source inventory', () => {
     const rings = model.rows.find((row) => row.id === 'pattern:stock:LumaRings')!
 
     expect(marquee).toMatchObject({
-      bytes: 28_675,
+      bytes: 17_101,
       logicalInstanceCount: 2,
       physicalMachineCount: 2,
       authoredReferenceCount: 15,
       patternBreakdown: {
         baseCopies: [{ ownerId: 'marquee', bytes: 2_643 }, { ownerId: 'surge', bytes: 2_644 }],
         baseBytes: 5_287,
-        generatedBytes: 23_388,
+        generatedBytes: 11_814,
       },
     })
     expect(rings).toMatchObject({
-      bytes: 23_182,
+      bytes: 15_403,
       logicalInstanceCount: 1,
       physicalMachineCount: 1,
       authoredReferenceCount: 7,
       patternBreakdown: {
         baseCopies: [{ ownerId: 'rings', bytes: 2_459 }],
         baseBytes: 2_459,
-        generatedBytes: 20_723,
+        generatedBytes: 12_944,
       },
     })
     expect(marquee.patternBreakdown!.baseBytes + marquee.patternBreakdown!.generatedBytes).toBe(marquee.bytes)

@@ -161,11 +161,11 @@ it('retargets nonlinear Clip animation to each exact derived run/section identit
   expect(record).toEqual(before)
 })
 
-// Recipe pins from adapter f3db7122; source/EPE re-measured for #1202.
+// Recipe pins from adapter f3db7122; source/EPE proved on Node 24 for #1210.
 const admittedBytes = {
-  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'd79b80467c352f005c7ed995fe03f1060986cc49d13099eebf5c8114abd9e431', epe: '138d0b1cc45960cff0a176015d69fc3b792a812b00d5e101a78343be53f1c433' },
-  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '67ef6f712886140b037eac76856313ce0acad2b0211cedbb69f9a0858ee18f4b', epe: '6409ac2a3e9b425235138aebe829cf08d915979a36b0f899b345c5604c78904a' },
-  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: 'c51aadd69e6bfb270243b168807f9d48c17a0f927214949cbb52f1b713985465', epe: 'd0b20b3c50222a0721c9ca2cb890fbd4a9853dde8065e814008a7019a8c88aaf' },
+  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'a16901b9f5dbc0323e703883e852f953cb0e013e2d11c132a047daba54b88638', epe: '9ceced78ae6be83fcfe2a29e1b38b400d24355f784a80f97d6b14f71308dd3da' },
+  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '7e9ff674476fbb08019e6d090b934ff6887b29a7408454b7947a5736435ef7f2', epe: 'a807e0a81ca8637c9b1fada879abe7d3322bd14705305c853f4f8d60800d8494' },
+  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: '7719d4af0c4b6b9eb62bbb96fe8839ab966eabfe8d3a4b07451b6a858a3b792b', epe: '35e7e328ac3647c30a290adb761ecae6846a7d4a26460275fbdfedb4e9bb33a0' },
   transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '990152b318f5432c3d0b19608926e114491459d04c8791da146dc55b031af408', epe: '067ce811187fecdc2d7a78b017e8fdfcce8ab5e02a247f2dc9047d8e2798f4e1' },
 }
 it.each(['live', 'freeze', 'strobe', 'transition'] as const)('preserves pinned admitted %s recipe/source/EPE bytes including canonical field-order equivalence', mode => {

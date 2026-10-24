@@ -48,8 +48,8 @@
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 7778,
-          "sourceSha256": "20c334ba2e85d1c6ccd079c279b77009044954982ac0ae71a5812ac83b86adf5",
+          "bytes": 7724,
+          "sourceSha256": "ac837a0a9cd6681af9f5f705c934250c86dd9ad528e5718dc0e1a69c6e24edee",
           "stampKind": "show"
         },
         "recordSha256": "5b89be8782239d1b9397cc1b1bd9dae0ba8877e8fcbfd6cc1502764f4176c2fb",
@@ -163,8 +163,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 34147,
-          "sourceSha256": "6cfd647e4a9889799df97bce0804eb6d9250262e91266ef60117051d05ae9208",
+          "bytes": 33945,
+          "sourceSha256": "6820c74cd6b947ab0124fbf8550ee6ef4538ac6575103ec5a331f91b79844e09",
           "stampKind": "show"
         }
       },
@@ -189,8 +189,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 39152,
-          "sourceSha256": "681fcb9b0ef3b69f0d850ffe54f033e7764f7c89f0a631e7a01649141899d502",
+          "bytes": 38895,
+          "sourceSha256": "410b4433e1e82d0a065e35c48e0ea8a7621bbb27e9d12180c70487cdaf7d036d",
           "stampKind": "show"
         },
         "recordSha256": "8012ca5d09200e4daf52975e7e19def474f8f01bd6d377e5fa908640b2f472ae",
@@ -218,8 +218,8 @@
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 68291,
-          "sourceSha256": "d0236d1b00e6680d5015bf78d62889235c444e0716aa54da257b159e5e535669",
+          "bytes": 66174,
+          "sourceSha256": "c6542ba868bc68fd9a65a9f2fd497709fde033a4d69a0944a70f55fe855cc6b6",
           "stampKind": "show"
         }
       },
@@ -325,8 +325,8 @@
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 21148,
-          "sourceSha256": "c4097bc09c978fc427eb66aecaf27133c828bc67f1df4c10e7c9d1d25adcab74",
+          "bytes": 21026,
+          "sourceSha256": "6cdc198f33297fa2bce51239614fcc76ebc36cae2e1a0bf717008753e188c3ce",
           "stampKind": "show"
         },
         "recordSha256": "90871bde32c1b8ecc857ba522ba00a28db4026116c1ed16ca3eb93cbb96970af",

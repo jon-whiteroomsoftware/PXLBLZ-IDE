@@ -83,7 +83,10 @@ describe.each(SHOW_IDS)("aperture evaluated once per pixel: %s", (id) => {
     for (const name of new Set(assigns)) {
       expect(artifact.code.split(name).length - 1, `${id} ${name} use count`).toBeGreaterThanOrEqual(2)
     }
-    for (const arm of artifact.code.split("__pxlblz_ab == ")) {
+    const sceneArms = artifact.expandedCode.split("__pxlblz_show_scene == ").slice(1)
+    expect(sceneArms.length, `${id} scene arms found`).toBeGreaterThan(0)
+    if (id === "stock-show-202-content-clip-viewport") expect(sceneArms).toHaveLength(4)
+    for (const arm of sceneArms) {
       const armAssigns = [...arm.matchAll(/var (__pxlblz_ap_[A-Za-z0-9_]+) = /g)].map((match) => match[1])
       expect(new Set(armAssigns).size, `${id} scene-arm assignment uniqueness`).toBe(armAssigns.length)
     }
