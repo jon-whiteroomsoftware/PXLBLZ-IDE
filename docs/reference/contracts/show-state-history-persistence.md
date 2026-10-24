@@ -329,6 +329,18 @@ admission uses the same domain validator after a Cloudflare-compatible
 structural-schema interpreter, because Workers prohibit AJV's runtime code
 generation.
 
+The instance-owned `instance-time-step-ms` Property target (#1211, slice 1a-i)
+stays version 2 in `record_json` and `.pxlshow`. Complete-record serialization
+and Worker admission use the same closed schema and domain validation; this
+capability adds no migration, default insertion or read-time rewrite. Old
+records remain unchanged. The existing replacement owner still supplies one
+adoption, one history entry and one save, with the same undo/redo and failed-save
+recovery rules. The [step clock persistence tests](../../../src/store/showV2StepClockPersistence.test.ts)
+exercise that path through the real store, serialization, Worker clone and
+reload. Storage acceptance does not imply compile readiness: 1a-i explicitly
+refuses compilation for this target. Full clock semantics and EPE execution
+belong to 1a-ii.
+
 A version-1 `.pxlshow` import resolves dependencies and calls
 `convertAppliedShowImportV1` before any write. The converter resolves Pattern
 sources and the Stage map exactly against imported and workspace records; it

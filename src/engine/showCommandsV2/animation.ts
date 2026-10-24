@@ -26,7 +26,7 @@ import {
   unknownIdentity,
 } from './support'
 
-/** The nine target forms of specification section 6, with clip-scoped short names. */
+/** Command target forms, with short names resolved to persisted targets. */
 export const PROPERTY_TARGET_KINDS = [
   'opacity',
   'view-brightness',
@@ -43,17 +43,18 @@ export const PROPERTY_TARGET_KINDS = [
   'effect',
   'control',
   'time-scale',
+  'step-ms',
   'layout-split-position',
   'show-repeat-scale',
 ] as const
 
 const TARGET_FIELD: ShowCommandV2Field = {
   kind: 'object',
-  description: 'What the track animates. Clip kinds need clip_id; control and time-scale need instance_id; effect also needs effect_id and parameter; layout-split-position needs interval_id.',
+  description: 'What the track animates. Clip kinds need clip_id; control, time-scale and step-ms need instance_id; effect also needs effect_id and parameter; layout-split-position needs interval_id.',
   properties: {
     kind: { kind: 'string', enum: PROPERTY_TARGET_KINDS, description: 'Target kind.' },
     clip_id: idField('The Clip, for a Clip target.', true),
-    instance_id: idField('The Pattern instance, for control and time-scale.', true),
+    instance_id: idField('The Pattern instance, for control, time-scale and step-ms.', true),
     control: { kind: 'string', optional: true, maxLength: 200, description: 'Exported slider name, for control.' },
     effect_id: idField('The Clip Effect, for an effect target.', true),
     parameter: { kind: 'string', optional: true, maxLength: 200, description: 'Effect parameter name, for effect.' },
@@ -106,13 +107,14 @@ function resolveTarget(
     if (!effect) return { message: `Clip "${clipId}" has no Effect "${effectId}".` }
     return { kind: 'clip-effect', clipId: clipId!, effectId, effectKind: effect.kind, parameterId }
   }
-  if (kind === 'control' || kind === 'time-scale') {
+  if (kind === 'control' || kind === 'time-scale' || kind === 'step-ms') {
     const instanceId = target.instance_id as string | undefined
     if (!instanceId) return { message: `target kind "${kind}" needs instance_id.` }
     if (!record.composition.patternInstances.some(instance => instance.id === instanceId)) {
       return { message: `no Pattern instance has id "${instanceId}".` }
     }
     if (kind === 'time-scale') return { kind: 'instance-time-scale', instanceId }
+    if (kind === 'step-ms') return { kind: 'instance-time-step-ms', instanceId }
     const exportName = target.control as string | undefined
     if (!exportName) return { message: 'a control target needs control.' }
     return { kind: 'instance-control', instanceId, exportName }
@@ -146,6 +148,11 @@ function defaultActivation(record: ShowRecordV2, target: ShowPropertyTargetV2): 
     return { startMs: occurrence.startMs, durationMs: occurrence.durationMs }
   }
   return { startMs: 0, durationMs: record.composition.showEndMs }
+}
+
+/** Supply defaults only for newly authored keys; explicit easing stays domain-validated. */
+function normalizePropertyKeyEasing(target: ShowPropertyTargetV2, easing: ShowStructuredEasing | undefined): ShowStructuredEasing {
+  return normalizeShowEasing(easing ?? (target.kind === 'instance-time-step-ms' ? { curve: 'hold', at: 1 } : undefined))
 }
 
 const addPropertyTracks: ShowCommandV2Descriptor = {
@@ -191,7 +198,9 @@ const addPropertyTracks: ShowCommandV2Descriptor = {
       }
       const target = resolveTarget(record, spec.target as Record<string, unknown>)
       if ('message' in target) return invalidArgument(record, 'add_property_tracks', target.message, `$.tracks[${index}].target`)
-      const fallback = defaultActivation(record, target)
+      const fallback = spec.active_start_ms !== undefined && spec.active_duration_ms !== undefined
+        ? { startMs: spec.active_start_ms as number, durationMs: spec.active_duration_ms as number }
+        : defaultActivation(record, target)
       if ('message' in fallback) return invalidArgument(record, 'add_property_tracks', fallback.message, `$.tracks[${index}]`)
       const activeStartMs = (spec.active_start_ms as number | undefined) ?? fallback.startMs
       const activeDurationMs = (spec.active_duration_ms as number | undefined) ?? fallback.durationMs
@@ -204,7 +213,7 @@ const addPropertyTracks: ShowCommandV2Descriptor = {
         id: keyIds[keyIndex],
         timeMs: key.at_ms as number,
         value: key.value as number,
-        easing: normalizeShowEasing(key.easing as ShowStructuredEasing | undefined),
+        easing: normalizePropertyKeyEasing(target, key.easing as ShowStructuredEasing | undefined),
       }))
       steps.push({
         targetId: trackId,
@@ -331,7 +340,7 @@ const editPropertyKeyframes: ShowCommandV2Descriptor = {
             id: keyId,
             timeMs: addition.at_ms as number,
             value: addition.value as number,
-            easing: normalizeShowEasing(addition.easing as ShowStructuredEasing | undefined),
+            easing: normalizePropertyKeyEasing(track.target, addition.easing as ShowStructuredEasing | undefined),
           },
         }),
       })

@@ -320,35 +320,47 @@ commands through the bridge.
 ([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts)) are Show
 property tracks keyed by v2 target identity. They share the Property owner
 `editShowPropertyV2` with the editor's prepared-edit admission
-([`showV2PreparedEditAdmission.ts:171`](../../../src/store/showV2PreparedEditAdmission.ts)).
+([`showV2PreparedEditAdmission.ts`](../../../src/store/showV2PreparedEditAdmission.ts)).
 Tracks use global time with an explicit activation window
 `[active_start_ms, active_start_ms + active_duration_ms)`. A valid
 already-satisfied edit returns no changes after owner validation
-([`showPropertyEditsV2.ts:91-93`](../../../src/engine/showPropertyEditsV2.ts)).
+([`showPropertyEditsV2.ts`](../../../src/engine/showPropertyEditsV2.ts)).
 
 A command target names one of the short kinds `opacity`, `view-brightness`,
 `view-phase`, each `transform-*` and `aperture-*` scalar, `effect`, `control`,
-`time-scale`, `layout-split-position` and `show-repeat-scale`, and resolves it
-into the persisted target union: Clip opacity, view, Transform, Aperture and
-Effect parameter; instance control and time scale; Layout occurrence split
-position; and Show repeat scale. Clip kinds need `clip_id`; `control` and
-`time-scale` need `instance_id`; `effect` also needs an `effect_id` present on
-the Clip and a `parameter`; `layout-split-position` needs `interval_id`. A
+`time-scale`, `step-ms`, `layout-split-position` and `show-repeat-scale`, and
+resolves it into the persisted target union: Clip opacity, view, Transform,
+Aperture and Effect parameter; instance control, time scale and step length;
+Layout occurrence split position; and Show repeat scale. Clip kinds need
+`clip_id`; `control`, `time-scale` and `step-ms` need `instance_id`; `effect`
+also needs an `effect_id` present on the Clip and a `parameter`;
+`layout-split-position` needs `interval_id`. A
 missing or unknown identity refuses with the track index
-([`animation.ts:74-129`](../../../src/engine/showCommandsV2/animation.ts)).
+([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts)).
+
+`step-ms` resolves to the instance-owned `instance-time-step-ms` target. Its
+values must be 0 or an integer from 16 through 60000; other values refuse,
+without clamping. Nonconstant outgoing segments require Hold at 1.
+Mathematically constant ordinary and retained segments may use any
+otherwise-valid easing. Explicit interpolation or early Hold on a nonconstant
+segment refuses the complete command atomically through the Property owner.
 
 `add_property_tracks` takes 1 to 128 tracks. Each gives exactly one of
 `keyframes` (2 to 128 `{ at_ms, value, easing? }` entries) or a constant
 `initial_value`, which seeds keys at both ends of the activation. Activation
 defaults to the Clip span for a Clip target, the union of user spans for an
 instance target, the interval for a split position, and the whole Show for
-repeat scale; an instance with no Clip users needs explicit activation
-([`animation.ts:131-220`](../../../src/engine/showCommandsV2/animation.ts)).
-Easing normalizes once; values are not clamped. Two tracks that would own the
-same instance target over overlapping activation refuse atomically.
+repeat scale; an instance with no Clip users needs both activation fields
+explicitly. Supplying only one still requires the normal default lookup
+([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts)).
+New step-length keys default to Hold at 1, including synthesized endpoints and
+keyframe additions. Other targets retain their linear default. An update with
+omitted easing preserves the existing easing; explicit easing uses the general
+normalizer and domain validation. Values are not clamped. Two tracks that would
+own the same instance target over overlapping activation refuse atomically.
 `update_property_track` changes only the activation window: keyframes keep their
 global times and must stay inside it
-([`animation.ts:222-248`](../../../src/engine/showCommandsV2/animation.ts)).
+([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts)).
 
 `edit_property_keyframes(track_id, edits)` takes at least one of `add`,
 `update` and `remove`, each 1 to 128 entries. Adds need a global time and value
@@ -357,8 +369,8 @@ and may name easing; updates name a `keyframe_id` and at least one of `at_ms`,
 identity must exist on the track before any step runs. The command applies all
 removals, then updates, then additions, each through the Property owner, which
 validates the whole candidate after every step
-([`animation.ts:290-341`](../../../src/engine/showCommandsV2/animation.ts),
-[`showPropertyEditsV2.ts:47-93`](../../../src/engine/showPropertyEditsV2.ts)).
+([`animation.ts`](../../../src/engine/showCommandsV2/animation.ts),
+[`showPropertyEditsV2.ts`](../../../src/engine/showPropertyEditsV2.ts)).
 A time swap whose intermediate step is invalid therefore refuses; the whole
 request is still atomic. Editing an endpoint or its easing reauthors the
 adjacent segment and replaces any retained restriction descriptor.
@@ -366,12 +378,20 @@ adjacent segment and replaces any retained restriction descriptor.
 refuses duplicate identities; Clips, appearance, Transitions and Show End stay
 fixed.
 
+Slice 1a-i (#1211) supports authoring and complete-record persistence of the
+step-length target. Compilation explicitly refuses it as
+`unsupported-property-target`, and legacy editor projections omit it until
+later capability slices. Clock emission, boundary behavior and EPE execution
+belong to 1a-ii.
+
 Animation edits preserve unrelated track order; a new track is appended, and
 only the edited track's keyframes are sorted
-([`showPropertyEditsV2.ts:74-89`](../../../src/engine/showPropertyEditsV2.ts)).
-[`commands.test.ts:737`](../../../src/engine/showCommandsV2/commands.test.ts)
+([`showPropertyEditsV2.ts`](../../../src/engine/showPropertyEditsV2.ts)).
+[`commands.test.ts`](../../../src/engine/showCommandsV2/commands.test.ts)
 adds tracks for each target kind, edits keyframes and removes by identity. The
-`AK953`, `UK953`, `DK953` and `DPT953` rows in
+focused [step clock command tests](../../../src/engine/showCommandsV2/stepClock.test.ts)
+cover defaults, value/easing refusal, atomic transactions, copy filtering and
+independence/rejoin. The `AK953`, `UK953`, `DK953` and `DPT953` rows in
 [the agent baseline](../../../e2e/agent-baseline.auth.spec.ts) exercise the
 keyframe and removal commands through the bridge. `APT953` (`add_property_tracks`)
 is registered `pendingV2` as a `test.fixme` for the #1103 delivery-validation
