@@ -1,4 +1,8 @@
 import { useLayoutEffect } from 'react'
+import { createHash } from 'node:crypto'
+import * as artifactPricing from '@/engine/showArtifactPricing'
+import * as controllerDelivery from '@/engine/controllerArtifactDelivery'
+import { estimateShowBytecodeBytes } from '@/engine/showVmResourceLedger'
 import { ControllerActionRow } from './ControllerActionRow'
 import { useRouterStore } from '@/store/routerStore'
 import { resizeBoundaryShow } from '@/agent-harness/baseline/fixtures'
@@ -7004,6 +7008,125 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     return record
   }
 
+  it.each([false, true])('prices the public readout and inventory for the current complete Controller source (desktop=%s) (#1222)', async (desktop) => {
+    const hash = (source: string) => createHash('sha256').update(source).digest('hex')
+    const hashing = vi.spyOn(artifactPricing, 'sha256CompleteCompileInput').mockImplementation(async (source) => hash(source))
+    const delivery = vi.spyOn(controllerDelivery, 'prepareControllerArtifactDelivery')
+    const provider = new ConnectedControllerProvider()
+    const compile = vi.spyOn(provider, 'compile')
+    const show = createDefaultShow('priced-show', 'Price A', 1000)
+    show.cells[0].pattern = { kind: 'user', id: 'pricing-pattern' }
+    show.cells[0].patternName = 'Pricing Pattern'
+    const patternSource = 'export function render(index) { Personal.paint(index) }'
+    const library = { id: 'pricing-library', name: 'Personal', src: 'function paint(index) { rgb(0.25,0,0) }', updatedAt: 1 }
+    const editor = openV2EditorForRecord(convertForTest(show, { 'pricing-pattern': patternSource }))
+    usePatternStore.setState({ userPatterns: [{ id: 'pricing-pattern', name: 'Pricing Pattern', src: patternSource, controls: {}, updatedAt: 1 }], patternsLoaded: true })
+    useLibraryStore.setState({ userLibraries: [library], librariesLoaded: true })
+    const fetchProfiles = vi.spyOn(getPersonalContentProvider(), 'listControllerProfiles')
+    useControllerStore.setState({
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', phase: 'live', liveEpoch: 1, mapDim: null } },
+    })
+    setControllerProvider(provider)
+    const outlet = document.createElement('div')
+    document.body.append(outlet)
+    usePanelPreferencesStore.setState({ expanded: { 'show-strip:source': true } })
+    const rendered = render(<ShowSourceOutletContext.Provider value={{ enabled: desktop, target: outlet, setTarget: () => {} }}><ShowEditor showId={editor.showId} /></ShowSourceOutletContext.Provider>)
+    const source = () => delivery.mock.results[delivery.mock.results.length - 1].value.source as string
+    const gauge = () => {
+      if (desktop && screen.getByRole('button', { name: 'Source code' }).getAttribute('aria-expanded') === 'true') fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
+      return screen.getByLabelText(/^Controller source .* advisory\.$/i)
+    }
+    const detail = () => {
+      if (!desktop) fireEvent.focus(screen.getByRole('button', { name: /show source inventory/i }))
+      else if (screen.getByRole('button', { name: 'Source code' }).getAttribute('aria-expanded') !== 'true') fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
+      return document.querySelector('.show-source-inventory-body')!
+    }
+    const measure = () => act(() => useControllerStore.setState({ lastShowArtifactCompilation: {
+      controllerId: 'ctrl-live', liveEpoch: 1, sourceSha256: hash(source()), byteLength: 70_000,
+    } }))
+    try {
+      await act(async () => {})
+      const estimate = estimateShowBytecodeBytes(source())
+      expect(gauge()).toHaveAccessibleName(`Controller source ${(estimate / 1024).toFixed(1)} KB estimate / 53.4 KB advisory.`)
+      const profileReads = fetchProfiles.mock.calls.length
+      measure()
+      expect(gauge()).toHaveAccessibleName('Controller source 68.4 KB exact / 53.4 KB advisory.')
+      expect(gauge().firstElementChild).toHaveClass('bg-red-500')
+      expect(detail()).toHaveTextContent('68.4 KB exact / 53.4 KB')
+      expect(detail()).toHaveTextContent('128.0% advisory')
+      expect(detail()).toHaveTextContent('Raw headroom-1,616 B')
+      expect(detail()).toHaveTextContent('Usable headroom-15,293 B')
+
+      for (const status of [{ kind: 'connecting', address: '10.0.0.5' }, { kind: 'error', message: 'offline' }, { kind: 'no-extension' }] as ControllerStatus[]) {
+        act(() => provider.setStatus(status))
+        expect(gauge()).toHaveAccessibleName(/estimate/)
+        act(() => provider.setStatus({ kind: 'connected', controller: { id: 'ctrl-live', address: '10.0.0.5', deviceId: null } }))
+        expect(gauge()).toHaveAccessibleName(/exact/)
+      }
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], phase: 'pending' } } })))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], phase: 'live', liveEpoch: 2 } } })))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })))
+      expect(gauge()).toHaveAccessibleName(/exact/)
+      act(() => provider.setStatus({ kind: 'connected', controller: { id: 'other', address: '10.0.0.6', deviceId: null } }))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      act(() => provider.setStatus({ kind: 'connected', controller: { id: 'ctrl-live', address: '10.0.0.5', deviceId: null } }))
+
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], deviceId: 'another-device' } } })))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], deviceId: null, liveEpoch: undefined } } })))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      act(() => useControllerStore.setState((state) => ({ controllers: { ...state.controllers, '10.0.0.5': { ...state.controllers['10.0.0.5'], liveEpoch: 1 } } })))
+      expect(gauge()).toHaveAccessibleName(/exact/)
+
+      const beforeBanner = source()
+      act(() => useShowStore.setState((state) => ({ showV2Pilots: { ...state.showV2Pilots, [editor.showId]: { ...state.showV2Pilots[editor.showId], name: 'Price B' } } })))
+      expect(source()).not.toBe(beforeBanner)
+      expect(source().length).toBe(beforeBanner.length)
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      await act(async () => {})
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      measure()
+      expect(gauge()).toHaveAccessibleName(/exact/)
+      const profile = defaultControllerProfile({ id: 'price-profile', name: 'Bench', ip: '10.0.0.5', now: 1 })
+      profile.globalTransforms = profile.globalTransforms.map((transform) => transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty: 0.25 } : transform)
+      act(() => useControllerProfileStore.setState({ profilesLoaded: true, profiles: [profile] }))
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      await act(async () => {})
+      measure()
+      expect(gauge()).toHaveAccessibleName(/exact/)
+      const beforeProfile = source()
+      act(() => useControllerProfileStore.setState({ profiles: [{ ...profile, globalTransforms: profile.globalTransforms.map((transform) => transform.type === 'power-cap' ? { ...transform, maxDuty: 0.75 } : transform) }] }))
+      expect(source()).not.toBe(beforeProfile)
+      expect(source().length).toBe(beforeProfile.length)
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      await act(async () => {})
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      measure()
+      expect(gauge()).toHaveAccessibleName(/exact/)
+      const beforeLibrary = source()
+      const changedLibrary = { ...library, src: 'function paint(index) { rgb(0.75,0,0) }' }
+      act(() => useLibraryStore.setState({ userLibraries: [changedLibrary] }))
+      expect(source()).not.toBe(beforeLibrary)
+      expect(source().length).toBe(beforeLibrary.length)
+      expect(delivery.mock.calls[delivery.mock.calls.length - 1][0].libraries?.Personal).toBe(changedLibrary.src)
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      await act(async () => {})
+      expect(gauge()).toHaveAccessibleName(/estimate/)
+      expect(compile).not.toHaveBeenCalled()
+      expect(fetchProfiles).toHaveBeenCalledTimes(profileReads)
+    } finally {
+      rendered.unmount()
+      outlet.remove()
+      hashing.mockRestore()
+      delivery.mockRestore()
+      compile.mockRestore()
+      fetchProfiles.mockRestore()
+    }
+  })
+
   it('relocates identical inventory into Source while preserving the narrow footer (#968)', () => {
     usePanelPreferencesStore.setState({ expanded: { 'show-strip:source': true } })
     const editor = openV2EditorForRecord(qualifiedPropertyRecordV2())
@@ -7030,16 +7153,15 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     render(<ShowEditor showId={editor.showId} readOnly />)
 
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent(/[\d.]+ KB \/ 29\.3 KB/)
+    expect(compileBar).toHaveTextContent(/[\d.]+ KB estimate \/ 53\.4 KB/)
     // The gauge reports the same delivered total as the inventory trigger,
     // not the smaller generated-only count (#63 review follow-up).
     const sourceGauge = screen.getByLabelText(/^Show source .* advisory\.$/i)
     expect(sourceGauge).toHaveAccessibleName(
-      /Show source [\d.]+ KB \/ 29\.3 KB advisory/,
+      /Show source [\d.]+ KB estimate \/ 53\.4 KB advisory/,
     )
-    // Pressure, gauge color, and label share the delivered numerator (#63):
-    // an over-budget advisory remains visibly red without becoming a local
-    // delivery block. The Controller compiler makes the final decision.
+    // Artifact pricing has its own operating budget; the source ledger keeps
+    // its original independent budget.
     expect(compileBar).not.toHaveTextContent(/Delivered UTF-8 source|source-size proxy/)
     expect(compileBar).not.toHaveTextContent('Generated UTF-8 source alone')
     expect(sourceGauge.firstElementChild).toHaveClass('bg-red-500')

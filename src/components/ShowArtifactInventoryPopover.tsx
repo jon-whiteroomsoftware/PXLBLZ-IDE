@@ -2,6 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronUp, X } from 'lucide-react'
 import { HelpHint } from './HelpHint'
+import {
+  HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES,
+  PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES,
+  type priceShowArtifact,
+} from '@/engine/showArtifactPricing'
 import type {
   DeliveredShowSourceInventory,
   DeliveredShowSourceInventoryCategory,
@@ -10,6 +15,7 @@ import type {
 } from '@/engine/showSourceInventory'
 
 export interface ShowArtifactInventoryProps {
+  pricing: ReturnType<typeof priceShowArtifact>
   inventory: DeliveredShowSourceInventory
   model: ShowArtifactInventoryModel
   vmWords: { used: number; budget: number; remaining: number }
@@ -78,7 +84,7 @@ function busiestLedWork(steady: number, worst: number): string {
   return `Busiest LED: ${normalWork} normally, up to ${worst} when visuals overlap`
 }
 
-export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery }: ShowArtifactInventoryProps) {
+export function ShowArtifactInventoryPopover({ inventory, model, vmWords, renderers, structure, delivery, pricing }: ShowArtifactInventoryProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const pointerCloseTimerRef = useRef<number | null>(null)
@@ -86,7 +92,6 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ left: 8, bottom: 38 })
-  const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
 
   function cancelScheduledPointerClose() {
     if (pointerCloseTimerRef.current === null) return
@@ -191,7 +196,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           <span className="text-[8px] text-zinc-500">Select the meter to keep this open</span>
         )}
       </div>
-      <ShowArtifactInventoryBody inventory={inventory} model={model} vmWords={vmWords} renderers={renderers} structure={structure} delivery={delivery} />
+      <ShowArtifactInventoryBody inventory={inventory} model={model} vmWords={vmWords} renderers={renderers} structure={structure} delivery={delivery} pricing={pricing} />
 
     </div>,
     document.body,
@@ -202,7 +207,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Show source inventory, ${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)} advisory`}
+        aria-label={`Show source inventory, ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory`}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
@@ -218,7 +223,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           }
         }}
       >
-        {formatBytes(deliveredBytes)} / {formatBytes(model.budgetBytes)}
+        {formatBytes(pricing.bytes)} {pricing.kind} / {formatBytes(pricing.operatingBudgetBytes)}
         <ChevronUp size={11} aria-hidden />
       </button>
       {panel}
@@ -226,8 +231,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
   )
 }
 
-export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers, structure, delivery }: ShowArtifactInventoryProps) {
-  const deliveredBytes = delivery?.totalBytes ?? inventory.totalBytes
+export function ShowArtifactInventoryBody({ model, vmWords, renderers, structure, delivery, pricing }: ShowArtifactInventoryProps) {
   const transformBytes = Math.max(0, delivery?.transformBytes ?? 0)
   return <div className="show-source-inventory-body">
       <div className="flex h-4 w-full overflow-hidden rounded-sm bg-zinc-900 ring-1 ring-zinc-700/70" aria-hidden>
@@ -294,9 +298,12 @@ export function ShowArtifactInventoryBody({ inventory, model, vmWords, renderers
         <ResourceAxis
           primary
           label={delivery ? 'Controller source' : 'Delivered source'}
-          value={`${formatBytes(deliveredBytes)} / ${formatBytes(model.budgetBytes)}`}
-          detail={`${formatPercent(deliveredBytes / model.budgetBytes)} advisory`}
+          value={`${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)}`}
+          detail={`${formatPercent(pricing.budgetRatio)} advisory`}
+          help={`${PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES.toLocaleString('en-US')} B provisional budget; ${HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES.toLocaleString('en-US')} B firmware 3.67 observation.`}
         />
+        <ResourceAxis label="Raw headroom" value={`${pricing.rawHeadroomBytes.toLocaleString('en-US')} B`} />
+        <ResourceAxis label="Usable headroom" value={`${pricing.usableHeadroomBytes.toLocaleString('en-US')} B`} />
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis
           label="Pattern copies running"

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ShowArtifactInventoryPopover } from './ShowArtifactInventoryPopover'
+import { priceShowArtifact } from '@/engine/showArtifactPricing'
 import type { DeliveredShowSourceInventory, ShowArtifactInventoryModel } from '@/engine/showSourceInventory'
 
 const inventory: DeliveredShowSourceInventory = {
@@ -45,10 +46,12 @@ const model: ShowArtifactInventoryModel = {
 function renderPopover(
   delivery?: { totalBytes: number; transformBytes: number },
   modelOverride: ShowArtifactInventoryModel = model,
+  pricing = priceShowArtifact({ estimatedBytes: delivery?.totalBytes ?? inventory.totalBytes, sourceSha256: null, context: null, measurement: null }),
 ) {
   render(
     <ShowArtifactInventoryPopover
       inventory={inventory}
+      pricing={pricing}
       model={modelOverride}
       vmWords={{ used: 100, budget: 1_000, remaining: 900 }}
       renderers={{
@@ -66,13 +69,32 @@ describe('ShowArtifactInventoryPopover', () => {
     renderPopover({ totalBytes: 1_100, transformBytes: 700 })
 
     const trigger = screen.getByRole('button', { name: /show source inventory/i })
-    expect(trigger).toHaveTextContent('1.07 KB / 1000 B')
+    expect(trigger).toHaveTextContent('1.07 KB estimate / 53.4 KB')
     fireEvent.focus(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Show source inventory' })
     expect(dialog).toHaveTextContent('Controller transforms')
     expect(dialog).toHaveTextContent('+700 B')
     expect(dialog).toHaveTextContent('Controller source')
-    expect(dialog).toHaveTextContent('110.0% advisory')
+    expect(dialog).toHaveTextContent('2.0% advisory')
+  })
+
+  it('renders the priced total, operating ratio, signed headrooms and budget help without changing source rows (#1222)', () => {
+    const context = { controllerId: 'test', liveEpoch: 1 }
+    const sourceSha256 = 'a'.repeat(64)
+    renderPopover(undefined, model, priceShowArtifact({
+      estimatedBytes: 400, sourceSha256, context,
+      measurement: { ...context, sourceSha256, byteLength: 70_000 },
+    }))
+    const trigger = screen.getByRole('button', { name: /show source inventory/i })
+    expect(trigger).toHaveTextContent('68.4 KB exact / 53.4 KB')
+    fireEvent.focus(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(dialog).toHaveTextContent('128.0% advisory')
+    expect(dialog).toHaveTextContent('Raw headroom-1,616 B')
+    expect(dialog).toHaveTextContent('Usable headroom-15,293 B')
+    expect(dialog).toHaveTextContent('300 B')
+    fireEvent.focus(screen.getByRole('button', { name: 'About Delivered source' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('54,707 B provisional budget; 68,384 B firmware 3.67 observation.')
   })
 
   it('opens and closes through focus, hover, pinning, and Escape (#545, #756)', async () => {

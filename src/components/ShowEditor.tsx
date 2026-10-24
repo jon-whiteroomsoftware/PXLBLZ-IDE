@@ -44,6 +44,14 @@ import { ShowLayerTransitionPalette } from '@/components/ShowLayerTransitionPale
 import { ShowLayerTransitionEditor } from '@/components/ShowLayerTransitionEditor'
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { ShowArtifactInventoryPopover, ShowArtifactInventoryBody } from '@/components/ShowArtifactInventoryPopover'
+import { useShowArtifactPricing } from './useShowArtifactPricing'
+import { estimateShowBytecodeBytes } from '@/engine/showVmResourceLedger'
+import { sameControllerDeviceId } from '@/engine/controllerIdentity'
+import {
+  HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES,
+  PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES,
+  type priceShowArtifact,
+} from '@/engine/showArtifactPricing'
 import { ShowTimelineNavigator } from '@/components/ShowTimelineNavigator'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
@@ -1083,6 +1091,7 @@ export function ShowEditor({
   ), [lessonProjectionV2])
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
+  const lastShowArtifactCompilation = useControllerStore((state) => state.lastShowArtifactCompilation)
   const controllerPushing = useControllerStore((state) => state.pushing)
   const controllerArtifactPushResult = useControllerStore((state) => state.artifactPushResult)
   const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
@@ -2721,11 +2730,32 @@ export function ShowEditor({
         source: preparedControllerArtifact.value.source,
         profile: activeControllerProfile,
         artifactId: showArtifactId,
+        libraries: compileLibrarySet,
       })
     } catch {
       return null
     }
-  }, [activeController, activeControllerProfile, preparedControllerArtifact.value, showArtifactId])
+  }, [activeController, activeControllerProfile, compileLibrarySet, preparedControllerArtifact.value, showArtifactId])
+  const pricedSource = activeController
+    ? measuredControllerDelivery?.source ?? null
+    : preparedControllerArtifact.value?.source ?? inspectableShowExport?.source ?? null
+  const estimatedArtifactBytes = useMemo(
+    () => pricedSource ? estimateShowBytecodeBytes(pricedSource) : 0,
+    [pricedSource],
+  )
+  const artifactPricing = useShowArtifactPricing({
+    source: pricedSource,
+    estimatedBytes: estimatedArtifactBytes,
+    context: activeController?.phase === 'live'
+      && activeController.liveEpoch != null
+      && controllerStatus.kind === 'connected'
+      && connectedControllerAddress === activeIp
+      && connectedControllerId
+      && (!activeController.deviceId || sameControllerDeviceId(activeController.deviceId, connectedControllerId))
+      ? { controllerId: connectedControllerId, liveEpoch: activeControllerLiveEpoch }
+      : null,
+    measurement: lastShowArtifactCompilation,
+  })
   const compileBarControllerDelivery = measuredControllerDelivery && artifactInventory
     ? {
         totalBytes: deliveredShowSourceBytes(measuredControllerDelivery.source),
@@ -3858,6 +3888,7 @@ export function ShowEditor({
       </div>
       <CompileBar
         compiled={compiled}
+        pricing={artifactPricing}
         artifactInventory={artifactInventory}
         controllerDelivery={compileBarControllerDelivery}
         pushResult={compileBarPushResult}
@@ -11229,11 +11260,13 @@ function ZoneBindingStatus({
 
 function CompileBar({
   compiled,
+  pricing,
   artifactInventory,
   controllerDelivery,
   pushResult,
 }: {
   compiled: CompiledShowState
+  pricing: ReturnType<typeof priceShowArtifact>
   artifactInventory: {
     inventory: DeliveredShowSourceInventory
     model: ShowArtifactInventoryModel
@@ -11254,33 +11287,26 @@ function CompileBar({
       : errorNotice
   }
   const summary = compiled.artifact?.summary
-  // Gauge and inventory share one numerator: the source offered to the
-  // Controller compiler. The scale is advisory; real resource gates remain
-  // separate (#63, #849).
+  // Source pressure remains independent of the advisory artifact pricing.
   const deliveredBytes = controllerDelivery?.totalBytes
     ?? artifactInventory?.inventory.totalBytes
     ?? summary?.artifactBytes
     ?? 0
-  const deliveredRatio = summary ? deliveredBytes / summary.measuredDeviceBudgetBytes : 0
+  const deliveredRatio = pricing.budgetRatio
+  const budgetHelp = `${PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES.toLocaleString('en-US')} B provisional budget; ${HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES.toLocaleString('en-US')} B firmware 3.67 observation.`
   const pressure = summary ? assessShowCompilePressure({
     deliveredSourceBytes: deliveredBytes,
     budgetBytes: summary.measuredDeviceBudgetBytes,
     worstInstantRenderersPerPixel: summary.worstInstantRenderersPerPixel,
   }) : null
-  // Renderer pressure must not tint the byte gauge, so its color comes from a
-  // bytes-only assessment of the same delivered numerator.
-  const sourcePressure = summary ? assessShowCompilePressure({
-    deliveredSourceBytes: deliveredBytes,
-    budgetBytes: summary.measuredDeviceBudgetBytes,
-    worstInstantRenderersPerPixel: 0,
-  }) : null
+  const gaugeColor = deliveredRatio > 1 ? 'bg-red-500' : deliveredRatio >= 0.8 ? 'bg-amber-400' : 'bg-live'
   if (outlet.enabled) return outlet.target && createPortal(
     <>
     <ShowStripSection label="Source code" summary={summary && <>
-      <span className="show-source-thermometer" aria-label={`${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`}>
-        <span className={sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
+      <span className="show-source-thermometer" title={budgetHelp} aria-label={`${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory.`}>
+        <span className={gaugeColor} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
       </span>
-      <span>{formatBytes(deliveredBytes)} / {formatBytes(summary.measuredDeviceBudgetBytes)}</span>
+      <span>{formatBytes(pricing.bytes)} {pricing.kind} / {formatBytes(pricing.operatingBudgetBytes)}</span>
       <span className="panel-readout-dot">·</span>
       <span>VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words</span>
       <span className="panel-readout-dot">·</span>
@@ -11288,6 +11314,7 @@ function CompileBar({
     </>}>
       {summary && artifactInventory && (
         <ShowArtifactInventoryBody
+          pricing={pricing}
           inventory={artifactInventory.inventory}
           model={artifactInventory.model}
           vmWords={{
@@ -11336,19 +11363,20 @@ function CompileBar({
       <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
         aria-label={summary
-          ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`
+          ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory.`
           : undefined}
         title={summary
-          ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(deliveredBytes)} / ${formatBytes(summary.measuredDeviceBudgetBytes)} advisory.`
+          ? budgetHelp
           : undefined}
       >
         <span
-          className={`block h-full ${sourcePressure?.sourceStatus === 'over' ? 'bg-red-500' : sourcePressure?.sourceStatus === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
+          className={`block h-full ${gaugeColor}`}
           style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }}
         />
       </span>
       {summary && artifactInventory ? (
         <ShowArtifactInventoryPopover
+          pricing={pricing}
           inventory={artifactInventory.inventory}
           model={artifactInventory.model}
           vmWords={{
