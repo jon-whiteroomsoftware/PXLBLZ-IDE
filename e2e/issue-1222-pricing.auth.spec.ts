@@ -46,7 +46,8 @@ test('keeps an export estimate when the active Controller exceeds the Portable S
   const refusal = 'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.'
   const toggle = page.getByRole('button', { name: 'Source code', exact: true })
   await toggle.click()
-  await expect(page.getByLabel(/^Show source .* advisory\.$/)).toHaveAccessibleName(/^Show source [1-9][\d.]* KB estimate \/ 53\.4 KB advisory\.$/)
+  // Deck omits section summaries while Source code is expanded (src/components/Deck.tsx:103; unchanged since a7704c06).
+  await expect(page.getByLabel(/^(Show|Controller) source .* advisory\.$/)).toHaveCount(0)
   const inventory = page.locator('.show-source-inventory-body:visible')
   await expect(inventory).toContainText(refusal)
   await expect(inventory.locator('[data-source-resource="Delivered source"]')).toContainText(/[1-9][\d.]* KB estimate \/ 53\.4 KB/)
