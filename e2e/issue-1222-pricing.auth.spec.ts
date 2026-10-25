@@ -7,6 +7,65 @@ import { seedShowV2 } from './support/showBackingRecords'
 import { createDefaultShow } from '../src/engine/showModel'
 import { parseEpe } from '../src/engine/epeImport'
 import type { ControllerStatus } from '../src/engine/ControllerProvider'
+import type { ShowRecordV2 } from '../src/engine/showCompositionV2'
+
+test('keeps an export estimate when the active Controller exceeds the Portable Show pixel ceiling (#1222)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('studio/shows')
+  await expect(page.getByRole('button', { name: 'Add show' })).toBeVisible()
+  const portable = await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path)
+    const { stockShowV2ById } = await load('/PXLBLZ-IDE/src/pixelblaze/stock/showsV2.ts')
+    return stockShowV2ById('stock-show-100-getting-around')
+  }) as ShowRecordV2
+  const id = randomUUID()
+  await seedShowV2(page, createDefaultShow(id, 'Preparation refusal', 1000), 'Portable pricing refusal', {
+    edit: (converted) => Object.assign(converted, portable, { id }),
+  })
+  await page.goto(`studio/shows/${id}`)
+  await page.evaluate(async () => {
+    const load = (path: string) => import(/* @vite-ignore */ path)
+    const { useControllerStore } = await load('/PXLBLZ-IDE/src/store/controllerStore.ts')
+    const { useControllerProfileStore, defaultControllerProfile } = await load('/PXLBLZ-IDE/src/store/controllerProfileStore.ts')
+    const { NullControllerProvider } = await load('/PXLBLZ-IDE/src/engine/ControllerProvider.ts')
+    const { setControllerProvider } = await load('/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts')
+    const ip = '192.0.2.123'
+    const provider = new NullControllerProvider()
+    provider.getStatus = () => ({ kind: 'connected', controller: { id: 'pricing-refusal', address: ip, deviceId: null } })
+    provider.compile = async () => { throw Error('Pricing readout must never compile') }
+    setControllerProvider(provider)
+    useControllerProfileStore.setState({ profilesLoaded: true, profiles: [{
+      ...defaultControllerProfile({ id: 'pricing-refusal-profile', name: 'Pricing refusal', ip, now: 1 }),
+      lastSeenIp: ip, lastKnownPixelCount: 2001,
+    }] })
+    useControllerStore.setState({ activeIp: ip, controllers: {
+      [ip]: { ip, phase: 'live', liveEpoch: 1223, mapDim: 2, firmwareVersion: '3.67' },
+    }, lastShowArtifactCompilation: null })
+  })
+  const refusal = 'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.'
+  const run = page.getByRole('button', { name: 'Run', exact: true })
+  await expect(run).toHaveAttribute('aria-disabled', 'true')
+  const reasonId = await run.getAttribute('aria-describedby')
+  expect(reasonId).toBeTruthy()
+  await expect(page.locator(`[id="${reasonId}"]`)).toContainText(refusal)
+  const toggle = page.getByRole('button', { name: 'Source code', exact: true })
+  if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click()
+  await expect(page.getByLabel(/^Show source .* advisory\.$/)).toHaveAccessibleName(/^Show source [1-9][\d.]* KB estimate \/ 53\.4 KB advisory\.$/)
+  await toggle.click()
+  const inventory = page.locator('.show-source-inventory-body:visible')
+  await expect(inventory.locator('[data-source-resource="Delivered source"]')).toContainText(/[1-9][\d.]* KB estimate \/ 53\.4 KB/)
+  await expect(inventory.locator('[data-source-resource="Raw headroom"]')).toBeVisible()
+  await expect(inventory.locator('[data-source-resource="Usable headroom"]')).toBeVisible()
+  const output = process.env.PXLBLZ_CAPTURE_OUTPUT
+  if (output) {
+    await page.mouse.move(0, 0)
+    await toggle.focus()
+    await inventory.locator('[data-source-resource="Usable headroom"]').scrollIntoViewIfNeeded()
+    await expect(page.getByRole('tooltip')).toBeHidden()
+    await mkdir(output, { recursive: true })
+    await page.screenshot({ path: join(output, 'preparation-failed-1440-900.png') })
+  }
+})
 
 test('prices the current full Show artifact and invalidates it when the live session changes (#1222)', async ({ page }) => {
   // One small Show, one download and six optional viewport captures. Allow

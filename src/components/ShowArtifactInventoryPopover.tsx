@@ -15,7 +15,7 @@ import type {
 } from '@/engine/showSourceInventory'
 
 export interface ShowArtifactInventoryProps {
-  pricing: ReturnType<typeof priceShowArtifact>
+  pricing: ReturnType<typeof priceShowArtifact> | null
   inventory: DeliveredShowSourceInventory
   model: ShowArtifactInventoryModel
   vmWords: { used: number; budget: number; remaining: number }
@@ -207,7 +207,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Show source inventory, ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory`}
+        aria-label={pricing ? `Show source inventory, ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory` : 'Show source inventory'}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-semibold tabular-nums text-zinc-300 outline-none transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:bg-amber-400/10 focus-visible:text-amber-200 focus-visible:ring-1 focus-visible:ring-amber-400/60"
@@ -223,7 +223,7 @@ export function ShowArtifactInventoryPopover({ inventory, model, vmWords, render
           }
         }}
       >
-        {formatBytes(pricing.bytes)} {pricing.kind} / {formatBytes(pricing.operatingBudgetBytes)}
+        {pricing && <>{formatBytes(pricing.bytes)} {pricing.kind} / {formatBytes(pricing.operatingBudgetBytes)}</>}
         <ChevronUp size={11} aria-hidden />
       </button>
       {panel}
@@ -295,7 +295,7 @@ export function ShowArtifactInventoryBody({ model, vmWords, renderers, structure
         <div aria-hidden className="pointer-events-none absolute inset-y-0 -inset-x-1.5 -z-10 rounded-sm border border-zinc-700/70 bg-zinc-800/40" />
         <div className="pt-1 text-[9px] font-medium uppercase tracking-wider text-zinc-400">Output summary</div>
         <div className="flex min-w-0 flex-col divide-y divide-zinc-700/60">
-        <ResourceAxis
+        {pricing && <><ResourceAxis
           primary
           label={delivery ? 'Controller source' : 'Delivered source'}
           value={`${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)}`}
@@ -303,7 +303,7 @@ export function ShowArtifactInventoryBody({ model, vmWords, renderers, structure
           help={`${PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES.toLocaleString('en-US')} B provisional budget; ${HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES.toLocaleString('en-US')} B firmware 3.67 observation.`}
         />
         <ResourceAxis label="Raw headroom" value={`${pricing.rawHeadroomBytes.toLocaleString('en-US')} B`} />
-        <ResourceAxis label="Usable headroom" value={`${pricing.usableHeadroomBytes.toLocaleString('en-US')} B`} />
+        <ResourceAxis label="Usable headroom" value={`${pricing.usableHeadroomBytes.toLocaleString('en-US')} B`} /></>}
         <ResourceAxis label="VM words" value={`${vmWords.used.toLocaleString('en-US')} / ${vmWords.budget.toLocaleString('en-US')}`} detail={`${vmWords.remaining.toLocaleString('en-US')} free`} />
         <ResourceAxis
           label="Pattern copies running"

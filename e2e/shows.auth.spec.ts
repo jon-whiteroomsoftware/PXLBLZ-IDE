@@ -3697,7 +3697,7 @@ test('Show strip summaries retain controls, keyboard ownership and canvas at the
   await expect.poll(async () => (await controls.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(200)
   await expect.poll(async () => (await controls.locator('.show-strip-sections').boundingBox())?.width ?? 999).toBeLessThanOrEqual(480)
   const sourceBody = page.getByTestId('show-source-outlet').locator('.show-source-inventory-body')
-  await expect(sourceBody.locator('[data-source-resource]')).toHaveCount(3)
+  await expect(sourceBody.locator('[data-source-resource] > div:first-child > span[title]')).toHaveText(['Delivered source','Raw headroom','Usable headroom','VM words','Pattern copies running'])
   expect(await sourceBody.evaluate((body) => {
     const bounds = body.getBoundingClientRect()
     return [...body.querySelectorAll<HTMLElement>('[data-source-resource]')].every((row) => {

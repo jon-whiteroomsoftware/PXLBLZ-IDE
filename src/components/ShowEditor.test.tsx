@@ -2,6 +2,8 @@ import { useLayoutEffect } from 'react'
 import { createHash } from 'node:crypto'
 import * as artifactPricing from '@/engine/showArtifactPricing'
 import * as controllerDelivery from '@/engine/controllerArtifactDelivery'
+import * as showDelivery from '@/engine/showV2ControllerDelivery'
+import * as pricingHook from './useShowArtifactPricing'
 import { estimateShowBytecodeBytes } from '@/engine/showVmResourceLedger'
 import { ControllerActionRow } from './ControllerActionRow'
 import { useRouterStore } from '@/store/routerStore'
@@ -7007,6 +7009,60 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     ))
     return record
   }
+
+  it.each([
+    ['preparation', false], ['delivery', false], ['missing', false],
+    ['preparation', true], ['delivery', true], ['missing', true],
+  ] as const)('keeps honest rendered pricing after %s failure (desktop=%s) (#1222)', async (failure, desktop) => {
+    try {
+      const hash = (source: string) => createHash('sha256').update(source).digest('hex')
+      vi.spyOn(artifactPricing, 'sha256CompleteCompileInput').mockImplementation(async (source) => hash(source))
+      const record = convertForTest(createDefaultShow('pricing-refusal', 'Pricing refusal', 1000))
+      const prepare = vi.spyOn(showDelivery, 'prepareShowV2ForController')
+      if (failure === 'preparation') prepare.mockReturnValue({ value: null, error: 'Could not prepare Show for Controller' })
+      if (failure === 'delivery') vi.spyOn(controllerDelivery, 'prepareControllerArtifactDelivery').mockImplementation(() => { throw new Error('delivery unavailable') })
+      if (failure === 'missing') vi.spyOn(pricingHook, 'useShowArtifactPricing').mockReturnValue(null)
+      openV2EditorForRecord(record)
+      useControllerStore.setState({ activeIp: '10.0.0.5', controllers: { '10.0.0.5': { ip: '10.0.0.5', phase: 'live', liveEpoch: 1, mapDim: null } } })
+      setControllerProvider(new ConnectedControllerProvider())
+      const outlet = document.createElement('div')
+      document.body.append(outlet)
+      usePanelPreferencesStore.setState({ expanded: { 'show-strip:source': false } })
+      const rendered = render(<ShowSourceOutletContext.Provider value={{ enabled: desktop, target: outlet, setTarget: () => {} }}><ShowDeliveryHarness showId={record.id} /></ShowSourceOutletContext.Provider>)
+      await act(async () => {})
+      const exported = showDelivery.exportShowV2ForDelivery(record, prepare.mock.calls[prepare.mock.calls.length - 1][0], [])!
+      expect(exported.source.length).toBeGreaterThan(0)
+      await act(async () => useControllerStore.setState({ lastShowArtifactCompilation: {
+        controllerId: 'ctrl-live', liveEpoch: 1, sourceSha256: hash(exported.source), byteLength: 70_000,
+      } }))
+      if (failure === 'preparation') expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Could not prepare Show for Controller')
+      if (failure === 'missing') expect(screen.queryByLabelText(/source .* advisory\.$/i)).not.toBeInTheDocument()
+      else {
+        const bytes = estimateShowBytecodeBytes(exported.source)
+        expect(bytes).toBeGreaterThan(0)
+        expect(screen.getByLabelText(/source .* advisory\.$/i)).toHaveAccessibleName(`Show source ${(bytes / 1024).toFixed(1)} KB estimate / 53.4 KB advisory.`)
+      }
+      if (desktop) fireEvent.click(screen.getByRole('button', { name: 'Source code' }))
+      else fireEvent.focus(screen.getByRole('button', { name: /show source inventory/i }))
+      const body = document.querySelector('.show-source-inventory-body')!
+      expect(body).toHaveTextContent('VM words')
+      expect(body).toHaveTextContent('Pattern copies running')
+      if (failure === 'missing') {
+        expect(body.querySelector('[data-source-resource="Delivered source"]')).toBeNull()
+        expect(body).not.toHaveTextContent('Raw headroom')
+        expect(body).not.toHaveTextContent('Usable headroom')
+      } else {
+        const bytes = estimateShowBytecodeBytes(exported.source)
+        expect(body).toHaveTextContent(`${(bytes / 1024).toFixed(bytes >= 10 * 1024 ? 1 : 2)} KB estimate / 53.4 KB`)
+        expect(body).toHaveTextContent(`Raw headroom${(68_384 - bytes).toLocaleString('en-US')} B`)
+        expect(body).toHaveTextContent(`Usable headroom${(54_707 - bytes).toLocaleString('en-US')} B`)
+      }
+      rendered.unmount()
+      outlet.remove()
+    } finally {
+      vi.restoreAllMocks()
+    }
+  })
 
   it.each([false, true])('prices the public readout and inventory for the current complete Controller source (desktop=%s) (#1222)', async (desktop) => {
     const hash = (source: string) => createHash('sha256').update(source).digest('hex')

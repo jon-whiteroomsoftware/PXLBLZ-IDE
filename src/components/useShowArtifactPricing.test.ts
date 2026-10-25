@@ -23,7 +23,7 @@ function deferred() {
 
 it('invalidates a resolved full source immediately, even for a same-length banner/profile/library edit', async () => {
   const hash = vi.spyOn(pricing, 'sha256CompleteCompileInput').mockResolvedValue(hashA)
-  const renders: Array<ReturnType<typeof pricing.priceShowArtifact>> = []
+  const renders: Array<ReturnType<typeof useShowArtifactPricing>> = []
   const hook = renderHook((props: typeof initial) => {
     const result = useShowArtifactPricing(props)
     renders.push(result)
@@ -36,12 +36,12 @@ it('invalidates a resolved full source immediately, even for a same-length banne
     hash.mockReturnValueOnce(pending.promise)
     renders.length = 0
     hook.rerender({ ...initial, source })
-    expect(renders.every((result) => result.kind === 'estimate')).toBe(true)
+    expect(renders.every((result) => result?.kind === 'estimate')).toBe(true)
     expect(hook.result.current).toMatchObject({ kind: 'estimate', bytes: 123 })
     await act(async () => pending.resolve(hashB))
-    expect(hook.result.current.kind).toBe('estimate')
+    expect(hook.result.current?.kind).toBe('estimate')
     hook.rerender({ ...initial, source, measurement: { ...initial.measurement!, sourceSha256: hashB } })
-    expect(hook.result.current.kind).toBe('exact')
+    expect(hook.result.current?.kind).toBe('exact')
   }
 })
 
@@ -52,19 +52,22 @@ it('cancels late A completion and adopts B only against the B measurement', asyn
   const hook = renderHook(useShowArtifactPricing, { initialProps: initial })
   hook.rerender({ ...initial, source: '// banner B' })
   await act(async () => a.resolve(hashA))
-  expect(hook.result.current.kind).toBe('estimate')
+  expect(hook.result.current?.kind).toBe('estimate')
   await act(async () => b.resolve(hashB))
-  expect(hook.result.current.kind).toBe('estimate')
+  expect(hook.result.current?.kind).toBe('estimate')
   hook.rerender({ ...initial, source: '// banner B', measurement: { ...initial.measurement!, sourceSha256: hashB } })
-  expect(hook.result.current.kind).toBe('exact')
+  expect(hook.result.current?.kind).toBe('exact')
 })
 
-it('keeps errors and absent sources estimated without surfacing an error', async () => {
+it('keeps hash errors estimated and distinguishes absent source from valid empty source', async () => {
   vi.spyOn(pricing, 'sha256CompleteCompileInput').mockRejectedValue(new Error('crypto unavailable'))
   const hook = renderHook((props: Parameters<typeof useShowArtifactPricing>[0]) => useShowArtifactPricing(props), { initialProps: initial })
   await act(async () => {})
   expect(hook.result.current).toMatchObject({ kind: 'estimate', bytes: 123 })
   hook.rerender({ ...initial, source: null, estimatedBytes: 0 })
+  expect(hook.result.current).toBeNull()
+  hook.rerender({ ...initial, source: '', estimatedBytes: 0 })
+  await act(async () => {})
   expect(hook.result.current).toMatchObject({ kind: 'estimate', bytes: 0 })
 })
 
@@ -72,14 +75,14 @@ it('invalidates missing live context, reconnects and switches, and recovers only
   vi.spyOn(pricing, 'sha256CompleteCompileInput').mockResolvedValue(hashA)
   const hook = renderHook((props: Parameters<typeof useShowArtifactPricing>[0]) => useShowArtifactPricing(props), { initialProps: initial })
   await act(async () => {})
-  expect(hook.result.current.kind).toBe('exact')
+  expect(hook.result.current?.kind).toBe('exact')
   for (const next of [null, { ...context, liveEpoch: 2 }, { ...context, controllerId: 'B' }]) {
     hook.rerender({ ...initial, context: next })
-    expect(hook.result.current.kind).toBe('estimate')
+    expect(hook.result.current?.kind).toBe('estimate')
     await act(async () => {})
-    expect(hook.result.current.kind).toBe('estimate')
+    expect(hook.result.current?.kind).toBe('estimate')
   }
   hook.rerender({ ...initial, context })
   await act(async () => {})
-  expect(hook.result.current.kind).toBe('exact')
+  expect(hook.result.current?.kind).toBe('exact')
 })

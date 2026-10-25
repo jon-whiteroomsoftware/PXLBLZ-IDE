@@ -11,7 +11,7 @@ export function useShowArtifactPricing(input: {
   estimatedBytes: number
   context: ShowArtifactCompileContext | null
   measurement: ShowArtifactCompilationRecord | null
-}): ReturnType<typeof priceShowArtifact> {
+}): ReturnType<typeof priceShowArtifact> | null {
   const { source } = input
   const [resolved, setResolved] = useState<{ source: string; hash: string } | null>(null)
   useEffect(() => {
@@ -24,6 +24,7 @@ export function useShowArtifactPricing(input: {
     }
     return () => { cancelled = true }
   }, [source])
+  if (source === null) return null
   return priceShowArtifact({
     ...input,
     sourceSha256: source !== null && resolved?.source === source ? resolved.hash : null,

@@ -2736,17 +2736,15 @@ export function ShowEditor({
       return null
     }
   }, [activeController, activeControllerProfile, compileLibrarySet, preparedControllerArtifact.value, showArtifactId])
-  const pricedSource = activeController
-    ? measuredControllerDelivery?.source ?? null
-    : preparedControllerArtifact.value?.source ?? inspectableShowExport?.source ?? null
+  const pricedSource = measuredControllerDelivery?.source ?? inspectableShowExport?.source ?? null
   const estimatedArtifactBytes = useMemo(
-    () => pricedSource ? estimateShowBytecodeBytes(pricedSource) : 0,
+    () => pricedSource !== null ? estimateShowBytecodeBytes(pricedSource) : 0,
     [pricedSource],
   )
   const artifactPricing = useShowArtifactPricing({
     source: pricedSource,
     estimatedBytes: estimatedArtifactBytes,
-    context: activeController?.phase === 'live'
+    context: measuredControllerDelivery && activeController?.phase === 'live'
       && activeController.liveEpoch != null
       && controllerStatus.kind === 'connected'
       && connectedControllerAddress === activeIp
@@ -11266,7 +11264,7 @@ function CompileBar({
   pushResult,
 }: {
   compiled: CompiledShowState
-  pricing: ReturnType<typeof priceShowArtifact>
+  pricing: ReturnType<typeof priceShowArtifact> | null
   artifactInventory: {
     inventory: DeliveredShowSourceInventory
     model: ShowArtifactInventoryModel
@@ -11292,7 +11290,7 @@ function CompileBar({
     ?? artifactInventory?.inventory.totalBytes
     ?? summary?.artifactBytes
     ?? 0
-  const deliveredRatio = pricing.budgetRatio
+  const deliveredRatio = pricing?.budgetRatio ?? 0
   const budgetHelp = `${PROVISIONAL_SHOW_OPERATING_BUDGET_BYTES.toLocaleString('en-US')} B provisional budget; ${HISTORICAL_FIRMWARE_367_OBSERVATION_BYTES.toLocaleString('en-US')} B firmware 3.67 observation.`
   const pressure = summary ? assessShowCompilePressure({
     deliveredSourceBytes: deliveredBytes,
@@ -11303,11 +11301,13 @@ function CompileBar({
   if (outlet.enabled) return outlet.target && createPortal(
     <>
     <ShowStripSection label="Source code" summary={summary && <>
+      {pricing && <>
       <span className="show-source-thermometer" title={budgetHelp} aria-label={`${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory.`}>
         <span className={gaugeColor} style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }} />
       </span>
       <span>{formatBytes(pricing.bytes)} {pricing.kind} / {formatBytes(pricing.operatingBudgetBytes)}</span>
       <span className="panel-readout-dot">·</span>
+      </>}
       <span>VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words</span>
       <span className="panel-readout-dot">·</span>
       <span>up to {summary.creatorPatternPressure.patternCopiesRunning.worst} copies</span>
@@ -11360,7 +11360,7 @@ function CompileBar({
     <div data-testid="show-compile-bar" className="scrollbar-hidden min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
       <span>Show source</span>
-      <span
+      {pricing && <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
         aria-label={summary
           ? `${controllerDelivery ? 'Controller' : 'Show'} source ${formatBytes(pricing.bytes)} ${pricing.kind} / ${formatBytes(pricing.operatingBudgetBytes)} advisory.`
@@ -11373,7 +11373,7 @@ function CompileBar({
           className={`block h-full ${gaugeColor}`}
           style={{ width: `${Math.min(100, deliveredRatio * 100)}%` }}
         />
-      </span>
+      </span>}
       {summary && artifactInventory ? (
         <ShowArtifactInventoryPopover
           pricing={pricing}
