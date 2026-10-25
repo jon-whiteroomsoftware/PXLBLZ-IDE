@@ -46,11 +46,13 @@ test('keeps an export estimate when the active Controller exceeds the Portable S
   const refusal = 'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.'
   const toggle = page.getByRole('button', { name: 'Source code', exact: true })
   await toggle.click()
+  await page.getByRole('button', { name: 'Show actions', exact: true }).click()
   const run = page.getByRole('button', { name: 'Run', exact: true })
   await expect(run).toHaveAttribute('aria-disabled', 'true')
   const reasonId = await run.getAttribute('aria-describedby')
   expect(reasonId).toBeTruthy()
   await expect(page.locator(`[id="${reasonId}"]`)).toContainText(refusal)
+  await page.keyboard.press('Escape')
   await expect(page.getByLabel(/^Show source .* advisory\.$/)).toHaveAccessibleName(/^Show source [1-9][\d.]* KB estimate \/ 53\.4 KB advisory\.$/)
   const inventory = page.locator('.show-source-inventory-body:visible')
   await expect(inventory.locator('[data-source-resource="Delivered source"]')).toContainText(/[1-9][\d.]* KB estimate \/ 53\.4 KB/)
