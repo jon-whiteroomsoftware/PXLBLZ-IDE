@@ -1,12 +1,13 @@
 {
   "version": 1,
-  "route": "http://localhost:5201/PXLBLZ-IDE/studio/shows/3bfdddd0-56b3-4fa4-97e1-0d3112f66894",
-  "operation": "#1222 Show gauge/inventory proof at 1440x900 and 1180x800, refreshed after rebasing onto a7704c06. The canonical authenticated test:e2e:shows -- --grep '#1222' --workers=1 host run passed 1 test in 7.5s. The exact synthetic 70,000-byte record shows 68.4 KB exact / 53.4 KB, raw -1,616 B and usable -15,293 B; live-to-pending invalidates the retained record and shows 7.09 KB estimate / 53.4 KB, raw 61,121 B and usable 47,444 B. The browser error oracle was empty. All four captures show exact/estimate price and both signed headroom rows; the 1440 exact frame also shows the budget tooltip. Synthetic bytes prove UI pricing, not native compilation or hardware capacity. Jon approved strings in https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389836659 and 390 is out of scope per https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1222#issuecomment-6389819528. The canonical run includes AO3's 1180 harness step: clear hover/focus and scroll usable headroom into view. AO4 inspected all four actual PNGs from this refreshed run and validated the pixels.",
+  "route": "http://localhost:5201/PXLBLZ-IDE/studio/shows/8fec64c8-b133-4012-b14b-9a205fade375",
+  "operation": "#1222 authenticated host proof at e90f00b4: canonical test:e2e:shows -- --grep '#1222' --workers=1 passed both cases in 8.8s with console/page-error assertions intact. Normal 1440x900 and 1180x800 frames show the synthetic 70,000-byte record at 68.4 KB exact / 53.4 KB, raw -1,616 B and usable -15,293 B; live-to-pending invalidation shows 7.09 KB estimate / 53.4 KB, raw 61,121 B and usable 47,444 B. The separate Portable Show preparation-refusal fixture at 1440x900 shows 18.7 KB estimate / 53.4 KB, raw 49,203 B, usable 35,526 B and the full 2,001-pixel target refusal. Source code expansion intentionally omits the summary gauge under the unchanged pre-#1222 Deck.tsx:103 rule; the expanded inventory retains export pricing. AO6 opened and inspected all five PNGs. AO3's unchanged 1180 step clears hover/focus and scrolls usable headroom into view; no tooltip remains in those frames. Synthetic bytes prove UI pricing, not native compilation or hardware capacity. Strings were approved in issue comment 6389836659; 390 px is excluded by comment 6389819528.",
   "captures": [
     ".wrsp/ui-proof/1222-pricing-1440-exact.png",
     ".wrsp/ui-proof/1222-pricing-1440-estimate.png",
     ".wrsp/ui-proof/1222-pricing-1180-exact.png",
-    ".wrsp/ui-proof/1222-pricing-1180-estimate.png"
+    ".wrsp/ui-proof/1222-pricing-1180-estimate.png",
+    ".wrsp/ui-proof/1222-pricing-preparation-failed-1440.png"
   ],
-  "capturedAtCommit": "7ac71f32749d5d265833be2985c5ecdc34fd41f3"
+  "capturedAtCommit": "e90f00b453bc3f27a0ab0da5ec27cf6c82c1e1a9"
 }
