@@ -730,9 +730,9 @@ computable.
 **Transient replacement fit.** Steady-state fit and replacement fit are
 different questions: a Pattern can pass every steady-state limit and still
 fail a direct large-to-large replacement, because activation briefly holds
-both programs. `pushPattern` uses the observed 68,384-byte activation ceiling
-as the transient overlap budget; a sum above it — or an unknown resident
-footprint — routes through a run-only black drain Pattern (153 bytes of
+both programs. `pushPattern` retains a separate 68,384-byte transient overlap
+allowance, based on the historical firmware-3.67 observation; a sum above it —
+or an unknown resident footprint — routes through a run-only black drain Pattern (153 bytes of
 bytecode) that must be observed active before the target is sent. The drain
 never enters Saved Patterns, bindings, labels, or push records. The provider
 caches a resident footprint only after confirmed activation and invalidates it
@@ -1179,13 +1179,41 @@ machine: a 10,240-word array pool (each array's four-word header included) and
 a separate 256-global limit, grouped by owner. Exceeding either, or the
 2,000-pixel ceiling, blocks delivery. Five simultaneous renderers per pixel
 also block, because four is the validated release fixture. Source size is only
-advisory: `showCompilePressure.ts` scales its gauge to the observed
-68,384-byte bytecode activation ceiling and colors at 80% and 100%, but source
-and bytecode diverge too much for bytes to decide fit, so the Controller's own
-compiler is authoritative. Blocked output stays previewable.
+advisory: source-generation heuristics and ledgers retain the 68,384-byte
+reference from a historical firmware-3.67 observation. This is not a universal
+bytecode activation ceiling. Source and bytecode diverge too much for source
+bytes to decide fit, so the Controller's own compiler is authoritative. Blocked
+output stays previewable.
+
+The Source code section prices the whole serialized bytecode blob, including
+its eight-byte header and export framing. Exact pricing uses an already-returned
+bytecode `byteLength` only when Controller ID, live epoch and SHA-256 of the
+complete unchanged UTF-8 compile input match the current prepared source. The
+hash includes the provenance banner. The epoch identifies the compiler for that
+live record; a source, profile or context change, or a missing or stale
+measurement, restores the labelled estimate. Records are transient, and pricing
+never triggers another compile or device fetch. The unchanged estimator charges
+20 bytes per numeric array-element assignment and 4.25 bytes per literal element.
+
+Pricing uses a provisional 54,707-byte operating budget. Its rounded-up
+13,677-byte 20% engineering margin below the historical 68,384-byte observation
+is a proposal, not a measured boundary. Raw headroom is 68,384 minus the blob
+size; usable headroom is 54,707 minus the blob size. Both are signed and are
+never summed across Shows. This pricing budget is separate from source-generation
+heuristics and the independent 68,384-byte Controller replacement overlap allowance.
+
+The committed [45-Show measurement corpus](evidence/issue-1215-bytecode-measurement.md)
+qualifies its recorded blobs against the provisional budget, with recorded
+compiler and complete-source hashes. It does not qualify every current stock
+source. `npm run report:show-artifact-staleness` compares complete exported-source
+hashes with that frozen evidence and reports matching, stale and unmeasured
+current Shows, plus the recorded firmware and compiler provenance. Hash drift
+does not fail the command; operational errors do. This diagnostic never supplies
+the transient live exact-price cache.
 
 **Source inventory.** The Source code section explains the delivered source as
-an exact byte ledger. The compiler attaches one owner to every contiguous range
+an exact source-byte ledger. Inventory percentages describe source contributions,
+not compiled-byte operating fit. The compiler attaches one owner to every contiguous range
 of the final compacted artifact, so each Pattern's row, the generated
 categories, and the provenance header reconcile to the bytes offered to the
 Controller, including any profile transform. Three counts are kept distinct:

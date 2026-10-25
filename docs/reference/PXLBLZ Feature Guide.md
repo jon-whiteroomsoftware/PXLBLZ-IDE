@@ -484,10 +484,19 @@ rolled back and Studio says so rather than leaving you with changes that exist
 only in the browser. Undo history lasts for the session; reopening a Show
 starts a fresh history.
 
-The **Source code** section beside the Stage reports the delivered source
-size, memory words, and how many Pattern copies can run at once. Expand it for
-the byte-level inventory. Warnings and blockers stay visible below it, and
-Run and Save failures appear in the Controller popover.
+The **Source code** section beside the Stage prices the compiled Pattern with
+exact bytes when matching bytes are already available for the current prepared
+Controller source; otherwise it shows a labelled estimate. It also reports
+memory words and how many Pattern copies can run at once. Warnings and blockers
+stay visible below it, and Run and Save failures appear in the Controller popover.
+
+Raw headroom subtracts the Pattern's bytes from the historical firmware-3.67
+observation of 68,384 bytes. Usable headroom subtracts them from a provisional
+54,707-byte operating budget. Both remain signed. The rounded-up 13,677-byte
+20% margin is an engineering proposal, not a measured boundary. Expand the
+inventory for source-byte attribution; its percentages describe source
+contributions. The [Technical Reference](PXLBLZ%20Technical%20Reference.md#22-show-compiler)
+explains exact matching, measurement provenance, and the evidence drift report.
 
 Every Pattern row in the inventory separates three counts that are easy to
 confuse. **Configured uses** are separately configured versions of that
