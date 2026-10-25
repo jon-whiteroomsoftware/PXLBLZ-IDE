@@ -31,7 +31,8 @@ test('keeps an export estimate when the active Controller exceeds the Portable S
     const { setControllerProvider } = await load('/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts')
     const ip = '192.0.2.123'
     const provider = new NullControllerProvider()
-    provider.getStatus = () => ({ kind: 'connected', controller: { id: 'pricing-refusal', address: ip, deviceId: null } })
+    const status = { kind: 'connected', controller: { id: 'pricing-refusal', address: ip, deviceId: null } } satisfies ControllerStatus
+    provider.getStatus = () => status
     provider.compile = async () => { throw Error('Pricing readout must never compile') }
     setControllerProvider(provider)
     useControllerProfileStore.setState({ profilesLoaded: true, profiles: [{
