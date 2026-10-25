@@ -48,7 +48,8 @@ test('keeps an export estimate when the active Controller exceeds the Portable S
   await toggle.click()
   // Deck omits section summaries while Source code is expanded (src/components/Deck.tsx:103; unchanged since a7704c06).
   await expect(page.getByLabel(/^(Show|Controller) source .* advisory\.$/)).toHaveCount(0)
-  const inventory = page.locator('.show-source-inventory-body:visible')
+  // The source outlet contains both the inventory and its sibling preparation-refusal notice.
+  const inventory = page.getByTestId('show-source-outlet')
   await expect(inventory).toContainText(refusal)
   await expect(inventory.locator('[data-source-resource="Delivered source"]')).toContainText(/[1-9][\d.]* KB estimate \/ 53\.4 KB/)
   await expect(inventory.locator('[data-source-resource="Raw headroom"]')).toBeVisible()
