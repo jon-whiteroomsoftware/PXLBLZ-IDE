@@ -45,6 +45,22 @@ optimistic adoption/history/save, and atomic refusal/no-op/rollback. The panel k
 pending submissions locked and suppresses obsolete completion feedback. Engine
 capture inputs/assets and runtime identities remain provider-free.
 
+The ordinary and Group animation popovers return the actual asynchronous
+admission/save result. Applied-and-saved settles accepted; no-op, superseded
+save and save rejection settle false. Planner and admission/owner refusals
+produce the existing inline refusal line; persistence errors retain the Show
+save-failure banner. One provider-owned pending lock blocks duplicate key/track
+mutations synchronously and disables mutation controls until settlement, while
+dismissal and Escape remain usable. Structured refusals reach fields as false
+so existing controlled values restore. Exceptions also settle false without an
+unhandled rejection.
+
+A new two-key draft is consumed only after accepted settlement and remains
+retryable after refusal. Removing a track closes its popover, or the last-track
+overview, only after acceptance. Closing, changing owner, or unmounting retires
+completion feedback: a late result cannot close a newer popover or show an
+obsolete refusal. Synchronous legacy callbacks retain their accepted behavior.
+
 Source-dependent eligibility and named compiler refusals stay at final admission.
 A qualified preimage whose current preview is unavailable may be repaired only if
 that shared owner prepares the complete candidate successfully. Invalid captures

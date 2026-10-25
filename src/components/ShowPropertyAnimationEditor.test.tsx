@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ShowPropertyAnimationTrack } from '@/engine/personalContentRecords'
 import type { ShowPropertyAnimationOption } from '@/engine/showPropertyAnimationEditorModel'
+import type { EditRefusal } from './ui/edit-refusal-line'
 import {
   ShowPropertyAnimationAction,
+  ShowPropertyAnimationOverview,
   ShowPropertyAnimationProvider,
 } from './ShowPropertyAnimationEditor'
 
@@ -49,7 +51,147 @@ function editor(
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no })
+  return { promise, resolve, reject }
+}
+
+function changeFrom(value: string) {
+  const from = screen.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
+  fireEvent.change(from, { target: { value } })
+  fireEvent.keyDown(from, { key: 'Enter' })
+  return from
+}
+
 describe('per-parameter Property animation editor (#648)', () => {
+  it('shows one structured refusal, blocks duplicate mutations, and retries (#1209)', async () => {
+    const first = deferred<boolean | EditRefusal>()
+    const onChange = vi.fn().mockReturnValueOnce(first.promise).mockReturnValue(true)
+    editor([], onChange)
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    const from = changeFrom('20')
+    expect(from).toBeDisabled()
+    fireEvent.keyDown(from, { key: 'Enter' })
+    fireEvent.change(screen.getByLabelText('Brightness animation easing'), { target: { value: 'ease-in' } })
+    expect(onChange).toHaveBeenCalledOnce()
+    await act(async () => { first.resolve({ refused: true, message: 'This edit is unavailable.' }) })
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('This edit is unavailable.')
+    expect(from).toBeEnabled()
+    changeFrom('30')
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('consumes a new draft only after accepted settlement (#1209)', async () => {
+    const result = deferred<boolean>()
+    const onChange = vi.fn().mockReturnValue(result.promise)
+    editor([], onChange)
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    changeFrom('20')
+    await act(async () => { result.resolve(true) })
+    changeFrom('30')
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  it.each(['false', 'structured', 'rejection', 'throw'] as const)('restores an existing controlled key on %s (#1209)', async kind => {
+    const result = deferred<boolean | EditRefusal>()
+    const onChange = vi.fn(() => { if (kind === 'throw') throw new Error('failure'); return result.promise })
+    editor([track], onChange)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Brightness animation' }))
+    const from = changeFrom('20')
+    await act(async () => {
+      if (kind === 'rejection') result.reject(new Error('failure'))
+      else result.resolve(kind === 'structured' ? { refused: true, message: 'Refused key' } : false)
+    })
+    expect(from).toHaveValue('80')
+    expect(from).toBeEnabled()
+    if (kind === 'structured') expect(screen.getByRole('alert')).toHaveTextContent('Refused key')
+  })
+
+  it('keeps removal open until accepted and permits retry after refusal (#1209)', async () => {
+    const result = deferred<boolean>()
+    const onChange = vi.fn().mockReturnValueOnce(result.promise).mockReturnValue(true)
+    editor([track], onChange)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Brightness animation' }))
+    const remove = screen.getByRole('button', { name: 'Remove Brightness animation' })
+    fireEvent.click(remove)
+    fireEvent.click(remove)
+    expect(remove).toBeDisabled()
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeVisible()
+    await act(async () => { result.resolve(false) })
+    expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeVisible()
+    fireEvent.click(remove)
+    expect(onChange).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('dialog', { name: 'Brightness animation' })).not.toBeInTheDocument()
+  })
+
+  it.each(['accepted', 'refused', 'rejection'] as const)('suppresses obsolete %s completion after Escape and reopening (#1209)', async kind => {
+    const result = deferred<boolean | EditRefusal>()
+    const onChange = vi.fn().mockReturnValue(result.promise)
+    editor([track], onChange)
+    const open = screen.getByRole('button', { name: 'Edit Brightness animation' })
+    fireEvent.click(open)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Brightness animation' }))
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(open)
+    await act(async () => {
+      if (kind === 'rejection') result.reject(new Error('late failure'))
+      else result.resolve(kind === 'accepted' ? true : { refused: true, message: 'Obsolete refusal' })
+    })
+    expect(screen.getByRole('dialog', { name: 'Brightness animation' })).toBeVisible()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('ignores completion after provider unmount (#1209)', async () => {
+    const result = deferred<boolean | EditRefusal>()
+    const { view } = editor([], vi.fn().mockReturnValue(result.promise))
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    changeFrom('20')
+    view.unmount()
+    await act(async () => { result.resolve({ refused: true, message: 'Late refusal' }) })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('routes overview removal through the same pending owner and closes only after acceptance (#1209)', async () => {
+    const refused = deferred<boolean | EditRefusal>()
+    const accepted = deferred<boolean>()
+    const onChange = vi.fn().mockReturnValueOnce(refused.promise).mockReturnValueOnce(accepted.promise)
+    const onOverviewEmpty = vi.fn()
+    render(<ShowPropertyAnimationProvider options={[brightness]} tracks={[track]} storageDurationMs={4000} showTimeOffsetMs={12000} instanceUseCount={1} onChange={onChange} onOverviewEmpty={onOverviewEmpty}>
+      <ShowPropertyAnimationOverview onBack={vi.fn()} onNavigate={vi.fn()} />
+    </ShowPropertyAnimationProvider>)
+    const remove = screen.getByRole('button', { name: 'Remove Brightness animation' })
+    fireEvent.click(remove)
+    fireEvent.click(remove)
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(remove).toBeDisabled()
+    expect(onOverviewEmpty).not.toHaveBeenCalled()
+    await act(async () => { refused.resolve({ refused: true, message: 'Retain track' }) })
+    expect(screen.getByRole('alert')).toHaveTextContent('Retain track')
+    expect(onOverviewEmpty).not.toHaveBeenCalled()
+    fireEvent.click(remove)
+    expect(onOverviewEmpty).not.toHaveBeenCalled()
+    await act(async () => { accepted.resolve(true) })
+    expect(onOverviewEmpty).toHaveBeenCalledOnce()
+  })
+  it('retains a new draft for retry after asynchronous refusal (#1209)', async () => {
+    let settle!: (value: boolean) => void
+    const onChange = vi.fn().mockImplementationOnce(() => new Promise<boolean>(resolve => { settle = resolve })).mockReturnValue(true)
+    editor([], onChange)
+    fireEvent.click(screen.getByRole('button', { name: 'Animate Brightness' }))
+    const from = screen.getByRole('textbox', { name: 'Brightness animation from exact percentage' })
+    fireEvent.change(from, { target: { value: '20' } })
+    fireEvent.keyDown(from, { key: 'Enter' })
+    await act(async () => { settle(false) })
+    fireEvent.change(from, { target: { value: '30' } })
+    fireEvent.keyDown(from, { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledTimes(2)
+  })
   it('dismisses on an outside press even when the surrounding workspace stops pointer bubbling (#664)', () => {
     render(
       <div onPointerDown={(event) => event.stopPropagation()}>

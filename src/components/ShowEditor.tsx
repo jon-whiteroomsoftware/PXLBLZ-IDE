@@ -2153,35 +2153,32 @@ export function ShowEditor({
       if (applied) selectTimeline({ kind: 'show' })
     }).catch(() => {})
   }, [commitV2LayoutPlan, readOnly, savedShowV2, selectTimeline])
-  // Slice 10 connects ordinary-Clip Property animation through the property
-  // door, line for line on the inspector chokepoint above: refused and no-op
-  // plans return false synchronously so the popover reverts its draft, and an
-  // accepted change fires one property admission and returns true. The return
-  // stays boolean because the inspector prop is typed `(change) => boolean |
-  // void` and the draft popover treats anything but false as accepted (#1066).
-  const commitV2PropertyAnimationChange = useCallback((clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange): boolean => {
+  // Animation drafts settle only after admission and persistence settle.
+  const commitV2PropertyAnimationChange = useCallback((clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange): EditRefusalResult<boolean | void> => {
     if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2PropertyAnimationChange(capture.record, clipId, frame, change, newPersonalContentId)
-    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    if (plan.kind === 'refuse') return { refused: true, message: plan.message }
+    if (plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-    void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
-    return true
+    return commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent }).then(
+      outcome => panelCommitRefusal(outcome) ?? (outcome.status === 'applied' && outcome.settlement === 'saved'),
+      () => false,
+    )
   }, [commitV2PropertyEdit, readOnly, savedShowV2, showId])
-  // #1075 G3 connects Group-child Property animation through the property
-  // door with the definition owner: refused and no-op plans return false
-  // synchronously so the popover reverts its draft, and an accepted change
-  // fires one property admission and returns true.
-  const commitV2GroupPropertyAnimationChange = useCallback((occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange): boolean => {
+  const commitV2GroupPropertyAnimationChange = useCallback((occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange): EditRefusalResult<boolean | void> => {
     if (!savedShowV2 || readOnly) return false
     const capture = preparedV2CaptureRef.current
     if (!capture || capture.prepared.status === 'refused') return false
     const plan = planShowV2GroupPropertyAnimationChange(capture.record, occurrenceId, clipId, change, newPersonalContentId)
-    if (plan.kind === 'refuse' || plan.kind === 'no-op') return false
+    if (plan.kind === 'refuse') return { refused: true, message: plan.message }
+    if (plan.kind === 'no-op') return false
     const baseRevision = useShowStore.getState().showRevisions[showId] ?? 0
-    void commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent })
-    return true
+    return commitV2PropertyEdit({ capture, baseRevision, propertyOwner: plan.propertyOwner, intent: plan.intent }).then(
+      outcome => panelCommitRefusal(outcome) ?? (outcome.status === 'applied' && outcome.settlement === 'saved'),
+      () => false,
+    )
   }, [commitV2PropertyEdit, readOnly, savedShowV2, showId])
   // Slice 5b connects the boundary palette's Apply through the same door: the
   // choice is planned exactly as v1 normalizes it, and a new duration retimes
@@ -8971,8 +8968,8 @@ function ContextualInspector({
   onRemoveBoundaryTransitionV2?: (transitionId: string) => void
   onUpdateRoutingTransferV2?: (occurrenceId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemoveRoutingTransferV2?: (occurrenceId: string) => void
-  onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => boolean
-  onGroupPropertyAnimationChangeV2?: (occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange) => boolean
+  onPropertyAnimationChangeV2?: (clipId: string, frame: ShowV2PropertyAnimationFrame, change: ShowPropertyAnimationChange) => EditRefusalResult<boolean | void>
+  onGroupPropertyAnimationChangeV2?: (occurrenceId: string, clipId: string, change: ShowPropertyAnimationChange) => EditRefusalResult<boolean | void>
   onMakePatternIndependentV2?: (clipId: string) => void
   onRejoinPatternV2?: (clipId: string, targetInstanceId: string) => void
   onRemoveClipV2?: (clipId: string) => void
@@ -9528,7 +9525,7 @@ function CompositionClipInspector({
   preparedCaptureV2?: ShowPreparedStageEditCaptureV2 | null
   onPatch: (patch: ShowClipInspectorPatch) => EditRefusalResult<boolean | void>
   propertyAnimationContext?: Omit<ShowPropertyAnimationEditorContext, 'storageOwner'> | null
-  onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => boolean | void
+  onPropertyAnimationChange?: (change: ShowPropertyAnimationChange) => EditRefusalResult<boolean | void>
   onPreviewEnd?: () => void
   onPatternCommit: () => void
   onMakePatternIndependent: () => void
@@ -9655,13 +9652,6 @@ function CompositionClipInspector({
     </InspectorPanel>
   )
   if (!onPropertyAnimationChange || !propertyAnimationContext) return inspector
-  const changePropertyAnimation = (change: ShowPropertyAnimationChange) => {
-    const accepted = onPropertyAnimationChange(change)
-    if (accepted !== false && change.kind === 'delete-track' && animationCount === 1) {
-      setAnimationOverviewOpen(false)
-    }
-    return accepted
-  }
   return (
     <ShowPropertyAnimationProvider
       options={buildShowPropertyAnimationOptions(value, patternControls)}
@@ -9671,7 +9661,8 @@ function CompositionClipInspector({
       showTimeOffsetMs={propertyAnimationContext.showTimeOffsetMs}
       instanceUseCount={propertyAnimationContext.instanceUseCount}
       onOpenOverview={() => setAnimationOverviewOpen(true)}
-      onChange={changePropertyAnimation}
+      onChange={onPropertyAnimationChange}
+      onOverviewEmpty={() => setAnimationOverviewOpen(false)}
     >
       {inspector}
     </ShowPropertyAnimationProvider>

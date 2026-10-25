@@ -6,6 +6,11 @@ import { getPersonalContentProvider, resetPersonalContentProvider, setPersonalCo
 import { showInitialState, useShowStore } from './showStore'
 import { admitShowV2PilotPropertyEdit, admitShowV2PilotLayerEdit } from './showV2PreparedEditAdmission'
 import type { ShowRecordV2 } from '../engine/showCompositionV2'
+import { parseProvisionalShowRecordV2, serializeProvisionalShowRecordV2 } from '../engine/showCompositionV2'
+import { createShowV2WithOutputContract } from '../engine/showCreationV2'
+import { createInstallationShowOutputContract } from '../engine/showOutputContract'
+import { planShowV2PropertyAnimationChange } from '../engine/showV2PropertyAnimationPlanning'
+import type { ShowPreparedStageDependenciesV2 } from '../engine/showPreparedStageV2'
 beforeEach(() => { resetPersonalContentProvider(); useShowStore.setState(showInitialState) })
 afterEach(() => resetPersonalContentProvider())
 let fixtureId = 0
@@ -25,6 +30,67 @@ function emptyEffects(outcome: object) {
   expect(effects).toHaveLength(14)
   for (const [, value] of effects) expect(value).toEqual([])
 }
+
+function nativeSetup() {
+  const record = createShowV2WithOutputContract(`native-${++fixtureId}`, 'Native', createInstallationShowOutputContract({ outputMapId: null, pixelCount: 2 }), 1)
+  record.composition.patternInstances.forEach(instance => {
+    instance.pattern = { kind: 'user', id: 'voice' }
+    instance.controlTargets = { sliderGain: .2 }
+  })
+  const dependencies: ShowPreparedStageDependenciesV2 = { patterns: [{ id: 'voice', name: 'Voice', src: 'export var gain=.2;export function sliderGain(v){gain=v}export function render(i){rgb(gain,0,0)}', updatedAt: 1, controls: {} }], maps: [], libraries: [], profiles: [], stageMap: null }
+  let saved = structuredClone(record)
+  const write = vi.fn(async (_id: string, next: ShowRecordV2) => { saved = structuredClone(next) })
+  setPersonalContentProvider({ ...getPersonalContentProvider(), id: 'native-test', replaceShowV2: write })
+  useShowStore.setState({ showV2Pilots: { [record.id]: record }, showV2Histories: { [record.id]: { past: [], future: [] } } })
+  const context = () => ({ showId: record.id, baseRevision: useShowStore.getState().showRevisions[record.id] ?? 0, capture: captureShowStageEditV2(useShowStore.getState().showV2Pilots[record.id], dependencies), isCurrent: () => true, onAdopted: vi.fn() })
+  return { record, dependencies, write, context, saved: () => saved }
+}
+
+it('adopts native first track and interior key edits with real history, saves and codec reload (#1209)', async () => {
+  const { record, write, context, saved, dependencies } = nativeSetup()
+  const transitions = structuredClone(record.composition.transitions)
+  const plan = planShowV2PropertyAnimationChange(record, 'clip-1', { showTimeOffsetMs: 0, storageDurationMs: 30000 }, { kind: 'add-track', target: { kind: 'placement-view', placementId: 'clip-1', property: 'brightness' }, initialValue: .2 }, (() => { let id = 0; return () => `native-${++id}` })())
+  if (plan.kind !== 'edit' || plan.intent.kind !== 'add-track') throw new Error(JSON.stringify(plan))
+  expect(await admitShowV2PilotPropertyEdit({ ...context(), propertyOwner: plan.propertyOwner, intent: plan.intent })).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(write).toHaveBeenCalledTimes(1)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toEqual([record])
+  const trackId = plan.intent.track.id
+  const added = structuredClone(saved())
+  expect(await admitShowV2PilotPropertyEdit({ ...context(), propertyOwner: { kind: 'show' }, intent: { kind: 'add-key', trackId, key: { id: 'interior', timeMs: 15000, value: .2, easing: { curve: 'linear' } } } })).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(await admitShowV2PilotPropertyEdit({ ...context(), propertyOwner: { kind: 'show' }, intent: { kind: 'update-key', trackId, keyId: 'interior', patch: { value: .7 } } })).toMatchObject({ status: 'applied', settlement: 'saved' })
+  expect(write).toHaveBeenCalledTimes(3)
+  expect(useShowStore.getState().showV2Histories[record.id].past).toHaveLength(3)
+  expect(await useShowStore.getState().undoShowV2Pilot(record.id)).toBe(true)
+  expect(saved().composition.propertyTracks[0].keyframes[1].value).toBe(.2)
+  expect(await useShowStore.getState().redoShowV2Pilot(record.id)).toBe(true)
+  expect(saved().composition.propertyTracks[0].keyframes.map(key => [key.timeMs, key.value])).toEqual([[0, .2], [15000, .7], [30000, .2]])
+  expect(saved().composition.propertyTracks[0]).toMatchObject({ activeStartMs: 0, activeDurationMs: 32000 })
+  expect(saved().composition.transitions).toEqual(transitions)
+  expect(added.composition.transitions).toEqual(transitions)
+  const opened = parseProvisionalShowRecordV2(serializeProvisionalShowRecordV2(saved()))
+  if (opened.status !== 'opened') throw new Error(JSON.stringify(opened))
+  expect(opened.record).toEqual(saved())
+  expect(prepareShowStageV2(opened.record, dependencies).status).toBe('ready')
+})
+
+it.each(['geometry', 'stale', 'missing-control', 'missing-baseline'] as const)('refuses unsupported native %s without partial state or writes (#1209)', async partition => {
+  const { record, dependencies, write, context } = nativeSetup()
+  if (partition === 'geometry') record.composition.transitions[0].crossfadePolicy = 'live-live'
+  if (partition === 'missing-control') dependencies.patterns[0].src = 'export function render(i){rgb(1,0,0)}'
+  if (partition === 'missing-baseline') delete record.composition.patternInstances[0].controlTargets
+  const before = structuredClone(record)
+  const request = context()
+  if (partition === 'stale') request.isCurrent = () => false
+  const target = partition === 'geometry' || partition === 'stale' ? { kind: 'clip-view' as const, clipId: 'clip-1', property: 'brightness' as const }
+    : { kind: 'instance-control' as const, instanceId: 'instance-1', exportName: 'sliderGain' }
+  const outcome = await admitShowV2PilotPropertyEdit({ ...request, propertyOwner: { kind: 'show' }, intent: { kind: 'add-track', track: { id: 'native-track', target, activeStartMs: 0, activeDurationMs: 32000, keyframes: [{ id: 'from', timeMs: 0, value: .2, easing: { curve: 'linear' } }, { id: 'to', timeMs: 30000, value: .7, easing: { curve: 'linear' } }] } } })
+  expect(outcome.status).toBe('refused')
+  emptyEffects(outcome)
+  expect(write).not.toHaveBeenCalled()
+  expect(useShowStore.getState().showV2Pilots[record.id]).toBe(record)
+  expect(record).toEqual(before)
+  expect(useShowStore.getState().showV2Histories[record.id]).toEqual({ past: [], future: [] })
+})
 it('recovers qualified refused preimage with exact six-intent Property owner effects and one adoption', async () => {
   const { record, write, saved, context, dependencies } = setup(); const request = context()
   expect(request.capture.prepared.status).toBe('refused')

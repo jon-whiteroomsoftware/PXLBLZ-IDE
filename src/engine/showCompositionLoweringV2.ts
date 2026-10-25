@@ -29,6 +29,7 @@ import {
 import { validateShowLayoutAvailabilityV2 } from './showLayoutIntervalsV2'
 import { showV2FlatLoweringEligible, showV2UnsupportedRoutedSampling, structurallyEqualAppearanceV2, withoutUnusedInstanceTracksV2 } from './showFlatLoweringV2'
 import { hasSectionScopedTrackActivationV2, participantSectionBoundaries, participantTransitionWindows, participantWindowBlockedV2 } from './showBoundaryScopeV2'
+import { projectNativePropertyBoundaryForCompileV2 } from './showNativePropertyBoundaryV2'
 import { lowerShowScalarPropertyTracksV2 } from './showScalarPropertyTrackLoweringV2'
 
 export interface LoweredShowCompositionV2 {
@@ -291,7 +292,7 @@ function resolveAndLowerShowV2(
       `${unavailable.entityKind} "${unavailable.entityId}" uses Zone "${unavailable.zoneId}" while Layout occurrence "${unavailable.layoutOccurrenceId}" does not provide it.`,
     )
   }
-  const expanded = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : record
+  const expanded = record.composition.groupDefinitions.length > 0 ? materializeShowGroupsV2(record) : projectNativePropertyBoundaryForCompileV2(record)
   const invalidExpanded = validateShowRecordV2(expanded)[0]
   if (invalidExpanded) return refuse('invalid-record', invalidExpanded.path, invalidExpanded.message)
   const compileRecord: ShowRecordV2 = withoutUnusedInstanceTracksV2(expanded)

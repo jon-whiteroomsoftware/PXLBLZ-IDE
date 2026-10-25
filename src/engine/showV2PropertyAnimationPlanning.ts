@@ -1,4 +1,5 @@
 import type { ShowPropertyAnimationTarget } from './personalContentRecords'
+import { nativePropertyBoundaryV2 } from './showNativePropertyBoundaryV2'
 import type { ShowPropertyAnimationChange } from './showPropertyAnimationEditorModel'
 import { targetBelongsToClip } from './showEditorInspectorPresentation'
 import { groupDuration, groupOccurrenceLocalTimeAtV2 } from './showGroupsV2'
@@ -57,8 +58,9 @@ function activationWindow(
   const end = offset + frame.storageDurationMs
   let incomingMs = 0
   let outgoingMs = 0
+  const native = nativePropertyBoundaryV2(record)
   for (const transition of record.composition.transitions) {
-    if (transition.origin !== 'converted-boundary-transition') continue
+    if (transition.origin !== 'converted-boundary-transition' && transition.id !== native?.transitionId) continue
     // First match wins, exactly as the converter's `visualBoundaries.find`:
     // one boundary owns each scene edge, so a second match is unreachable.
     if (incomingMs === 0 && toSideContainsClip(transition, clip.id) && boundaryWindowEndMs(record, transition, clip.id) === offset) {

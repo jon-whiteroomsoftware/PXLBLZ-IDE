@@ -1,9 +1,10 @@
 import {
   createContext,
   Fragment,
+  useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -36,6 +37,7 @@ import {
   type ShowPropertyAnimationOption,
 } from '@/engine/showPropertyAnimationEditorModel'
 import type { ShowPropertyAnimationValidationIssue } from '@/engine/showPropertyAnimation'
+import { EditRefusalLine, type EditRefusal, type EditRefusalResult, type FieldCommitResult } from './ui/edit-refusal-line'
 
 interface ShowPropertyAnimationEditorValue {
   options: ShowPropertyAnimationOption[]
@@ -47,7 +49,9 @@ interface ShowPropertyAnimationEditorValue {
   activeKey: string | null
   setActiveKey: (key: string | null) => void
   onOpenOverview?: () => void
-  onChange: (change: ShowPropertyAnimationChange) => boolean | void
+  pending: boolean
+  retireFeedback: () => void
+  onChange: (change: ShowPropertyAnimationChange) => FieldCommitResult
 }
 
 const ShowPropertyAnimationEditorContext = createContext<ShowPropertyAnimationEditorValue | null>(null)
@@ -61,6 +65,7 @@ export function ShowPropertyAnimationProvider({
   instanceUseCount,
   onOpenOverview,
   onChange,
+  onOverviewEmpty,
   children,
 }: {
   options: ShowPropertyAnimationOption[]
@@ -70,11 +75,59 @@ export function ShowPropertyAnimationProvider({
   showTimeOffsetMs: number
   instanceUseCount: number
   onOpenOverview?: () => void
-  onChange: (change: ShowPropertyAnimationChange) => boolean | void
+  onChange: (change: ShowPropertyAnimationChange) => EditRefusalResult<boolean | void>
+  onOverviewEmpty?: () => void
   children: ReactNode
 }) {
-  const [activeKey, setActiveKey] = useState<string | null>(null)
-  const value = useMemo(() => ({
+  const [activeKey, updateActiveKey] = useState<string | null>(null)
+  const [pending, setPending] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const pendingRef = useRef(false)
+  const mounted = useRef(true)
+  const generation = useRef(0)
+  const scope = options.map(option => option.key).join('|') + `:${showTimeOffsetMs}:${storageDurationMs}`
+  useLayoutEffect(() => {
+    generation.current++
+  }, [scope])
+  useEffect(() => {
+    mounted.current = true
+    return () => { mounted.current = false }
+  }, [])
+  const retireFeedback = useCallback(() => {
+    generation.current++
+    setRefusal(null)
+  }, [])
+  const setActiveKey = (key: string | null) => {
+    retireFeedback()
+    updateActiveKey(key)
+  }
+  const commit = (change: ShowPropertyAnimationChange): FieldCommitResult => {
+    if (pendingRef.current || !mounted.current) return false
+    pendingRef.current = true
+    setPending(true)
+    setRefusal(null)
+    const request = generation.current
+    const settle = (result: boolean | void | EditRefusal): boolean => {
+      pendingRef.current = false
+      if (!mounted.current) return false
+      setPending(false)
+      if (request !== generation.current) return false
+      if (typeof result === 'object' && result?.refused === true) {
+        setRefusal(result.message)
+        return false
+      }
+      const accepted = result !== false
+      if (accepted && change.kind === 'delete-track' && tracks.length === 1) onOverviewEmpty?.()
+      return accepted
+    }
+    try {
+      const result = onChange(change)
+      return result instanceof Promise ? result.then(settle, () => settle(false)) : settle(result)
+    } catch {
+      return settle(false)
+    }
+  }
+  const value: ShowPropertyAnimationEditorValue = {
     options,
     tracks,
     trackIssues,
@@ -84,21 +137,14 @@ export function ShowPropertyAnimationProvider({
     activeKey,
     setActiveKey,
     onOpenOverview,
-    onChange,
-  }), [
-    activeKey,
-    instanceUseCount,
-    onChange,
-    onOpenOverview,
-    options,
-    showTimeOffsetMs,
-    storageDurationMs,
-    trackIssues,
-    tracks,
-  ])
+    pending,
+    retireFeedback,
+    onChange: commit,
+  }
   return (
     <ShowPropertyAnimationEditorContext.Provider value={value}>
       {children}
+      <EditRefusalLine message={refusal} />
     </ShowPropertyAnimationEditorContext.Provider>
   )
 }
@@ -177,6 +223,8 @@ export function ShowPropertyAnimationOverview({
   const rows = context
     ? projectShowPropertyAnimationOverview(context, context.options)
     : []
+  const retireFeedback = context?.retireFeedback
+  useEffect(() => () => retireFeedback?.(), [retireFeedback])
 
   useEffect(() => {
     onBackRef.current = onBack
@@ -317,6 +365,7 @@ function AnimationOverviewGroup({
             <button
               type="button"
               aria-label={`Remove ${row.label} animation`}
+              disabled={context.pending}
               onClick={() => context.onChange({ kind: 'delete-track', trackId: row.trackId })}
               className="grid size-6 place-items-center self-center rounded text-red-400 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
             >
@@ -352,6 +401,9 @@ function ShowPropertyAnimationPopover({
   const onCloseRef = useRef(onClose)
   const [draft, setDraft] = useState<[DraftKeyframe, DraftKeyframe]>(() => draftFor(option, context.storageDurationMs))
   const [draftCommitted, setDraftCommitted] = useState(false)
+  const draftAccepted = useRef(false)
+  const draftPending = useRef(false)
+  const live = useRef(true)
   const ordered = track
     ? [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
     : draft
@@ -371,6 +423,7 @@ function ShowPropertyAnimationPopover({
   }, [onClose])
 
   useEffect(() => {
+    live.current = true
     const timeout = window.setTimeout(() => {
       firstFieldRef.current = popoverRef.current?.querySelector('input') ?? null
       firstFieldRef.current?.focus()
@@ -389,22 +442,33 @@ function ShowPropertyAnimationPopover({
     document.addEventListener('pointerdown', dismiss, true)
     document.addEventListener('keydown', dismissOnEscape)
     return () => {
+      live.current = false
       window.clearTimeout(timeout)
       document.removeEventListener('pointerdown', dismiss, true)
       document.removeEventListener('keydown', dismissOnEscape)
     }
   }, [anchor])
 
-  const commitDraft = (next: [DraftKeyframe, DraftKeyframe]) => {
+  const commitDraft = (next: [DraftKeyframe, DraftKeyframe]): FieldCommitResult => {
+    if (draftCommitted || draftAccepted.current || draftPending.current) return false
     setDraft(next)
-    if (draftCommitted) return
-    const accepted = context.onChange({
+    draftPending.current = true
+    const result = context.onChange({
       kind: 'add-track',
       target: option.target,
       initialValue: option.value,
       keyframes: next,
-    }) !== false
-    if (accepted) setDraftCommitted(true)
+    })
+    const settle = (accepted: boolean | void) => {
+      draftPending.current = false
+      if (!live.current) return false
+      if (accepted !== false) {
+        draftAccepted.current = true
+        setDraftCommitted(true)
+      }
+      return accepted
+    }
+    return result instanceof Promise ? result.then(settle, () => settle(false)) : settle(result)
   }
   const changeKeyframe = (
     index: number,
@@ -415,19 +479,18 @@ function ShowPropertyAnimationPopover({
         .sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
       const keyframe = keyframes[index]
       if (!keyframe) return
-      context.onChange({
+      return context.onChange({
         kind: 'update-keyframe',
         trackId: track.id,
         keyframeId: keyframe.id,
         changes,
       })
-      return
     }
     if (index !== 0 && index !== 1) return
     const next = draft.map((keyframe, candidateIndex) => (
       candidateIndex === index ? { ...keyframe, ...changes } : keyframe
     )) as [DraftKeyframe, DraftKeyframe]
-    commitDraft(next)
+    return commitDraft(next)
   }
   const linked = option.target.kind === 'instance-time-scale' || option.target.kind === 'instance-control'
 
@@ -492,6 +555,7 @@ function ShowPropertyAnimationPopover({
                 <label className="mb-1.5 grid grid-cols-[24px_minmax(0,1fr)_31px] items-center gap-1 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
                   <span aria-hidden />
                   <select
+                    disabled={context.pending}
                     aria-label={`${option.label} animation easing${index > 0 ? ` after keyframe ${index + 1}` : ''}`}
                     value={showEasingOptionId(keyframe.easing)}
                     onChange={(event) => changeKeyframe(index, {
@@ -521,7 +585,7 @@ function ShowPropertyAnimationPopover({
           <button
             type="button"
             aria-label={`Add ${option.label} keyframe`}
-            disabled={!insertion}
+            disabled={context.pending || !insertion}
             title={insertion
               ? 'Insert a keyframe without changing the animation'
               : 'Set a segment\'s easing to Linear (or make its endpoints equal) to insert a keyframe inside it without changing the animation'}
@@ -538,10 +602,16 @@ function ShowPropertyAnimationPopover({
           <button
             type="button"
             aria-label={`Remove ${option.label} animation`}
+            disabled={context.pending}
             onClick={() => {
-              context.onChange({ kind: 'delete-track', trackId: track.id })
-              onClose()
-              window.setTimeout(() => anchor?.focus(), 0)
+              const result = context.onChange({ kind: 'delete-track', trackId: track.id })
+              const close = (accepted: boolean | void) => {
+                if (accepted === false || !live.current) return
+                onClose()
+                window.setTimeout(() => anchor?.focus(), 0)
+              }
+              if (result instanceof Promise) void result.then(close, () => {})
+              else close(result)
             }}
             className="flex h-5 items-center gap-1 rounded px-1 text-red-400 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
           >
@@ -582,9 +652,9 @@ function KeyframeRow({
   option: ShowPropertyAnimationOption
   keyframe: DraftKeyframe
   context: ShowPropertyAnimationEditorValue
-  onValueChange: (value: number) => void
-  onTimeChange: (seconds: number) => void
-  onDelete?: () => void
+  onValueChange: (value: number) => FieldCommitResult
+  onTimeChange: (seconds: number) => FieldCommitResult
+  onDelete?: () => FieldCommitResult
 }) {
   const accessiblePrefix = `${option.label} animation ${edge}`
   return (
@@ -594,10 +664,12 @@ function KeyframeRow({
         option={option}
         edge={edge}
         value={keyframe.value}
+        disabled={context.pending}
         onChange={onValueChange}
       />
       <span className="self-center text-center text-[8px] text-zinc-600">at</span>
       <TimeField
+        disabled={context.pending}
         label={`${accessiblePrefix} time`}
         ariaLabel={`${accessiblePrefix} time`}
         hideLabel
@@ -613,6 +685,7 @@ function KeyframeRow({
         <button
           type="button"
           aria-label={`Delete ${accessiblePrefix}`}
+          disabled={context.pending}
           onClick={onDelete}
           className="grid size-5 place-items-center self-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-red-300"
         >
@@ -630,17 +703,20 @@ function AnimationValueField({
   edge,
   value,
   onChange,
+  disabled,
 }: {
   option: ShowPropertyAnimationOption
   edge: string
   value: number
-  onChange: (value: number) => void
+  onChange: (value: number) => FieldCommitResult
+  disabled: boolean
 }) {
   const label = `${option.label} animation ${edge}`
   if (option.secondsPresentation) {
     const { scale, minSeconds } = option.secondsPresentation
     return (
       <TimeField
+        disabled={disabled}
         label={label}
         ariaLabel={label}
         hideLabel
@@ -657,6 +733,7 @@ function AnimationValueField({
   if (option.presentation === 'percentage') {
     return (
       <PercentageField
+        disabled={disabled}
         label={label}
         ariaLabel={label}
         hideLabel
@@ -673,6 +750,7 @@ function AnimationValueField({
   if (option.presentation === 'multiplier') {
     return (
       <DomainNumberField
+        disabled={disabled}
         label={label}
         ariaLabel={label}
         hideLabel
@@ -690,6 +768,7 @@ function AnimationValueField({
   if (option.presentation === 'degrees' || option.presentation === 'turns' || option.presentation === 'phase') {
     return (
       <AngleField
+        disabled={disabled}
         kind={option.presentation === 'degrees' ? 'rotation' : option.presentation === 'turns' ? 'cycles' : 'phase'}
         label={label}
         ariaLabel={label}
@@ -706,6 +785,7 @@ function AnimationValueField({
   }
   return (
     <NumberField
+      disabled={disabled}
       label={label}
       ariaLabel={label}
       hideLabel
