@@ -473,13 +473,35 @@
   container-type: inline-size;
 }
 
-/* At phone widths the editor is the authoring surface. The preview remains an
-   instrument on larger Studio widths, but it must not consume the center pane
-   by merely flex-shrinking out of sight alongside the rail. */
+/* Phone Patterns open in Code and can select the full-width Preview. Other
+   context panes and splitters stay hidden so the editor retains its width. */
 @media (max-width: 640px) {
   .studio-preview-pane,
   .studio-preview-splitter {
     display: none;
+  }
+
+  .phone-pattern-workspace {
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .phone-pattern-workspace[data-phone-pattern-view='code'] > .studio-editor-pane {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .phone-pattern-workspace[data-phone-pattern-view='preview'] > .studio-editor-pane {
+    display: none;
+  }
+
+  .phone-pattern-workspace[data-phone-pattern-view='preview'] > .studio-preview-pane {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 }
 

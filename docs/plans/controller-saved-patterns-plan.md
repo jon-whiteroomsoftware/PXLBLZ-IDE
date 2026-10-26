@@ -43,6 +43,9 @@ title and keeping Run and Save reachable.
 The shared brightness readout uses whole percentages, with exact zero shown
 as `0%` and positive values below 0.5% as `<1%`. The narrower readout gives
 the freed width to the slider on every CompactBrightness surface.
+At phone widths, Patterns default to Code with a Code/Preview selector that
+keeps both surfaces mounted and makes Preview brightness reachable. Required
+proof still covers the actual Preview deck at both 1400 px and 390 px.
 
 ## Remaining proof
 

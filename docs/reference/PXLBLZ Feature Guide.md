@@ -79,6 +79,9 @@ workspace without disturbing what is underneath. Each place remembers its own
 pin choice. In a window 980 px wide or narrower the list always tucks, so the
 editor keeps the width.
 
+At phone widths (640 px or narrower), Patterns open in Code. Code/Preview
+selects the full-width surface, and Preview exposes the same controls.
+
 Personal content lives in folders with drag reordering, and search finds
 things inside collapsed folders. Emptying the Trash is the only permanent
 deletion in the list, and it asks first. Below your content sit the built-in

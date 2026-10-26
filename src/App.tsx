@@ -479,6 +479,7 @@ function StudioApp() {
     setShowTimelineRequiredHeight(requiredHeight)
   }, [])
   const [studioViewportWidth, setStudioViewportWidth] = useState(() => window.innerWidth)
+  const [phonePatternView, setPhonePatternView] = useState<'code' | 'preview'>('code')
   const narrowShowWorkspace = studioViewportWidth <= 980
   useEffect(() => {
     const handleResize = () => {
@@ -808,6 +809,7 @@ function StudioApp() {
     activeGalleryPattern !== undefined ||
     (activeDemoName !== null && personalWorkspaceAuthenticated)
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
+  const phonePatternWorkspace = studioEntityKind === 'patterns' && studioViewportWidth <= 640
   const rightPaneKind = studioEntityKind ?? 'patterns'
   const studioDrawerPlace = studioEntityKind ?? 'patterns'
   const studioDrawerPinned = !narrowShowWorkspace && drawerPinPreferences[studioDrawerPlace] !== false
@@ -1337,11 +1339,27 @@ function StudioApp() {
         <AgentDrawerWorkspace narrow={narrowShowWorkspace}>
         <div
           data-testid={studioEntityKind === 'shows' ? 'show-workspace' : undefined}
-          className="contents"
+          data-phone-pattern-view={phonePatternWorkspace ? phonePatternView : undefined}
+          className={phonePatternWorkspace ? 'phone-pattern-workspace flex min-h-0 min-w-0 flex-1 flex-col' : 'contents'}
         >
+        {phonePatternWorkspace && (
+          <div role="group" aria-label="Pattern workspace view" className="flex h-8 shrink-0 items-center gap-1 border-b border-zinc-800 px-2">
+            {(['code', 'preview'] as const).map(view => (
+              <button
+                key={view}
+                type="button"
+                aria-pressed={phonePatternView === view}
+                onClick={() => setPhonePatternView(view)}
+                className="rounded px-2 py-0.5 text-xs text-zinc-400 hover:text-zinc-200 aria-pressed:bg-zinc-800 aria-pressed:text-amber-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+              >
+                {view === 'code' ? 'Code' : 'Preview'}
+              </button>
+            ))}
+          </div>
+        )}
         <main
           data-testid="editor-pane"
-          className={`flex-1 min-w-0 flex flex-col overflow-hidden ${showCreation ? 'relative z-[60]' : ''}`}
+          className={`studio-editor-pane flex-1 min-w-0 flex flex-col overflow-hidden ${showCreation ? 'relative z-[60]' : ''}`}
         >
           <div className={studioEntityKind === 'shows'
             ? 'show-pane-header-container min-w-0 shrink-0'
@@ -1588,7 +1606,7 @@ function StudioApp() {
             <aside
               data-testid="preview-pane"
               className="studio-preview-pane flex min-h-0 shrink-0 flex-col"
-              style={{ width: rightWidth, minWidth: STUDIO_PREVIEW_MIN_WIDTH }}
+              style={{ width: phonePatternWorkspace ? '100%' : rightWidth, minWidth: phonePatternWorkspace ? 0 : STUDIO_PREVIEW_MIN_WIDTH }}
             >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />

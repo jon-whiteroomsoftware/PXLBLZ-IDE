@@ -606,6 +606,8 @@ brightness uses the squared position-to-value curve. The Show Preview heading
 binds that same control to browser preview brightness, including while folded;
 it does not mutate Show records. Pattern preview places Reset before Display,
 brightness, and transport so reset visibility cannot displace those controls.
+Phone Pattern Code/Preview selection keeps both existing surfaces mounted;
+the desktop layout resumes above 640 px.
 The title brightness slider retains its live volatile
 setter and curve. `panelPreferencesStore` persists disclosure state under
 Controller-specific Studio-mode keys across reloads, without turning UI state
