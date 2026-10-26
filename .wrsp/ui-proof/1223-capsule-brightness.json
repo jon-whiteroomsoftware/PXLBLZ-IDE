@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "issue": "1223",
+  "route": "/PXLBLZ-IDE/studio/maps/plane",
+  "operation": "Repository Chromium fallback after in-app Browser discovery returned no backends and direct iab lookup failed; managed5178 identity matched the captured commit, using a synthetic task session and fake Controller transport. At1400/390px verified Pattern/Show capsules, Maps without actions, title-open/folded menu with transient activation, whole-percent Controller/Preview/Show brightness text-aria-tooltip agreement and track geometry, and real phone Code/Preview keyboard navigation, with clean console and no horizontal page overflow; hardware proof remains pending.",
+  "captures": [
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-pattern.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-preview.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-show.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-show-preview.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-maps-open.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-1400-maps-folded.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-pattern.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-preview.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-show.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-show-preview.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-maps-open.png",
+    ".wrsp/ui-proof/1223-capsule-brightness-390-maps-folded.png"
+  ],
+  "capturedAtCommit": "c166f3fe2998437cb043c1e49e080345593ad472"
+}
