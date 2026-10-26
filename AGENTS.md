@@ -297,7 +297,7 @@ For Jon-authorized same-family review, follow the explicit scoped exception in
 A valid review with findings stops for repair; exhausting eligible models
 fails, and so does a `reviewer` role with no member outside the author family.
 For mixed-family candidates, follow the installed version's supported capability:
-1.4.0 automatically splits author-family runs when whole-range coverage or carry
+WRSP automatically splits author-family runs when whole-range coverage or carry
 does not handle the range; `--carry-only` does not split.
 Native approvals retain their actual reviewer, effort and policy provenance;
 later model/policy changes do not revoke exact approved ranges. Status and push
