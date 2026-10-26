@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1209",
+  "route": "/PXLBLZ-IDE/studio/shows/f36a64d3-aa7d-4d06-a002-12ccdd806b06",
+  "operation": "On a separate Show created through the actual wizard, intercepted one real save request with a controlled HTTP 503: the existing rollback banner appeared, the animation draft stayed open, storage remained unchanged, and retry saved the requested 30% track. Delayed an actual HTTP 200 removal response: mutation fields stayed disabled while Escape/reopening worked, and releasing the response left the newer animation popover open without an obsolete refusal; Undo restored the saved track.",
+  "captures": [
+    ".wrsp/ui-proof/1209-c3-save-refusal.png",
+    ".wrsp/ui-proof/1209-c3-obsolete-completion.png"
+  ],
+  "capturedAtCommit": "c1e6fcd271afe255e2a424ed68a9c01479b575b3"
+}

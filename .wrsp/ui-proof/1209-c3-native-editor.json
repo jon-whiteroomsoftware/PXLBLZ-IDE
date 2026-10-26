@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1209",
+  "route": "/PXLBLZ-IDE/studio/shows/4ecd6779-5c9c-4682-bd1e-6ae44ac28f88?capture",
+  "operation": "Created a native Installation Show through the actual wizard, authored outgoing Brightness at 20%, inserted the 15-second key and edited it to 70%, exercised Undo/Redo, reloaded and reopened it, and observed the rendered output change at the same seek when editing 70% to 65%. Created incoming Brightness at 30% with 32/62-second keys and captured the actual editor at 1440x900 and 768x900; persisted native participant scope and contribution activation remained intact.",
+  "captures": [
+    ".wrsp/ui-proof/1209-c3-native-desktop.png",
+    ".wrsp/ui-proof/1209-c3-native-narrow.png"
+  ],
+  "capturedAtCommit": "c1e6fcd271afe255e2a424ed68a9c01479b575b3"
+}
