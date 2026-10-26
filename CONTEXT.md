@@ -79,6 +79,9 @@ The running Pattern title opens the **Saved Patterns** picker. It uses the
 profile inventory's Saved PXLBLZ Patterns / Other Patterns classification, with
 a flat list when none are managed. A pick runs now without changing the startup
 Pattern, the open Studio subject, or its dirty and delivery records.
+With an open Pattern or Show, a second header line holds its kind and name,
+then Run and Save, in one capsule. Other routes have no action row; the
+running Pattern picker remains available.
 _Avoid_: "device panel" (Controller is canonical); treating it as a second editor — it monitors/commands a Controller, it does not author.
 
 **Installed-map observation**:

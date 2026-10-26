@@ -253,6 +253,8 @@ The live panel shows what the device says right now: brightness, FPS, IP,
 pixel count, the running Pattern's controls and watched variables, and power
 telemetry when the Pattern exposes it. Brightness and control changes are
 live and temporary; a pixel count change is a deliberate saved write.
+Brightness reads in whole percentages here and in browser previews. Exact zero
+reads `0%`; a positive value below 0.5% reads `<1%`.
 **Play/Pause** freezes or resumes the Controller's renderer without touching
 flash.
 
@@ -337,17 +339,19 @@ what the profile inserted, wrapped, or bound.
 ## 11. Run and Save
 
 **Run** and **Save** live in the Controller popover at Studio's top right, and
-they act on whatever Pattern or Show is open. The popover names what it is
-about to send. If something needs your attention first, such as a map that
-suits the Pattern better or a Show that does not fit this Controller, it says
-so, and canceling sends nothing.
+they act on whatever Pattern or Show is open. A capsule below the running
+Pattern title shows the open subject's kind and name, then Run and Save.
+Other routes have no action row. If something needs your attention first,
+such as a map that suits the Pattern better or a Show that does not fit this
+Controller, it says so, and canceling sends nothing.
 
 **Run** compiles with the Controller's own compiler and loads transient
 bytecode; **Save** writes a durable Pattern and activates it. The two track
 changes separately, so a clean Run does not pretend you saved, and failures
-appear as visible alerts with a reason. **Switch**, beside them, acts on the
-Controller's saved inventory instead, runs the pick without changing the startup
-Pattern, and leaves the open Studio subject and its Run/Save records alone.
+appear below the capsule as visible alerts with a reason. The running title's
+**Saved Patterns** picker acts on the Controller's saved inventory, runs the
+pick without changing the startup Pattern, and leaves the open Studio subject
+and its Run/Save records alone.
 
 A Controller has one shared map slot, so **Send map to Controller** is its
 own confirm-first action, re-baked for the device's pixel count, never a

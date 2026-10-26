@@ -32,10 +32,21 @@ groups. No managed members yields a flat list. Binding reads are scoped to the
 current Controller session and inventory. Existing transient activation,
 confirmation, focus, pending and failure behavior remains in place.
 
-## Remaining scope
+## Capsule and brightness
 
-The approved capsule/action-row visibility and whole-percent brightness work
-remains future work. Startup-setting controls and classification changes are outside this design.
+The header capsule appears only for the route's resolved Pattern or Show,
+showing its kind and name before Run and Save. The title and capsule share
+one divider; notices appear below the capsule. Other routes have no action row.
+The capsule shows the full subject name through 27 characters at a 400px
+panel width; narrower panels may ellipsize the name while retaining its full
+title and keeping Run and Save reachable.
+The shared brightness readout uses whole percentages, with exact zero shown
+as `0%` and positive values below 0.5% as `<1%`. The narrower readout gives
+the freed width to the slider on every CompactBrightness surface.
+
+## Remaining proof
+
+Startup-setting controls and classification changes are outside this design.
 The bounded firmware prerequisite is documented in the
 [device notes](../reference/Pixelblaze%20device%20behaviour%20notes.md#saved-pattern-selection-deletion-and-sequencer-fields).
 It does not prove the built product. These post-build physical cases remain

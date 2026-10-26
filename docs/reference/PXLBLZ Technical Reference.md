@@ -598,7 +598,15 @@ indicator is observational; sequencer control remains in the Pixelblaze UI.
 All four live-panel decks use the shared summary-row disclosure primitive.
 Controls starts expanded; Pixelblaze, Power, and Variables start folded. The
 `controllerPanelView` readouts use the same values and unset-control semantics
-as the expanded fields. Controller and Studio preview brightness share a compact sun-icon control with a 48px track, and read-only percentage. Browser previews use a linear response; only Controller brightness uses the squared position-to-value curve. The Show Preview heading binds that same control to browser preview brightness, including while folded; it does not mutate Show records. Pattern preview places Reset before Display, brightness, and transport so reset visibility cannot displace those controls. The title brightness slider retains its live volatile
+as the expanded fields. Controller and Studio preview brightness share a compact
+sun-icon control with a read-only whole-percent value. Exact zero reads `0%`;
+positive values below 0.5% read `<1%`. The readout, accessible value and tooltip
+share one formatter. Browser previews use a linear response; only Controller
+brightness uses the squared position-to-value curve. The Show Preview heading
+binds that same control to browser preview brightness, including while folded;
+it does not mutate Show records. Pattern preview places Reset before Display,
+brightness, and transport so reset visibility cannot displace those controls.
+The title brightness slider retains its live volatile
 setter and curve. `panelPreferencesStore` persists disclosure state under
 Controller-specific Studio-mode keys across reloads, without turning UI state
 into durable Controller data. Folding a section leaves Controller polling active. Per-Controller panel snapshots
@@ -702,7 +710,10 @@ design.
 ## 17. Pattern push, PBP storage, and Saved Patterns
 
 The Controller popover resolves a Pattern or Show subject from the Studio
-route. A mounted ShowEditor publishes its committed delivery capability through
+route. Its header capsule contains the subject kind and name, then Run and
+Save; unresolved subjects and other routes have no action row. The running
+Controller Pattern remains in the separate title picker. A mounted ShowEditor
+publishes its committed delivery capability through
 `showControllerDeliveryStore`; it does not compile a second Show for the
 popover. The global Controller popover is the sole Pattern and Show Run/Save
 surface; entity headers retain authoring and export actions. Show delivery uses
