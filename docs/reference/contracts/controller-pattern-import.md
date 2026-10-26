@@ -6,8 +6,10 @@ lossless reading, pure assessment/planning/retry decisions and durable ledger
 ownership. Dispatch B adds the injected selected-slot command and permanent
 source-policy consumers. Slice C exposes confirmed single-item Import, durable
 Resume import and the editor policy notice through a captured host adapter.
-Slice D's bulk import and final native-firmware/browser proof remain pending;
-these slices do not establish completion of #1221.
+Slice D adds group-local confirmed bulk import through the same command, retained
+per-item outcomes and failed-only retry without navigation. Final committed
+browser/native-firmware proof remains pending; these slices do not establish
+completion of #1221.
 
 ## Source fidelity and identity
 
@@ -139,6 +141,28 @@ visible error neutrally asks Retry to check the same saved program again; it
 claims no destination or durable stage and preserves the diagnostic cause
 without appending its text to the message.
 
+## Bulk import agreement
+
+Saved, Unimported and Other share one active selection section; entering a
+section starts empty and select-all receives only that group's eligible stable
+IDs. Running and pending-running slots are excluded and stale checks never
+resurrect. Bulk Delete retains the existing queued safety path. Other Import
+remains account-only.
+
+Unimported bulk Import snapshots names and selected slots, confirms once before
+source reads or mutations, and calls the unchanged durable single-item command
+sequentially. Initial dispatch rechecks captured view, current slot/name and
+running/pending status; one failure does not cancel later items. The command's
+own activation is permitted. Results preserve exact named errors and count only
+command completion; refresh failure cannot relabel a verified write. Failed-only
+retry retains the captured destinations even after binding moves an incomplete
+row to Saved, merges prior successes, and never resubmits them. Recovery uses the
+command's existing conflict checks rather than new-selection eligibility. Closing
+clears local outcomes; durable Resume remains available after remount. Busy work
+locks dismissal and conflicting writes. View/account changes retire pending
+dialogs and stale outcomes. Bulk import never navigates or changes the open
+Studio subject.
+
 ## Later delivery and reconciliation
 
 `complete` is terminal historical completion regardless of later account or PBP
@@ -200,12 +224,18 @@ Host-action tests exercise the real command with captured account/provider store
 reopen account records and PBP bytes, verify merge without a second POST, and
 retire deferred work when its session changes. Component tests cover three-group
 inventory, confirmation before source reads, busy/retry controls, durable Resume
-and the wrapped-source notice. Retry tests preserve account/device state while
+and the wrapped-source notice. Pure batch tests cover immutable three-section
+selection and ordered cumulative failed-only retry. Real-command component tests
+exercise confirmation/cancellation without reads, busy locking, mixed durable
+outcomes, regrouping, failed-only recovery and retirement of held stale work.
+Retry tests preserve account/device state while
 account, binding, source and profile preparation fail at each durable write stage.
 
 `e2e/controller-pattern-import.auth.spec.ts` defines the authenticated two-account
-consumer flow through actual UI Save and the real relay/protocol with one shared
+single-item and bulk consumer flows through actual UI Save and the real relay/protocol with one shared
 synthetic saved-program map. Its browser execution and committed captures belong
 to the developer's committed-tip proof; adding the test is not evidence it ran.
-Native firmware, final whole-account/browser proof and slice D bulk behavior
-remain outside the focused fake/component evidence.
+The bulk flow defines D-prefixed desktop/narrow inventory, selection,
+confirmation, mixed-result and completed-retry captures. Native firmware and
+final committed whole-account/browser proof remain outside the focused
+fake/component evidence.

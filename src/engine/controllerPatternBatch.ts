@@ -1,4 +1,4 @@
-export type ControllerPatternSection = 'saved' | 'other'
+export type ControllerPatternSection = 'saved' | 'unimported' | 'other'
 export type ControllerPatternSelection = { section: ControllerPatternSection | null; selectedIds: readonly string[] }
 export type ControllerBatchPattern = { id: string; name: string }
 export type ControllerPatternBatchResult = {
@@ -36,6 +36,14 @@ export async function runControllerPatternBatch(patterns: readonly ControllerBat
     }
   }
   return result
+}
+
+export async function retryControllerPatternBatch(
+  previous: ControllerPatternBatchResult,
+  perform: (pattern: ControllerBatchPattern) => Promise<void>,
+): Promise<ControllerPatternBatchResult> {
+  const retried = await runControllerPatternBatch(previous.failed.map((item) => item.pattern), perform)
+  return { succeeded: [...previous.succeeded, ...retried.succeeded], failed: retried.failed }
 }
 
 export function controllerPatternBatchNames(patterns: readonly ControllerBatchPattern[]): string[] {

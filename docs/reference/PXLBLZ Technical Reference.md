@@ -789,16 +789,20 @@ navigates Studio or changes the open subject or its Run/Save records. Program
 ids move from a column into the name tooltip, and unbound groups have no
 freshness column.
 
-Saved and Other sections share one selection owner; bulk actions for Unimported
-PXLBLZ Patterns remain pending slice D. `controllerPatternBatch.ts` provides
-immutable ID selection, eligibility reconciliation, and an ordered sequential
-runner that collects per-Pattern failures. Selecting a section clears the other;
+All three sections share one active selection owner. `controllerPatternBatch.ts`
+provides immutable ID selection, eligibility reconciliation, an ordered sequential
+runner and failed-only retry that preserves completed outcomes. Selecting a section starts empty;
 running and pending-running IDs are excluded before the confirmation snapshot.
-Batch adapters reuse single-row import decisions and queued delete safety checks.
+Batch Delete reuses queued delete safety checks. Other bulk Import retains its
+account-only recovery path. Unimported bulk Import confirms snapshot names before
+any source read, then calls the same durable command as single-item Import for
+each selected slot without navigation. Its results retain named errors and allow
+failed-only retry after incomplete bound rows move to Saved.
 Each delete retains its captured Controller session and raw device name, and
 revalidates live running state before writing. A failed item does not cancel later
 items. Completion refreshes the inventory, reports named failures, and exits
-selection mode. Batch imports save Studio records without navigation. The
+selection mode. Inventory refresh failure cannot change a completed command's
+outcome. The
 page-header Refresh requests one inventory-refresh generation alongside the
 existing metadata/installed-map refresh; the inventory owner performs the full
 list read through the existing live-store pipeline.
@@ -865,7 +869,7 @@ Other and owned source recovery opens the existing Studio Pattern, restores a
 deleted one, creates a personal Pattern from foreign source, or explains that
 recovery is impossible; this recovery does not mutate the Controller.
 
-Single-item Import in Unimported PXLBLZ Patterns confirms before downloading,
+Single-item and bulk Import in Unimported PXLBLZ Patterns confirm before downloading,
 creates a fresh personal Pattern, and writes only the selected Controller slot.
 Exact canonical source receives the current profile; wrapped source preserves
 its exact PBP and old behavior. The durable account ledger governs that policy
@@ -874,7 +878,8 @@ Resume import after reload; retries retain the same Pattern and slot identities
 and report prior durable write progress truthfully. Unreadable import metadata
 disables Import and Resume without disabling ordinary inventory or Run. See
 [Controller Pattern import](contracts/controller-pattern-import.md) for fidelity,
-session guards, and evidence limits.
+session guards, and evidence limits. Final committed browser and native-firmware
+qualification remains pending.
 
 **Managed-artifact reconciliation.** Opt-in per profile. A program is eligible
 only with both an overwrite binding and a successful push record plus

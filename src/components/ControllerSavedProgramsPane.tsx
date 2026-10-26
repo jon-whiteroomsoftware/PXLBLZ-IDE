@@ -42,10 +42,12 @@ import {
   enterControllerPatternSelection,
   reconcileControllerPatternSelection,
   runControllerPatternBatch,
+  retryControllerPatternBatch,
   toggleAllControllerPatternSelection,
   toggleControllerPatternSelection,
   type ControllerPatternSection,
   type ControllerPatternSelection,
+  type ControllerPatternBatchResult,
 } from '@/engine/controllerPatternBatch'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import type { ControllerProfile } from '@/engine/controllerProfile'
@@ -670,18 +672,21 @@ function SavedProgramsInventory({
     || deletingProgramId !== null
     || batchBusy
   const actionsBusy = activatingProgramId !== null || writesBusy
+  const sectionLabels: Record<ControllerPatternSection, string> = {
+    saved: 'Saved PXLBLZ Patterns', unimported: 'Unimported PXLBLZ Patterns', other: 'Other Patterns',
+  }
   const sectionControls = (section: ControllerPatternSection, count: number) => (
     selection.section !== section ? (
       <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
-        aria-label={`Select ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}`}
+        aria-label={`Select ${sectionLabels[section]}`}
         disabled={writesBusy || !showInventory || count === 0}
         onClick={() => onEnterSelection(section)}>Select</Button>
     ) : (
       <div className="flex flex-1 flex-wrap items-center justify-between gap-1.5">
         <span className="font-mono text-[11px] text-live" role="status">{selection.selectedIds.length} of {count} selected</span>
         <div className="flex items-center gap-1.5">
-        {section === 'other' && <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
-          disabled={actionsBusy || selection.selectedIds.length === 0} onClick={onBatchImport}>{importingProgramId !== null ? 'Importing…' : 'Import'}</Button>}
+        {section !== 'saved' && <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
+          disabled={actionsBusy || selection.selectedIds.length === 0 || (section === 'unimported' && !canImport)} onClick={onBatchImport}>{importingProgramId !== null ? 'Importing…' : 'Import'}</Button>}
         <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
           disabled={actionsBusy || selection.selectedIds.length === 0} onClick={onBatchDelete}>Delete</Button>
         <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
@@ -700,7 +705,7 @@ function SavedProgramsInventory({
   )
   const allCheckbox = (section: ControllerPatternSection) => (
     <th className={`${tableHeadClass} w-7`}>
-      <input type="checkbox" className="accent-live" aria-label={`Select all ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}`}
+      <input type="checkbox" className="accent-live" aria-label={`Select all ${sectionLabels[section]}`}
         checked={eligibleIds.length > 0 && selection.selectedIds.length === eligibleIds.length}
         ref={(node) => { if (node) node.indeterminate = selection.selectedIds.length > 0 && selection.selectedIds.length < eligibleIds.length }}
         disabled={writesBusy || eligibleIds.length === 0} onChange={onToggleAll} />
@@ -816,25 +821,28 @@ function SavedProgramsInventory({
       {showInventory && (
         <>
           <div className="mb-2 mt-5 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">
+            <h2 className={selection.section === 'unimported' ? 'sr-only' : 'font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300'}>
               Unimported PXLBLZ Patterns <span className="text-zinc-500">({presentedPrograms.unimported.length})</span>
             </h2>
+            {sectionControls('unimported', presentedPrograms.unimported.length)}
           </div>
           {presentedPrograms.unimported.length === 0 ? <EmptyState>No unimported PXLBLZ Patterns are saved on this Controller.</EmptyState> : (
             <table className={tableClass} aria-label="Unimported PXLBLZ Patterns">
-              <colgroup><col /><col className="w-24" /></colgroup>
-              <thead><tr><SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
+              <colgroup>{selection.section === 'unimported' && <col className="w-7" />}<col /><col className="w-24" /></colgroup>
+              <thead><tr>{selection.section === 'unimported' && allCheckbox('unimported')}<SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
                 <th className={`${tableHeadClass} text-right`}><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>{presentedPrograms.unimported.map((program) => {
                 const running = program.programId === activeProgramId
                 const deleteDisabledReason = !activeProgramKnown || program.programId === activatingProgramId
                   ? 'Waiting to confirm the running Pattern' : running ? 'Running now — switch to another Pattern first' : null
-                return <tr key={program.programId} className={`group ${running ? 'bg-emerald-500/[0.04]' : ''}`}>
+                return <tr key={program.programId} className={`group ${selection.selectedIds.includes(program.programId) ? 'bg-live/[0.05]' : running ? 'bg-emerald-500/[0.04]' : ''}`}>
+                  {selection.section === 'unimported' && selectionCheckbox(program, deleteDisabledReason)}
                   <SavedProgramNameCell program={program} running={running} onOpen={onOpen} />
                   <td className={`${tableCellClass} text-right`}><SavedProgramRowActions program={program} running={running}
                     disabled={actionsBusy} activating={activatingProgramId === program.programId}
                     importing={importingProgramId === program.programId} importDisabled={!canImport}
-                    onRun={onRun} onImport={onImport} onDelete={onDelete} deleteDisabledReason={deleteDisabledReason} /></td>
+                    onRun={onRun} onImport={onImport} onDelete={onDelete} deleteDisabledReason={deleteDisabledReason}
+                    selecting={selection.section === 'unimported'} /></td>
                 </tr>
               })}</tbody>
             </table>
@@ -956,11 +964,17 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [singleImportError, setSingleImportError] = useState<string | null>(null)
   const [ledgerRead, setLedgerRead] = useState<{ view: typeof importView; ledger: ControllerPatternImportLedger | null; failed: boolean } | null>(null)
   const [ledgerGeneration, setLedgerGeneration] = useState(0)
+  const [pendingPxlblzBatchImport, setPendingPxlblzBatchImport] = useState<{
+    view: typeof importView
+    targets: readonly Readonly<{ id: string; name: string }>[]
+    result: ControllerPatternBatchResult | null
+  } | null>(null)
   if (importSession !== importView) {
     setImportSession(importView)
     setSingleImport(null)
     setSingleImportError(null)
     setImportingProgramId(null)
+    setPendingPxlblzBatchImport(null)
   }
   useLayoutEffect(() => {
     currentImportView.current = importView
@@ -1159,7 +1173,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     programs.owned,
     reconciliation?.programs ?? [],
   )
-  const sectionPrograms = selection.section === 'saved' ? programs.owned : programs.foreign
+  const sectionPrograms = selection.section === 'saved' ? programs.owned
+    : selection.section === 'unimported' ? programs.unimported
+      : selection.section === 'other' ? programs.foreign : []
   const eligibleIds = deleteSessionKnown
     ? sectionPrograms.filter((program) => program.programId !== activeProgramId && program.programId !== activatingProgramId).map((program) => program.programId)
     : []
@@ -1416,6 +1432,61 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     })
   }
 
+  function beginBatchPxlblzImport(): void {
+    if (batchLock.current || importingProgramId !== null || deletingProgramId !== null
+      || !importMetadataReady || currentImportView.current !== importView || !liveIp || !importView.deviceId
+      || selection.section !== 'unimported') return
+    const targets = selectedPrograms().filter((program) => program.kind === 'unimported')
+      .map((program) => Object.freeze({ id: program.programId, name: program.name }))
+    if (targets.length) setPendingPxlblzBatchImport({ view: importView, targets: Object.freeze(targets), result: null })
+  }
+
+  async function confirmBatchPxlblzImport(retryFailed = false): Promise<void> {
+    const pending = pendingPxlblzBatchImport
+    if (!pending || batchLock.current || importingProgramId !== null || deletingProgramId !== null
+      || !pending.view.liveIp || !pending.view.deviceId || currentImportView.current !== pending.view) return
+    const capturedView = pending.view
+    const controllerId = capturedView.liveIp!
+    const controllerDeviceId = capturedView.deviceId!
+    const assertViewCurrent = () => {
+      if (currentImportView.current !== capturedView) throw new Error('Controller session or account changed. Retry on the same Controller.')
+    }
+    batchLock.current = true
+    setBatchBusy(true)
+    try {
+      const perform = async (pattern: { id: string; name: string }) => {
+        // Initial selection eligibility is distinct from recovery: the command
+        // activates its own slot and durable failures may already be bound.
+        if (!retryFailed) {
+          const panel = useControllerPanelStore.getState()
+          const entry = panel.programsByController[controllerId]?.find((row) => row.id === pattern.id)
+          if (currentImportView.current !== capturedView || panel.configSourceIp !== controllerId || !panel.activeProgramId
+            || panel.activeProgramId === pattern.id || panel.activatingProgramId === pattern.id
+            || !entry || entry.name !== pattern.name) throw new Error('Controller session or running Pattern changed')
+        }
+        assertViewCurrent()
+        setImportingProgramId(pattern.id)
+        await importSavedControllerPattern({ profileId: capturedView.profileId,
+          controllerId, controllerDeviceId, programId: pattern.id, assertViewCurrent })
+      }
+      const result = retryFailed && pending.result
+        ? await retryControllerPatternBatch(pending.result, perform)
+        : await runControllerPatternBatch(pending.targets, perform)
+      if (currentImportView.current === capturedView) setPendingPxlblzBatchImport({ ...pending, result })
+    } finally {
+      batchLock.current = false
+      setBatchBusy(false)
+      if (currentImportView.current === capturedView) {
+        setSelection({ section: null, selectedIds: [] })
+        setImportingProgramId(null)
+        setLedgerGeneration((value) => value + 1)
+        requestSavedProgramsRefresh(capturedView.profileId)
+        // Refresh is observation, not a write outcome.
+        void refreshControllerPrograms(controllerId)
+      }
+    }
+  }
+
   async function performBatch(operation: 'delete' | 'import') {
     if (batchLock.current) return
     const targets = operation === 'delete' ? pendingBatchDelete : selectedPrograms().flatMap((program) => {
@@ -1463,6 +1534,24 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
 
   return (
     <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-x-hidden overflow-y-auto bg-zinc-950 text-zinc-200">
+      {pendingPxlblzBatchImport?.view === importView && <AlertDialogRoot open onOpenChange={(open) => { if (!open && !batchLock.current) setPendingPxlblzBatchImport(null) }}>
+        <AlertDialogContent onEscapeKeyDown={(event) => { if (batchBusy) event.preventDefault() }}>
+          <AlertDialogTitle>{pendingPxlblzBatchImport.result ? 'Import results'
+            : `Import ${pendingPxlblzBatchImport.targets.length} PXLBLZ Pattern${pendingPxlblzBatchImport.targets.length === 1 ? '' : 's'}?`}</AlertDialogTitle>
+          <AlertDialogDescription>{pendingPxlblzBatchImport.result
+            ? `${pendingPxlblzBatchImport.result.succeeded.length} imported`
+            : 'Create editable Studio Patterns and write them back to these saved Controller slots. Recoverable authored source uses this profile; wrapped source keeps its old profile behavior.'}</AlertDialogDescription>
+          {!pendingPxlblzBatchImport.result && <ul className="my-3 space-y-1 text-xs text-zinc-300">{controllerPatternBatchNames(pendingPxlblzBatchImport.targets).map((name, index) => <li key={index}>{name}</li>)}</ul>}
+          {pendingPxlblzBatchImport.result?.failed.map(({ pattern, error }) => <p key={pattern.id} role="alert" className="my-2 text-xs text-red-300">{pattern.name}: {error}</p>)}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={batchBusy} onClick={() => setPendingPxlblzBatchImport(null)}>{pendingPxlblzBatchImport.result ? 'Close' : 'Cancel'}</AlertDialogCancel>
+            {(!pendingPxlblzBatchImport.result || pendingPxlblzBatchImport.result.failed.length > 0) && <AlertDialogAction disabled={batchBusy}
+              onClick={(event) => { event.preventDefault(); void confirmBatchPxlblzImport(pendingPxlblzBatchImport.result !== null) }}>
+              {batchBusy ? 'Importing…' : pendingPxlblzBatchImport.result ? 'Retry failed' : 'Import and save'}
+            </AlertDialogAction>}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialogRoot>}
       {singleImport?.view === importView && <AlertDialogRoot open onOpenChange={(open) => { if (!open && importingProgramId === null) setSingleImport(null) }}>
         <AlertDialogContent onEscapeKeyDown={(event) => { if (importingProgramId !== null) event.preventDefault() }}>
           <AlertDialogTitle>Import PXLBLZ Pattern?</AlertDialogTitle>
@@ -1539,7 +1628,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onDone={() => setSelection({ section: null, selectedIds: [] })}
         onToggle={(id) => setSelection((current) => toggleControllerPatternSelection(current, id, eligibleIds))}
         onToggleAll={() => setSelection((current) => toggleAllControllerPatternSelection(current, eligibleIds))}
-        onBatchImport={() => void performBatch('import')}
+        onBatchImport={() => { if (selection.section === 'unimported') beginBatchPxlblzImport(); else void performBatch('import') }}
         onBatchDelete={() => {
           const targets = selectedPrograms().flatMap((program) => {
             const target = snapshotDelete(program)

@@ -71,8 +71,11 @@ Patterns** (other unbound IDs). Single-item Import from Unimported creates a fre
 personal Pattern and writes the selected saved slot. Authored recovery applies
 this profile; wrapped-source imports retain their old behavior and durable policy
 notice. Incomplete receipts preserve the same destination for Retry or Resume
-import after reload. Other recovery remains account-only. Saved and Other have
-bulk selection; bulk import for Unimported remains pending slice D.
+import after reload. All three sections share one active selection; switching
+sections starts empty. Confirmed Unimported bulk Import runs the same durable
+command per selected slot without navigation, retains named outcomes, and retries
+only failures even after binding moves them to Saved. Other import remains
+account-only. Final committed browser and native-firmware qualification is pending.
 
 **Effective input use**:
 One thing a **hardware input** actually drives, derived from the authoritative records rather than annotated on the input. Exactly two kinds exist: the profile's single hardware-brightness transform, whose scope is every Pattern except those with a Pattern binding on that same input; and one Pattern binding, which drives an exported slider, function, or variable for one Pattern. An input with no uses says so explicitly. Uses are derived, never stored, and deriving them never mutates the profile. The retired `role` field was an annotation that looked like a use and drove nothing.

@@ -327,18 +327,24 @@ hardware knowledge lives:
   **Retry** resumes it, and a bound incomplete row offers **Resume import** after
   reload. Metadata failures disable importing until Refresh succeeds.
 
-  Saved and Other sections have **Select**; bulk actions for Unimported remain
-  pending slice D. Check individual Patterns or use the
+  All three sections have **Select**. Check individual Patterns or use the
   header checkbox to select all eligible rows; running and pending-running
   Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
-  offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
+  offer **Delete** and **Done**; Unimported and Other Patterns also offer **Import**. Switching
   sections clears the previous selection. Batch Delete confirms the selected
   names once, then checks safety for each deletion. Both batch operations run
   sequentially, continue after individual failures, name failed Patterns, and
-  leave selection mode when finished. Import preserves Studio identity and
-  recovered source without switching the Studio view or changing the Controller.
+  leave selection mode when finished. Unimported bulk Import confirms the names
+  before reading source, creates account copies and writes the same selected
+  slots through the single-item command. **Import results** retains each named
+  failure; **Retry failed** resumes only those destinations, including incomplete
+  rows that have moved to Saved. The Controller page and open Studio subject stay
+  unchanged. Other Import remains account-only and leaves the Controller unchanged.
   The page-header **Refresh** rereads settings, the installed map, and all three
   Pattern inventories.
+
+  Final committed browser and native-firmware qualification of Controller import
+  remains pending.
 
 A profile's name is the device's name. While the Controller is live, rename it
 from the center title; PXLBLZ writes the new name to the device, reads it

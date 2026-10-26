@@ -18,6 +18,7 @@ import { createPlaneMap } from '../src/engine/maps/plane'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import type { PatternRecord } from '../src/engine/personalContentRecords'
 import type { ControllerPatternImportLedger } from '../src/engine/controllerPatternImport'
+import { sha256ControllerProgram } from '../src/engine/controllerPatternImport'
 
 const ip = '192.168.8.224'
 const deviceId = 'pixelblaze_pb32_005544332211'
@@ -299,6 +300,188 @@ test('single-slot cross-account import preserves wrapped behavior, recovers cano
     expect(final.patterns.filter((p) => !partialBefore.patterns.some((old) => old.id === p.id))).toHaveLength(1)
     expect(await snapshot(aRequest)).toEqual(aBefore)
     expect([...programs].filter(([id]) => ![slot, canonicalSlot, partialSlot].includes(id))).toEqual(siblingBefore)
+    expect(errors).toEqual([])
+  } finally {
+    await removeSyntheticContent(bContext.request)
+    await bContext.close()
+  }
+})
+
+test('group-local cross-account bulk import retains named durable failures and retries only Beta (#1221 D)', async ({ page: a, browser, baseURL }, testInfo) => {
+  test.setTimeout(120_000)
+  const errors: string[] = []
+  a.on('pageerror', (error) => errors.push(error.message))
+  a.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+  const programs: SharedFakeControllerPrograms = new Map()
+  const slots = [slot, canonicalSlot, partialSlot]
+  const names = ['Alpha', 'Beta', 'Gamma']
+  const seedPbp = (id: string, name: string, sourceCode = source) => programs.set(id, {
+    name, pbpBase64: Buffer.from(encodePbp({ id, name, sourceCode, byteCode: new Uint8Array(8) })).toString('base64'),
+  })
+  seedPbp(slot, 'Alpha')
+  seedPbp('OTHER000000000001', 'Running control')
+  seedPbp('OTHER000000000002', 'Other control')
+  seedPbp('BOUND000000000001', 'Bound control')
+  await helper(a, programs)
+  const aRequest = a.context().request
+  const aPattern: PatternRecord = { id: 'bulk-account-a-origin', name: 'Alpha', src: source, controls: {}, updatedAt: Date.now() }
+  await seed(aRequest, 'patterns', aPattern)
+  await seed(aRequest, 'controllers', profile('bulk-account-a-profile', 36))
+  await metadata(aRequest, 'controller-pattern-imports', { version: 1, byPatternId: {} })
+  await metadata(aRequest, 'controller-push-records', {})
+  await metadata(aRequest, 'controller-bindings', { [ip]: { [aPattern.id]: slot } })
+  await a.goto(`studio/patterns/${aPattern.id}`)
+  await connect(a)
+  await save(a)
+  await expect.poll(() => numeric(decodePbp(new Uint8Array(Buffer.from(programs.get(slot)!.pbpBase64, 'base64')))!.sourceCode).pins).toContain(36)
+  const storedSource = decodePbp(new Uint8Array(Buffer.from(programs.get(slot)!.pbpBase64, 'base64')))!.sourceCode
+  seedPbp(slots[1], names[1], storedSource)
+  seedPbp(slots[2], names[2], storedSource)
+  const fullAccount = async (request: APIRequestContext) => ({ ...await snapshot(request),
+    controllers: await json(request, 'controllers'), maps: await json(request, 'maps'),
+    shows: await json(request, 'shows?show-version=2'), libraries: await json(request, 'libraries'),
+    ledger: await json(request, 'controller-metadata/controller-pattern-imports') })
+  const aBefore = await fullAccount(aRequest)
+  const deviceBefore = structuredClone([...programs])
+  const sequence = allocatePersistedAccountSequence(process.env.PXLBLZ_D1_PERSIST_TO?.trim() || undefined, testInfo.parallelIndex)
+  const accountIndex = authenticatedPlaywrightAccountIndex(testInfo.parallelIndex, accountSlotForSequence(sequence))
+  const secret = readDevVarsFile(process.env.PXLBLZ_DEV_VARS_FILE!).SESSION_SECRET
+  if (!secret) throw new Error('SESSION_SECRET is required in the authenticated test dev-vars file')
+  const token = await createSessionToken(authenticatedPlaywrightUser(accountIndex), secret)
+  const bContext = await browser.newContext({ baseURL, viewport: { width: 1440, height: 1000 }, storageState: {
+    cookies: [{ name: sessionCookieName, value: token, domain: 'localhost', path: '/', httpOnly: true,
+      secure: false, sameSite: 'Lax', expires: -1 }], origins: [],
+  } })
+  const b = await bContext.newPage()
+  let expectedMetadataFailure = false
+  b.on('pageerror', (error) => errors.push(error.message))
+  b.on('console', (message) => {
+    const injected = expectedMetadataFailure && message.text().includes('503')
+      && message.location().url.includes('/api/controller-metadata/controller-pattern-imports')
+    if (message.type() === 'error' && !injected) errors.push(message.text())
+  })
+  const captures = async (state: string) => {
+    for (const [label, width] of [['desktop', 1440], ['narrow', 760]] as const) {
+      await b.setViewportSize({ width, height: 1000 })
+      await capture(b, `D-${state}-${label}`)
+    }
+    await b.setViewportSize({ width: 1440, height: 1000 })
+  }
+  const commands = () => b.evaluate(() => (window as unknown as { __fakeControllerWrites: Record<string, unknown>[] }).__fakeControllerWrites)
+  try {
+    const request = bContext.request
+    await removeSyntheticContent(request)
+    await helper(b, programs)
+    await seed(request, 'controllers', profile('bulk-account-b-profile', 35))
+    await seed(request, 'patterns', { id: 'bulk-b-control', name: 'Bound control', src: source, controls: {}, updatedAt: Date.now() })
+    await metadata(request, 'controller-bindings', { [ip]: { 'bulk-b-control': 'BOUND000000000001' } })
+    await metadata(request, 'controller-push-records', {})
+    await metadata(request, 'controller-pattern-imports', { version: 1, byPatternId: {} })
+    await b.goto('studio/controllers/bulk-account-b-profile')
+    await connect(b)
+    const controllerRoute = b.url()
+    const unimported = b.getByRole('table', { name: 'Unimported PXLBLZ Patterns', exact: true })
+    await expect(unimported.getByRole('row')).toHaveCount(4)
+    await expect(b.getByRole('table', { name: 'Saved PXLBLZ Patterns', exact: true })).toContainText('Bound control')
+    await expect(b.getByRole('table', { name: 'Other Patterns', exact: true })).toContainText('Other control')
+    const before = await fullAccount(request)
+    await captures('inventory')
+    for (const group of ['Unimported PXLBLZ Patterns', 'Saved PXLBLZ Patterns', 'Other Patterns']) {
+      await b.getByRole('button', { name: `Select ${group}`, exact: true }).click()
+      const table = b.getByRole('table', { name: group, exact: true })
+      const all = table.getByRole('checkbox', { name: `Select all ${group}`, exact: true })
+      await expect(all).not.toBeChecked()
+      await all.check()
+      if (group === 'Saved PXLBLZ Patterns') {
+        await expect(b.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0)
+        await expect(table.getByRole('checkbox', { name: 'Select Bound control', exact: true })).toBeChecked()
+      }
+      if (group === 'Other Patterns') {
+        await expect(table.getByRole('checkbox', { name: 'Select Other control', exact: true })).toBeChecked()
+        await expect(table.getByRole('checkbox', { name: 'Select Running control', exact: true })).toBeDisabled()
+      }
+    }
+    const select = b.getByRole('button', { name: 'Select Unimported PXLBLZ Patterns', exact: true })
+    await select.focus()
+    await select.press('Enter')
+    const all = unimported.getByRole('checkbox', { name: 'Select all Unimported PXLBLZ Patterns', exact: true })
+    await expect(all).not.toBeChecked()
+    await all.focus()
+    await all.press('Space')
+    for (const name of names) await expect(unimported.getByRole('checkbox', { name: `Select ${name}`, exact: true })).toBeChecked()
+    await captures('selection')
+    const open = b.getByRole('button', { name: 'Import', exact: true })
+    await open.focus()
+    await open.press('Enter')
+    const dialog = b.getByRole('alertdialog')
+    await expect(dialog.getByRole('heading')).toHaveText('Import 3 PXLBLZ Patterns?')
+    await expect(dialog.getByRole('listitem')).toHaveText(names)
+    expect((await commands()).filter((entry) => 'readProgram' in entry || 'save' in entry || 'compileSource' in entry)).toEqual([])
+    expect(await fullAccount(request)).toEqual(before)
+    expect([...programs]).toEqual(deviceBefore)
+    await captures('confirmation')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    expect((await commands()).filter((entry) => 'readProgram' in entry || 'save' in entry)).toEqual([])
+    await open.click()
+    const metadataPath = '**/api/controller-metadata/controller-pattern-imports'
+    expectedMetadataFailure = true
+    await b.route(metadataPath, async (route) => {
+      const body = route.request().method() === 'PUT' ? route.request().postDataJSON() as { value: ControllerPatternImportLedger } : null
+      if (body && Object.values(body.value.byPatternId).some((r) => r.programId === slots[1] && r.stage === 'complete')) {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Synthetic Beta completion failure' }) })
+      } else await route.continue()
+    })
+    await dialog.getByRole('button', { name: 'Import and save', exact: true }).click()
+    await expect(dialog.getByRole('heading')).toHaveText('Import results')
+    await expect(dialog).toContainText('2 imported')
+    await expect(dialog.getByRole('alert')).toContainText('Beta: Controller binding saved; import bookkeeping is incomplete')
+    await expect(b).toHaveURL(controllerRoute)
+    await expect(b.locator('table[aria-label="Saved PXLBLZ Patterns"]')).toContainText('Beta')
+    await expect(dialog.getByRole('button', { name: 'Retry failed', exact: true })).toBeEnabled()
+    await captures('mixed-result')
+    const mixed = await json<{ patterns: PatternRecord[] }>(request, 'patterns')
+    const ledger = await json<{ value: ControllerPatternImportLedger }>(request, 'controller-metadata/controller-pattern-imports')
+    const receipts = slots.map((id) => Object.values(ledger.value.byPatternId).find((r) => r.programId === id)!)
+    expect(new Set(receipts.map((r) => r.patternId)).size).toBe(3)
+    expect(receipts.map((r) => r.stage)).toEqual(['complete', 'metadata-pending', 'complete'])
+    expect(mixed.patterns.filter((p) => !before.patterns.patterns.some((old) => old.id === p.id))).toHaveLength(3)
+    const bindings = await json<{ value: Record<string, Record<string, string>> }>(request, 'controller-metadata/controller-bindings')
+    for (const [index, receipt] of receipts.entries()) {
+      expect(receipt.patternId).not.toBe(aPattern.id)
+      expect(receipt).toMatchObject({ controllerDeviceId: deviceId, sourceMode: 'stored-artifact', programId: slots[index],
+        origin: { bannerState: 'valid', banner: { id: aPattern.id }, pbpDigest: await sha256ControllerProgram(new Uint8Array(Buffer.from(deviceBefore.find(([id]) => id === slots[index])![1].pbpBase64, 'base64'))) } })
+      expect(mixed.patterns.find((p) => p.id === receipt.patternId)?.src).toBe(storedSource)
+      expect(bindings.value[ip][receipt.patternId]).toBe(slots[index])
+    }
+    expect(bindings.value[ip]['bulk-b-control']).toBe('BOUND000000000001')
+    expect(await json(request, 'controller-metadata/controller-push-records')).toEqual(before.pushes)
+    expect([...programs]).toEqual(deviceBefore)
+    const readsBeforeRetry = (await commands()).filter((entry) => 'readProgram' in entry)
+    const writesBeforeRetry = (await commands()).filter((entry) => entry.save || 'compileSource' in entry || 'setActivePattern' in entry)
+    await b.unroute(metadataPath)
+    expectedMetadataFailure = false
+    await dialog.getByRole('button', { name: 'Retry failed', exact: true }).click()
+    await expect(dialog).toContainText('3 imported')
+    await expect(dialog.getByRole('button', { name: 'Retry failed', exact: true })).toHaveCount(0)
+    const complete = await json<{ value: ControllerPatternImportLedger }>(request, 'controller-metadata/controller-pattern-imports')
+    expect(complete.value.byPatternId).toEqual(Object.fromEntries(receipts.map((r) => [r.patternId, { ...r, stage: 'complete' }])))
+    expect(await json(request, 'patterns')).toEqual(mixed)
+    expect(await json(request, 'controller-metadata/controller-bindings')).toEqual(bindings)
+    const retryReads = (await commands()).filter((entry) => 'readProgram' in entry).slice(readsBeforeRetry.length)
+    expect(retryReads.length).toBeGreaterThan(0)
+    expect(retryReads.every((entry) => entry.readProgram === slots[1])).toBe(true)
+    expect((await commands()).filter((entry) => entry.save || 'compileSource' in entry || 'setActivePattern' in entry)).toEqual(writesBeforeRetry)
+    expect([...programs]).toEqual(deviceBefore)
+    expect(await fullAccount(aRequest)).toEqual(aBefore)
+    expect(mixed.patterns.find((p) => p.id === 'bulk-b-control')).toEqual(before.patterns.patterns.find((p) => p.id === 'bulk-b-control'))
+    const final = await fullAccount(request)
+    for (const key of ['controllers', 'maps', 'shows', 'libraries', 'pushes'] as const) expect(final[key]).toEqual(before[key])
+    await expect(b).toHaveURL(controllerRoute)
+    await expect(b.locator('table[aria-label="Unimported PXLBLZ Patterns"]')).toHaveCount(0)
+    await expect(b.locator('table[aria-label="Saved PXLBLZ Patterns"] tbody tr')).toHaveCount(4)
+    await captures('retry-complete')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(b).toHaveURL(controllerRoute)
     expect(errors).toEqual([])
   } finally {
     await removeSyntheticContent(bContext.request)
