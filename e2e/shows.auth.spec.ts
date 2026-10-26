@@ -2740,6 +2740,8 @@ test.describe('authenticated Show authoring', () => {
     const id = new URL(page.url()).pathname.split('/').at(-1)!
     const original = await findStoredShowV2(page, id)
     expect(original).toBeTruthy()
+    await waitForStoredShowV2(page, id, record => record.updatedAt === original!.updatedAt
+      && record.composition.propertyTracks.length === 0)
     const nativeTransitions = original!.composition.transitions
     expect(nativeTransitions[0].origin).toBeUndefined()
     expect(nativeTransitions[0].participants).toHaveLength(1)
@@ -2789,6 +2791,7 @@ test.describe('authenticated Show authoring', () => {
     await page.keyboard.press('Escape')
     await expect(playhead).toHaveValue('15000')
     await expect(page.getByTestId('show-stage-canvas-frame')).toHaveAttribute('aria-busy', 'false')
+    await page.getByRole('button', { name: 'Close Entity Detail Panel', exact: true }).click()
     await page.getByRole('button', { name: 'Select CometLoom', exact: true }).click()
     await panel.getByRole('button', { name: 'Animate Brightness' }).click()
     await expect(page.getByRole('textbox', { name: 'Brightness animation from time exact time' })).toHaveValue('32')
