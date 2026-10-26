@@ -548,7 +548,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
           activeControls: previousActiveControls,
         })
       }
-      await provider.setActiveProgram(programId, { save: true })
+      await provider.setActiveProgram(programId, { save: false })
       if (!activationSessionMatches(initiatingSession)) {
         throw new Error('Controller session changed before Pattern activation could be confirmed.')
       }

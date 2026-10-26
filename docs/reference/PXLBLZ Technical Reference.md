@@ -514,10 +514,11 @@ caller's promise. The helper extension must be updated separately from the app;
 see `extension/README.md` for unpacked and Web Store adoption.
 
 The provider's saved-program control seam exposes `setActiveProgram(id,
-{save})` and `deleteProgram(id)`. The extension provider forwards them over the
+{save})` with a required explicit boolean and `deleteProgram(id)`. The extension
+provider forwards the supplied `save` directly over the
 existing generic JSON relay, so neither operation requires an extension release.
-Activation defaults to `save: true` at the provider boundary: the already-saved
-Pattern becomes the Controller's boot selection. Deletion is fire-and-forget at
+Callers choose whether activation persists the startup selection; the seam has
+no default. Deletion is fire-and-forget at
 the protocol layer; callers refresh the program list and treat that device truth
 as confirmation. `NullControllerProvider` rejects both operations like every
 other disconnected write.
@@ -571,13 +572,14 @@ an active id absent from the inventory as a disabled run-only row. The Switch
 workflow does not read or write Pattern Studio selection or delivery records.
 The config projection also retains the sequencer packet's optional
 `sequencerMode` (0 off, 1 shuffle, 2 playlist) and `runSequencer` fields when a
-later poll omits them. `activateProgram` sends a saved activation, invalidates
+later poll omits them. `activateProgram` sends an explicit `save: false`
+activation of a saved Pattern without changing the startup selection, invalidates
 the prior control seed, publishes the id optimistically, then rejects unless a
 direct config read confirms that id; a rejected confirmation rolls the
 optimistic id and controls back. Activation also advances the panel read
 generation so a poll started before the command cannot overwrite its confirmed
 state. Its store-owned in-flight lock survives popover unmounts and rejects a
-second persistent activation until the first command settles. `deleteProgram`
+second activation until the first command settles. `deleteProgram`
 brackets the write with complete inventory reads, then
 proves the target disappeared and every unrelated id/name pair survived. Both
 confirmations are scoped to the provider/session that sent the command.
@@ -760,9 +762,10 @@ with bindings, push records, and the personal and built-in Pattern/Show
 catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
 unbound entries are Other Patterns and are never reconciled. The running id is
 marked in either table. Row actions stay visually hidden until hover or keyboard
-focus; Run delegates to the panel store's persistent activation path and never
-navigates Studio. Program ids move from a column into the name tooltip, and
-Other Patterns have no freshness column.
+focus; Run delegates to the panel store's transient activation path and never
+navigates Studio or changes the open subject or its Run/Save records. Program
+ids move from a column into the name tooltip, and Other Patterns have no
+freshness column.
 
 Both sections share one selection owner. `controllerPatternBatch.ts` provides
 immutable ID selection, eligibility reconciliation, and an ordered sequential

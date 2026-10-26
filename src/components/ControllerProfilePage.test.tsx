@@ -53,6 +53,7 @@ import {
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
+import { editorInitialState, useEditorStore } from '@/store/editorStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import {
   __resetControllerDeviceWriteQueue,
@@ -133,8 +134,8 @@ class ProgramListProvider extends MapReadbackProvider {
     return Promise.resolve(this.recoveredPrograms.get(programId) ?? null)
   }
 
-  setActiveProgram(programId: string, opts?: { save?: boolean }) {
-    this.activationCalls.push({ programId, save: opts?.save })
+  setActiveProgram(programId: string, opts: { save: boolean }) {
+    this.activationCalls.push({ programId, save: opts.save })
     this.activeProgramId = programId
     return Promise.resolve()
   }
@@ -164,6 +165,7 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
   useRouterStore.setState(routerInitialState)
   usePatternStore.setState(patternInitialState)
+  useEditorStore.setState(editorInitialState)
   useShowStore.setState(showInitialState)
   resetControllerProvider()
   resetControllerMetadataStorage()
@@ -459,6 +461,7 @@ describe('ControllerProfilePage', () => {
   it('projects running state and profile evidence while keeping row Run isolated from Studio', async () => {
     const profile = seedProfile()
     usePatternStore.setState({
+      activePatternId: 'pat-1',
       userPatterns: [{
         id: 'pat-1',
         name: 'Twinkle',
@@ -550,11 +553,18 @@ describe('ControllerProfilePage', () => {
       'group-focus-within:opacity-100',
     )
     const routeBefore = useRouterStore.getState().route
+    useEditorStore.setState({ source: 'open draft edits', bufferEdited: true })
+    const editorBefore = useEditorStore.getState()
+    const patternBefore = usePatternStore.getState()
+    const controllerBefore = useControllerStore.getState()
     fireEvent.click(foreignRun)
     await waitFor(() => expect(provider.activationCalls).toEqual([
-      { programId: 'FOREIGN1', save: true },
+      { programId: 'FOREIGN1', save: false },
     ]))
     expect(useRouterStore.getState().route).toEqual(routeBefore)
+    expect(useEditorStore.getState()).toEqual(editorBefore)
+    expect(usePatternStore.getState()).toEqual(patternBefore)
+    expect(useControllerStore.getState()).toEqual(controllerBefore)
     expect(screen.getByRole('button', { name: 'Run sound bar kit on the Controller' })).toBeDisabled()
     expect(screen.getAllByLabelText('Running now')).toHaveLength(1)
   })

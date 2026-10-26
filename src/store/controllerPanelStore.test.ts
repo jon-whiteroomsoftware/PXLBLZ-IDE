@@ -79,8 +79,8 @@ class FakeProvider extends NullControllerProvider {
     this.installedMap = points
     return Promise.resolve()
   }
-  setActiveProgram(programId: string, opts: { save?: boolean } = {}): Promise<void> {
-    this.activeProgramWrites.push({ programId, save: opts.save ?? true })
+  setActiveProgram(programId: string, opts: { save: boolean }): Promise<void> {
+    this.activeProgramWrites.push({ programId, save: opts.save })
     this.config = {
       ...this.config,
       activeProgramId: programId,
@@ -190,7 +190,7 @@ describe('controllerPanelStore', () => {
       .toEqual([{ id: 'new', name: 'New Pattern' }])
   })
 
-  it('activates a saved program persistently and reseeds its controls from the confirming poll', async () => {
+  it('activates a saved program transiently and reseeds its controls from the confirming poll', async () => {
     provider.config = {
       brightness: 0.5,
       activeProgramId: 'def',
@@ -202,7 +202,7 @@ describe('controllerPanelStore', () => {
 
     await useControllerPanelStore.getState().activateProgram('abc')
 
-    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: false }])
     expect(useControllerPanelStore.getState().activeProgramId).toBe('abc')
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderHue: 0.1 })
     expect(useControllerPanelStore.getState()).toMatchObject({
@@ -221,7 +221,7 @@ describe('controllerPanelStore', () => {
     await expect(useControllerPanelStore.getState().activateProgram('abc')).rejects.toThrow(
       'Could not confirm Controller Pattern activation',
     )
-    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: false }])
     expect(useControllerPanelStore.getState()).toMatchObject({
       activeProgramId: 'def',
       activeControls: { sliderSpeed: 0.3 },
@@ -230,8 +230,8 @@ describe('controllerPanelStore', () => {
 
   it('keeps one activation locked while the panel unmounts and the device write is unresolved', async () => {
     const write = deferred<void>()
-    provider.setActiveProgram = (programId, opts = {}) => {
-      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    provider.setActiveProgram = (programId, opts) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save })
       return write.promise.then(() => {
         provider.config = { activeProgramId: programId }
       })
@@ -245,7 +245,7 @@ describe('controllerPanelStore', () => {
     await expect(useControllerPanelStore.getState().activateProgram('def')).rejects.toThrow(
       'A Controller Pattern switch is already in progress',
     )
-    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: false }])
 
     write.resolve()
     await expect(first).rejects.toThrow(
@@ -255,8 +255,8 @@ describe('controllerPanelStore', () => {
   })
 
   it('rejects activation and publishes device truth when the requested program is not active', async () => {
-    provider.setActiveProgram = (programId, opts = {}) => {
-      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    provider.setActiveProgram = (programId, opts) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save })
       return Promise.resolve()
     }
     provider.config = {
@@ -291,8 +291,8 @@ describe('controllerPanelStore', () => {
     // previous program (it is still loading the new one, or a sequencer step
     // just landed). A read one retry later shows the target; that is success,
     // not a contradiction between a failure banner and a running marker.
-    provider.setActiveProgram = (programId, opts = {}) => {
-      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    provider.setActiveProgram = (programId, opts) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save })
       return Promise.resolve()
     }
     const replies: ControllerConfig[] = [
@@ -313,8 +313,8 @@ describe('controllerPanelStore', () => {
   })
 
   it('stops the confirmation window when the session changes between reads (#877)', async () => {
-    provider.setActiveProgram = (programId, opts = {}) => {
-      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    provider.setActiveProgram = (programId, opts) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save })
       return Promise.resolve()
     }
     provider.config = { activeProgramId: 'def' }
@@ -337,8 +337,8 @@ describe('controllerPanelStore', () => {
 
   it('revalidates the authorizing Controller session during activation', async () => {
     let sessionIsCurrent = true
-    provider.setActiveProgram = async (programId, opts = {}) => {
-      provider.activeProgramWrites.push({ programId, save: opts.save ?? true })
+    provider.setActiveProgram = async (programId, opts) => {
+      provider.activeProgramWrites.push({ programId, save: opts.save })
       provider.config = { activeProgramId: programId }
       sessionIsCurrent = false
     }
@@ -347,7 +347,7 @@ describe('controllerPanelStore', () => {
       sessionIsCurrent: () => sessionIsCurrent,
     })).rejects.toThrow('Controller session changed')
 
-    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: true }])
+    expect(provider.activeProgramWrites).toEqual([{ programId: 'abc', save: false }])
   })
 
   it('rejects an expired authorizing Controller session before activation starts', async () => {

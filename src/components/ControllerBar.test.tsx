@@ -1,7 +1,7 @@
 import { useEntityOrganizationStore, entityOrganizationInitialState } from '@/store/entityOrganizationStore'
 import { normalizeEntityOrganization, trashEntityOrganizationNode } from '@/engine/entityOrganization'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
-import { render, screen, fireEvent, waitFor, act, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerBar } from './ControllerBar'
@@ -1056,11 +1056,29 @@ describe('ControllerBar', () => {
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Switches what the Controller runs; Run and Save still send the open Pattern.')).toBeInTheDocument()
 
+    act(() => useEditorStore.setState({ source: 'draft edits', previewSource: 'draft edits', bufferEdited: true }))
+    const patternBefore = usePatternStore.getState()
+    const editorBefore = useEditorStore.getState()
+    const controllerBefore = useControllerStore.getState()
+    const routeBefore = useRouterStore.getState().route
+    const actionRow = screen.getByTestId('controller-action-row')
+    const gatesBefore = ['Run', 'Save'].map((name) => {
+      const button = within(actionRow).getByRole('button', { name })
+      return [button.hasAttribute('disabled'), button.getAttribute('aria-disabled')]
+    })
     fireEvent.click(options[1])
     await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('a'))
     await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
     expect(usePatternStore.getState().activePatternId).toBe('pattern-1')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
+    expect(usePatternStore.getState()).toEqual(patternBefore)
+    expect(useEditorStore.getState()).toEqual(editorBefore)
+    expect(useControllerStore.getState()).toEqual(controllerBefore)
+    expect(useRouterStore.getState().route).toEqual(routeBefore)
+    expect(['Run', 'Save'].map((name) => {
+      const button = within(actionRow).getByRole('button', { name })
+      return [button.hasAttribute('disabled'), button.getAttribute('aria-disabled')]
+    })).toEqual(gatesBefore)
   })
 
   it('carries the originating Controller session guard into a queued saved-Pattern switch', async () => {

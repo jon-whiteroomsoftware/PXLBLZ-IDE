@@ -165,8 +165,28 @@ PXLBLZ does not depend on that undefined behavior: every user-facing delete
 action is disabled for the running row. On firmware 3.67, the namespaced
 hardware probe confirmed run-only activation, restoration of the prior running
 Pattern, inactive deletion, and exact preservation of every unrelated saved
-Pattern. Delete-active and post-reboot observation remain deliberately deferred
-to a controlled bench session; the automated probe never changes boot selection.
+Pattern. Delete-active remains unobserved. That automated probe did not test
+post-reboot behavior or change boot selection.
+
+On 2026-10-25 (final read 2026-10-26 00:38:53 UTC), the transient-activation
+prerequisite passed on one pb32 running firmware 3.70. After Jon reported the
+first physical cycle, device reads received startup A, WavyBands
+(`pxb9zpbqKGMAbtw7J`). Existing B, LineDancer2D (`pxbv7m8o5uYLzHZHB`), was
+activated with exactly
+`{"activeProgramId":"pxbv7m8o5uYLzHZHB","save":false}`. After Jon separately
+reported the second physical cycle, the direct device read at the timestamp
+above received A again, without a restoration write. The complete projected
+config, all 16 saved id/name pairs and the exact 1,036 installed-map bytes
+matched baseline. Sequencing was off, brightness was 0.041209 and pixel count
+was 256; the socket was closed. Jon supplied the physical-action reports;
+the reads establish received state, not agent-observed power or visible LEDs.
+This is a bounded firmware observation, not universal firmware behavior or
+built-product proof. [Primary evidence: #1223](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1223#issuecomment-6405661771).
+
+Built panel pick B followed by a Jon-performed cycle returning A, built profile
+Run C followed by a cycle returning A, and Save followed by observing which
+Pattern runs after a cycle remain unproved. The activation-only slice does not
+authorize those physical operations.
 
 ## The saved-pattern preview JPEG is a 1D waterfall
 

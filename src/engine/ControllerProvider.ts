@@ -282,9 +282,9 @@ export interface ControllerProvider {
    *  the frames are sent. */
   saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void>
 
-  /** Switch to a program already saved on the Controller. `save` persists the
-   *  selection as the boot program and defaults to true at this app-facing seam. */
-  setActiveProgram(programId: string, opts?: { save?: boolean }): Promise<void>
+  /** Switch to a program already saved on the Controller. Callers must explicitly
+   *  choose whether `save` persists the selection as the boot program. */
+  setActiveProgram(programId: string, opts: { save: boolean }): Promise<void>
 
   /** Delete one saved program. Resolves after sending; callers re-list to confirm. */
   deleteProgram(programId: string): Promise<void>
@@ -409,7 +409,7 @@ export class NullControllerProvider implements ControllerProvider {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 
-  setActiveProgram(_programId: string, _opts?: { save?: boolean }): Promise<void> {
+  setActiveProgram(_programId: string, _opts: { save: boolean }): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

@@ -786,9 +786,9 @@ export class ExtensionControllerProvider implements ControllerProvider {
     return this.fireAndForget((conn) => conn.saveProgram(opts.id, pbpBlob))
   }
 
-  setActiveProgram(programId: string, opts: { save?: boolean } = {}): Promise<void> {
+  setActiveProgram(programId: string, opts: { save: boolean }): Promise<void> {
     this.knownActiveBytecode = null
-    return this.fireAndForget((conn) => conn.setActiveProgram(programId, opts.save ?? true))
+    return this.fireAndForget((conn) => conn.setActiveProgram(programId, opts.save))
   }
 
   deleteProgram(programId: string): Promise<void> {

@@ -512,29 +512,29 @@ describe('ExtensionControllerProvider', () => {
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
     })
 
-    it('switches saved programs with boot persistence by default and invalidates the known footprint', async () => {
+    it('forwards explicit transient activation and invalidates the known footprint', async () => {
       const d = makeDeviceTransport()
       const p = new ExtensionControllerProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
 
-      await p.setActiveProgram('PROG2')
+      await p.setActiveProgram('PROG2', { save: false })
 
-      expect(d.writes[d.writes.length - 1]).toEqual({ activeProgramId: 'PROG2', save: true })
+      expect(d.writes[d.writes.length - 1]).toEqual({ activeProgramId: 'PROG2', save: false })
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBeNull()
     })
 
-    it('forwards an explicit transient activation and saved-program deletion', async () => {
+    it('forwards explicit persistent activation and saved-program deletion', async () => {
       const d = makeDeviceTransport()
       const p = new ExtensionControllerProvider({ transport: d.transport })
       await p.connect(TARGET)
 
-      await p.setActiveProgram('PROG2', { save: false })
+      await p.setActiveProgram('PROG2', { save: true })
       await p.deleteProgram('PROG1')
 
       expect(d.writes.slice(-2)).toEqual([
-        { activeProgramId: 'PROG2', save: false },
+        { activeProgramId: 'PROG2', save: true },
         { deleteProgram: 'PROG1' },
       ])
     })

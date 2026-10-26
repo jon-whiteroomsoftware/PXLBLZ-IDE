@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controller Panel Row</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --zinc-950: #09090b; --zinc-900: #18181b; --zinc-800: #27272a; --zinc-700: #3f3f46;
+    --zinc-600: #52525b; --zinc-500: #71717a; --zinc-400: #a1a1aa; --zinc-300: #d4d4d8;
+    --zinc-200: #e4e4e7; --zinc-100: #f4f4f5;
+    --amber-300: #fcd34d; --amber-400: #fbbf24; --emerald-400: #34d399;
+    --live: #fbbf24; --seam: #2e2e34; --structural: #71717a;
+    --sans: 'Geist', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px; background: #0a0a0b; color: var(--zinc-300);
+    font-family: var(--mono); font-size: 12px;
+  }
+  /* The real popover spans the viewport less 8px each side below sm. */
+  @media (max-width: 639px) { body { padding: 32px 8px; } }
+  .stage {
+    display: flex; flex-wrap: wrap; gap: 40px 32px; justify-content: center; align-items: flex-start;
+    max-width: 864px; margin: 0 auto;
+  }
+  .stage + .stage { margin-top: 48px; }
+  .state { width: 400px; max-width: 100%; }
+  .state > h2 {
+    margin: 0 0 10px 2px; font: 500 10px/1 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--zinc-600);
+  }
+  svg { display: block; flex-shrink: 0; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+
+  .panel {
+    position: relative; border: 1px solid var(--zinc-700); border-radius: 8px;
+    background: var(--zinc-900); box-shadow: 0 25px 50px -12px rgba(0,0,0,.6);
+  }
+  .head {
+    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid var(--seam);
+  }
+  .title {
+    display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px;
+    padding: 0 5px 0 8px; border: 1px solid var(--zinc-600); border-radius: 4px;
+    background: rgba(39,39,42,.6); transition: border-color .15s, background-color .15s;
+  }
+  .title:hover { border-color: var(--zinc-400); background: var(--zinc-800); }
+  .title[aria-expanded="true"] { border-color: rgba(251,191,36,.6); background: var(--zinc-800); }
+  .title .chev { flex: none; color: var(--zinc-400); transition: transform .15s; }
+  .title[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .title .name { min-width: 0; color: var(--zinc-200); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dims { flex: none; white-space: nowrap; font-size: 10px; letter-spacing: .08em; color: var(--structural); text-transform: uppercase; }
+  .dims:empty { display: none; }
+  /* Stock controls give way before the running name does. */
+  .bright { flex: 0 10000 auto; min-width: calc(15px + 36px + 12px + 4ch); display: flex; align-items: center; gap: 6px; color: var(--zinc-400); }
+  .track { position: relative; flex: 0 1 auto; width: 68px; min-width: 36px; height: 6px; border-radius: 3px; background: var(--zinc-700); }
+  .track::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 12px; border-radius: 3px; background: var(--amber-400); }
+  .track::after {
+    content: ''; position: absolute; left: 6px; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+    transform: translateY(-50%); background: var(--amber-400);
+  }
+  .bright .pct { flex: none; width: 4ch; color: var(--amber-400); font-size: 11px; }
+  .tools { display: flex; gap: 4px; }
+  .tool {
+    width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--zinc-700); border-radius: 4px; color: var(--zinc-400);
+  }
+
+  /* With an open item, the capsule joins the header block: one seam below both. */
+  .row {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    padding: 0 12px 8px; border-bottom: 1px solid var(--seam);
+  }
+  .head:has(+ .row) { border-bottom: 0; }
+  .capsule {
+    flex: 1; display: inline-flex; align-items: stretch; height: 28px; min-width: 0;
+    border: 1px solid var(--zinc-700); border-radius: 999px; overflow: hidden;
+    background: rgba(9,9,11,.35);
+  }
+  .capsule .subject {
+    flex: 1; display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+    padding: 0 9px 0 10px; font: 12px var(--sans); color: var(--zinc-200);
+  }
+  .capsule .subject svg { color: var(--amber-400); }
+  .capsule .subject span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seg {
+    display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; font-size: 11px;
+    color: var(--zinc-300); border-left: 1px solid var(--zinc-700); transition: background-color .15s, color .15s;
+  }
+  .seg:last-child { padding-right: 11px; }
+  .seg.run:hover { background: rgba(63,63,70,.6); color: var(--zinc-100); }
+  .seg.save:hover { background: rgba(245,158,11,.1); color: var(--amber-300); }
+
+  .menu {
+    position: absolute; left: 8px; right: 8px; top: calc(100% - 2px); z-index: 20;
+    display: none; flex-direction: column; max-height: 60vh; overflow: hidden;
+    border: 1px solid var(--zinc-700); border-radius: 6px; background: var(--zinc-950);
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,.8);
+  }
+  .menu.open { display: flex; }
+  .menu .bar { display: flex; padding: 6px; }
+  .menu input {
+    flex: 1 1 auto; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--zinc-800); border-radius: 2px;
+    background: var(--zinc-900); color: var(--zinc-200); font: 11px var(--mono); outline: none;
+  }
+  .menu input::placeholder { color: var(--zinc-600); }
+  .menu input:focus { border-color: rgba(251,191,36,.6); }
+  .menu ul { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; }
+  .menu li button {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 12px; text-align: left;
+    font: 11.5px var(--sans); color: var(--zinc-200);
+  }
+  .menu li button:hover { background: rgba(39,39,42,.8); }
+  .menu li button .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .menu li button.running { color: var(--amber-300); }
+  .menu li button.running .dot { background: var(--emerald-400); }
+  .menu .group {
+    display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 12px 4px;
+    font: 500 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--zinc-500);
+  }
+  .menu .group .n { color: var(--zinc-600); }
+  .menu button.group:hover { color: var(--zinc-300); }
+  .menu .group svg { transition: transform .15s; }
+  .menu .group[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+  .deck { padding: 2px 12px 8px; }
+  .fold {
+    display: flex; align-items: center; gap: 8px; height: 38px; border-bottom: 1px solid var(--seam);
+    font-size: 11px; white-space: nowrap; overflow: hidden;
+  }
+  .fold:last-child { border-bottom: 0; }
+  .fold .label { color: var(--zinc-400); letter-spacing: .1em; text-transform: uppercase; font-weight: 500; }
+  .fold .sum { color: var(--zinc-400); overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .fold .sum b { color: var(--amber-400); font-weight: 400; }
+  .fold .pill2 { border: 1px solid var(--zinc-700); border-radius: 3px; padding: 0 4px; font-size: 9.5px; color: var(--zinc-400); }
+  .fold .help { color: var(--zinc-500); }
+
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-pattern" viewBox="0 0 24 24"><path d="M4 12.15V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-3.35"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="m5 16-3 3 3 3"/><path d="m9 22 3-3-3-3"/></symbol>
+    <symbol id="i-show" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol>
+    <symbol id="i-cpu" viewBox="0 0 24 24"><path d="M12 20v2"/><path d="M12 2v2"/><path d="M17 20v2"/><path d="M17 2v2"/><path d="M2 12h2"/><path d="M2 17h2"/><path d="M2 7h2"/><path d="M20 12h2"/><path d="M20 17h2"/><path d="M20 7h2"/><path d="M7 20v2"/><path d="M7 2v2"/><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-disconnect" viewBox="0 0 16 16"><path d="M6.25 0.9v3.4M9.75 0.9v3.4"/><path d="M4 4.3h8v0.5a4 4 0 0 1-8 0z"/><path d="M3 12.6h10"/></symbol>
+  </defs>
+</svg>
+
+<main>
+  <div class="stage">
+    <section class="state" data-subject="pattern">
+      <h2>Pattern open</h2>
+    </section>
+    <section class="state" data-subject="show">
+      <h2>Show open</h2>
+    </section>
+    <section class="state" data-subject="none" data-open>
+      <h2>Any other route</h2>
+    </section>
+    <section class="state" data-subject="none" data-open data-others="closed" data-running="sound - spectrum analyser 1D/2D">
+      <h2>Other Patterns folded</h2>
+    </section>
+  </div>
+</main>
+
+<template id="panel">
+  <div class="panel">
+    <div class="head">
+      <button class="title" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="name">WavyBands</span><span class="dims">1, 2D</span><svg class="chev" width="14" height="14" stroke-width="2.25"><use href="#i-chevron-down"/></svg></button>
+      <div class="menu">
+        <div class="bar"><input type="search" placeholder="Filter saved Patterns…" aria-label="Filter saved Patterns"></div>
+        <ul role="listbox" aria-label="Saved Patterns"></ul>
+      </div>
+      <span class="bright">
+        <svg width="15" height="15" stroke-width="2.25"><use href="#i-sun"/></svg>
+        <span class="track"></span><span class="pct">4%</span>
+      </span>
+      <span class="tools">
+        <span class="tool"><svg width="15" height="15" stroke-width="1.5"><use href="#i-disconnect"/></svg></span>
+        <span class="tool"><svg width="15" height="15" stroke-width="2.25"><use href="#i-cpu"/></svg></span>
+        <span class="tool" style="color:var(--zinc-300)"><svg width="15" height="15" stroke-width="2.5"><use href="#i-pause"/></svg></span>
+      </span>
+    </div>
+    <div class="row"></div>
+    <div class="deck">
+      <div class="fold">
+        <svg width="13" height="13" stroke-width="2.25" style="color:var(--zinc-500)"><use href="#i-chevron-right"/></svg>
+        <span class="label">Pixelblaze</span>
+        <span class="sum">2D panel winding <span class="pill2">2D</span> · <b>104.3</b> fps · IP 192.168.8.249</span>
+        <svg class="help" width="15" height="15" stroke-width="2.25"><use href="#i-help"/></svg>
+      </div>
+      <div class="fold">
+        <svg width="13" height="13" stroke-width="2.25" style="color:var(--zinc-500)"><use href="#i-chevron-right"/></svg>
+        <span class="label">Variables</span>
+        <span class="sum">1 · nColumns <b>4</b></span>
+        <svg class="help" width="15" height="15" stroke-width="2.25"><use href="#i-help"/></svg>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="capsule">
+  <div class="capsule">
+    <span class="subject"><svg width="14" height="14" stroke-width="2.25"><use/></svg><span></span></span>
+    <button class="seg run" type="button"><svg width="15" height="15" stroke-width="2.5"><use href="#i-play"/></svg>Run</button>
+    <button class="seg save" type="button"><svg width="15" height="15" stroke-width="2.25"><use href="#i-save"/></svg>Save</button>
+  </div>
+</template>
+
+<script>
+  const byName = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })
+  const ours = ['WavyBands', 'LineDancer2D', 'Quadrille'].sort(byName)
+  const others = ['cube fire 3D', 'fireflies', 'honeycomb 2D/3D',
+    'pulse 2D', 'rainbow melt', 'slow color shift', 'sound - spectrum analyser 1D/2D',
+    'sparkfire', 'sparks', 'sparks center', 'spiral twirls 2D', 'spin cycle', 'xorcery 2D/3D',
+  ].sort(byName)
+  const subjects = {
+    pattern: { glyph: '#i-pattern', name: 'MyPattern' },
+    show: { glyph: '#i-show', name: 'Coronal Mass Ejection Remix' },
+  }
+  const dimsOf = (name) => ours.includes(name) ? (name === 'WavyBands' ? '1, 2D' : '2D') : ''
+
+  for (const state of document.querySelectorAll('.state[data-subject]')) {
+    const panel = document.getElementById('panel').content.firstElementChild.cloneNode(true)
+    state.append(panel)
+    const subject = subjects[state.dataset.subject]
+    if (subject) {
+      const capsule = document.getElementById('capsule').content.firstElementChild.cloneNode(true)
+      capsule.querySelector('use').setAttribute('href', subject.glyph)
+      capsule.querySelector('.subject span').textContent = subject.name
+      capsule.querySelector('.subject').title = subject.name
+      panel.querySelector('.row').append(capsule)
+    } else {
+      panel.querySelector('.row').remove()
+    }
+
+    let running = state.dataset.running ?? 'WavyBands'
+    let othersOpen = state.dataset.others !== 'closed'
+    const trigger = panel.querySelector('.title')
+    const menu = panel.querySelector('.menu')
+    const filter = menu.querySelector('input')
+    const list = menu.querySelector('ul')
+    const title = panel.querySelector('.title .name')
+    const dims = panel.querySelector('.title .dims')
+    const showRunning = () => {
+      title.textContent = running
+      trigger.title = running
+      dims.textContent = dimsOf(running)
+    }
+
+    const row = (name) => {
+      const li = document.createElement('li')
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.setAttribute('role', 'option')
+      button.setAttribute('aria-selected', String(name === running))
+      button.className = name === running ? 'running' : ''
+      button.innerHTML = '<span class="dot"></span><span></span>'
+      button.lastChild.textContent = name
+      button.onclick = () => { running = name; showRunning(); setOpen(false) }
+      li.append(button)
+      return li
+    }
+    const header = (label, count, fold) => {
+      const li = document.createElement('li')
+      const el = document.createElement(fold ? 'button' : 'div')
+      el.className = 'group'
+      if (fold) {
+        el.type = 'button'
+        el.setAttribute('aria-expanded', String(othersOpen))
+        el.innerHTML = '<svg width="12" height="12" stroke-width="2.25"><use href="#i-chevron-right"/></svg>'
+        el.onclick = () => { othersOpen = !othersOpen; render() }
+      }
+      el.append(label + ' ')
+      const n = document.createElement('span')
+      n.className = 'n'
+      n.textContent = count
+      el.append(n)
+      li.append(el)
+      return li
+    }
+    const render = () => {
+      const query = filter.value.trim().toLowerCase()
+      const match = (name) => !query || name.toLowerCase().includes(query)
+      const shownOthers = others.filter(match).filter((name) => othersOpen || name === running)
+      list.replaceChildren(
+        header('Saved PXLBLZ Patterns', ours.length, false),
+        ...ours.filter(match).map(row),
+        header('Other Patterns', others.length, true),
+        ...shownOthers.map(row),
+      )
+    }
+    const setOpen = (open) => {
+      menu.classList.toggle('open', open)
+      trigger.setAttribute('aria-expanded', String(open))
+      if (open) { filter.value = ''; render() }
+    }
+    trigger.onclick = () => setOpen(!menu.classList.contains('open'))
+    filter.oninput = render
+    document.addEventListener('mousedown', (event) => {
+      if (!menu.contains(event.target) && !trigger.contains(event.target)) setOpen(false)
+    })
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setOpen(false) })
+    showRunning()
+    if (state.hasAttribute('data-open')) {
+      setOpen(true)
+      // Reserve room so a menu shown open on load doesn't cover the next row.
+      const reserve = () => {
+        const top = state.getBoundingClientRect().top
+        state.style.minHeight = `${Math.ceil(menu.getBoundingClientRect().bottom - top + 8)}px`
+      }
+      reserve()
+      document.fonts.ready.then(reserve)
+    }
+  }
+
+</script>
+</body>
+</html>

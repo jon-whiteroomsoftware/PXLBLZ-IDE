@@ -267,7 +267,7 @@ at its next interval.
 The **Switch** menu changes only what the Controller runs. It lists saved
 Patterns alphabetically, marks the running one, and pins a run-only Pattern
 as **unsaved · running** when it is not in the saved inventory. A successful
-switch also becomes the Controller's boot Pattern. If the device cannot
+switch runs now without changing the startup Pattern. If the device cannot
 confirm the change, the menu stays open with its reason.
 
 One flag worth knowing: firmware silently drops a map whose pixel count
@@ -295,7 +295,8 @@ hardware knowledge lives:
   from everything else on the device. The running row has a green marker, and
   managed rows show which profile features were baked in and whether the
   copy on the device is current, stale, syncing, queued, or failed. **Run**
-  switches the Controller without opening anything in Studio. **Delete**
+  runs the saved Pattern now without changing the startup Pattern or opening
+  anything in Studio. **Delete**
   removes a saved Pattern that is not running, after a confirmation; deleting
   one PXLBLZ did not create warns that there is no recovery copy unless you
   import it first. **Keep Patterns up to date** rewrites managed Patterns and
@@ -336,7 +337,8 @@ so, and canceling sends nothing.
 bytecode; **Save** writes a durable Pattern and activates it. The two track
 changes separately, so a clean Run does not pretend you saved, and failures
 appear as visible alerts with a reason. **Switch**, beside them, acts on the
-Controller's saved inventory instead and leaves both alone.
+Controller's saved inventory instead, runs the pick without changing the startup
+Pattern, and leaves the open Studio subject and its Run/Save records alone.
 
 A Controller has one shared map slot, so **Send map to Controller** is its
 own confirm-first action, re-baked for the device's pixel count, never a
