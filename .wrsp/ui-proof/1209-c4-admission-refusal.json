@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1209",
+  "route": "/PXLBLZ-IDE/studio/shows/f4b505ee-fc3b-4d9b-b6a4-4a8a42d1d120",
+  "operation": "Created a native Installation Show through the actual wizard and saved a two-key Brightness track at 20%. Entering endpoint time 0 through the real animation TimeField duplicated the first key and produced the genuine structured admission refusal, This edit isn't possible here. The field restored 30 seconds, the popover remained open, no PUT was sent and the complete stored record stayed unchanged. A valid 29-second retry saved; Undo restored the exact original track and a second Undo removed it, proving the refusal added no history entry. No API interception, injected store or fake error was used; pageerror remained empty.",
+  "captures": [".wrsp/ui-proof/1209-c4-admission-refusal.png"],
+  "capturedAtCommit": "4e013611bc9ca5baad20b44722e63a7b08ac20ab"
+}
