@@ -187,11 +187,12 @@ test('single-slot cross-account import preserves wrapped behavior, recovers cano
     await b.reload()
     await connect(b)
     await expect(b.getByText(notice, { exact: true })).toBeVisible()
+    const editor = b.locator('.monaco-editor').first().getByRole('textbox', { name: MONACO_TEXTBOX_NAME })
+    await expect(editor).toBeVisible()
     await capture(b, 'wrapped-notice')
     const saved = b.waitForResponse((response) => response.request().method() === 'PATCH'
       && new URL(response.url()).pathname.endsWith(`/api/patterns/${importedId}`)
       && response.ok() && String(response.request().postDataJSON().src ?? '').includes('Account B edit'))
-    const editor = b.locator('.monaco-editor').first().getByRole('textbox', { name: MONACO_TEXTBOX_NAME })
     await editor.focus()
     await editor.press('Control+End')
     await editor.press('End')
