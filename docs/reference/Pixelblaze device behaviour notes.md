@@ -155,6 +155,11 @@ The saved-Pattern protocol uses two fire-and-forget JSON commands:
   acknowledgement, so PXLBLZ re-lists the complete inventory before treating a
   deletion as confirmed.
 
+[ElectroMage's WebSockets API documentation](https://electromage.com/docs/websockets-api)
+describes active-Pattern changes as persisted across a restart, without documenting
+the activation `save` flag. The explicit `save: false` exception is supported by
+the bounded pb32/3.70 observation below.
+
 The sequencer packet that carries `activeProgram` can also carry top-level
 `sequencerMode` (`0` off, `1` shuffle, `2` playlist) and `runSequencer`. These
 fields are passive device state; a packet that omits them does not prove the

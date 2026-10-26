@@ -144,3 +144,25 @@ test('Other inventory actions fit at 768px through selection and at desktop (#12
   await page.setViewportSize({ width: 1440, height: 1000 })
   await test.step('Desktop normal preservation', () => assertFits('1440 normal'))
 })
+
+test('profile Run activates transiently through the production transport', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1000 })
+  await seedBulkSelectFixture(page)
+  const before = await fakeControllerMutations(page)
+  expect(before).toEqual([])
+  const run = page.getByRole('button', { name: 'Run Alpha on the Controller', exact: true })
+
+  await run.click()
+
+  await expect.poll(() => fakeControllerMutations(page)).toEqual([
+    ...before,
+    { activeProgramId: 'BULKFOREIGN000001', save: false },
+  ])
+  await expect(run).toBeDisabled()
+  await expect(run).toHaveAttribute('title', 'Running now')
+  await expect(page).toHaveURL(/\/studio\/controllers\/bulk-select-1218$/)
+  expect(await fakeControllerMutations(page)).toEqual([
+    ...before,
+    { activeProgramId: 'BULKFOREIGN000001', save: false },
+  ])
+})
