@@ -34,6 +34,7 @@ describe('recoverSavedProgram', () => {
           name: 'Aurora Drift',
           transforms: ['power-cap'],
         }),
+        storedArtifact: { sourceCode: stamped, pbp: programBlob('Aurora Drift', stamped) },
       },
     })
   })
@@ -48,6 +49,7 @@ describe('recoverSavedProgram', () => {
         deviceName: 'Foreign lights',
         sourceCode: source,
         stamp: null,
+        storedArtifact: { sourceCode: source, pbp: programBlob('Foreign lights', source) },
       },
     })
   })
@@ -97,6 +99,7 @@ describe('recoverSavedProgram', () => {
         deviceName: 'Compiled only',
         sourceCode: null,
         stamp: null,
+        storedArtifact: { sourceCode: '', pbp: programBlob('Compiled only', '') },
       },
     })
   })
@@ -109,5 +112,17 @@ describe('recoverSavedProgram', () => {
         message: 'Saved program BROKEN is not a readable PBP blob.',
       },
     })
+  })
+
+  it('retains the exact source and defensive PBP copy including JPEG and bytecode', () => {
+    const sourceCode = stampArtifact('// old comment\nexport function render(i) { rgb(i,0,0) }', {
+      kind: 'pattern', id: 'old', stampedAt: '2026-01-01',
+    })
+    const bytes = encodePbp({ id: 'old', name: 'Old', sourceCode,
+      byteCode: Uint8Array.of(1, 2, 3), previewImage: Uint8Array.of(255, 216, 255, 217) })
+    const original = bytes.slice()
+    const result = recoverSavedProgram('old', bytes)
+    bytes.fill(0)
+    expect(result).toMatchObject({ ok: true, value: { storedArtifact: { pbp: original, sourceCode } } })
   })
 })

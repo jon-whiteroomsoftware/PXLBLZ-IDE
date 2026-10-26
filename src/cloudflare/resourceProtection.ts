@@ -90,6 +90,7 @@ const allowedControllerMetadataKeys = new Set([
   'controller-bindings',
   'controller-program-labels',
   'controller-push-records',
+  'controller-pattern-imports',
 ])
 
 export class PersonalStorageGuardError extends Error {

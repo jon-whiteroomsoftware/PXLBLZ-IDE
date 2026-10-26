@@ -10,6 +10,7 @@ export interface RecoveredSavedProgram {
   deviceName: string
   sourceCode: string | null
   stamp: ParsedPxlblzBanner | null
+  storedArtifact?: { pbp: Uint8Array; sourceCode: string }
 }
 
 export type SavedProgramRecoveryResult =
@@ -48,6 +49,7 @@ export function recoverSavedProgram(
       deviceName: decoded.name,
       sourceCode: storedSource ? stripPxlblzBanner(storedSource) : null,
       stamp,
+      storedArtifact: { pbp: bytes.slice(), sourceCode: decoded.sourceCode },
     },
   }
 }

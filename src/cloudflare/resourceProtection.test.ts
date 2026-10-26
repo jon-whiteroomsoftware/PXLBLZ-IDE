@@ -152,6 +152,7 @@ describe('personal-storage resource protection (#407)', () => {
     expect(() => assertAllowedPersonalStorageKey('controller-metadata', 'controller-bindings')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('controller-metadata', 'controller-program-labels')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('controller-metadata', 'controller-push-records')).not.toThrow()
+    expect(() => assertAllowedPersonalStorageKey('controller-metadata', 'controller-pattern-imports')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('controller-metadata', 'attacker-row')).toThrowError(
       expect.objectContaining({ code: 'unknown_storage_key', status: 404 }),
     )
