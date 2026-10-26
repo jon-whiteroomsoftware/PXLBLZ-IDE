@@ -779,15 +779,18 @@ successful saved-delivery bookkeeping or claim a physical rollback.
 
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
-catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
-unbound entries are Other Patterns and are never reconciled. The running id is
-marked in either table. Row actions stay visually hidden until hover or keyboard
+catalogs. Bindings take precedence over program-ID prefixes: bound entries appear
+under Saved PXLBLZ Patterns and link to Studio. Unbound `pxb` IDs appear under
+Unimported PXLBLZ Patterns with their raw device names; other unbound IDs appear
+under Other Patterns. Neither unbound group is reconciled, and listing reads no
+saved source. The running id is marked in all three tables. Row actions stay visually hidden until hover or keyboard
 focus; Run delegates to the panel store's transient activation path and never
 navigates Studio or changes the open subject or its Run/Save records. Program
-ids move from a column into the name tooltip, and Other Patterns have no
+ids move from a column into the name tooltip, and unbound groups have no
 freshness column.
 
-Both sections share one selection owner. `controllerPatternBatch.ts` provides
+Saved and Other sections share one selection owner; bulk actions for Unimported
+PXLBLZ Patterns remain pending slice D. `controllerPatternBatch.ts` provides
 immutable ID selection, eligibility reconciliation, and an ordered sequential
 runner that collects per-Pattern failures. Selecting a section clears the other;
 running and pending-running IDs are excluded before the confirmation snapshot.
@@ -800,7 +803,7 @@ page-header Refresh requests one inventory-refresh generation alongside the
 existing metadata/installed-map refresh; the inventory owner performs the full
 list read through the existing live-store pipeline.
 
-Delete is available for managed and Other rows only after Controller-scoped
+Delete is available in all three groups only after Controller-scoped
 active-program evidence arrives, and remains disabled for the live running id,
 including when that id changes after the confirmation dialog opens. A fresh
 config read revalidates the active id immediately before the device command;
@@ -857,10 +860,21 @@ connection refresh may retain the rows so QUEUED/SYNCING/FAILED work remains
 visible, but steady freshness becomes UNKNOWN until the new read completes.
 Offline, failed, and new-connection reads make no freshness claim.
 
-`readSavedProgram` decodes a PBP and separates PXLBLZ provenance from source;
-Import opens the existing Studio Pattern, restores a deleted one, creates a
-personal Pattern from foreign source, or explains that recovery is impossible.
-Import never mutates the Controller.
+`readSavedProgram` decodes a PBP and separates PXLBLZ provenance from source.
+Other and owned source recovery opens the existing Studio Pattern, restores a
+deleted one, creates a personal Pattern from foreign source, or explains that
+recovery is impossible; this recovery does not mutate the Controller.
+
+Single-item Import in Unimported PXLBLZ Patterns confirms before downloading,
+creates a fresh personal Pattern, and writes only the selected Controller slot.
+Exact canonical source receives the current profile; wrapped source preserves
+its exact PBP and old behavior. The durable account ledger governs that policy
+and the editor's persistent amber notice. An incomplete bound receipt offers
+Resume import after reload; retries retain the same Pattern and slot identities
+and report prior durable write progress truthfully. Unreadable import metadata
+disables Import and Resume without disabling ordinary inventory or Run. See
+[Controller Pattern import](contracts/controller-pattern-import.md) for fidelity,
+session guards, and evidence limits.
 
 **Managed-artifact reconciliation.** Opt-in per profile. A program is eligible
 only with both an overwrite binding and a successful push record plus

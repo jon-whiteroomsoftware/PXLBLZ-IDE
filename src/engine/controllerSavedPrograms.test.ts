@@ -8,8 +8,27 @@ import {
 } from './controllerSavedPrograms'
 import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
+import { makeProgramId } from './bytecodePush'
 
 const profile = defaultControllerProfile({ id: 'ctrl-profile', now: 1 })
+
+it('classifies by binding before prefix and keeps unimported names and metadata untouched', () => {
+  const prefix = makeProgramId(() => 0)
+  const bound = makeProgramId(() => 0.5)
+  const view = describeControllerSavedPrograms({
+    controllerId: 'c', profile, mapDim: 1,
+    programs: [{ id: prefix, name: ' Raw device name ' }, { id: bound, name: 'Bound' },
+      { id: 'foreign', name: 'Other' }, { id: 'bound-foreign', name: 'Also bound' }],
+    bindings: { c: { first: bound, second: 'bound-foreign' } }, studioPatterns: [], pushRecords: {},
+  })
+  expect(view.owned.map((row) => row.programId)).toEqual([bound, 'bound-foreign'])
+  expect(view.foreign.map((row) => row.programId)).toEqual(['foreign'])
+  expect(view).toHaveProperty('unimported', [expect.objectContaining({
+    kind: 'unimported', programId: prefix, name: ' Raw device name ', bindingKey: null,
+    routeId: null, freshness: 'unmanaged', sourceKind: 'pattern',
+  })])
+  expect((view as unknown as { unimported: object[] }).unimported[0]).not.toHaveProperty('profileFeatures')
+})
 
 function signature(bindingKey: string, mapDim: 1 | 2 | 3 | null = 2) {
   return controllerProfileArtifactSignature(profile, bindingKey, { mapDim })
@@ -327,6 +346,10 @@ describe('describeControllerSavedPrograms', () => {
 
   it('sorts each inventory by Pattern in both directions without mutating source order', () => {
     const view = {
+      unimported: [
+        { ...savedProgramRow('U2', 'zebra', 'foreign'), kind: 'unimported' as const },
+        { ...savedProgramRow('U1', 'Apple', 'foreign'), kind: 'unimported' as const },
+      ],
       owned: [
         savedProgramRow('B2', 'Beta'),
         savedProgramRow('B1', 'alpha'),
@@ -350,12 +373,16 @@ describe('describeControllerSavedPrograms', () => {
     expect(ascending.foreign.map((row) => row.programId)).toEqual(['F1', 'F2'])
     expect(descending.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
     expect(descending.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
+    expect(ascending.unimported.map((row) => row.programId)).toEqual(['U1', 'U2'])
+    expect(descending.unimported.map((row) => row.programId)).toEqual(['U2', 'U1'])
+    expect(view.unimported.map((row) => row.programId)).toEqual(['U2', 'U1'])
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
     expect(view.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
   })
 
   it('sorts by effective Status in both directions', () => {
     const view = {
+      unimported: [],
       owned: [
         { ...savedProgramRow('B2', 'Mike'), freshness: 'unmanaged' as const },
         { ...savedProgramRow('C3', 'Alpha'), freshness: 'stale' as const },

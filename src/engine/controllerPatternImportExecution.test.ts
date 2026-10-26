@@ -61,7 +61,7 @@ function makeDeps() {
       const stage = entries[entries.length - 1].stage
       fail(`ledger-${stage}-before`); ledger = structuredClone(next); fail(`ledger-${stage}-after`)
     },
-    getControllerBindings: async () => structuredClone(bindings),
+    getControllerBindings: async () => { fail('binding-get'); return structuredClone(bindings) },
     setControllerBindings: async (next) => { fail('binding-before'); bindings = structuredClone(next); fail('binding-after') },
     getPushRecords: async () => structuredClone(records),
     setPushRecords: async (next) => { fail('record-before'); records = structuredClone(next); fail('record-after') },
@@ -117,6 +117,56 @@ function authoredFixture() {
 }
 
 describe('selected-slot Controller Pattern import execution', () => {
+  it.each((['write-pending', 'saved-verified', 'activated', 'metadata-pending'] as const)
+    .flatMap((stage) => ['list', 'binding-get', 'read', 'profile-wait', 'profile-load', 'changed-compile']
+      .map((fault) => ({ stage, fault }))))('reports durable $stage for retry $fault failure', async ({ stage, fault }) => {
+    const f = authoredFixture()
+    f.faults.add(`ledger-${stage}-after`)
+    await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe(stage)
+    const beforeAccounts = structuredClone([...f.accounts])
+    const beforePrograms = structuredClone([...f.programs])
+    if (fault === 'profile-wait') f.deps.waitForProfileWrites.mockRejectedValueOnce(new Error('profile-wait'))
+    else if (fault === 'profile-load') f.deps.loadProfile.mockRejectedValueOnce(new Error('profile-load'))
+    else if (fault === 'changed-compile') {
+      f.deps.loadProfile.mockResolvedValue({ profile: hardwareBrightnessProfile(34), signature: 'profile-2' })
+      f.faults.add('compile')
+    } else f.faults.add(fault)
+    await expect(importControllerPattern(input, { ...f.deps, metadataStorage: f.storage() })).rejects.toMatchObject({
+      stage, patternId: 'personal-1', programId: slot,
+      message: expect.stringContaining(stage === 'write-pending' ? 'a prior Controller write may have completed' : 'Controller copy verified'),
+    })
+    expect([...f.accounts]).toEqual(beforeAccounts)
+    expect([...f.programs]).toEqual(beforePrograms)
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe(stage)
+    await expect(importControllerPattern(input, { ...f.deps, metadataStorage: f.storage() })).resolves.toEqual({
+      patternId: 'personal-1', programId: slot, complete: true,
+    })
+  })
+  it.each(['write-pending', 'saved-verified', 'activated', 'metadata-pending'] as const)(
+    'retains durable %s progress when retry account reads fail', async (durableStage) => {
+      const f = makeDeps()
+      f.faults.add(`ledger-${durableStage}-after`)
+      await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+      expect(f.ledger().byPatternId['personal-1'].stage).toBe(durableStage)
+      const account = structuredClone([...f.accounts])
+      const pbp = f.programs.get(slot)!.slice()
+      f.faults.add('list')
+      try {
+        await importControllerPattern(input, { ...f.deps, metadataStorage: f.storage() })
+        throw new Error('Expected retry failure')
+      } catch (error) {
+        expect(error).toBeInstanceOf(ControllerPatternImportExecutionError)
+        expect(error).toMatchObject({ stage: durableStage, patternId: 'personal-1', programId: slot })
+        expect((error as Error).message).not.toContain('Nothing was sent')
+        expect((error as Error).message).toContain(durableStage === 'write-pending'
+          ? 'a prior Controller write may have completed' : 'Controller copy verified')
+      }
+      expect([...f.accounts]).toEqual(account)
+      expect(f.programs.get(slot)).toEqual(pbp)
+      await expect(importControllerPattern(input, { ...f.deps, metadataStorage: f.storage() }))
+        .resolves.toEqual({ patternId: 'personal-1', programId: slot, complete: true })
+    })
   it('copies wrapped bytes exactly, reopens policy, preserves siblings and completes each slot once', async () => {
     const f = makeDeps()
     const origin = f.programs.get(slot)!.slice()

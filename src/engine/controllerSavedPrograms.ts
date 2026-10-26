@@ -1,4 +1,5 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
+import { isPxlblzProgramId } from './bytecodePush'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecord, ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactShowOutputContract } from './artifactStamp'
@@ -100,7 +101,7 @@ export interface StudioPatternIdentity {
 }
 
 export interface ControllerSavedProgramRow {
-  kind: 'owned' | 'foreign'
+  kind: 'owned' | 'foreign' | 'unimported'
   programId: string
   /** Exact Studio entity identity for managed metadata cleanup. */
   bindingKey: string | null
@@ -108,7 +109,7 @@ export interface ControllerSavedProgramRow {
   deviceName: string
   routeId: string | null
   studioPatternMissing: boolean
-  /** Which Studio entity produced this program; foreign rows default to pattern. */
+  /** Which Studio entity produced this program; unbound rows default to pattern. */
   sourceKind: 'pattern' | 'show'
   freshness: ControllerSavedPatternFreshness
   /** Profile features baked into the durable Controller artifact. */
@@ -118,6 +119,7 @@ export interface ControllerSavedProgramRow {
 
 export interface ControllerSavedProgramsView {
   owned: ControllerSavedProgramRow[]
+  unimported: ControllerSavedProgramRow[]
   foreign: ControllerSavedProgramRow[]
 }
 
@@ -214,6 +216,7 @@ export function sortControllerSavedPrograms(
   }
   return {
     owned: [...view.owned].sort(compare),
+    unimported: [...view.unimported].sort(compare),
     foreign: [...view.foreign].sort(compare),
   }
 }
@@ -252,18 +255,21 @@ export function describeControllerSavedPrograms(input: {
     input.studioPatterns.map((pattern) => [pattern.bindingKey, pattern]),
   )
   const owned: ControllerSavedProgramRow[] = []
+  const unimported: ControllerSavedProgramRow[] = []
   const foreign: ControllerSavedProgramRow[] = []
 
   for (const program of input.programs) {
     const deviceName = program.name.trim() || 'Unnamed program'
     const bindingKey = bindingByProgramId.get(program.id)
     if (!bindingKey) {
-      foreign.push({
-        kind: 'foreign',
+      const unmanagedKind = isPxlblzProgramId(program.id) ? 'unimported' : 'foreign'
+      const group = unmanagedKind === 'unimported' ? unimported : foreign
+      group.push({
+        kind: unmanagedKind,
         programId: program.id,
         bindingKey: null,
-        name: deviceName,
-        deviceName,
+        name: unmanagedKind === 'unimported' ? program.name : deviceName,
+        deviceName: unmanagedKind === 'unimported' ? program.name : deviceName,
         routeId: null,
         studioPatternMissing: false,
         sourceKind: 'pattern',
@@ -297,6 +303,7 @@ export function describeControllerSavedPrograms(input: {
 
   return {
     owned,
+    unimported,
     foreign,
   }
 }

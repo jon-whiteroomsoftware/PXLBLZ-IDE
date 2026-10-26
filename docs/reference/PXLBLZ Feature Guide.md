@@ -305,8 +305,9 @@ hardware knowledge lives:
   watts). Every Pattern or Show sent through the profile respects the cap.
   PXLBLZ does not pretend to be an ammeter; plan the physical power system
   for real.
-- **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
-  from everything else on the device. The running row has a green marker, and
+- **Saved Patterns.** The profile's inventory has Saved PXLBLZ Patterns,
+  Unimported PXLBLZ Patterns, and Other Patterns. Bindings determine ownership;
+  an unbound PXLBLZ slot appears in Unimported, with its device name. The running row has a green marker, and
   managed rows show which profile features were baked in and whether the
   copy on the device is current, stale, syncing, queued, or failed. **Run**
   runs the saved Pattern now without changing the startup Pattern or opening
@@ -318,7 +319,16 @@ hardware knowledge lives:
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 
-  Each inventory section has **Select**. Check individual Patterns or use the
+  **Import** on one Unimported PXLBLZ Pattern asks before reading its source,
+  creates a fresh editable personal Pattern, and saves it back to that same
+  Controller slot. Recoverable authored source uses this profile. Wrapped source
+  keeps its old profile behavior and shows a permanent amber notice above the
+  editor, including after edits and reload. A partial import keeps its destination;
+  **Retry** resumes it, and a bound incomplete row offers **Resume import** after
+  reload. Metadata failures disable importing until Refresh succeeds.
+
+  Saved and Other sections have **Select**; bulk actions for Unimported remain
+  pending slice D. Check individual Patterns or use the
   header checkbox to select all eligible rows; running and pending-running
   Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
   offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
@@ -327,7 +337,7 @@ hardware knowledge lives:
   sequentially, continue after individual failures, name failed Patterns, and
   leave selection mode when finished. Import preserves Studio identity and
   recovered source without switching the Studio view or changing the Controller.
-  The page-header **Refresh** rereads settings, the installed map, and both
+  The page-header **Refresh** rereads settings, the installed map, and all three
   Pattern inventories.
 
 A profile's name is the device's name. While the Controller is live, rename it

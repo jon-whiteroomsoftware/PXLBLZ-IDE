@@ -89,8 +89,21 @@ export async function importControllerPattern(
   let receipt: ControllerPatternImportReceipt | null = null
   let signature: string | undefined
   let failureMessage = messages.unreadable
-  const error = (message: string, cause?: unknown) => new ControllerPatternImportExecutionError(
-    message, stage, receipt?.patternId ?? null, input.programId, cause)
+  const error = (message: string, cause?: unknown) => {
+    const durableStage = receipt?.stage
+    const hasWriteIntent = durableStage !== undefined && stages.indexOf(durableStage) >= stages.indexOf('write-pending')
+    const earlyFailure = hasWriteIntent && (stage === 'preparation' || stage === 'planned'
+      || message === messages.create || message === messages.compile || message === messages.unreadable)
+    const reportedStage = hasWriteIntent ? durableStage : stage
+    const reportedMessage = earlyFailure
+      ? durableStage === 'write-pending'
+        ? 'Account copy saved; a prior Controller write may have completed. Retry checks the same slot.'
+        : durableStage === 'saved-verified' ? messages.activate
+          : 'Controller copy verified; account binding or import bookkeeping is incomplete. Retry finishes this import.'
+      : message
+    return new ControllerPatternImportExecutionError(reportedMessage, reportedStage,
+      receipt?.patternId ?? null, input.programId, cause)
+  }
   const guard = () => {
     try {
       deps.assertCurrent()

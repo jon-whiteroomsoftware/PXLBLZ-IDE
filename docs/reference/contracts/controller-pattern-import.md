@@ -4,8 +4,10 @@ The [#1221 I3 contract](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issu
 defines selected-slot import into a fresh personal Pattern. Dispatch A implements
 lossless reading, pure assessment/planning/retry decisions and durable ledger
 ownership. Dispatch B adds the injected selected-slot command and permanent
-source-policy consumers. The UI and bulk action remain pending C/D; the
-as-built guides still describe the current Import UI. A/B do not complete #1221.
+source-policy consumers. Slice C exposes confirmed single-item Import, durable
+Resume import and the editor policy notice through a captured host adapter.
+Slice D's bulk import and final native-firmware/browser proof remain pending;
+these slices do not establish completion of #1221.
 
 ## Source fidelity and identity
 
@@ -179,8 +181,16 @@ reconciliation and normal push suites cover exclusion and unchanged activation
 policy. Deferred policy/profile/session checks prove refusal before subsequent
 device mutation.
 
-These checks prove the injected command and consumers against faithful fakes;
-they do not prove native firmware behavior, D1 end-to-end account isolation,
-browser behavior or completion of #1221. C/final integration supplies UI/browser
-and whole-account proof; D supplies bulk behavior. No hardware action or new UI
-control is part of B.
+Host-action tests exercise the real command with captured account/provider stores,
+reopen account records and PBP bytes, verify merge without a second POST, and
+retire deferred work when its session changes. Component tests cover three-group
+inventory, confirmation before source reads, busy/retry controls, durable Resume
+and the wrapped-source notice. Retry tests preserve account/device state while
+account, binding, source and profile preparation fail at each durable write stage.
+
+`e2e/controller-pattern-import.auth.spec.ts` defines the authenticated two-account
+consumer flow through actual UI Save and the real relay/protocol with one shared
+synthetic saved-program map. Its browser execution and committed captures belong
+to the developer's committed-tip proof; adding the test is not evidence it ran.
+Native firmware, final whole-account/browser proof and slice D bulk behavior
+remain outside the focused fake/component evidence.

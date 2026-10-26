@@ -60,6 +60,11 @@ import {
   queueControllerDeviceWrite,
 } from '@/engine/controllerDeviceWriteQueue'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import { makeProgramId } from '@/engine/bytecodePush'
+import { assessControllerPatternImport, createControllerPatternImportPlan, type ControllerPatternImportLedger } from '@/engine/controllerPatternImport'
+import { encodePbp } from '@/engine/pbpEncode'
+import { recoverSavedProgram } from '@/engine/controllerSavedProgramRead'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -155,6 +160,7 @@ class ProgramListProvider extends MapReadbackProvider {
 }
 
 beforeEach(() => {
+  useWorkspaceStore.setState(workspaceInitialState)
   __resetControllerDeviceWriteQueue()
   window.history.replaceState(null, '', '/')
   useControllerProfileStore.setState(controllerProfileInitialState)
@@ -183,6 +189,123 @@ afterEach(() => {
   resetControllerProvider()
   resetControllerMetadataStorage()
   resetPersonalContentProvider()
+  useWorkspaceStore.setState(workspaceInitialState)
+})
+
+describe('single-item PXLBLZ Controller import', () => {
+  it('runs the real command from confirmation, merges once and reopens the new owned row', async () => {
+    const profile = seedProfile()
+    const slot = makeProgramId(() => 0)
+    const bytes = encodePbp({ id: slot, name: 'Wrapped', sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: new Uint8Array(8) })
+    const account = new Map<string, PatternRecord>()
+    const createPattern = vi.fn(async (record: PatternRecord) => { account.set(record.id, structuredClone(record)) })
+    setPersonalContentProvider({ ...demoPersonalContentProvider, id: 'account', createPattern,
+      listPatterns: async () => [...account.values()], listControllerProfiles: async () => [profile] })
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
+    const provider = renderLiveProgramInventory(profile, { storageId: 'account',
+      programs: [{ id: slot, name: 'Wrapped' }], bindings: {}, pushRecords: {},
+      importLedger: { version: 1, byPatternId: {} }, configSourceIp: '192.168.8.224', activeProgramId: 'elsewhere',
+    })
+    const recovered = recoverSavedProgram(slot, bytes)
+    if (!recovered.ok) throw new Error(recovered.error.message)
+    provider.recoveredPrograms.set(slot, recovered.value)
+    const save = vi.spyOn(provider, 'saveProgram').mockImplementation(async (next, target) => {
+      expect(target.id).toBe(slot)
+      expect(next).toEqual(bytes)
+      const value = recoverSavedProgram(slot, next)
+      if (value.ok) provider.recoveredPrograms.set(slot, value.value)
+    })
+    vi.spyOn(provider, 'getActiveProgramBytecodeSize').mockResolvedValue(8)
+    vi.spyOn(provider, 'pushBytecode').mockResolvedValue()
+    const button = await screen.findByRole('button', { name: 'Import Wrapped' })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Import and save' }))
+    await waitFor(() => expect(createPattern).toHaveBeenCalledTimes(1))
+    const record = createPattern.mock.calls[0][0]
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(usePatternStore.getState().userPatterns).toEqual([record])
+    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
+    expect(await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })).toHaveTextContent('Wrapped')
+    expect(screen.queryByRole('button', { name: 'Resume import Wrapped' })).not.toBeInTheDocument()
+  })
+  it('fails closed on optional import metadata without disabling inventory or ordinary Run', async () => {
+    const profile = seedProfile()
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
+    renderLiveProgramInventory(profile, { storageId: 'account',
+      programs: [{ id: makeProgramId(() => 0), name: 'Unimported' }, { id: 'owned', name: 'Owned' }, { id: 'foreign', name: 'Other' }],
+      bindings: { personal: 'owned' }, pushRecords: {}, configSourceIp: '192.168.8.224', activeProgramId: 'elsewhere',
+    })
+    expect(await screen.findByText('Controller import metadata could not be read. Refresh before importing.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Import Unimported' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Run Owned on the Controller' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Run Other on the Controller' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Import Other' })).toBeEnabled()
+  })
+  it('lists a third group without reading source, confirms before reading, and retries the same target', async () => {
+    const profile = seedProfile()
+    const slot = makeProgramId(() => 0)
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
+    setPersonalContentProvider({ ...demoPersonalContentProvider, id: 'account', listControllerProfiles: async () => [profile] })
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'account', programs: [{ id: slot, name: 'Wrapped' }, { id: 'other', name: 'Other' }],
+      bindings: {}, pushRecords: {}, importLedger: { version: 1, byPatternId: {} },
+      configSourceIp: '192.168.8.224', activeProgramId: 'other',
+    })
+    const read = vi.spyOn(provider, 'readSavedProgram')
+    const table = await screen.findByRole('table', { name: 'Unimported PXLBLZ Patterns' })
+    expect(screen.getByRole('table', { name: 'Other Patterns' })).toHaveTextContent('Other')
+    expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(table).queryByText('Source Pattern unavailable')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Select Unimported PXLBLZ Patterns' })).not.toBeInTheDocument()
+    const button = within(table).getByRole('button', { name: 'Import Wrapped' })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByRole('heading')).toHaveTextContent('Import PXLBLZ Pattern?')
+    expect(read).not.toHaveBeenCalled()
+    const held = deferred<RecoveredSavedProgram | null>()
+    read.mockReturnValueOnce(held.promise)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Import and save' }))
+    await waitFor(() => expect(read).toHaveBeenCalledWith(slot))
+    expect(within(dialog).getByRole('button', { name: 'Importing…' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await act(async () => { held.resolve(null) })
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Wrapped: Saved program could not be read. No Pattern was imported.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
+    expect(read.mock.calls.map(([id]) => id)).toEqual([slot, slot])
+    expect(await within(dialog).findByRole('button', { name: 'Retry' })).toBeEnabled()
+  })
+
+  it.each(['metadata-pending', 'complete'] as const)('reopens durable %s receipts with the correct Resume availability', async (stage) => {
+    const profile = seedProfile()
+    const slot = makeProgramId(() => 0)
+    const assessment = await assessControllerPatternImport({ programId: slot,
+      pbp: encodePbp({ id: slot, name: 'Imported', sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: new Uint8Array(8) }) })
+    if (!assessment.ok) throw new Error(assessment.message)
+    const plan = await createControllerPatternImportPlan({ assessment, patternId: 'imported',
+      controllerDeviceId: 'pixelblaze_pb32_000000000abc', programId: slot, now: 1, existingNames: [] })
+    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
+    usePatternStore.setState({ userPatterns: [plan.record] })
+    const fixture = {
+      storageId: 'account', programs: [{ id: slot, name: 'Imported' }], bindings: { imported: slot }, pushRecords: {},
+      importLedger: { version: 1 as const, byPatternId: { imported: { ...plan.receipt, stage, deliveryDigest: plan.receipt.origin.pbpDigest } } },
+    }
+    renderLiveProgramInventory(profile, fixture)
+    await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    cleanup()
+    renderLiveProgramInventory(profile, fixture)
+    await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
+    await act(async () => {})
+    if (stage === 'complete') expect(screen.queryByRole('button', { name: 'Resume import Imported' })).not.toBeInTheDocument()
+    else {
+      const resume = await screen.findByRole('button', { name: 'Resume import Imported' })
+      fireEvent.click(resume)
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Import PXLBLZ Pattern?')
+    }
+  })
 })
 
 
@@ -221,6 +344,7 @@ function renderLiveProgramInventory(
     panelActiveProgramId?: string
     configSourceIp?: string | null
     configPromise?: Promise<ControllerConfig>
+    importLedger?: ControllerPatternImportLedger
   },
 ) {
   const provider = new ProgramListProvider()
@@ -232,6 +356,10 @@ function renderLiveProgramInventory(
   setControllerMetadataStorage({
     ...demoControllerMetadataStorage,
     id: fixture.storageId,
+    ...(fixture.importLedger ? {
+      getPatternImports: async () => structuredClone(fixture.importLedger!),
+      setPatternImports: async (next: ControllerPatternImportLedger) => { fixture.importLedger = structuredClone(next) },
+    } : {}),
     getControllerBindings: async () => provider.bindings,
     setControllerBindings: async (next) => {
       provider.bindingWrites += 1
