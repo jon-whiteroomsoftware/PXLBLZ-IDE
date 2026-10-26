@@ -61,6 +61,15 @@ describe('describeSendToController', () => {
 })
 
 describe('isAlreadyPushed (mode-split dirty gate)', () => {
+  it.each(['run', 'save'] as const)('keeps stored-artifact %s clean across unused profile edits', (mode) => {
+    const args = { mode, source: 'abc', lastRunSource: 'abc', lastSavedSource: 'abc',
+      lastRunProfileSignature: 'stored-artifact', lastSavedProfileSignature: 'stored-artifact',
+      profileSignature: 'changed-map-and-profile', lastRunProgramId: 'same', activeProgramId: 'same' }
+    expect(isAlreadyPushed(args)).toBe(true)
+    expect(isAlreadyPushed({ ...args, source: 'edited' })).toBe(false)
+    expect(isAlreadyPushed({ ...args, source: '' })).toBe(false)
+    expect(isAlreadyPushed({ ...args, activeProgramId: 'other' })).toBe(mode === 'save')
+  })
   it('never matches an empty source', () => {
     expect(isAlreadyPushed({ mode: 'run', source: '', lastRunSource: '' })).toBe(false)
   })

@@ -134,6 +134,11 @@ keys survive; this is client-local coordination, separate from the ledger owner.
 Completion is written last. Binding success survives a later bookkeeping failure;
 Retry finishes the remaining work and retains the durable source policy.
 
+An unavailable or malformed progress ledger leaves the receipt unknown. The
+visible error neutrally asks Retry to check the same saved program again; it
+claims no destination or durable stage and preserves the diagnostic cause
+without appending its text to the message.
+
 ## Later delivery and reconciliation
 
 `complete` is terminal historical completion regardless of later account or PBP
@@ -156,11 +161,21 @@ Successful push-record persistence invalidates Saved Patterns freshness even whe
 program IDs and the list are unchanged; this publication retains the captured
 storage destination.
 
+Successful stored-artifact sends memoize local cleanliness independently of
+unused profile and map settings. Exact source, separate Run/Save records and
+Run active-program identity still gate cleanliness. The local marker is never
+written as durable profile freshness; stored-artifact push metadata omits it.
+
 Reconciliation reads policy with its other planning metadata and fails closed
 on read errors. Bound stored-artifact Patterns are unmanaged with reason
 `stored-artifact`, before push-record or source checks. Each queued Pattern
 overwrite rechecks exclusion and session state, so a later manual Save cannot
 make wrapped source eligible for automatic profile application.
+
+Reconciliation checks the captured session before and after each continuation
+profile read. A stale session or failed continuation read stops with phase
+`pending`, leaving later jobs queued. An unavailable initial profile list reaches
+the existing `idle` branch, with captured adapter checks still enforced.
 
 ## Evidence boundary
 

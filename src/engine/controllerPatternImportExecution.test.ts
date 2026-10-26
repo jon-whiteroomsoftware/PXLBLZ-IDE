@@ -117,6 +117,39 @@ function authoredFixture() {
 }
 
 describe('selected-slot Controller Pattern import execution', () => {
+  it.each(['reject', 'malformed'])('keeps unreadable retry progress neutral (%s)', async (fault) => {
+    const f = makeDeps()
+    f.faults.add('ledger-complete-before')
+    await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('metadata-pending')
+    const snapshot = () => structuredClone({ accounts: [...f.accounts], programs: [...f.programs],
+      ledger: f.ledger(), bindings: f.bindings(), records: f.records(),
+      calls: [f.deps.provider.compile.mock.calls.length, f.deps.provider.saveProgram.mock.calls.length,
+        f.deps.provider.pushBytecode.mock.calls.length, f.deps.allocatePatternId.mock.calls.length,
+        f.deps.personalContent.createPattern.mock.calls.length] })
+    const before = snapshot()
+    const adapter = f.storage()
+    let originalCause: unknown
+    if (fault === 'reject') f.faults.add('ledger-get')
+    else adapter.getPatternImports = async () => ({ version: 99 } as unknown as ControllerPatternImportLedger)
+    const getImports = adapter.getPatternImports!
+    adapter.getPatternImports = async () => {
+      try { return await getImports() } catch (cause) { originalCause = cause; throw cause }
+    }
+    const error = await importControllerPattern(input, { ...f.deps, metadataStorage: adapter }).catch((error: unknown) => error)
+    expect(error).toMatchObject({ stage: 'assessment', patternId: null, programId: slot,
+      message: 'Import progress could not be read. Retry checks this saved program again.', cause: expect.any(Error) })
+    expect((error as Error).message).not.toMatch(/No Pattern was imported|No Pattern was sent|Nothing was sent/)
+    if (fault === 'reject') expect((error as Error).cause).toBe(originalCause)
+    else expect((error as Error).cause).toMatchObject({ message: 'Controller import metadata is unreadable. No Pattern was sent.' })
+    expect(snapshot()).toEqual(before)
+    await expect(importControllerPattern(input, { ...f.deps, metadataStorage: f.storage() })).resolves.toEqual({
+      patternId: 'personal-1', programId: slot, complete: true,
+    })
+    expect(snapshot().calls).toEqual(before.calls)
+    expect([...f.accounts]).toEqual(before.accounts)
+    expect([...f.programs]).toEqual(before.programs)
+  })
   it.each((['write-pending', 'saved-verified', 'activated', 'metadata-pending'] as const)
     .flatMap((stage) => ['list', 'binding-get', 'read', 'profile-wait', 'profile-load', 'changed-compile']
       .map((fault) => ({ stage, fault }))))('reports durable $stage for retry $fault failure', async ({ stage, fault }) => {

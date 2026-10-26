@@ -90,7 +90,7 @@ import {
   artifactTransformIds,
   prepareControllerArtifactDelivery,
 } from '@/engine/controllerArtifactDelivery'
-import type { SendMode } from '@/engine/sendToController'
+import { STORED_ARTIFACT_PROFILE_SIGNATURE, type SendMode } from '@/engine/sendToController'
 import { canonicalControllerDeviceId, sameControllerDeviceId } from '@/engine/controllerIdentity'
 
 async function readImportLedger(storage: ControllerMetadataStorage) {
@@ -1175,7 +1175,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           }
           await waitForControllerProfileWrites()
           assertAdapters()
-          const profiles = await personalContent.listControllerProfiles()
+          const profiles = await personalContent.listControllerProfiles().catch(() => [])
           assertAdapters()
           const profile = profiles.find((candidate) => candidate.id === profileId)
           if (!profile?.keepPatternsUpToDate) {
@@ -1378,19 +1378,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
             jobs: plan.jobs,
             activeProgramId: config?.activeProgramId,
             shouldContinue: async () => {
-              assertSession()
-              const latestProfiles = await personalContent
-                .listControllerProfiles()
-                .catch(() => [])
-              const latest = latestProfiles.find((candidate) => candidate.id === profileId)
-              const latestLive = latest
-                ? controllerForProfile(latest, get().controllers)
-                : null
-              return Boolean(
-                latest?.keepPatternsUpToDate &&
-                latestLive?.phase === 'live' &&
-                controllerProfileReconciliationSignature(latest) === reconciliationSignature,
-              )
+              try {
+                assertSession()
+                const latestProfiles = await personalContent.listControllerProfiles()
+                assertSession()
+                const latest = latestProfiles.find((candidate) => candidate.id === profileId)
+                const latestLive = latest
+                  ? controllerForProfile(latest, get().controllers)
+                  : null
+                return Boolean(
+                  latest?.keepPatternsUpToDate &&
+                  latestLive?.phase === 'live' &&
+                  controllerProfileReconciliationSignature(latest) === reconciliationSignature,
+                )
+              } catch { return false }
             },
             onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
             onJobComplete: (job) => set((state) => {
@@ -1717,7 +1718,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...state[profileRecordKey],
                 [controllerId]: {
                   ...state[profileRecordKey][controllerId],
-                  [artifact.artifactId]: profileSignature,
+                  [artifact.artifactId]: profileSignature ?? STORED_ARTIFACT_PROFILE_SIGNATURE,
                 },
               },
               ...(!artifact.persist
@@ -2182,7 +2183,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...s[profileRecordKey],
                 [controllerId]: {
                   ...s[profileRecordKey][controllerId],
-                  [patternId]: profileSignature,
+                  [patternId]: profileSignature ?? STORED_ARTIFACT_PROFILE_SIGNATURE,
                 },
               },
               ...(!persist

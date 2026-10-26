@@ -55,6 +55,7 @@ const messages = {
   bookkeeping: 'Controller binding saved; import bookkeeping is incomplete. Retry finishes this import.',
   destination: 'The import binding points to another saved program. Refresh before retrying.',
   unreadable: 'Saved program could not be read. No Pattern was imported.',
+  progressRead: 'Import progress could not be read. Retry checks this saved program again.',
   compile: 'Saved Pattern source cannot compile. Nothing was sent.',
 }
 
@@ -62,7 +63,7 @@ export class ControllerPatternImportExecutionError extends Error {
   constructor(message: string, public readonly stage: Stage, public readonly patternId: string | null,
     public readonly programId: string, cause?: unknown) {
     const detail = cause instanceof Error ? cause.message : cause === undefined ? '' : String(cause)
-    super(detail && !message.includes(detail) ? `${message} ${detail}` : message, { cause })
+    super(detail && message !== messages.progressRead && !message.includes(detail) ? `${message} ${detail}` : message, { cause })
     this.name = 'ControllerPatternImportExecutionError'
   }
 }
@@ -88,7 +89,7 @@ export async function importControllerPattern(
   let stage: Stage = 'assessment'
   let receipt: ControllerPatternImportReceipt | null = null
   let signature: string | undefined
-  let failureMessage = messages.unreadable
+  let failureMessage = messages.progressRead
   const error = (message: string, cause?: unknown) => {
     const durableStage = receipt?.stage
     const hasWriteIntent = durableStage !== undefined && stages.indexOf(durableStage) >= stages.indexOf('write-pending')
@@ -161,6 +162,7 @@ export async function importControllerPattern(
     return await (deps.queue ?? queueControllerDeviceWrite)(deps.controllerId, async () => {
       guard()
       receipt = findControllerPatternImport(await ledger(), input.controllerDeviceId, input.programId)
+      failureMessage = messages.unreadable
       if (receipt?.stage === 'complete') return { patternId: receipt.patternId, programId: input.programId, complete: true }
       stage = receipt?.stage ?? 'assessment'
       const observed = await readSlot()

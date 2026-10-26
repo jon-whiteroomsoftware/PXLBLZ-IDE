@@ -6,7 +6,7 @@ import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useControllerPanelStore, controllerPanelInitialState } from '@/store/controllerPanelStore'
-import { useControllerProfileStore, controllerProfileInitialState } from '@/store/controllerProfileStore'
+import { useControllerProfileStore, controllerProfileInitialState, defaultControllerProfile } from '@/store/controllerProfileStore'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
 
@@ -25,6 +25,28 @@ beforeEach(() => {
   useControllerStore.setState({ activeIp: '10.0.0.9', controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 1 } } })
 })
 afterEach(() => { cleanup(); resetControllerProvider(); vi.useRealTimers() })
+
+it('keeps successful stored-artifact Run and Save clean across unused profile and map edits', () => {
+  const source = useEditorStore.getState().previewSource
+  const memo = { '10.0.0.9': { p1: source } }
+  const signatures = { '10.0.0.9': { p1: 'stored-artifact' } }
+  useControllerStore.setState({ lastPushedSource: memo, lastSavedSource: memo,
+    lastPushedProfileSignature: signatures, lastSavedProfileSignature: signatures })
+  render(<ControllerActionRow />)
+  const assertDisabled = (disabled: boolean) => {
+    for (const name of ['Run', 'Save']) {
+      if (disabled) expect(screen.getByRole('button', { name })).toHaveAttribute('aria-disabled', 'true')
+      else expect(screen.getByRole('button', { name })).not.toHaveAttribute('aria-disabled', 'true')
+    }
+  }
+  assertDisabled(true)
+  act(() => useControllerProfileStore.setState({ profiles: [{ ...defaultControllerProfile({ id: 'profile', deviceId: 'c1' }),
+    inputs: [{ id: 'pot', name: 'Pot', pin: 35, signal: 'analog', smoothing: 1, fallback: 0.5, invert: false }] }] }))
+  act(() => useControllerStore.setState({ controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 3 } } }))
+  assertDisabled(true)
+  act(() => useEditorStore.setState({ previewSource: `${source}\n// edit` }))
+  assertDisabled(false)
+})
 
 it('owns Pattern warning confirmation in the popover and sends exactly once', () => {
   const pushActivePattern = vi.fn()

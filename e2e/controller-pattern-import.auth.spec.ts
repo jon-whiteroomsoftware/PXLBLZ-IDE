@@ -207,6 +207,20 @@ test('single-slot cross-account import preserves wrapped behavior, recovers cano
     expect(edited.rgb).toEqual([0.4, 0.2, 0.1])
     expect(edited.pins).toContain(36)
     expect(edited.pins).not.toContain(35)
+    const actionRow = b.getByTestId('controller-action-row')
+    const saveButton = actionRow.getByRole('button', { name: 'Save', exact: true })
+    const runButton = actionRow.getByRole('button', { name: 'Run', exact: true })
+    await expect(saveButton).toHaveAttribute('aria-disabled', 'true')
+    await expect(saveButton).toBeEnabled()
+    await capture(b, 'stored-clean-save')
+    await expect(runButton).not.toHaveAttribute('aria-disabled', 'true')
+    await runButton.click()
+    await expect(runButton).toBeDisabled()
+    await expect(runButton).toHaveAttribute('aria-disabled', 'true')
+    await expect(runButton).toBeEnabled()
+    await expect(saveButton).toHaveAttribute('aria-disabled', 'true')
+    expect(numeric(decodePbp(new Uint8Array(Buffer.from(programs.get(slot)!.pbpBase64, 'base64')))!.sourceCode)).toEqual(edited)
+    await capture(b, 'stored-clean-run')
     await b.goto('studio/controllers/account-b-profile')
     await expect(b.getByRole('table', { name: 'Saved PXLBLZ Patterns', exact: true })).toContainText(aPattern.name)
     await capture(b, 'B-after-desktop')
@@ -234,8 +248,13 @@ test('single-slot cross-account import preserves wrapped behavior, recovers cano
     await b.goto('studio/controllers/account-b-profile')
     const metadataPath = '**/api/controller-metadata/controller-pattern-imports'
     expectedMetadataFailure = true
+    let rejectProgressRead = false
     await b.route(metadataPath, async (route) => {
       const request = route.request()
+      if (rejectProgressRead && request.method() === 'GET') {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Synthetic progress read failure' }) })
+        return
+      }
       const body = request.method() === 'PUT' ? request.postDataJSON() as { value: ControllerPatternImportLedger } : null
       if (body && Object.values(body.value.byPatternId).some((r) => r.programId === partialSlot && r.stage === 'complete')) {
         await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Synthetic completion failure' }) })
@@ -253,6 +272,17 @@ test('single-slot cross-account import preserves wrapped behavior, recovers cano
     const partialBytes = structuredClone(programs.get(partialSlot))
     const partialBindings = await json<{ value: Record<string, Record<string, string>> }>(request, 'controller-metadata/controller-bindings')
     expect(partialBindings.value[ip][receipt.patternId]).toBe(partialSlot)
+    const durableBeforeReadFailure = await snapshot(request)
+    const programsBeforeReadFailure = structuredClone([...programs])
+    rejectProgressRead = true
+    await b.getByRole('alertdialog').getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect(b.getByRole('alertdialog').getByRole('alert')).toContainText('Import progress could not be read. Retry checks this saved program again.')
+    await expect(b.getByRole('alertdialog')).not.toContainText(/No Pattern was imported|No Pattern was sent|Nothing was sent/)
+    await capture(b, 'progress-read-failure')
+    expect(await snapshot(request)).toEqual(durableBeforeReadFailure)
+    expect(await json(request, 'controller-metadata/controller-pattern-imports')).toEqual(incomplete)
+    expect([...programs]).toEqual(programsBeforeReadFailure)
+    rejectProgressRead = false
     await b.unroute(metadataPath)
     await b.reload()
     expectedMetadataFailure = false
