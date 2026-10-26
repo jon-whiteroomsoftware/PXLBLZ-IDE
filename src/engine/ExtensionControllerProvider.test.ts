@@ -693,6 +693,7 @@ describe('ExtensionControllerProvider', () => {
         deviceName: 'Aurora Drift',
         sourceCode: source,
         stamp: null,
+        storedArtifact: { pbp: blob, sourceCode: source },
       })
     })
 
