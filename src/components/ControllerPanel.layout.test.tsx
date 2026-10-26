@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { findLayoutFaults, formatLayoutFaults } from '@whiteroom/software-process/layout-faults'
 import { ControllerBar } from './ControllerBar'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
@@ -9,6 +9,8 @@ import { controllerPanelInitialState, useControllerPanelStore } from '@/store/co
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { defaultControllerProfile, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
+import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { useShowControllerDeliveryStore } from '@/store/showControllerDeliveryStore'
 
 class PanelProvider extends NullControllerProvider {
   private status: ControllerStatus = { kind: 'connected', controller: { id: 'fixture', deviceId: 'fixture', address: '10.0.0.9', name: 'Fixture' } }
@@ -20,6 +22,8 @@ class PanelProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  usePatternStore.setState(patternInitialState)
+  useShowControllerDeliveryStore.setState({ owner: null, delivery: null })
   useRouterStore.setState(routerInitialState)
   usePanelPreferencesStore.setState({ expanded: {} })
   useControllerPanelStore.setState(controllerPanelInitialState)
@@ -29,12 +33,26 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  usePatternStore.setState(patternInitialState)
+  useShowControllerDeliveryStore.setState({ owner: null, delivery: null })
+  useRouterStore.setState(routerInitialState)
   useControllerPanelStore.getState().stop()
   resetControllerProvider()
   useControllerStore.setState(useControllerStore.getInitialState(), true)
 })
 
-for (const width of [400, 320]) it(`keeps Controller fields operable at ${width}px with one-line summaries`, async () => {
+for (const kind of ['pattern', 'show'] as const) for (const width of [400, 320]) it(`keeps ${kind} subject and Controller fields operable at ${width}px with one-line summaries`, async () => {
+  const name = 'Coronal Mass Ejection Remix'
+  useRouterStore.setState({ route: { kind: 'studio', entity: { kind: kind === 'pattern' ? 'patterns' : 'shows', id: 's1' } } })
+  if (kind === 'pattern') {
+    usePatternStore.setState({ activePatternId: 's1', userPatterns: [{ id: 's1', name, src: 'export function render() {}', controls: {}, updatedAt: 1 }] })
+  } else {
+    useShowControllerDeliveryStore.getState().publish(Symbol('show-editor'), {
+      subject: { kind, id: 's1', name, deliveryBlocker: null, runAlreadyPushed: false, saveAlreadyPushed: false },
+      mode: 'run', pushing: false, succeeded: false, pending: false, blocked: false, failure: null, warnings: [],
+      request: vi.fn(), dismissFailure: vi.fn(), cancel: vi.fn(), confirm: vi.fn(async () => {}),
+    })
+  }
   render(<ControllerBar />)
   fireEvent.click(screen.getByRole('button', { name: 'Toggle Fixture panel' }))
   const popover = screen.getByTestId('controller-panel-popover')
@@ -43,6 +61,32 @@ for (const width of [400, 320]) it(`keeps Controller fields operable at ${width}
   const brightness = screen.getByRole('slider', { name: 'Controller brightness' })
   expect(brightness.closest('[data-deck="section"]')).toBeNull()
   await waitFor(() => expect(Math.round(brightness.getBoundingClientRect().width)).toBeGreaterThanOrEqual(36))
+  const subject = screen.getByTestId('controller-action-subject')
+  expect(subject.textContent).toBe(name)
+  if (width === 400) expect(subject.scrollWidth).toBeLessThanOrEqual(subject.clientWidth)
+  else {
+    expect(getComputedStyle(subject).textOverflow).toBe('ellipsis')
+    expect(getComputedStyle(subject).overflowX).toBe('hidden')
+    subject.setAttribute('data-layout-allow', 'overflow-x')
+  }
+  expect(subject).toHaveAttribute('title', name)
+  const capsule = subject.closest<HTMLElement>('.controller-action-capsule')!
+  const block = popover.querySelector<HTMLElement>('.controller-panel-header-block')!
+  const header = popover.querySelector<HTMLElement>('.controller-panel-header')!
+  expect(block).toContainElement(header)
+  expect(block).toContainElement(capsule)
+  expect(header.compareDocumentPosition(capsule) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(capsule.getBoundingClientRect().height).toBe(28)
+  const capsuleBounds = capsule.getBoundingClientRect()
+  expect(subject.getBoundingClientRect().left).toBeGreaterThanOrEqual(capsuleBounds.left)
+  expect(subject.getBoundingClientRect().right).toBeLessThanOrEqual(capsuleBounds.right)
+  for (const name of ['Run', 'Save']) {
+    const button = screen.getByRole('button', { name })
+    expect(button.getBoundingClientRect().width).toBeGreaterThan(0)
+    expect(button.getBoundingClientRect().right).toBeLessThanOrEqual(capsuleBounds.right)
+    button.focus()
+    expect(button).toHaveFocus()
+  }
   for (const header of popover.querySelectorAll('.panel-section-header')) expect(header.getBoundingClientRect().height).toBe(28)
   const controlGrid = popover.querySelector('.controller-section-controls [data-deck="grid"]')!
   expect(getComputedStyle(controlGrid).gridTemplateColumns.split(' ')).toHaveLength(width < 360 ? 2 : 4)

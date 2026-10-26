@@ -20,6 +20,8 @@ import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { useShowControllerDeliveryStore, type ShowControllerDelivery } from '@/store/showControllerDeliveryStore'
+import type { Route } from '@/engine/routes'
 import {
   controllerPanelInitialState,
   useControllerPanelStore,
@@ -61,6 +63,7 @@ class ConnectedProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  useShowControllerDeliveryStore.setState({ owner: null, delivery: null })
   useEntityOrganizationStore.setState({ ...entityOrganizationInitialState, loaded: { ...entityOrganizationInitialState.loaded, controllers: true } })
   usePanelPreferencesStore.setState({ expanded: {} })
   __resetControllerProviders()
@@ -83,6 +86,7 @@ afterEach(() => {
   // otherwise every stop() lands an un-act()ed update on live components and
   // the gate output floods with "not wrapped in act(...)" warnings (#917).
   cleanup()
+  useShowControllerDeliveryStore.setState({ owner: null, delivery: null })
   useControllerPanelStore.getState().stop()
   __resetControllerProviders()
   resetControllerProvider()
@@ -989,6 +993,13 @@ describe('ControllerBar', () => {
 
     const actionRow = screen.getByTestId('controller-action-row')
     expect(actionRow).toHaveTextContent('Aurora Drift')
+    const subject = within(actionRow).getByTestId('controller-action-subject')
+    expect(subject).toHaveAttribute('title', 'Aurora Drift')
+    expect(subject.parentElement!.querySelector('svg.lucide-file-code-corner')).toHaveAttribute('aria-hidden', 'true')
+    const run = within(actionRow).getByRole('button', { name: 'Run' })
+    const save = within(actionRow).getByRole('button', { name: 'Save' })
+    expect(subject.compareDocumentPosition(run) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(run.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(actionRow).not.toHaveTextContent('Acts on the open pattern')
     const disconnect = screen.getByRole('button', { name: 'Disconnect Desk' })
     const profileLink = screen.getByRole('link', { name: 'Open Desk profile' })
@@ -1321,7 +1332,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
     const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
-    expect(screen.getByTestId('controller-action-row')).not.toContainElement(trigger)
+    expect(screen.queryByTestId('controller-action-row')).not.toBeInTheDocument()
     expect(trigger.closest('.controller-panel-header')).not.toBeNull()
     expect(trigger).toHaveTextContent('WavyBands')
     expect(within(trigger).getByText('WavyBands')).toHaveAttribute('title', 'WavyBands')
@@ -1543,13 +1554,20 @@ describe('ControllerBar', () => {
     await settleControllerAsync()
   })
 
-  it('dims Run and Save outside the Studio pattern surface and keeps the reason in tooltips', async () => {
+  it.each<{ name: string; route: Route; unresolved?: boolean }>([
+    { name: 'Gallery', route: { kind: 'gallery' } },
+    { name: 'Maps', route: { kind: 'studio', entity: { kind: 'maps', id: null } } },
+    { name: 'Controllers', route: { kind: 'studio', entity: { kind: 'controllers', id: null } } },
+    { name: 'null Pattern', route: { kind: 'studio', entity: { kind: 'patterns', id: null } } },
+    { name: 'unloaded Pattern', route: { kind: 'studio', entity: { kind: 'patterns', id: 'not-loaded' } } },
+    { name: 'unnamed Pattern', route: { kind: 'studio', entity: { kind: 'patterns', id: 'stale-pattern' } }, unresolved: true },
+  ])('hides global actions on $name while retaining the Controller header', async ({ route, unresolved }) => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
-    useRouterStore.setState({ route: { kind: 'gallery' } })
+    useRouterStore.setState({ route })
     usePatternStore.setState({
       activePatternId: 'stale-pattern',
-      userPatterns: [{
+      userPatterns: unresolved ? [] : [{
         id: 'stale-pattern',
         name: 'Stale Pattern',
         src: 'export function render() {}',
@@ -1564,11 +1582,78 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    expectDisabledReason(screen.getByRole('button', { name: 'Run' }), 'Open a Pattern or Show to push it to this Controller')
-    expectDisabledReason(screen.getByRole('button', { name: 'Save' }), 'Open a Pattern or Show to push it to this Controller')
-    expect(screen.getByTestId('controller-action-row')).toHaveTextContent('—')
+    expect(screen.queryByRole('button', { name: 'Run' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('controller-action-row')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Saved Patterns' })).toBeEnabled()
     expect(screen.queryByText('Open a Pattern or Show to push it to this Controller.')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open Desk profile' })).toBeEnabled()
+    await settleControllerAsync()
+  })
+
+  it('removes and restores the capsule through Pattern → Maps → Pattern without losing the picker', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const patternRoute: Route = { kind: 'studio', entity: { kind: 'patterns', id: 'Draft' } }
+    usePatternStore.setState({ activeDemoName: 'Draft' })
+    useRouterStore.setState({ route: patternRoute })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    await settleControllerAsync()
+    const picker = screen.getByRole('button', { name: 'Saved Patterns' })
+    const runningTitle = picker.textContent
+    expect(screen.getByTestId('controller-action-subject')).toHaveTextContent('Draft')
+    act(() => useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'maps', id: null } } }))
+    expect(screen.queryByTestId('controller-action-row')).not.toBeInTheDocument()
+    expect(picker).toBeEnabled()
+    expect(picker.textContent).toBe(runningTitle)
+    act(() => useRouterStore.setState({ route: patternRoute }))
+    expect(screen.getByTestId('controller-action-subject')).toHaveTextContent('Draft')
+    expect(picker).toBeEnabled()
+    expect(picker.textContent).toBe(runningTitle)
+  })
+
+  it.each(['ready', 'failure', 'pending'] as const)('keeps mounted Show delivery ownership and %s UI', async (state) => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    const requestPush = vi.fn()
+    useControllerStore.setState({ requestPush })
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: 's1' } } })
+    const delivery: ShowControllerDelivery = {
+      subject: { kind: 'show', id: 's1', name: 'Coronal Mass Ejection Remix', deliveryBlocker: null, runAlreadyPushed: false, saveAlreadyPushed: false },
+      mode: 'run', pushing: false, succeeded: false, pending: state === 'pending', blocked: false,
+      failure: state === 'failure' ? { mode: 'run', message: 'Connection lost' } : null,
+      warnings: [], request: vi.fn(), dismissFailure: vi.fn(), cancel: vi.fn(), confirm: vi.fn(async () => {}),
+    }
+    useShowControllerDeliveryStore.getState().publish(Symbol('show-editor'), delivery)
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const subject = screen.getByTestId('controller-action-subject')
+    expect(subject).toHaveTextContent('Coronal Mass Ejection Remix')
+    expect(subject).toHaveAttribute('title', delivery.subject.name)
+    expect(subject.parentElement!.querySelector('svg.lucide-film')).toHaveAttribute('aria-hidden', 'true')
+    const capsule = subject.closest('.controller-action-capsule')!
+    if (state === 'failure') {
+      const notice = screen.getByTestId('controller-show-push-failure')
+      expect(notice).toHaveTextContent('Run failed: Connection lost')
+      expect(capsule).not.toContainElement(notice)
+      expect(capsule.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    if (state === 'pending') {
+      expect(screen.getByTestId('controller-show-preflight-dialog')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Send anyway' }))
+      expect(delivery.confirm).toHaveBeenCalledOnce()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(delivery.cancel).toHaveBeenCalledOnce()
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(delivery.request).toHaveBeenNthCalledWith(1, 'run')
+      expect(delivery.request).toHaveBeenNthCalledWith(2, 'save')
+    }
+    expect(requestPush).not.toHaveBeenCalled()
+    act(() => useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'shows', id: 's2' } } }))
+    expect(screen.queryByTestId('controller-action-row')).not.toBeInTheDocument()
     await settleControllerAsync()
   })
 

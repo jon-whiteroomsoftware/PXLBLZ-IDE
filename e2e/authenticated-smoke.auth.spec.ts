@@ -499,6 +499,13 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
 
   const actionRow = page.getByTestId('controller-action-row')
   await expect(actionRow).toContainText('EmberSpire')
+  await expect(actionRow.getByTestId('controller-action-subject')).toHaveAttribute('title', 'EmberSpire')
+  expect(await actionRow.evaluate((element) => {
+    const subject = element.querySelector('[data-testid="controller-action-subject"]')!
+    const [run, save] = element.querySelectorAll('button')
+    return !!(subject.compareDocumentPosition(run) & Node.DOCUMENT_POSITION_FOLLOWING)
+      && !!(run.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING)
+  })).toBe(true)
   const studioUrl = page.url()
   await page.getByRole('button', { name: 'Saved Patterns' }).click()
   const switchMenu = page.getByRole('listbox', { name: 'Saved Patterns' })
@@ -646,6 +653,11 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await controllerPill.click()
   await expect(page.getByTestId('controller-panel-popover').locator('span[title="EmberSpire"]'))
     .toBeVisible()
+  await expect(page.getByTestId('controller-action-row')).toHaveCount(0)
+  await expect(page.getByTestId('controller-panel-popover').getByRole('button', { name: 'Run', exact: true })).toHaveCount(0)
+  await expect(page.getByTestId('controller-panel-popover').getByRole('button', { name: 'Save', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Saved Patterns', exact: true })).toBeVisible()
+  await expect(runEmberSpire).toBeVisible()
   await expect.poll(() => page.evaluate((offset) => {
     const writes = (window as typeof window & {
       __fakeControllerWrites?: Array<Record<string, unknown>>

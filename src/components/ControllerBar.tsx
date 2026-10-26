@@ -258,65 +258,67 @@ function ControllerPillButton({
           data-testid="controller-panel-popover"
           className="controller-panel-popover fixed left-2 right-2 top-16 z-50 w-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl font-mono text-xs text-zinc-300 sm:absolute sm:left-auto sm:right-0 sm:top-8 sm:w-[400px]"
         >
-          <div className="controller-panel-header relative flex items-center justify-between gap-2 border-b border-seam px-3 py-2">
-            {/* Title mirrors the editor and preview panes: the running pattern
-                name + dimensionality, not the device name (which already labels the
-                pill this popover hangs from). */}
-            <ControllerPanelTitlePicker />
-            <ControllerPanelBrightness />
-            <div className="flex shrink-0 items-center gap-1">
-              <ControllerSequencerIndicator ip={ip} live={phase === 'live'} />
-              <button
-                type="button"
-                onClick={onRemove}
-                aria-label={`Disconnect ${label}`}
-                title={`Disconnect ${label}`}
-                data-testid="controller-pill-remove"
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
-              >
-                <DisconnectGlyph />
-              </button>
-              <a
-                href={profileHref}
-                onClick={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-                  event.preventDefault()
-                  onProfile()
-                }}
-                aria-label={`Open ${label} profile`}
-                title={`Open ${label} profile`}
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
-              >
-                <Cpu {...controlIcon} aria-hidden />
-              </a>
-              <button
-                type="button"
-                onClick={() => onRendererPaused(rendererTargetPaused)}
-                disabled={rendererDisconnected || rendererBlockedByPush || rendererPending !== null}
-                aria-label={rendererLabel}
-                aria-busy={rendererPending !== null}
-                data-testid="controller-renderer-transport"
-                title={rendererTitle}
-                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {rendererPending
-                  ? <RotateCw {...transportIcon} className="animate-spin" aria-hidden="true" />
-                  : rendererPlaying
-                    ? <Pause {...transportIcon} aria-hidden="true" />
-                    : <Play {...transportIcon} aria-hidden="true" />}
-              </button>
+          <div className="controller-panel-header-block border-b border-seam">
+            <div className="controller-panel-header relative flex items-center justify-between gap-2 px-3 py-2">
+              {/* Title mirrors the editor and preview panes: the running pattern
+                  name + dimensionality, not the device name (which already labels the
+                  pill this popover hangs from). */}
+              <ControllerPanelTitlePicker />
+              <ControllerPanelBrightness />
+              <div className="flex shrink-0 items-center gap-1">
+                <ControllerSequencerIndicator ip={ip} live={phase === 'live'} />
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  aria-label={`Disconnect ${label}`}
+                  title={`Disconnect ${label}`}
+                  data-testid="controller-pill-remove"
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
+                >
+                  <DisconnectGlyph />
+                </button>
+                <a
+                  href={profileHref}
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                    event.preventDefault()
+                    onProfile()
+                  }}
+                  aria-label={`Open ${label} profile`}
+                  title={`Open ${label} profile`}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 focus:outline-none"
+                >
+                  <Cpu {...controlIcon} aria-hidden />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => onRendererPaused(rendererTargetPaused)}
+                  disabled={rendererDisconnected || rendererBlockedByPush || rendererPending !== null}
+                  aria-label={rendererLabel}
+                  aria-busy={rendererPending !== null}
+                  data-testid="controller-renderer-transport"
+                  title={rendererTitle}
+                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {rendererPending
+                    ? <RotateCw {...transportIcon} className="animate-spin" aria-hidden="true" />
+                    : rendererPlaying
+                      ? <Pause {...transportIcon} aria-hidden="true" />
+                      : <Play {...transportIcon} aria-hidden="true" />}
+                </button>
+              </div>
             </div>
+            {actionRow}
+            {renderer.error && (
+              <p
+                role="alert"
+                data-testid="controller-renderer-error"
+                className="bg-red-500/5 px-3 py-1.5 text-[10px] leading-4 text-red-300"
+              >
+                Renderer command failed: {renderer.error}
+              </p>
+            )}
           </div>
-          {renderer.error && (
-            <p
-              role="alert"
-              data-testid="controller-renderer-error"
-              className="border-b border-red-400/20 bg-red-500/5 px-3 py-1.5 text-[10px] leading-4 text-red-300"
-            >
-              Renderer command failed: {renderer.error}
-            </p>
-          )}
-          {actionRow}
           <div className="pt-0.5 pb-2 px-3" data-testid="controller-panel-wrap">
             <ControllerPanel />
           </div>

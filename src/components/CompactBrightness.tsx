@@ -4,7 +4,8 @@ import { formatPercentageValue } from '@/engine/percentageValue'
 import './PatternPanel.css'
 
 function formatBrightness(value: number): string {
-  return formatPercentageValue(value < 0.1 ? value : Math.round(value * 100) / 100)
+  if (value > 0 && value < 0.005) return '<1%'
+  return formatPercentageValue(Math.round(value * 100) / 100)
 }
 
 /** Shared presentation; each surface retains ownership of its brightness value. */

@@ -23,8 +23,8 @@
 .panel-brightness [data-deck="slider"] { width: 82px; font-size: 10.5px; }
 .panel-brightness [data-deck="slider"] > span { display: none; }
 .panel-brightness [data-deck="slider"] > div { gap: 2px; }
-.panel-brightness [data-deck="slider"] > div > span { width: 32px; text-align: left; }
-.panel-brightness input { width: 48px; flex: 0 0 48px; }
+.panel-brightness [data-deck="slider"] > div > span { width: 28px; text-align: left; }
+.panel-brightness input { width: 52px; flex: 0 0 52px; }
 .panel-variable-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
 .panel-variable-values > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
 .panel-variable-values > div > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

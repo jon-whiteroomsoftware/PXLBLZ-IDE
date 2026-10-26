@@ -17,7 +17,7 @@ describe('compact brightness', () => {
     expect(screen.getByText('50%')).toBeInTheDocument()
   })
 
-  it.each([[0.3758, '38%'], [0.1, '10%'], [0.0998, '9.98%'], [0.0123, '1.23%']])('formats %s consistently in readout, accessibility and tooltip', (value, label) => {
+  it.each([[0, '0%'], [Number.MIN_VALUE, '<1%'], [0.004, '<1%'], [0.005 - Number.EPSILON, '<1%'], [0.005, '1%'], [0.0123, '1%'], [0.0412, '4%'], [0.0998, '10%'], [0.3758, '38%'], [0.994, '99%'], [1, '100%']])('formats %s consistently in readout, accessibility and tooltip', (value, label) => {
     render(<Control initial={value as number} />)
     expect(screen.getByText(label)).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Brightness' })).toHaveAttribute('aria-valuetext', label)

@@ -1,6 +1,13 @@
 .controller-panel-popover { container: controller-panel / inline-size; max-width: min(400px, calc(100vw - 16px)); }
 .controller-panel { min-width: 0; font-size: 10.5px; }
 .controller-panel-header { display: grid; grid-template-columns: minmax(0, max-content) minmax(89px, 1fr) auto; }
+.controller-action-capsule { display: flex; align-items: center; width: 100%; min-width: 0; height: 28px; border: 1px solid var(--color-zinc-700); border-radius: 9999px; background: color-mix(in srgb, var(--color-zinc-950) 60%, transparent); overflow: visible; }
+.controller-action-subject { display: flex; align-items: center; flex: 1; min-width: 0; gap: 6px; padding: 0 9px 0 10px; font-family: var(--font-sans); font-size: 12px; color: var(--color-zinc-200); }
+.controller-action-subject > svg { flex-shrink: 0; color: var(--color-amber-400); }
+.controller-action-subject > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.controller-action-segment { flex-shrink: 0; height: 26px; border-left: 1px solid var(--color-zinc-700); overflow: visible; }
+.controller-action-segment > button { height: 26px; padding: 0 9px; }
+.controller-action-segment:last-child > button { padding-right: 11px; border-radius: 0 9999px 9999px 0; }
 .controller-title-picker { display: flex; min-width: 0; max-width: 100%; }
 .controller-saved-patterns-trigger { display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 5px 0 8px; border: 1px solid var(--color-zinc-600); border-radius: 4px; background: color-mix(in srgb, var(--color-zinc-800) 60%, transparent); transition: border-color .15s, background-color .15s; }
 .controller-saved-patterns-trigger:hover { border-color: var(--color-zinc-400); background: var(--color-zinc-800); }
@@ -17,8 +24,8 @@ button.controller-program-group:hover { color: var(--color-zinc-300); }
 .controller-program-group[aria-expanded="true"] > svg { transform: rotate(90deg); }
 .controller-panel-header .panel-brightness { width: 100%; max-width: 101px; min-width: 89px; justify-self: end; }
 .controller-panel-header .panel-brightness [data-deck="slider"] { width: 82px; min-width: 70px; }
-.controller-panel-header .panel-brightness input { min-width: 36px; flex: 0 10 48px; }
-.controller-panel-header .panel-brightness [data-deck="slider"] > div > span { flex: 0 0 32px; }
+.controller-panel-header .panel-brightness input { min-width: 36px; flex: 0 10 52px; }
+.controller-panel-header .panel-brightness [data-deck="slider"] > div > span { flex: 0 0 28px; }
 .controller-panel .panel-section-header, .controller-panel .panel-section-toggle { height: 28px; }
 .controller-panel .panel-section-body [data-deck="grid"] { display: grid; grid-template-columns: minmax(0, 60px) minmax(0, 1fr) minmax(0, 60px) minmax(0, 1fr); gap: 8px 8px; align-items: center; }
 .controller-panel .panel-section-body [data-deck="cell"], .controller-panel .panel-section-body [data-deck="slider"] { display: grid; grid-template-columns: subgrid; grid-column: span 2; gap: inherit; min-width: 0; align-items: center; white-space: nowrap; }
@@ -35,7 +42,7 @@ button.controller-program-group:hover { color: var(--color-zinc-300); }
 @container controller-panel (max-width: 359px) {
   .controller-panel .panel-section-body [data-deck="grid"] { grid-template-columns: minmax(0, 72px) minmax(0, 1fr); }
   .controller-field-wide { grid-template-columns: 72px minmax(0, 1fr); }
-  .controller-panel-popover > div:first-child { gap: 6px; }
+  .controller-panel-header { gap: 6px; }
 }
 /* Existing local editors must escape the shared section's fold-animation clip. */
 .controller-panel .panel-section-body:has([role="dialog"]) { overflow: visible; }

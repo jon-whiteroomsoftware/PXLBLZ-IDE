@@ -1,10 +1,10 @@
 import { SaveFailureNotice } from './SaveFailureNotice'
 import { useEffect, useId, useSyncExternalStore } from 'react'
-import { Check, Play, RotateCw, Save } from 'lucide-react'
+import { Check, FileCode2, Film, Play, RotateCw, Save } from 'lucide-react'
 import { controlIcon, transportIcon } from '@/components/iconScale'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { trackEvent } from '@/analytics'
-import { describeControllerActionRow } from '@/engine/controllerActionRow'
+import { describeControllerActionRow, type ControllerActionSubject } from '@/engine/controllerActionRow'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   controllerProfileArtifactSignature,
@@ -77,9 +77,11 @@ export function ControllerActionRow() {
   const programsRead = !!activeIp
     && Object.prototype.hasOwnProperty.call(programsByController, activeIp)
 
-  const patternName = activeDemoName
-    ?? userPatterns.find((pattern) => pattern.id === activePatternId)?.name
-    ?? null
+  const patternName = patternRouteId && (patternRouteId === activePatternId || patternRouteId === activeDemoName)
+    ? (patternRouteId === activeDemoName
+      ? activeDemoName
+      : userPatterns.find((pattern) => pattern.id === activePatternId)?.name ?? null)
+    : null
   const controllerProfile = active
     ? findProfileForLiveController(controllerProfiles, active)
     : null
@@ -106,8 +108,9 @@ export function ControllerActionRow() {
   const working = showDelivery
     ? showDelivery.pushing || showDelivery.succeeded
     : pushing || !!pushResult?.ok
+  const subject: ControllerActionSubject | null = showDelivery?.subject ?? (patternRouteId && patternName ? { kind: 'pattern', id: patternRouteId, name: patternName, deliveryBlocker: null, runAlreadyPushed: alreadyPushed('run'), saveAlreadyPushed: alreadyPushed('save') } : null)
   const view = describeControllerActionRow({
-    subject: showDelivery?.subject ?? (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id && patternName ? { kind: 'pattern', id: route.entity.id, name: patternName, deliveryBlocker: null, runAlreadyPushed: alreadyPushed('run'), saveAlreadyPushed: alreadyPushed('save') } : null),
+    subject,
     route,
     patternName,
     status,
@@ -163,7 +166,9 @@ export function ControllerActionRow() {
   }
 
   const actionClass =
-    'inline-flex h-7 items-center gap-1.5 rounded-sm px-2 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30'
+    'inline-flex items-center gap-1.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-30 aria-disabled:cursor-not-allowed aria-disabled:opacity-30'
+
+  if (!subject || !view.subject) return null
 
   return (
     <PushConfirmPopover
@@ -173,9 +178,13 @@ export function ControllerActionRow() {
       testId={showDelivery ? 'controller-show-preflight-dialog' : 'pattern-preflight-dialog'}
       className="w-full"
       anchor={(
-        <div data-testid="controller-action-row" className="relative w-full border-b border-seam px-3 py-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <span className="relative inline-flex">
+        <div data-testid="controller-action-row" className="relative w-full px-3 pb-2">
+          <div className="controller-action-capsule">
+            <span className="controller-action-subject">
+              {subject.kind === 'show' ? <Film size={14} aria-hidden /> : <FileCode2 size={14} aria-hidden />}
+              <span data-testid="controller-action-subject" title={view.subject}>{view.subject}</span>
+            </span>
+            <span className="controller-action-segment relative inline-flex">
               <button
                 type="button"
                 disabled={working}
@@ -190,7 +199,7 @@ export function ControllerActionRow() {
               </button>
               {runGated && <DisabledReasonTip id={runReasonId}>{view.run.reason}</DisabledReasonTip>}
             </span>
-            <span className="relative inline-flex">
+            <span className="controller-action-segment relative inline-flex">
               <button
                 type="button"
                 disabled={working}
@@ -204,12 +213,6 @@ export function ControllerActionRow() {
                 Save
               </button>
               {saveGated && <DisabledReasonTip id={saveReasonId}>{view.save.reason}</DisabledReasonTip>}
-            </span>
-            <span
-              className="ml-1.5 min-w-16 flex-1 basis-20 truncate text-[10px] text-zinc-500"
-              title={view.subject ?? undefined}
-            >
-              {view.subject ?? '—'}
             </span>
           </div>
           {patternRoute && <PatternPushFailureNotice compact />}
