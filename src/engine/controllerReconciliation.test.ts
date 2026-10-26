@@ -23,6 +23,21 @@ function pushRecord(profileSignature?: string) {
 }
 
 describe('planControllerReconciliation', () => {
+  it.each([true, false])('excludes stored artifacts before source/record checks (record=%s)', (hasRecord) => {
+    const input = {
+      controllerId: 'A', programs: [{ id: 'slot', name: 'Wrapped' }, { id: 'peer-slot', name: 'Peer' }],
+      bindings: { A: { wrapped: 'slot', peer: 'peer-slot' } },
+      pushRecords: { A: { ...(hasRecord ? { wrapped: pushRecord('new') } : {}), peer: pushRecord('old') } },
+      artifacts: ['wrapped', 'peer'].map((bindingKey) => ({ bindingKey, name: bindingKey, source: '', profileSignature: 'new' })),
+      storedArtifactPatternIds: ['wrapped'],
+    }
+    const before = structuredClone(input)
+    const plan = planControllerReconciliation(input)
+    expect(plan.jobs.map((job) => job.bindingKey)).toEqual(['peer'])
+    expect(plan.current).toEqual([])
+    expect(plan.unmanaged).toEqual([{ programId: 'slot', bindingKey: 'wrapped', reason: 'stored-artifact' }])
+    expect(input).toEqual(before)
+  })
   it('strictly excludes foreign and unmanaged programs from reconciliation jobs', () => {
     const plan = planControllerReconciliation({
       controllerId: 'ctrl-A',

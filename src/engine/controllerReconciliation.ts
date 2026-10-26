@@ -22,7 +22,7 @@ export interface CurrentManagedArtifact extends ReconciliationArtifact {
   state: 'current'
 }
 
-export type UnmanagedProgramReason = 'foreign' | 'missing-push-record' | 'missing-source'
+export type UnmanagedProgramReason = 'foreign' | 'missing-push-record' | 'missing-source' | 'stored-artifact'
 
 export interface UnmanagedControllerProgram {
   programId: string
@@ -43,6 +43,7 @@ export function planControllerReconciliation(input: {
   bindings: BindingStore
   pushRecords: ControllerPushRecords
   artifacts: readonly ReconciliationArtifact[]
+  storedArtifactPatternIds?: readonly string[]
 }): ControllerReconciliationPlan {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -58,6 +59,10 @@ export function planControllerReconciliation(input: {
     const bindingKey = bindingByProgramId.get(program.id)
     if (!bindingKey) {
       unmanaged.push({ programId: program.id, reason: 'foreign' })
+      continue
+    }
+    if (input.storedArtifactPatternIds?.includes(bindingKey)) {
+      unmanaged.push({ programId: program.id, bindingKey, reason: 'stored-artifact' })
       continue
     }
     const pushRecord = records[bindingKey]

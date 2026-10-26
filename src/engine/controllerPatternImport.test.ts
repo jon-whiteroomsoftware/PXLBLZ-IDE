@@ -5,7 +5,7 @@ import { encodePbp } from './pbpEncode'
 import {
   assessControllerPatternImport, controllerPatternImportPolicy, controllerPatternImportRetry,
   createControllerPatternImportPlan, findControllerPatternImport, readControllerPatternImportLedger,
-  sha256ControllerProgram, withControllerPatternImport,
+  sha256ControllerProgram, withControllerPatternImport, controllerPatternImportAccountRecordDigest,
   type ControllerPatternImportReceipt,
 } from './controllerPatternImport'
 
@@ -27,6 +27,13 @@ async function plan(patternId = 'personal-new', controllerDeviceId = 'A') {
 const metadataError = 'Controller import metadata is unreadable. No Pattern was sent.'
 
 describe('Controller Pattern import assessment', () => {
+  it('uses a fixed account-record projection across API property order', async () => {
+    const { record, receipt } = await plan()
+    const reopened = Object.fromEntries(Object.entries(record).reverse()) as typeof record
+    expect(await controllerPatternImportAccountRecordDigest(reopened)).toBe(receipt.accountRecordDigest)
+    expect(await controllerPatternImportAccountRecordDigest({ ...reopened, name: 'Edited' }))
+      .not.toBe(receipt.accountRecordDigest)
+  })
   it('hashes exact bytes with SHA-256, including a subarray', async () => {
     expect(await sha256ControllerProgram(Uint8Array.of(0, 97, 98, 99, 0).subarray(1, 4)))
       .toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')

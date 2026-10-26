@@ -1,10 +1,11 @@
-# Controller Pattern import foundation
+# Controller Pattern import
 
 The [#1221 I3 contract](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221#issuecomment-6406968606)
 defines selected-slot import into a fresh personal Pattern. Dispatch A implements
 lossless reading, pure assessment/planning/retry decisions and durable ledger
-ownership. Selected-slot execution and UI remain pending B/C; the existing
-as-built guides still describe the current Import UI. A does not complete #1221.
+ownership. Dispatch B adds the injected selected-slot command and permanent
+source-policy consumers. The UI and bulk action remain pending C/D; the
+as-built guides still describe the current Import UI. A/B do not complete #1221.
 
 ## Source fidelity and identity
 
@@ -100,6 +101,39 @@ back. A fresh GET finding durable `saved-verified` can avoid that resend after a
 lost progress response. This promises stable identity and truthful completion,
 not exactly-once flash transmission.
 
+## Selected-slot execution
+
+`importControllerPattern` captures its authenticated adapters, physical identity,
+provider and live epoch through a required host guard. The command runs in the
+existing Controller write queue, finds historical completion before assessing
+replacement source, and prepares delivery before publishing the account record.
+Every intent/progress mutation uses the shared ledger owner. Account POSTs are
+confirmed by reopening the fixed destination through `listPatterns`; a rejected
+POST that persisted the exact record is adopted. A retry never allocates another
+destination or saved slot.
+
+Stored-artifact imports write a defensive copy of the exact downloaded PBP,
+preserving its source, name, JPEG and bytecode. They inspect no-pass renderer
+metadata for firmware eligibility and never load an importing profile. Authored
+imports load and guard the current profile, apply its recipe and renderer
+adapter, compile and validate bytecode, then stamp the destination Pattern with
+the intent's fixed creation time. Profile changes invalidate asynchronous work.
+
+The command persists write intent before draining or saving, reads the selected
+slot back by SHA-256, and records saved verification before activation. Shared
+normal-push activation helpers retain their existing replacement policy. A
+verified unchanged-profile copy resumes activation or metadata without compiling
+or re-saving. A changed authored profile first requires valid old retry evidence,
+then uses the observed verified digest as its next write baseline.
+
+Bindings and authored push records are merged from fresh reads and confirmed by
+readback. Short metadata turns serialize concurrent import commands so sibling
+keys survive; this is client-local coordination, separate from the ledger owner.
+Completion is written last. Binding success survives a later bookkeeping failure;
+Retry finishes the remaining work and retains the durable source policy.
+
+## Later delivery and reconciliation
+
 `complete` is terminal historical completion regardless of later account or PBP
 digests. Ordinary source, name, control, settings and timestamp edits preserve the
 Pattern ID and separate ledger policy. Completed stored-artifact policy continues
@@ -109,11 +143,41 @@ source using that policy and its own freshness checks, without invoking
 incomplete-import retry. Completion must not delete policy. Ordinary PATCH/update
 must not use create-intent recovery.
 
+The active-Pattern and generated-Pattern send paths load policy before preparing
+passes and recheck it inside the queued write. Stored-artifact Patterns compile
+their current edited source with no profile or adapter passes, skip unused
+profile reads/waits, retain firmware checks, and omit profile freshness from Save
+metadata. Authored preparation requires a successful profile load and guards
+profile/session state through device mutations. Adapter replacement invalidates
+the captured operation. Show delivery keeps its existing source semantics.
+
+Reconciliation reads policy with its other planning metadata and fails closed
+on read errors. Bound stored-artifact Patterns are unmanaged with reason
+`stored-artifact`, before push-record or source checks. Each queued Pattern
+overwrite rechecks exclusion and session state, so a later manual Save cannot
+make wrapped source eligible for automatic profile application.
+
 ## Evidence boundary
 
 The focused decoder, pure-model, remote-adapter and resource-guard tests prove
 source/PBP fidelity, decision boundaries, durable round trips, client-wide
 serialization, sibling/binding preservation, ambiguous-response recovery and
-stale-session rejection. They do not prove device writes, account-copy creation,
-D1 end-to-end account isolation, browser behavior or completion of #1221. B/C
-must supply those consumer checks, including later manual Save of edited source.
+stale-session rejection. `controllerPatternImportExecution.test.ts` exercises
+creation, same-slot writes, exact readback/activation, persistent-response
+failures, stable retries, profile changes and concurrent Controller intents
+through reopening fakes and the real ledger owner/device queues.
+
+`controllerStore.test.ts` reopens imported records and policy, edits ordinary
+Pattern fields, then calls real manual Save and generated-Pattern sends. Decoded
+PBP source runs through `loadPattern` and the RGB shim: an old brightness input
+on pin 36 at 0.5 remains effective while the importing profile's pin 35 at 0.25
+is unused. Authored command evidence renders the new profile behavior. Pure
+reconciliation and normal push suites cover exclusion and unchanged activation
+policy. Deferred policy/profile/session checks prove refusal before subsequent
+device mutation.
+
+These checks prove the injected command and consumers against faithful fakes;
+they do not prove native firmware behavior, D1 end-to-end account isolation,
+browser behavior or completion of #1221. C/final integration supplies UI/browser
+and whole-account proof; D supplies bulk behavior. No hardware action or new UI
+control is part of B.

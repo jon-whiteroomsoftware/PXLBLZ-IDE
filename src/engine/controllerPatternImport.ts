@@ -30,6 +30,14 @@ export async function sha256ControllerProgram(bytes: Uint8Array): Promise<string
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+/** API response property order is not part of the account creation witness. */
+export function controllerPatternImportAccountRecordDigest(record: PatternRecord): Promise<string> {
+  const { id, name, src, controls, authors, params, settings, updatedAt } = record
+  return sha256ControllerProgram(new TextEncoder().encode(JSON.stringify({
+    id, name, src, controls, authors, params, settings, updatedAt,
+  })))
+}
+
 const messages = {
   'not-pxlblz': 'This saved program is not an unimported PXLBLZ Pattern.',
   unreadable: 'Saved program could not be read. No Pattern was imported.',
@@ -89,7 +97,7 @@ export async function createControllerPatternImportPlan(input: {
   const receipt: ControllerPatternImportReceipt = { version: 1, patternId: input.patternId,
     controllerDeviceId: input.controllerDeviceId, programId: input.programId, createdAt: input.now,
     sourceMode: assessment.sourceMode, origin: structuredClone(assessment.origin),
-    accountRecordDigest: await sha256ControllerProgram(new TextEncoder().encode(JSON.stringify(record))), stage: 'planned' }
+    accountRecordDigest: await controllerPatternImportAccountRecordDigest(record), stage: 'planned' }
   return { record, receipt }
 }
 
