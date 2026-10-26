@@ -38,6 +38,7 @@ import {
 } from '@/engine/ControllerProvider'
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
+import * as controllerMetadata from '@/engine/controllerMetadataStorage'
 import { expectDisabledReason, expectNotGated } from '@/components/ui/disabled-reason.testing'
 
 class ConnectedProvider extends NullControllerProvider {
@@ -86,6 +87,7 @@ afterEach(() => {
   __resetControllerProviders()
   resetControllerProvider()
   resetPersonalContentProvider()
+  vi.restoreAllMocks()
 })
 
 function profile(
@@ -1043,7 +1045,9 @@ describe('ControllerBar', () => {
       },
       activateProgram,
     }))
-    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
+    expect(trigger).toHaveTextContent('Live Draft')
+    expect(trigger).not.toHaveTextContent('Open Draft')
     fireEvent.click(trigger)
 
     const options = screen.getAllByRole('option')
@@ -1054,7 +1058,7 @@ describe('ControllerBar', () => {
     ])
     expect(options[0]).toBeDisabled()
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByText('Switches what the Controller runs; Run and Save still send the open Pattern.')).toBeInTheDocument()
+    expect(screen.queryByText('Switches what the Controller runs; Run and Save still send the open Pattern.')).not.toBeInTheDocument()
 
     act(() => useEditorStore.setState({ source: 'draft edits', previewSource: 'draft edits', bufferEdited: true }))
     const patternBefore = usePatternStore.getState()
@@ -1068,7 +1072,7 @@ describe('ControllerBar', () => {
     })
     fireEvent.click(options[1])
     await waitFor(() => expect(activateProgram.mock.calls[0]?.[0]).toBe('a'))
-    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument())
     expect(usePatternStore.getState().activePatternId).toBe('pattern-1')
     expect(screen.getByTestId('controller-action-row')).toHaveTextContent('Open Draft')
     expect(usePatternStore.getState()).toEqual(patternBefore)
@@ -1095,7 +1099,7 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
     await act(async () => {
       await Promise.resolve()
@@ -1144,7 +1148,7 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Switch failed: Controller did not activate Pattern a')
 
@@ -1176,7 +1180,7 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
 
@@ -1201,7 +1205,7 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
 
     const filter = screen.getByRole('searchbox', { name: 'Filter saved Patterns' })
     await waitFor(() => expect(filter).toHaveFocus())
@@ -1229,7 +1233,7 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
     expect(trigger).toBeEnabled()
     fireEvent.click(trigger)
 
@@ -1265,24 +1269,24 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
 
-    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' }))
+    await waitFor(() => expect(screen.getByRole('listbox', { name: 'Saved Patterns' }))
       .toHaveAttribute('aria-busy', 'true'))
     expect(screen.getByRole('option', { name: /Auroraswitching/ })).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Zebra' })).toBeDisabled()
     expect(activateProgram).toHaveBeenCalledTimes(1)
     fireEvent.keyDown(window, { key: 'Escape' })
-    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
-    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
+    expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument()
     expect(trigger).toBeEnabled()
     expect(trigger).toHaveFocus()
     const elsewhere = screen.getByRole('button', { name: 'Add a Controller' })
     elsewhere.focus()
 
     await act(async () => resolveActivation?.())
-    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument())
     expect(elsewhere).toHaveFocus()
   })
 
@@ -1298,14 +1302,163 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.click(screen.getByRole('option', { name: 'Aurora' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(
       'device did not confirm the change',
     ))
-    expect(screen.getByRole('listbox', { name: 'Switch the running Pattern' })).toBeVisible()
+    expect(screen.getByRole('listbox', { name: 'Saved Patterns' })).toBeVisible()
     expect(screen.getByRole('option', { name: 'Aurora' })).toBeEnabled()
+  })
+
+  it('places the title picker outside the action row with running identity on a non-Pattern route', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useRouterStore.setState({ route: { kind: 'studio', entity: { kind: 'controllers', id: null } } })
+    const programs = [{ id: 'wavy', name: 'WavyBands' }]
+    useControllerPanelStore.setState({ activeProgramId: 'wavy', programs, programsByController: { '10.0.0.5': programs } })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
+    expect(screen.getByTestId('controller-action-row')).not.toContainElement(trigger)
+    expect(trigger.closest('.controller-panel-header')).not.toBeNull()
+    expect(trigger).toHaveTextContent('WavyBands')
+    expect(within(trigger).getByText('WavyBands')).toHaveAttribute('title', 'WavyBands')
+    expect(trigger).toHaveTextContent('1, 2D')
+    fireEvent.click(trigger)
+    expect(screen.getByRole('listbox', { name: 'Saved Patterns' })).toBeVisible()
+    expect(screen.queryByText('Saved PXLBLZ Patterns')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Other Patterns/ })).not.toBeInTheDocument()
+    await settleControllerAsync()
+  })
+
+  it.each([
+    ['unread', undefined, 'Saved Patterns have not been read from this Controller'],
+    ['empty', [], 'This Controller has no saved Patterns'],
+    ['sending', [{ id: 'a', name: 'Aurora' }], 'Wait for the current send to finish before switching Patterns'],
+  ] as const)('keeps the %s title focusable with its gate reason', async (kind, programs, reason) => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    if (kind === 'sending') useControllerStore.setState({ pushing: true })
+    useControllerPanelStore.setState({ programsByController: programs ? { '10.0.0.5': [...programs] } : {} })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
+    expectDisabledReason(trigger, reason)
+    trigger.focus()
+    expect(trigger).toHaveFocus()
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument()
+    await settleControllerAsync()
+  })
+
+  it('groups real binding membership, searches folded Other rows and persists the fold across remount', async () => {
+    const user = userEvent.setup()
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    seedSignedInProfiles([profile('desk-profile', 'pixelblaze_pb32_3cd4ee549434', 1)])
+    vi.spyOn(controllerMetadata, 'getControllerBindings').mockResolvedValue({ '10.0.0.5': { ownedId: 'owned' } })
+    const programs = [
+      { id: 'running', name: 'Running Other' },
+      { id: 'owned', name: 'Zebra Owned' },
+      ...Array.from({ length: 7 }, (_, i) => ({ id: `other-${i}`, name: `Other ${i}` })),
+    ]
+    const activateProgram = vi.fn().mockResolvedValue(undefined)
+    useControllerPanelStore.setState({ programs, activeProgramId: 'running', programsByController: { '10.0.0.5': programs }, activateProgram })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    await waitFor(() => expect(screen.getByText('Saved PXLBLZ Patterns')).toHaveTextContent('Saved PXLBLZ Patterns 1'))
+    const header = screen.getByRole('button', { name: /Other Patterns 8/ })
+    expect(screen.getAllByRole('option').map(row => row.textContent)).toEqual(['Zebra Owned', ...Array.from({ length: 7 }, (_, i) => `Other ${i}`), 'Running Other'])
+    await waitFor(() => expect(screen.getByRole('searchbox', { name: 'Filter saved Patterns' })).toHaveFocus())
+    header.focus()
+    await user.keyboard('{Enter}')
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(activateProgram).not.toHaveBeenCalled()
+    expect(screen.getAllByRole('option').map(row => row.textContent)).toEqual(['Zebra Owned', 'Running Other'])
+    fireEvent.keyDown(header, { key: 'Home' })
+    expect(screen.getByRole('option', { name: 'Zebra Owned' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(screen.getByRole('option', { name: 'Running Other' })).toHaveFocus()
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' })
+    await user.tab()
+    expect(header).toHaveFocus()
+    await user.keyboard(' ')
+    expect(header).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{Enter}')
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(activateProgram).not.toHaveBeenCalled()
+    const filter = screen.getByRole('searchbox', { name: 'Filter saved Patterns' })
+    fireEvent.change(filter, { target: { value: 'other 3' } })
+    expect(screen.getAllByRole('option').map(row => row.textContent)).toEqual(['Other 3'])
+    expect(header).toHaveTextContent('Other Patterns 8')
+    fireEvent.change(filter, { target: { value: '' } })
+    expect(screen.getAllByRole('option').map(row => row.textContent)).toEqual(['Zebra Owned', 'Running Other'])
+    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    expect(screen.getByRole('button', { name: /Other Patterns 8/ })).toHaveAttribute('aria-expanded', 'false')
+    act(() => useControllerPanelStore.setState({ activatingProgramId: 'owned' }))
+    expect(screen.getByRole('button', { name: /Other Patterns 8/ })).toBeDisabled()
+    act(() => useControllerPanelStore.setState({ activatingProgramId: null }))
+    cleanup()
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Other Patterns 8/ })).toHaveAttribute('aria-expanded', 'false'))
+    await settleControllerAsync()
+  })
+
+  it('opens during a binding read and clears ownership when a later open refresh fails', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    seedSignedInProfiles([profile('desk-profile', 'pixelblaze_pb32_3cd4ee549434', 1)])
+    let resolveBindings!: (bindings: Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>) => void
+    const pendingRead = new Promise<Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>>(resolve => { resolveBindings = resolve })
+    const readBindings = vi.spyOn(controllerMetadata, 'getControllerBindings').mockReturnValue(pendingRead)
+    const programs = [{ id: 'owned', name: 'Zebra Owned' }, { id: 'foreign', name: 'Alpha Other' }]
+    useControllerPanelStore.setState({ programs, programsByController: { '10.0.0.5': programs } })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    expect(screen.getByRole('listbox', { name: 'Saved Patterns' })).toBeVisible()
+    expect(screen.queryByText('Saved PXLBLZ Patterns')).not.toBeInTheDocument()
+    await act(async () => { resolveBindings({ '10.0.0.5': { binding: 'owned' } }); await pendingRead })
+    expect(screen.getByText('Saved PXLBLZ Patterns')).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    readBindings.mockRejectedValue(new Error('metadata unavailable'))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    await waitFor(() => expect(screen.queryByText('Saved PXLBLZ Patterns')).not.toBeInTheDocument())
+    expect(screen.getAllByRole('option').map(row => row.textContent)).toEqual(['Alpha Other', 'Zebra Owned'])
+    await settleControllerAsync()
+  })
+
+  it('rejects binding results from an earlier Controller session and inventory', async () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    seedSignedInProfiles([profile('desk-profile', 'pixelblaze_pb32_3cd4ee549434', 1)])
+    let resolveOld!: (bindings: Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>) => void
+    const oldRead = new Promise<Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>>(resolve => { resolveOld = resolve })
+    const readBindings = vi.spyOn(controllerMetadata, 'getControllerBindings').mockReturnValue(oldRead)
+    const oldPrograms = [{ id: 'old', name: 'Old inventory' }]
+    useControllerPanelStore.setState({ programs: oldPrograms, programsByController: { '10.0.0.5': oldPrograms } })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
+    readBindings.mockResolvedValue({})
+    act(() => {
+      useControllerStore.setState(state => ({ controllers: { ...state.controllers, '10.0.0.6': { ...state.controllers['10.0.0.5'], ip: '10.0.0.6', nickname: 'New Desk', liveEpoch: 2 } }, activeIp: '10.0.0.6' }))
+      useControllerPanelStore.setState({ programs: [{ id: 'new', name: 'New inventory' }], programsByController: { '10.0.0.6': [{ id: 'new', name: 'New inventory' }] } })
+    })
+    await act(async () => { resolveOld({ '10.0.0.6': { wrong: 'new' } }); await oldRead })
+    if (!screen.queryByRole('button', { name: 'Saved Patterns' })) fireEvent.click(screen.getByRole('button', { name: 'Toggle New Desk panel' }))
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
+    if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+    expect(screen.queryByRole('option', { name: 'Old inventory' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'New inventory' })).toBeInTheDocument()
+    expect(screen.queryByText('Saved PXLBLZ Patterns')).not.toBeInTheDocument()
+    await settleControllerAsync()
   })
 
   it('closes the switch menu on Escape and restores focus to its trigger', async () => {
@@ -1318,11 +1471,11 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    const trigger = screen.getByRole('button', { name: 'Switch running Pattern' })
+    const trigger = screen.getByRole('button', { name: 'Saved Patterns' })
     fireEvent.click(trigger)
     fireEvent.keyDown(window, { key: 'Escape' })
 
-    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
     await settleControllerAsync()
   })
@@ -1337,10 +1490,10 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Switch running Pattern' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))
     fireEvent.mouseDown(screen.getByTestId('controller-panel'))
 
-    expect(screen.queryByRole('listbox', { name: 'Switch the running Pattern' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('listbox', { name: 'Saved Patterns' })).not.toBeInTheDocument()
     expect(screen.getByTestId('controller-panel-popover')).toBeVisible()
     await settleControllerAsync()
   })

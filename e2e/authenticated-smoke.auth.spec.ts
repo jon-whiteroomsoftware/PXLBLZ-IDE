@@ -500,8 +500,8 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   const actionRow = page.getByTestId('controller-action-row')
   await expect(actionRow).toContainText('EmberSpire')
   const studioUrl = page.url()
-  await page.getByRole('button', { name: 'Switch running Pattern' }).click()
-  const switchMenu = page.getByRole('listbox', { name: 'Switch the running Pattern' })
+  await page.getByRole('button', { name: 'Saved Patterns' }).click()
+  const switchMenu = page.getByRole('listbox', { name: 'Saved Patterns' })
   await expect(switchMenu).toBeVisible()
   await expect(switchMenu.getByRole('option')).toHaveCount(2)
   await expect(switchMenu.getByRole('option').nth(0)).toHaveText('EmberSpire')
@@ -509,7 +509,7 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await expect(switchMenu.getByRole('option', { name: 'EmberSpire' })).toHaveAttribute('aria-selected', 'true')
   await expect(switchMenu.getByRole('option', { name: 'IridescentFibers' })).toHaveAttribute(
     'title',
-    'E2E868PROGRAM00002',
+    'IridescentFibers · E2E868PROGRAM00002',
   )
   const menuActivationWriteOffset = await page.evaluate(() => (
     (window as typeof window & {
@@ -560,9 +560,11 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await expect(summary).toHaveText(/limiting · duty 78% · 5\.0 A · 60\.4 W/)
   await expect(summary).not.toHaveClass(/truncate/)
   await page.setViewportSize({ width: 320, height: 844 })
-  const actionBounds = await actionRow.evaluate((element) => {
+  const actionBounds = await actionRow.evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }))
+  expect(actionBounds.scrollWidth).toBeLessThanOrEqual(actionBounds.clientWidth)
+  const headerBounds = await popover.locator('.controller-panel-header').evaluate((element) => {
     const row = element.getBoundingClientRect()
-    const switchButton = element.querySelector('[aria-label="Switch running Pattern"]')!
+    const switchButton = element.querySelector('[aria-label="Saved Patterns"]')!
       .getBoundingClientRect()
     return {
       scrollWidth: element.scrollWidth,
@@ -573,15 +575,15 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
       switchRight: switchButton.right,
     }
   })
-  expect(actionBounds.scrollWidth).toBeLessThanOrEqual(actionBounds.clientWidth)
-  expect(actionBounds.switchLeft).toBeGreaterThanOrEqual(actionBounds.rowLeft)
-  expect(actionBounds.switchRight).toBeLessThanOrEqual(actionBounds.rowRight)
-  await page.getByRole('button', { name: 'Switch running Pattern' }).click()
+  expect(headerBounds.scrollWidth).toBeLessThanOrEqual(headerBounds.clientWidth)
+  expect(headerBounds.switchLeft).toBeGreaterThanOrEqual(headerBounds.rowLeft)
+  expect(headerBounds.switchRight).toBeLessThanOrEqual(headerBounds.rowRight)
+  await page.getByRole('button', { name: 'Saved Patterns' }).click()
   await expect(switchMenu).toBeVisible()
   const menuHeight = await switchMenu.evaluate((element) => element.getBoundingClientRect().height)
   expect(menuHeight).toBeLessThanOrEqual(844 * 0.6 + 1)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Switch running Pattern' })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Saved Patterns' })).toBeFocused()
   const summaryBounds = await summary.evaluate((element) => {
     const summaryRect = element.closest('.panel-section-summary')!.getBoundingClientRect()
     const headerRect = element.closest('.panel-section-header')!.getBoundingClientRect()
@@ -2120,7 +2122,7 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
   await page.getByTestId('controller-pill').click()
   const panel = page.getByTestId('controller-panel-popover')
-  await panel.getByRole('button', { name: 'Switch running Pattern' }).click()
+  await panel.getByRole('button', { name: 'Saved Patterns' }).click()
   const last = page.getByRole('option', { name: lastPatternName, exact: true })
   await last.scrollIntoViewIfNeeded()
   await expect(last).toBeInViewport()

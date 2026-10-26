@@ -1,13 +1,16 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from 'react'
-import { ArrowRightLeft } from 'lucide-react'
-import { controlIcon } from '@/components/iconScale'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import { DisabledReasonTip } from '@/components/ui/disabled-reason'
+import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import {
   projectControllerProgramMenu,
   type ControllerProgramMenuRow,
@@ -22,8 +25,10 @@ import { useControllerPanelStore } from '@/store/controllerPanelStore'
 interface ControllerProgramSwitchProps {
   gate: SendGate
   programs: ProgramListEntry[]
-  actionClass: string
   controllerId: string
+  ownedProgramIds?: readonly string[]
+  onOpen?: () => void
+  children: ReactNode
 }
 
 function errorMessage(error: unknown): string {
@@ -33,9 +38,15 @@ function errorMessage(error: unknown): string {
 export function ControllerProgramSwitch({
   gate,
   programs,
-  actionClass,
   controllerId,
+  ownedProgramIds,
+  onOpen,
+  children,
 }: ControllerProgramSwitchProps) {
+  const menuId = useId()
+  const reasonId = useId()
+  const otherExpanded = usePanelPreferencesStore(state => state.expanded['controller:saved-patterns-other'] ?? true)
+  const setExpanded = usePanelPreferencesStore(state => state.setExpanded)
   const activeProgramId = useControllerPanelStore((state) => state.activeProgramId)
   const switchingId = useControllerPanelStore((state) => state.activatingProgramId)
   const programLabels = useControllerPanelStore((state) => state.programLabels)
@@ -52,7 +63,9 @@ export function ControllerProgramSwitch({
     activeProgramId,
     programLabels,
     filter,
-  }), [activeProgramId, filter, programLabels, programs])
+    ownedProgramIds,
+    otherExpanded,
+  }), [activeProgramId, filter, programLabels, programs, ownedProgramIds, otherExpanded])
 
   const close = useCallback((restoreFocus: boolean) => {
     menuLifecycleRef.current += 1
@@ -170,37 +183,61 @@ export function ControllerProgramSwitch({
     options[next]?.focus()
   }
 
+  const renderRow = (row: ControllerProgramMenuRow) => (
+    <li role="presentation" key={`${row.unsaved ? 'unsaved' : 'saved'}:${row.id}`}>
+      <button
+        type="button"
+        role="option"
+        aria-selected={row.running}
+        disabled={!gate.enabled || row.disabled || switchingId !== null}
+        title={`${row.name} · ${row.id}`}
+        onClick={() => void switchTo(row)}
+        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-zinc-800/80 disabled:cursor-not-allowed ${row.running ? 'text-amber-300' : 'text-zinc-200'} ${switchingId !== null && switchingId !== row.id ? 'opacity-50' : ''}`}
+      >
+        <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${row.running ? 'bg-emerald-400' : 'bg-transparent'}`} />
+        <span className="min-w-0 break-words font-sans">{row.name}</span>
+        {row.unsaved && <span className="ml-auto shrink-0 text-[10px] text-zinc-500">unsaved · running</span>}
+        {switchingId === row.id && <span className="ml-auto shrink-0 text-[10px] text-zinc-500">switching…</span>}
+      </button>
+    </li>
+  )
+
   return (
     <>
+      <span className="controller-title-picker">
       <button
         ref={triggerRef}
         type="button"
-        disabled={!gate.enabled}
-        aria-label="Switch running Pattern"
+        aria-disabled={!gate.enabled || undefined}
+        aria-describedby={!gate.enabled ? reasonId : undefined}
+        aria-label="Saved Patterns"
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={gate.enabled
-          ? 'Switch to a Pattern saved on this Controller'
-          : gate.reason}
+        aria-controls={menuId}
+        data-testid="controller-saved-patterns-trigger"
         onClick={() => {
+          if (!gate.enabled) return
           if (open) close(true)
           else {
             menuLifecycleRef.current += 1
             setFailure(null)
             setOpen(true)
+            onOpen?.()
           }
         }}
-        className={`${actionClass} ml-auto bg-zinc-800/80 text-zinc-300 hover:bg-zinc-700/80 hover:text-zinc-100`}
+        className="controller-saved-patterns-trigger"
       >
-        <ArrowRightLeft {...controlIcon} aria-hidden />
-        Switch
+        {children}
+        <ChevronDown size={14} aria-hidden className="controller-title-chevron" />
       </button>
+      {!gate.enabled && <DisabledReasonTip id={reasonId}>{gate.reason}</DisabledReasonTip>}
+      </span>
       {open && (
         <div
           ref={menuRef}
           data-testid="controller-program-menu"
           onKeyDown={onMenuKeyDown}
-          className="absolute left-2 right-2 top-full z-20 flex max-h-[60vh] flex-col overflow-hidden rounded-md border border-zinc-700 bg-zinc-950 shadow-2xl"
+          className="controller-saved-patterns-menu absolute left-2 right-2 z-20 flex max-h-[60vh] flex-col overflow-hidden rounded-md border border-zinc-700 bg-zinc-950 shadow-2xl"
         >
           {view.showFilter && (
             <input
@@ -220,52 +257,28 @@ export function ControllerProgramSwitch({
           )}
           <ul
             role="listbox"
-            aria-label="Switch the running Pattern"
+            id={menuId}
+            aria-label="Saved Patterns"
             aria-busy={switchingId !== null}
             className="min-h-0 overflow-y-auto py-1"
           >
-            {view.rows.map((row) => (
-              <li role="presentation" key={`${row.unsaved ? 'unsaved' : 'saved'}:${row.id}`}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={row.running}
-                  disabled={!gate.enabled || row.disabled || switchingId !== null}
-                  title={row.id}
-                  onClick={() => void switchTo(row)}
-                  className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-zinc-800/80 disabled:cursor-not-allowed ${
-                    row.running ? 'text-amber-300' : 'text-zinc-200'
-                  } ${switchingId !== null && switchingId !== row.id ? 'opacity-50' : ''}`}
-                >
-                  <span
-                    aria-hidden
-                    className={`size-1.5 shrink-0 rounded-full ${
-                      row.running ? 'bg-emerald-400' : 'bg-transparent'
-                    }`}
-                  />
-                  <span className="min-w-0 truncate font-sans">{row.name}</span>
-                  {row.unsaved && (
-                    <span className="ml-auto shrink-0 text-[10px] text-zinc-500">
-                      unsaved · running
-                    </span>
-                  )}
-                  {switchingId === row.id && (
-                    <span className="ml-auto shrink-0 text-[10px] text-zinc-500">
-                      switching…
-                    </span>
-                  )}
+            {view.grouped ? <>
+              {view.runOnlyRows.map(renderRow)}
+              <li role="presentation" className="controller-program-group">Saved PXLBLZ Patterns <span>{view.ownedCount}</span></li>
+              {view.ownedRows.map(renderRow)}
+              {view.otherCount > 0 && <li role="presentation">
+                <button type="button" className="controller-program-group" aria-expanded={otherExpanded} disabled={switchingId !== null} onClick={() => setExpanded('controller:saved-patterns-other', !otherExpanded)}>
+                  <ChevronRight size={12} aria-hidden />Other Patterns <span>{view.otherCount}</span>
                 </button>
-              </li>
-            ))}
+              </li>}
+              {view.otherRows.map(renderRow)}
+            </> : view.rows.map(renderRow)}
             {view.rows.filter((row) => !row.unsaved).length === 0 && (
               <li role="presentation" className="px-3 py-1.5 text-[11px] text-zinc-600">
                 No saved Patterns match.
               </li>
             )}
           </ul>
-          <p className="border-t border-zinc-800 px-3 py-1.5 text-[10px] leading-4 text-zinc-500">
-            Switches what the Controller runs; Run and Save still send the open Pattern.
-          </p>
         </div>
       )}
     </>

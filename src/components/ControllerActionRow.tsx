@@ -18,7 +18,6 @@ import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useShowControllerDeliveryStore } from '@/store/showControllerDeliveryStore'
-import { ControllerProgramSwitch } from './ControllerProgramSwitch'
 import { PushConfirmPopover } from './PushConfirmPopover'
 import { PatternPushChoices } from './PatternPushChoices'
 import { PatternPushFailureNotice } from './PatternPushFailureNotice'
@@ -212,12 +211,6 @@ export function ControllerActionRow() {
             >
               {view.subject ?? '—'}
             </span>
-            <ControllerProgramSwitch
-              gate={view.switch}
-              programs={programs}
-              actionClass={actionClass}
-              controllerId={activeIp ?? ''}
-            />
           </div>
           {patternRoute && <PatternPushFailureNotice compact />}
           {showDelivery?.failure && (

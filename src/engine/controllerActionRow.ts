@@ -43,7 +43,7 @@ function disabled(reason: string): SendGate {
   return { enabled: false, reason }
 }
 
-function describeSwitchGate({
+export function describeSwitchGate({
   status,
   working,
   programsRead,
@@ -145,6 +145,12 @@ export interface ControllerProgramMenuRow {
 export interface ControllerProgramMenuView {
   rows: ControllerProgramMenuRow[]
   showFilter: boolean
+  grouped: boolean
+  ownedRows: ControllerProgramMenuRow[]
+  otherRows: ControllerProgramMenuRow[]
+  ownedCount: number
+  otherCount: number
+  runOnlyRows: ControllerProgramMenuRow[]
 }
 
 export interface ControllerProgramMenuInput {
@@ -152,10 +158,12 @@ export interface ControllerProgramMenuInput {
   activeProgramId?: string
   programLabels?: Record<string, string>
   filter: string
+  ownedProgramIds?: readonly string[]
+  otherExpanded?: boolean
 }
 
 /**
- * Project the saved-Pattern switcher as one deterministic flat list. A run-only
+ * Project the saved-Pattern switcher in deterministic inventory groups. A run-only
  * active Pattern is deliberately outside filtering: it stays pinned as device
  * truth even when the user narrows the saved inventory beneath it.
  */
@@ -164,6 +172,8 @@ export function projectControllerProgramMenu({
   activeProgramId,
   programLabels,
   filter,
+  ownedProgramIds = [],
+  otherExpanded = true,
 }: ControllerProgramMenuInput): ControllerProgramMenuView {
   const query = filter.trim().toLocaleLowerCase()
   const sorted = [...programs].sort((left, right) => {
@@ -194,8 +204,23 @@ export function projectControllerProgramMenu({
       }]
     : []
 
+  const ownedIds = new Set(ownedProgramIds)
+  const ownedCount = programs.filter(program => ownedIds.has(program.id)).length
+  const otherCount = programs.length - ownedCount
+  const grouped = ownedCount > 0
+  const ownedRows = grouped ? savedRows.filter(row => ownedIds.has(row.id)) : []
+  const otherRows = grouped ? savedRows.filter(row => (
+    !ownedIds.has(row.id) && (otherExpanded || !!query || row.running)
+  )) : []
+
   return {
-    rows: [...runOnlyRow, ...savedRows],
+    rows: [...runOnlyRow, ...(grouped ? [...ownedRows, ...otherRows] : savedRows)],
     showFilter: programs.length > 8,
+    grouped,
+    ownedRows,
+    otherRows,
+    ownedCount,
+    otherCount,
+    runOnlyRows: runOnlyRow,
   }
 }

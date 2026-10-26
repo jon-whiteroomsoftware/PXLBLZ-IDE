@@ -217,6 +217,35 @@ describe('describeControllerActionRow', () => {
 })
 
 describe('projectControllerProgramMenu', () => {
+  it('groups immutable inventory with full counts and searches folded Other rows', () => {
+    const inventory = Object.freeze([
+      Object.freeze({ id: 'z', name: 'Zebra' }),
+      Object.freeze({ id: 'b', name: 'beta' }),
+      Object.freeze({ id: 'a', name: 'Alpha' }),
+    ])
+    const input = { programs: [...inventory], ownedProgramIds: ['b'], activeProgramId: 'z', otherExpanded: false, filter: '' }
+    const snapshot = structuredClone(input)
+    const folded = projectControllerProgramMenu(input)
+    expect(folded).toMatchObject({ grouped: true, ownedCount: 1, otherCount: 2 })
+    expect(folded.ownedRows).toEqual([{ id: 'b', name: 'beta', running: false, unsaved: false, disabled: false }])
+    expect(folded.otherRows).toEqual([{ id: 'z', name: 'Zebra', running: true, unsaved: false, disabled: false }])
+    expect(folded.runOnlyRows).toEqual([])
+    expect(folded.rows.map(row => row.id)).toEqual(['b', 'z'])
+    expect(projectControllerProgramMenu({ ...input, otherExpanded: true }).rows.map(row => row.id)).toEqual(['b', 'a', 'z'])
+    expect(projectControllerProgramMenu({ ...input, filter: 'alpha' }).rows.map(row => row.id)).toEqual(['a'])
+    expect(projectControllerProgramMenu({ ...input, filter: 'missing' })).toMatchObject({ rows: [], ownedCount: 1, otherCount: 2 })
+    expect(projectControllerProgramMenu(input).rows.map(row => row.id)).toEqual(['b', 'z'])
+    expect(input).toEqual(snapshot)
+  })
+
+  it('keeps inventories flat without owned members and pins run-only rows outside grouped filtering', () => {
+    expect(projectControllerProgramMenu({ programs, ownedProgramIds: ['absent'], otherExpanded: false, filter: '' })).toMatchObject({ grouped: false, rows: expect.any(Array) })
+    expect(projectControllerProgramMenu({ programs, otherExpanded: false, filter: '' }).rows).toHaveLength(3)
+    const owned = projectControllerProgramMenu({ programs, ownedProgramIds: programs.map(row => row.id), activeProgramId: 'live', filter: 'missing' })
+    expect(owned).toMatchObject({ grouped: true, ownedCount: 3, otherCount: 0, otherRows: [], ownedRows: [], runOnlyRows: [{ id: 'live', disabled: true }] })
+    expect(owned.rows.map(row => row.id)).toEqual(['live'])
+    expect(projectControllerProgramMenu({ programs: Array.from({ length: 8 }, (_, i) => ({ id: String(i), name: String(i) })), filter: '' }).showFilter).toBe(false)
+  })
   const programs = [
     { id: 'z', name: 'zebra' },
     { id: 'a2', name: 'aurora' },

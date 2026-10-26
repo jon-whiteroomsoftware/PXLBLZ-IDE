@@ -24,7 +24,7 @@ import {
 import { ChipGlyph, ConnectGlyph, DisconnectGlyph } from './ControllerGlyphs'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel, ControllerPanelBrightness } from './ControllerPanel'
-import { ControllerPanelTitle } from './ControllerPanelTitle'
+import { ControllerPanelTitlePicker } from './ControllerPanelTitlePicker'
 import { ControllerActionRow } from './ControllerActionRow'
 import { onControllerEntryRequested } from './controllerEntryEvents'
 import type { DiscoveredController } from '@/engine/ControllerProvider'
@@ -258,11 +258,11 @@ function ControllerPillButton({
           data-testid="controller-panel-popover"
           className="controller-panel-popover fixed left-2 right-2 top-16 z-50 w-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl font-mono text-xs text-zinc-300 sm:absolute sm:left-auto sm:right-0 sm:top-8 sm:w-[400px]"
         >
-          <div className="flex items-center justify-between gap-2 border-b border-seam px-3 py-2">
+          <div className="controller-panel-header relative flex items-center justify-between gap-2 border-b border-seam px-3 py-2">
             {/* Title mirrors the editor and preview panes: the running pattern
                 name + dimensionality, not the device name (which already labels the
                 pill this popover hangs from). */}
-            <ControllerPanelTitle />
+            <ControllerPanelTitlePicker />
             <ControllerPanelBrightness />
             <div className="flex shrink-0 items-center gap-1">
               <ControllerSequencerIndicator ip={ip} live={phase === 'live'} />
