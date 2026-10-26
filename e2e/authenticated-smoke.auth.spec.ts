@@ -511,6 +511,11 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
     'title',
     'E2E868PROGRAM00002',
   )
+  const menuActivationWriteOffset = await page.evaluate(() => (
+    (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+  ).length)
   await switchMenu.getByRole('option', { name: 'IridescentFibers' }).click()
 
   await expect(switchMenu).not.toBeVisible()
@@ -519,14 +524,16 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await expect(actionRow).toContainText('EmberSpire')
   expect(page.url()).toBe(studioUrl)
   await expect(sequencer).toBeVisible()
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => page.evaluate((offset) => {
     const writes = (window as typeof window & {
       __fakeControllerWrites?: Array<Record<string, unknown>>
     }).__fakeControllerWrites ?? []
-    return writes.some((write) => (
-      write.activeProgramId === 'E2E868PROGRAM00002' && write.save === true
-    ))
-  })).toBe(true)
+    return writes.slice(offset)
+      .filter((write) => 'activeProgramId' in write)
+      .map((write) => ({ activeProgramId: write.activeProgramId, save: write.save }))
+  }, menuActivationWriteOffset)).toEqual([
+    { activeProgramId: 'E2E868PROGRAM00002', save: false },
+  ])
 
   const panel = page.getByTestId('controller-panel')
   const pixelblaze = panel.getByRole('button', { name: 'Pixelblaze', exact: true })
@@ -619,6 +626,11 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await expect(rowActions).toHaveCSS('opacity', '0')
   await runEmberSpire.focus()
   await expect(rowActions).toHaveCSS('opacity', '1')
+  const profileActivationWriteOffset = await page.evaluate(() => (
+    (window as typeof window & {
+      __fakeControllerWrites?: Array<Record<string, unknown>>
+    }).__fakeControllerWrites ?? []
+  ).length)
   await runEmberSpire.click()
   await expect(otherPrograms.getByLabel('Running now')).toHaveCount(1)
   await expect(runEmberSpire).toBeDisabled()
@@ -632,14 +644,16 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
   await controllerPill.click()
   await expect(page.getByTestId('controller-panel-popover').locator('span[title="EmberSpire"]'))
     .toBeVisible()
-  await expect.poll(() => page.evaluate(() => {
+  await expect.poll(() => page.evaluate((offset) => {
     const writes = (window as typeof window & {
       __fakeControllerWrites?: Array<Record<string, unknown>>
     }).__fakeControllerWrites ?? []
-    return writes.some((write) => (
-      write.activeProgramId === 'E2E866PROGRAM00001' && write.save === true
-    ))
-  })).toBe(true)
+    return writes.slice(offset)
+      .filter((write) => 'activeProgramId' in write)
+      .map((write) => ({ activeProgramId: write.activeProgramId, save: write.save }))
+  }, profileActivationWriteOffset)).toEqual([
+    { activeProgramId: 'E2E866PROGRAM00001', save: false },
+  ])
 })
 
 test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#870)', async ({ page }) => {
