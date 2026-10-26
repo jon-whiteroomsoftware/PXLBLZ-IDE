@@ -1,6 +1,7 @@
 .controller-panel-popover { container: controller-panel / inline-size; max-width: min(400px, calc(100vw - 16px)); }
 .controller-panel { min-width: 0; font-size: 10.5px; }
-.controller-title-picker { display: flex; min-width: 0; }
+.controller-panel-header { display: grid; grid-template-columns: minmax(0, max-content) minmax(89px, 1fr) auto; }
+.controller-title-picker { display: flex; min-width: 0; max-width: 100%; }
 .controller-saved-patterns-trigger { display: flex; align-items: center; gap: 6px; min-width: 0; height: 26px; padding: 0 5px 0 8px; border: 1px solid var(--color-zinc-600); border-radius: 4px; background: color-mix(in srgb, var(--color-zinc-800) 60%, transparent); transition: border-color .15s, background-color .15s; }
 .controller-saved-patterns-trigger:hover { border-color: var(--color-zinc-400); background: var(--color-zinc-800); }
 .controller-saved-patterns-trigger[aria-expanded="true"] { border-color: color-mix(in srgb, var(--color-live) 60%, transparent); background: var(--color-zinc-800); }
@@ -14,7 +15,7 @@
 button.controller-program-group:hover { color: var(--color-zinc-300); }
 .controller-program-group > svg { flex-shrink: 0; transition: transform .15s; }
 .controller-program-group[aria-expanded="true"] > svg { transform: rotate(90deg); }
-.controller-panel-header .panel-brightness { flex-shrink: 10; min-width: 88px; }
+.controller-panel-header .panel-brightness { width: 100%; max-width: 101px; min-width: 89px; justify-self: end; }
 .controller-panel-header .panel-brightness [data-deck="slider"] { width: 82px; min-width: 70px; }
 .controller-panel-header .panel-brightness input { min-width: 36px; flex: 0 10 48px; }
 .controller-panel-header .panel-brightness [data-deck="slider"] > div > span { flex: 0 0 32px; }
