@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1221",
+  "route": "/PXLBLZ-IDE/studio/controllers/account-b-profile",
+  "operation": "Using the isolated authenticated Playwright flow and one shared simulated Controller, account B listed account A's saved Pattern, confirmed single-slot import, reopened its personal Pattern editor and persistent wrapped-source notice, edited and saved, and revisited the owned inventory at 1440x1000 and 760x1000. A forced completion-metadata failure displayed truthful progress; reload and Resume completed the same Pattern and slot, with API/PBP preservation and numeric old/new profile assertions passing.",
+  "captures": [
+    ".wrsp/ui-proof/1221-c-i13/B-before-desktop.png",
+    ".wrsp/ui-proof/1221-c-i13/B-before-narrow.png",
+    ".wrsp/ui-proof/1221-c-i13/B-after-desktop.png",
+    ".wrsp/ui-proof/1221-c-i13/B-after-narrow.png",
+    ".wrsp/ui-proof/1221-c-i13/wrapped-notice.png",
+    ".wrsp/ui-proof/1221-c-i13/partial-failure.png"
+  ],
+  "capturedAtCommit": "2275b02e4aeb81b0b93f8f5df1cbcb9b074c08a5"
+}
