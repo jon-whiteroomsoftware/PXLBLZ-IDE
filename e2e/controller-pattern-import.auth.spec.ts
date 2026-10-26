@@ -338,7 +338,7 @@ test('group-local cross-account bulk import retains named durable failures and r
   seedPbp(slots[1], names[1], storedSource)
   seedPbp(slots[2], names[2], storedSource)
   const fullAccount = async (request: APIRequestContext) => ({ ...await snapshot(request),
-    controllers: await json(request, 'controllers'), maps: await json(request, 'maps'),
+    controllers: await json<{ controllers: ControllerProfile[] }>(request, 'controllers'), maps: await json(request, 'maps'),
     shows: await json(request, 'shows?show-version=2'), libraries: await json(request, 'libraries'),
     ledger: await json(request, 'controller-metadata/controller-pattern-imports') })
   const aBefore = await fullAccount(aRequest)
@@ -478,7 +478,18 @@ test('group-local cross-account bulk import retains named durable failures and r
     expect(await fullAccount(aRequest)).toEqual(aBefore)
     expect(mixed.patterns.find((p) => p.id === 'bulk-b-control')).toEqual(before.patterns.patterns.find((p) => p.id === 'bulk-b-control'))
     const final = await fullAccount(request)
-    for (const key of ['controllers', 'maps', 'shows', 'libraries', 'pushes'] as const) expect(final[key]).toEqual(before[key])
+    const beforeProfile = before.controllers.controllers.find((p) => p.id === 'bulk-account-b-profile')
+    const finalProfile = final.controllers.controllers.find((p) => p.id === 'bulk-account-b-profile')
+    expect(beforeProfile).toBeDefined()
+    expect(finalProfile).toBeDefined()
+    expect(finalProfile!.updatedAt).toBeGreaterThanOrEqual(beforeProfile!.updatedAt)
+    expect(final.controllers).toEqual({
+      ...before.controllers,
+      controllers: before.controllers.controllers.map((p) => p.id === 'bulk-account-b-profile'
+        ? { ...p, updatedAt: finalProfile!.updatedAt }
+        : p),
+    })
+    for (const key of ['maps', 'shows', 'libraries', 'pushes'] as const) expect(final[key]).toEqual(before[key])
     await expect(b).toHaveURL(controllerRoute)
     await expect(b.locator('table[aria-label="Unimported PXLBLZ Patterns"]')).toHaveCount(0)
     await expect(b.locator('table[aria-label="Saved PXLBLZ Patterns"] tbody tr')).toHaveCount(4)
