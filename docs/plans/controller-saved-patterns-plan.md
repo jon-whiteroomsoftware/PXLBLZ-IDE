@@ -18,14 +18,24 @@ The provider seam requires an explicit `save` boolean. Switch-menu picks and
 profile Run share the store's `save: false` activation, preserving the open
 Studio subject and its dirty and delivery records. Existing confirmation,
 rollback, late confirmation, session guards and locks remain in place. Save
-semantics and the current UI remain unchanged. Focused unit/component evidence
+semantics remain unchanged. Focused unit/component evidence
 and a production-transport browser regression accompany this slice; browser
 execution and final committed-tip suites remain with the developer.
 
+## Title-picker slice
+
+The running title now opens Saved Patterns from the panel header on every
+route. The menu consumes the profile inventory's classification, sorts Saved
+PXLBLZ Patterns before Other Patterns, and remembers the Other fold per browser.
+The running Other Pattern remains visible while folded; a query searches both
+groups. No managed members yields a flat list. Binding reads are scoped to the
+current Controller session and inventory. Existing transient activation,
+confirmation, focus, pending and failure behavior remains in place.
+
 ## Remaining scope
 
-The approved title/menu grouping, capsule and brightness work remains future
-work. Startup-setting controls and classification changes are outside this design.
+The approved capsule/action-row visibility and whole-percent brightness work
+remains future work. Startup-setting controls and classification changes are outside this design.
 The bounded firmware prerequisite is documented in the
 [device notes](../reference/Pixelblaze%20device%20behaviour%20notes.md#saved-pattern-selection-deletion-and-sequencer-fields).
 It does not prove the built product. These post-build physical cases remain

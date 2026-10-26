@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "issue": "1223",
+  "route": "/PXLBLZ-IDE/studio/maps/plane",
+  "operation": "Repository Playwright fallback after installed in-app browser discovery returned no backends and iab unavailable. Managed5178 identity matched this worktree/source commit. Separate browser context used task synthetic session and existing fake helper production-transport fixture with16 exact mock names,3 bound owned programs,13 Other. Actual Pattern/Show/Maps routes at1400x1000 and390x844: title at rest, grouped open menu, Other folded retaining running Pattern. Verified full WavyBands1,2D at390, query across folded group and clearing, close/reopen/reload fold persistence, exact transient activation save:false, updated title, restored focus, unchanged Maps route/action subject, clean console/pageerrors and no horizontal page overflow. Capsule, whole-percent brightness and physical reboot proof remain later slices.",
+  "captures": [
+    ".wrsp/ui-proof/1223-title-picker-1400-pattern.png",
+    ".wrsp/ui-proof/1223-title-picker-1400-show.png",
+    ".wrsp/ui-proof/1223-title-picker-1400-maps-open.png",
+    ".wrsp/ui-proof/1223-title-picker-1400-maps-folded.png",
+    ".wrsp/ui-proof/1223-title-picker-390-pattern.png",
+    ".wrsp/ui-proof/1223-title-picker-390-show.png",
+    ".wrsp/ui-proof/1223-title-picker-390-maps-open.png",
+    ".wrsp/ui-proof/1223-title-picker-390-maps-folded.png"
+  ],
+  "capturedAtCommit": "6bc30d7a12beca752f163bbdf63d989443ffa2c4"
+}

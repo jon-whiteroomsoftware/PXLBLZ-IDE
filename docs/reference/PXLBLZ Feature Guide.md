@@ -264,10 +264,19 @@ output down. If the Controller is shuffling or playing a playlist, an icon in
 the panel header says so, because the sequencer can replace a manual switch
 at its next interval.
 
-The **Switch** menu changes only what the Controller runs. It lists saved
-Patterns alphabetically, marks the running one, and pins a run-only Pattern
-as **unsaved · running** when it is not in the saved inventory. A successful
-switch runs now without changing the startup Pattern. If the device cannot
+The running Pattern title opens the **Saved Patterns** picker on every route.
+Its face keeps the running name and dimensions visible; when picking is
+unavailable, focusing the title explains why. The menu uses the same
+classification as the profile inventory: **Saved PXLBLZ Patterns** first, then
+**Other Patterns**, each alphabetical. Other Patterns starts expanded and
+remembers its fold per browser. The running Pattern stays visible when that
+group folds. Above eight saved Patterns, a filter searches both groups even
+while folded. When none classify as PXLBLZ Patterns, the menu is one flat list.
+
+The picker marks the running saved Pattern and pins a run-only Pattern as
+**unsaved · running** above the saved inventory. A confirmed pick updates the
+title, closes the menu, and returns focus to the title. It runs now without
+changing the startup Pattern or the open Studio subject. If the device cannot
 confirm the change, the menu stays open with its reason.
 
 One flag worth knowing: firmware silently drops a map whose pixel count
