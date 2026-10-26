@@ -1,6 +1,6 @@
 import type { ControllerProvider } from './ControllerProvider'
 import type { ControllerMetadataStorage } from './controllerMetadataStorage'
-import { mutateControllerPatternImport } from './controllerMetadataStorage'
+import { mutateControllerPatternImport, setPushRecords } from './controllerMetadataStorage'
 import type { PersonalContentProvider } from './personalContentProvider'
 import type { PatternRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
@@ -321,7 +321,7 @@ export async function importControllerPattern(
           const pushRecord = { transforms: banner.transforms, artifactHash: banner.hash, stampedAt: banner.stamped,
             name: verified.decoded.name, profileSignature: receipt!.profileSignature, sourceHash: artifactHash(record.src) }
           const latestRecords = await call(() => deps.metadataStorage.getPushRecords())
-          await call(() => deps.metadataStorage.setPushRecords(withPushRecord(latestRecords, deps.controllerId, record.id, pushRecord)))
+          await call(() => setPushRecords(withPushRecord(latestRecords, deps.controllerId, record.id, pushRecord), deps.metadataStorage))
           const confirmedRecords = await call(() => deps.metadataStorage.getPushRecords())
           if (stableJson(confirmedRecords[deps.controllerId]?.[record.id]) !== stableJson(pushRecord)) throw new Error('Push record readback failed')
         }

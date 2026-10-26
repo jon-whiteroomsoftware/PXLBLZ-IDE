@@ -33,6 +33,8 @@ import {
   setControllerMetadataStorage,
   type ControllerMetadataStorage,
   getControllerMetadataStorage,
+  getControllerPushRecordsRevision,
+  subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
 import { assessControllerPatternImport, createControllerPatternImportPlan, readControllerPatternImportLedger,
   type ControllerPatternImportLedger } from '@/engine/controllerPatternImport'
@@ -452,6 +454,48 @@ afterEach(() => {
 const store = () => useControllerStore.getState()
 
 describe('controllerStore (keyed)', () => {
+  it.each([false, true])('publishes captured Pattern Save metadata after persistence, but not Run (generated=%s)', async (generated) => {
+    const provider = await connectManagedController()
+    const captured = getControllerMetadataStorage()
+    const entered = deferred<void>(); const release = deferred<void>()
+    setControllerMetadataStorage({ ...captured, setPushRecords: async (next) => {
+      entered.resolve()
+      await release.promise
+      await captured.setPushRecords(next)
+    } })
+    const source = 'export function render(i) { rgb(1,0,0) }'
+    usePatternStore.setState({ activePatternId: 'pat-1' })
+    useEditorStore.setState({ previewSource: source })
+    const send = (persist: boolean) => {
+      if (generated) return store().pushGeneratedArtifact({ artifactId: 'pat-1', source,
+        name: 'Pattern', persist, compilePressure: { budgetBytes: 1_000_000, worstInstantRenderersPerPixel: 1 },
+        artifactStamp: { kind: 'pattern', id: 'pat-1', name: 'Pattern' } })
+      store().setSaveArmed(persist)
+      return store().pushActivePattern()
+    }
+    const before = getControllerPushRecordsRevision()
+    const onRevision = vi.fn()
+    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
+    try {
+      await send(false)
+      expect(provider.pushed).toHaveLength(1)
+      expect(getControllerPushRecordsRevision()).toBe(before)
+      expect(onRevision).not.toHaveBeenCalled()
+      const saving = send(true)
+      await entered.promise
+      expect(getControllerPushRecordsRevision()).toBe(before)
+      expect(onRevision).not.toHaveBeenCalled()
+      release.resolve()
+      await saving
+      expect(provider.saved).toHaveLength(1)
+      expect((await captured.getPushRecords())['10.0.0.5']['pat-1']).toMatchObject({
+        profileSignature: expect.any(String), artifactHash: expect.any(String),
+      })
+      expect(getControllerPushRecordsRevision()).toBe(before + 1)
+      expect(onRevision).toHaveBeenCalledTimes(1)
+    } finally { unsubscribe() }
+  })
+
   it.each([false, true])('rejects deferred Pattern policy changes (generated=%s)', async (generated) => {
     const provider = await connectManagedController()
     const metadata = getControllerMetadataStorage()
@@ -783,7 +827,18 @@ describe('controllerStore (keyed)', () => {
       { id: 'FOREIGN1', name: 'Someone else\'s Pattern' },
     ]
 
-    await store().reconcileControllerProfile('profile-1')
+    const inventory = structuredClone(provider.programs)
+    const before = getControllerPushRecordsRevision()
+    const onRevision = vi.fn()
+    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
+    try {
+      await store().reconcileControllerProfile('profile-1')
+      expect((await getPushRecords())['10.0.0.5']['pat-1'].profileSignature)
+        .toBe(controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: store().controllers['10.0.0.5'].mapDim ?? null }))
+      expect(provider.programs).toEqual(inventory)
+      expect(getControllerPushRecordsRevision()).toBe(before + 1)
+      expect(onRevision).toHaveBeenCalledTimes(1)
+    } finally { unsubscribe() }
 
     expect(provider.saved.map((write) => write.opts.id)).toEqual(['MANAGED1'])
     expect(provider.pushed).toEqual([])

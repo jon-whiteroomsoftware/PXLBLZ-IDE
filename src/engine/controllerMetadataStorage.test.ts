@@ -51,6 +51,37 @@ function memoryStorage(): ControllerMetadataStorage {
 }
 
 describe('controller metadata storage seam', () => {
+  it.each([false, true])('publishes only a successful captured write after persistence (reject=%s)', async (reject) => {
+    const current = memoryStorage()
+    const captured = memoryStorage()
+    const records = { controller: { pattern: { transforms: [], artifactHash: 'captured', stampedAt: 'now', name: 'Pattern' } } }
+    const unrelated = { other: { pattern: { ...records.controller.pattern, artifactHash: 'unrelated' } } }
+    await current.setPushRecords(unrelated)
+    setControllerMetadataStorage(current)
+    let release!: () => void
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    const destination = { ...captured, setPushRecords: async (next: typeof records) => {
+      await pending
+      if (reject) throw new Error('captured write rejected')
+      await captured.setPushRecords(next)
+    } }
+    const onRevision = vi.fn()
+    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
+    try {
+      const before = getControllerPushRecordsRevision()
+      const writing = setPushRecords(records, destination)
+      expect(getControllerPushRecordsRevision()).toBe(before)
+      expect(onRevision).not.toHaveBeenCalled()
+      release()
+      if (reject) await expect(writing).rejects.toThrow('captured write rejected')
+      else await writing
+      expect(await captured.getPushRecords()).toEqual(reject ? {} : records)
+      expect(await current.getPushRecords()).toEqual(unrelated)
+      expect(getControllerPushRecordsRevision()).toBe(before + (reject ? 0 : 1))
+      expect(onRevision).toHaveBeenCalledTimes(reject ? 0 : 1)
+    } finally { unsubscribe() }
+  })
+
   it('publishes a new push-record revision only after durable writes succeed (#777)', async () => {
     const onRevision = vi.fn()
     const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)

@@ -6,7 +6,7 @@ import { bundleWithPasses } from './passEngine'
 import { decodePbp, encodePbp } from './pbpEncode'
 import { recoverSavedProgram } from './controllerSavedProgramRead'
 import type { PatternRecord } from './personalContentRecords'
-import type { ControllerMetadataStorage } from './controllerMetadataStorage'
+import { getControllerPushRecordsRevision, subscribeControllerPushRecordsRevision, type ControllerMetadataStorage } from './controllerMetadataStorage'
 import { readControllerPatternImportLedger, type ControllerPatternImportLedger } from './controllerPatternImport'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecords } from './controllerPushRecord'
@@ -142,20 +142,29 @@ describe('selected-slot Controller Pattern import execution', () => {
 
   it('renders old wrapped behavior and independently matched authored behavior with the current profile', async () => {
     const wrapped = makeDeps()
-    const old = prepareControllerArtifactDelivery({ source, artifactId: 'demo:origin', profile: hardwareBrightnessProfile() })
-    wrapped.programs.set(slot, blob(old.source))
-    await importControllerPattern(input, wrapped.deps)
-    expect(render(decodePbp(wrapped.programs.get(slot)!)!.sourceCode)).toEqual({ rgb: [0.4, 0.2, 0.1], pins: [36] })
-    const authored = makeDeps()
-    authored.programs.set(slot, blob(bundleWithPasses(source, {}, []).code))
-    authored.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source })
-    await importControllerPattern(input, authored.deps)
-    const decoded = decodePbp(authored.programs.get(slot)!)!
-    expect(authored.accounts.get('personal-1')!.src).toBe(source)
-    expect(parsePxlblzBanner(decoded.sourceCode)).toMatchObject({ id: 'personal-1', transforms: ['hardware-brightness'] })
-    expect(render(decoded.sourceCode)).toEqual({ rgb: [0.2, 0.1, 0.05], pins: [35] })
-    expect(authored.deps.provider.pushBytecode).toHaveBeenLastCalledWith(decoded.byteCode, { id: slot, name: 'Original' })
-    expect(authored.records()['address-A']['personal-1']).toMatchObject({ profileSignature: 'profile-1' })
+    const before = getControllerPushRecordsRevision()
+    const onRevision = vi.fn()
+    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
+    try {
+      const old = prepareControllerArtifactDelivery({ source, artifactId: 'demo:origin', profile: hardwareBrightnessProfile() })
+      wrapped.programs.set(slot, blob(old.source))
+      await importControllerPattern(input, wrapped.deps)
+      expect(render(decodePbp(wrapped.programs.get(slot)!)!.sourceCode)).toEqual({ rgb: [0.4, 0.2, 0.1], pins: [36] })
+      expect(getControllerPushRecordsRevision()).toBe(before)
+      expect(onRevision).not.toHaveBeenCalled()
+      const authored = makeDeps()
+      authored.programs.set(slot, blob(bundleWithPasses(source, {}, []).code))
+      authored.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source })
+      await importControllerPattern(input, authored.deps)
+      const decoded = decodePbp(authored.programs.get(slot)!)!
+      expect(authored.accounts.get('personal-1')!.src).toBe(source)
+      expect(parsePxlblzBanner(decoded.sourceCode)).toMatchObject({ id: 'personal-1', transforms: ['hardware-brightness'] })
+      expect(render(decoded.sourceCode)).toEqual({ rgb: [0.2, 0.1, 0.05], pins: [35] })
+      expect(authored.deps.provider.pushBytecode).toHaveBeenLastCalledWith(decoded.byteCode, { id: slot, name: 'Original' })
+      expect(authored.records()['address-A']['personal-1']).toMatchObject({ profileSignature: 'profile-1' })
+      expect(getControllerPushRecordsRevision()).toBe(before + 1)
+      expect(onRevision).toHaveBeenCalledTimes(1)
+    } finally { unsubscribe() }
   })
 
   it.each(['create-before', 'create-after', 'save-before', 'save-after', 'activate', 'binding-before', 'binding-after',

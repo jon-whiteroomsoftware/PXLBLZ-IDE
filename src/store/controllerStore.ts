@@ -38,6 +38,7 @@ import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
   getProgramLabels,
   setProgramLabels,
+  setPushRecords,
   getControllerMetadataStorage,
   type ControllerMetadataStorage,
 } from '@/engine/controllerMetadataStorage'
@@ -112,7 +113,7 @@ Pick<PushPatternDeps, 'loadBindings' | 'saveBindings' | 'loadPushRecords' | 'sav
     loadBindings: () => guarded(() => storage.getControllerBindings()),
     saveBindings: (next) => guarded(() => storage.setControllerBindings(next)),
     loadPushRecords: () => guarded(() => storage.getPushRecords()),
-    savePushRecords: (next) => guarded(() => storage.setPushRecords(next)),
+    savePushRecords: (next) => guarded(() => setPushRecords(next, storage)),
   }
 }
 

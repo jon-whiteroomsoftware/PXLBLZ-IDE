@@ -221,8 +221,11 @@ export function subscribeControllerPushRecordsRevision(listener: () => void): ()
   return () => pushRecordsRevisionListeners.delete(listener)
 }
 
-export async function setPushRecords(records: ControllerPushRecords): Promise<void> {
-  await activeStorage.setPushRecords(records)
+export async function setPushRecords(
+  records: ControllerPushRecords,
+  storage: ControllerMetadataStorage = activeStorage,
+): Promise<void> {
+  await storage.setPushRecords(records)
   pushRecordsRevision += 1
   for (const listener of pushRecordsRevisionListeners) listener()
 }

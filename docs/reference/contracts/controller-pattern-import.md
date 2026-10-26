@@ -150,6 +150,9 @@ profile reads/waits, retain firmware checks, and omit profile freshness from Sav
 metadata. Authored preparation requires a successful profile load and guards
 profile/session state through device mutations. Adapter replacement invalidates
 the captured operation. Show delivery keeps its existing source semantics.
+Successful push-record persistence invalidates Saved Patterns freshness even when
+program IDs and the list are unchanged; this publication retains the captured
+storage destination.
 
 Reconciliation reads policy with its other planning metadata and fails closed
 on read errors. Bound stored-artifact Patterns are unmanaged with reason
