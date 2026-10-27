@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { setTimeout as delay } from 'node:timers/promises'
-import { parseBenchArgs, validateBenchSessions, assertBenchMutation, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
+import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchMutation, assertBenchProfile, observeBenchImportRead, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
 import { decodePbp } from '../src/engine/pbpEncode'
 import { parsePxlblzBanner } from '../src/engine/artifactStamp'
@@ -69,7 +69,7 @@ async function run() {
     outcome: 'blocked', cleanup: 'deferred: S2/S3 hardware proof required', screenshots: [],
     residualGaps: ['S2 hardware persistence/readback qualification pending', 'S3 B brightness-wrapper qualification pending', 'Native permission interaction requires a real operator-capable Chromium host'] }
   const names = [1, 2, 3].map((n) => `Test pat I20-${options.runId} ${n}`)
-  const state: BenchAdmissionState = { target: options.device, scope: 'idle', allowedNames: names, pendingSaveName: null, pendingImport: null,
+  const state: BenchAdmissionState = { target: options.device, scope: 'idle', allowedNames: names, pendingSaveName: null, pendingImport: null, pendingPattern: null,
     savedSlots: {}, admittedSlots: {}, priorActiveIds: [], usedDrainIds: [], drainDigest: null, allowNewSaveSlot: false }
   report.fixtureNames = names
   let refused = false
@@ -78,8 +78,7 @@ async function run() {
   let probe: Promise<void> | null = null
   const contexts = new Set<BrowserContext>()
   const profiles: string[] = []
-  const workers = new Set<Worker>()
-  const workerCounts = new Map<Worker, number>()
+  const workerObservations = new BenchWorkerObservations<Worker>()
   const pendingRelay = new Map<string, { slot: string; start: number }>()
   const slots = new Map<string, string>()
   const fixtures: PatternRecord[] = []
@@ -95,33 +94,45 @@ async function run() {
     probe = (async () => {
       event('http-probe-start', { label, targetMs, elapsedMs: completedAt === undefined ? null : start - completedAt })
       try {
-        const response = await fetch(`http://${options.device}/`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(10_000) })
+        const response = await fetch(`http://${options.device}/list`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(10_000) })
         const headerMs = performance.now() - start
         const body = await response.arrayBuffer()
-        event('http-probe-end', { label, status: response.status, headerMs, durationMs: performance.now() - start, bytes: body.byteLength })
+        event('http-probe-end', { label, path: '/list', status: response.status, headerMs, durationMs: performance.now() - start,
+          declaredLength: response.headers.get('content-length'), contentEncoding: response.headers.get('content-encoding'),
+          transferEncoding: response.headers.get('transfer-encoding'), actualBytes: body.byteLength })
       } catch (error) { event('http-probe-error', { label, durationMs: performance.now() - start, error: clean(error) }) }
     })()
     try { await probe } finally { probe = null }
   }
 
   const flushWorkers = async () => {
-    for (const worker of workers) {
+    for (const worker of workerObservations.active) {
       try {
         const rows = await worker.evaluate(() => {
           const g = globalThis as unknown as { __i20Http?: unknown[] }
           return g.__i20Http ?? []
         })
-        const count = workerCounts.get(worker) ?? 0
+        if (!workerObservations.active.has(worker)) continue
+        const count = workerObservations.counts.get(worker) ?? 0
         for (const row of rows.slice(count)) event('worker-http', row as Event)
-        workerCounts.set(worker, rows.length)
-      } catch { event('worker-observation-gap', { reason: 'Worker unavailable while collecting observations' }) }
+        workerObservations.counts.set(worker, rows.length)
+      } catch {
+        event('worker-observation-gap', { reason: 'Worker unavailable while collecting observations' })
+        workerObservations.failed(worker)
+        readOnly ||= workerObservations.readOnly
+      }
     }
   }
   const installWorker = async (worker: Worker) => {
-    if (workers.has(worker)) return
-    workers.add(worker)
-    event('worker-start', { instance: workers.size, observationGap: true })
-    worker.on('close', () => event('worker-stop', { observationGap: true }))
+    if (workerObservations.active.has(worker)) return
+    workerObservations.add(worker)
+    event('worker-start', { instance: workerObservations.active.size, observationGap: true })
+    worker.on('close', () => {
+      const expected = workerObservations.closing.has(worker)
+      workerObservations.closed(worker)
+      readOnly ||= workerObservations.readOnly
+      event('worker-stop', { expected, observationGap: !expected })
+    })
     await worker.evaluate((ip) => {
       const g = globalThis as unknown as { __i20Http?: unknown[] }
       g.__i20Http = []
@@ -132,7 +143,8 @@ async function run() {
         if (url.hostname !== ip || url.protocol !== 'http:' || !(/^\/$|^\/list$|^\/p\/[^/]+$/.test(url.pathname))) return original.apply(this, args)
         const start = performance.now(); const utc = new Date().toISOString()
         return original.apply(this, args).then((response) => {
-          const record: Record<string, unknown> = { path: url.pathname, utc, startMs: start, headersMs: performance.now(), status: response.status, declaredLength: response.headers.get('content-length') }
+          const record: Record<string, unknown> = { path: url.pathname, utc, startMs: start, headersMs: performance.now(), status: response.status,
+            declaredLength: response.headers.get('content-length'), contentEncoding: response.headers.get('content-encoding'), transferEncoding: response.headers.get('transfer-encoding') }
           g.__i20Http!.push(record)
           // Observe a clone without delaying, replacing, or consuming the returned body.
           void response.clone().arrayBuffer().then((body) => {
@@ -146,7 +158,7 @@ async function run() {
 
   const installPage = async (page: Page) => {
     await page.exposeBinding('__i20Relay', (_source, message: { kind: string; reqId: string; slot?: string; time: number; utc: string; data?: string; ok?: boolean; error?: string }) => {
-      if (message.kind === 'get-program' && message.slot && (Object.hasOwn(state.savedSlots, message.slot) || Object.hasOwn(state.admittedSlots, message.slot))) {
+      if (message.kind === 'get-program' && message.slot && (Object.prototype.hasOwnProperty.call(state.savedSlots, message.slot) || Object.prototype.hasOwnProperty.call(state.admittedSlots, message.slot))) {
         pendingRelay.set(message.reqId, { slot: message.slot, start: message.time })
         event('relay-get-program', { reqId: message.reqId, slot: message.slot, pageMs: message.time, pageUtc: message.utc })
       } else if (message.kind === 'program-data') {
@@ -170,6 +182,10 @@ async function run() {
     })
     await page.exposeBinding('__i20Span', async (_source, message: SpanMessage) => {
       const start = performance.now()
+      if (message.phase === 'start' && message.method === 'readSavedProgram'
+        && observeBenchImportRead(state, selectedImports, String(message.args?.[0] ?? ''))) {
+        event('import-row-observed', { pair: state.pendingImport, span: message.span })
+      }
       if (message.phase === 'start' && ['saveProgram', 'pushBytecode', 'setVars', 'setRendererPaused', 'setControls', 'setBrightness', 'setName', 'setPixelCount', 'setActiveProgram', 'deleteProgram', 'setPixelMap'].includes(message.method)) {
         if (readOnly && importFailed && !refused) {
           event('write-sequence-stopped', { method: message.method, span: message.span, reason: 'Earlier import failed; only read-only finalization remains' })
@@ -179,10 +195,12 @@ async function run() {
           if (refused || readOnly) throw new Error('Writes stopped for this run')
           if (message.status?.kind !== 'connected' || message.status.controller.address !== options.device
             || message.status.controller.deviceId !== (device?.status.kind === 'connected' ? device.status.controller.deviceId : undefined)) throw new Error('Connected physical target changed')
-          const opts = message.args?.[1] as { id?: string; name?: string } | undefined
+          const opts = message.args?.[1] as { id?: string; name?: string; save?: boolean } | undefined
           const mutation = message.method === 'saveProgram' ? { method: 'saveProgram', id: opts?.id ?? '', pbp: new Uint8Array(message.bytes ?? []) } as const
             : message.method === 'pushBytecode' ? { method: 'pushBytecode', id: opts?.id ?? '', name: opts?.name, digest: digest(new Uint8Array(message.bytes ?? [])) } as const
-              : { method: message.method } as BenchMutation
+              : message.method === 'setActiveProgram' ? { method: 'setActiveProgram', id: message.args?.[0], save: opts?.save } as BenchMutation
+                : message.method === 'deleteProgram' ? { method: 'deleteProgram', id: message.args?.[0] } as BenchMutation
+                  : { method: message.method } as BenchMutation
           assertBenchMutation(mutation, state)
           event('admission', { method: message.method, span: message.span, id: opts?.id, name: opts?.name, overheadMs: performance.now() - start })
           if (message.method === 'saveProgram') {
@@ -197,14 +215,7 @@ async function run() {
       }
       if (message.phase === 'end' && message.method === 'compile' && message.source === CONTROLLER_DRAIN_PATTERN_SOURCE) state.drainDigest = digest(new Uint8Array(message.bytes ?? []))
       if (message.phase === 'error' && state.scope === 'import') {
-        importFailed = true; readOnly = true
-        event('import-write-sequence-stopped', { method: message.method, reason: 'Provider error; subsequent operations are read-only' })
-      }
-      if (message.phase === 'end' && message.method === 'pushBytecode' && state.scope === 'import') {
-        const opts = message.args?.[1] as { id: string; name?: string }
-        if (opts.name && selectedImports[0]?.id === opts.id) {
-          selectedImports.shift(); state.pendingImport = selectedImports[0] ?? null
-        }
+        event('import-provider-error', { method: message.method, pair: state.pendingImport, error: message.error })
       }
       event('provider-span', { phase: message.phase, method: message.method, span: message.span, pageMs: message.time, pageUtc: message.utc,
         byteLength: message.bytes?.length, sha256: message.bytes ? digest(new Uint8Array(message.bytes)) : undefined,
@@ -233,7 +244,8 @@ async function run() {
         if (typeof original !== 'function') throw new Error(`Missing real provider method ${method}`)
         prototype[method] = async function (...args: unknown[]) {
           const id = ++span
-          const common = { method, span: id, args: ['saveProgram', 'pushBytecode'].includes(method) ? [null, args[1]] : [], source: method === 'compile' ? args[0] : undefined }
+          const common = { method, span: id, args: ['saveProgram', 'pushBytecode'].includes(method) ? [null, args[1]]
+            : ['readSavedProgram', 'setActiveProgram', 'deleteProgram'].includes(method) ? [args[0], args[1]] : [], source: method === 'compile' ? args[0] : undefined }
           const bytes = ['saveProgram', 'pushBytecode'].includes(method) ? Array.from(args[0] as Uint8Array) : undefined
           await w.__i20Span({ ...common, phase: 'start', time: performance.now(), utc: new Date().toISOString(), bytes, status: this.getStatus() })
           try {
@@ -262,14 +274,18 @@ async function run() {
     await context.addInitScript(() => {
       localStorage.removeItem('pixelblaze-controller')
     })
-    context.on('serviceworker', (worker) => { void installWorker(worker).catch(() => { event('worker-observation-gap', { reason: 'Worker instrumentation failed' }); readOnly = true }) })
+    context.on('serviceworker', (worker) => { void installWorker(worker).catch(() => {
+      event('worker-observation-gap', { reason: 'Worker instrumentation failed' })
+      workerObservations.failed(worker)
+      readOnly ||= workerObservations.readOnly
+    }) })
     const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker')
     await installWorker(worker)
-    const me = await context.request.get('http://localhost:5174/api/me')
+    const me = await context.request.get(new URL('/api/me', options.url).href)
     const identity = await me.json() as { authenticated?: boolean; user?: { id?: string } }
     if (!me.ok() || !identity.authenticated || identity.user?.id !== session.user.userId) throw new Error('Synthetic /api/me identity mismatch')
     event('identity-verified', { userId: session.user.userId })
-    const served = await context.request.get('http://localhost:5174/__identity')
+    const served = await context.request.get(new URL('/__identity', options.url).href)
     if (!served.ok()) throw new Error('Served product revision cannot be verified')
     const runtime = await served.json() as { project?: string; commit?: string; worktree?: string }
     if (runtime.project !== 'pxlblz-ide' || !runtime.commit || !/^[a-f0-9]{40}$/.test(runtime.commit)) throw new Error('Invalid served product identity')
@@ -280,15 +296,23 @@ async function run() {
     await installPage(page)
     return { context, page, worker }
   }
-  const close = async (context: BrowserContext) => { await flushWorkers(); await context.close(); contexts.delete(context) }
+  const close = async (context: BrowserContext) => {
+    await flushWorkers()
+    const closingWorkers = context.serviceWorkers()
+    workerObservations.beginClose(closingWorkers)
+    await context.close()
+    for (const worker of closingWorkers) workerObservations.closed(worker)
+    readOnly ||= workerObservations.readOnly
+    contexts.delete(context)
+  }
   const api = async <T>(context: BrowserContext, resource: string): Promise<T> => {
-    const response = await context.request.get(`http://localhost:5174/api/${resource}`)
+    const response = await context.request.get(new URL(`/api/${resource}`, options.url).href)
     if (!response.ok()) throw new Error(`Account GET ${resource} failed (${response.status()})`)
     return response.json() as Promise<T>
   }
   const post = async (context: BrowserContext, resource: string, data: unknown) => {
     if (refused || readOnly) throw new Error('Account setup refused after stop')
-    const response = await context.request.post(`http://localhost:5174/api/${resource}`, { data })
+    const response = await context.request.post(new URL(`/api/${resource}`, options.url).href, { data })
     if (!response.ok()) throw new Error(`Account setup ${resource} failed (${response.status()})`)
   }
   const account = async (context: BrowserContext) => ({ patterns: await api<{ patterns: PatternRecord[] }>(context, 'patterns'),
@@ -377,20 +401,20 @@ async function run() {
       inputs: role === 'a' ? [] : [{ id: 'pot', name: 'Brightness', pin: 35, signal: 'analog', smoothing: 1, fallback: 0.5, invert: false }],
       globalTransforms: role === 'a' ? [] : [{ id: 'hardware-brightness', type: 'hardware-brightness', enabled: true, mixinId: 'builtin:hardware-brightness', inputId: 'pot', mode: 'multiply-output' }],
       patternBindings: [], keepPatternsUpToDate: false, updatedAt: Date.now() }
-    const records = await api<{ controllers: ControllerProfile[] }>(context, 'controllers')
-    const matches = records.controllers.filter((p) => p.deviceId === expected.deviceId)
+    let matches: ControllerProfile[] = []
+    const readMatches = async () => {
+      const records = await api<{ controllers: ControllerProfile[] }>(context, 'controllers')
+      matches = records.controllers.filter((p) => p.deviceId === expected.deviceId)
+      return matches.length
+    }
+    if (role === 'a') {
+      await expect.poll(readMatches, { timeout: 10_000, message: 'A must have exactly one auto-created physical profile after first live Connect; zero or multiple profiles block without creating a duplicate' }).toBe(1)
+    } else await readMatches()
     if (matches.length > 1) throw new Error('Multiple physical profiles require operator resolution')
     if (matches.length) {
       const existing = matches[0]
       event('existing-profile', { role, profile: existing })
-      const input = existing.inputs[0]
-      const transform = existing.globalTransforms[0]
-      const aShape = existing.inputs.length === 0 && existing.globalTransforms.length === 0
-      const bShape = existing.inputs.length === 1 && existing.globalTransforms.length === 1
-        && input.pin === 35 && input.signal === 'analog' && input.smoothing === 1 && input.fallback === 0.5 && !input.invert
-        && transform.type === 'hardware-brightness' && transform.enabled && transform.inputId === input.id && transform.mode === 'multiply-output'
-      if (!(role === 'a' ? aShape : bShape) || existing.keepPatternsUpToDate === true
-        || existing.patternBindings.length !== 0 || existing.electricalProfile !== undefined) throw new Error('Existing synthetic profile differs; preserved without overwrite')
+      assertBenchProfile(existing, role)
       return existing
     }
     await post(context, 'controllers', expected)
@@ -451,7 +475,7 @@ async function run() {
       await connect(a.page, a.worker)
       device = await snapshotDevice(a.page, 'baseline', true)
       report.device = device
-      if (device.status.kind !== 'connected' || !device.status.controller.deviceId || device.config.name !== 'Cark'
+      if (device.status.kind !== 'connected' || !device.status.controller.deviceId || device.config.name !== '#2 Cark'
         || device.config.firmwareVersion !== '3.70' || device.config.pixelCount !== 256 || device.map?.length !== 256
         || device.map.some((point) => point.length !== 2)) throw new Error('Target is not the qualified #2 Cark / 3.70 / 256px / 2D Controller')
       state.savedSlots = Object.fromEntries(device.list.map((p) => [p.id, p.name]))
@@ -506,7 +530,8 @@ async function run() {
         event('wrapper-qualification', { source: source?.sourceCode ?? null, literalAnalogRead35: source ? /analogRead\s*\(\s*35\s*\)/.test(source.sourceCode) : null,
           expected: 'Current stored/wrapped behavior; missing B brightness wrapper is S3 qualification pending' })
         const editor = page.locator('.monaco-editor').first().getByRole('textbox', { name: 'Editor content', exact: true })
-        const importedId = new URL(page.url()).pathname.split('/').at(-1)!
+        const pathParts = new URL(page.url()).pathname.split('/')
+        const importedId = pathParts[pathParts.length - 1]
         const saved = page.waitForResponse((response) => response.request().method() === 'PATCH' && new URL(response.url()).pathname.endsWith(`/api/patterns/${importedId}`) && response.ok())
         await editor.focus(); await editor.press('Control+End'); await editor.press('End'); await editor.press('Enter'); await page.keyboard.type('// I20 bench edit'); await saved
         await uiSave(page, names[0], false)
@@ -582,7 +607,7 @@ async function run() {
     state.scope = 'idle'; readOnly = true
     if (probe) await probe
     await flushWorkers()
-    for (const context of contexts) { try { await context.close() } catch { event('context-close-error') } }
+    for (const context of contexts) { try { await close(context) } catch { event('context-close-error') } }
     for (const directory of profiles) rmSync(directory, { recursive: true, force: true })
     report.fixtureSlots = Object.fromEntries(slots); report.admissionRefused = refused; report.events = events
     writeFileSync(join(out, 'report.json'), `${clean(JSON.stringify(report, null, 2))}\n`, { mode: 0o600 })
