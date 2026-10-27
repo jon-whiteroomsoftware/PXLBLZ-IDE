@@ -339,7 +339,7 @@ async function run() {
       return chrome.permissions.contains({ origins })
     }, origins)
     if (!permission) {
-      await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', /connecting|authorizing/)
+      await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'pending')
       const popup = await page.context().newPage()
       await popup.goto(`chrome-extension://${new URL(worker.url()).host}/popup.html`)
       const grant = popup.getByRole('button', { name: 'Grant access', exact: true })
