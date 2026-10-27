@@ -90,6 +90,11 @@ Preserve these invariants:
 
 ## Development and verification
 
+- PXLBLZ issue files use Files root `pxlblz-briefs` (`~/src/pxlblz-wt/briefs/`,
+  `http://Agent-Mini.local:8642/files/pxlblz-briefs/`) in `<issue>-<slug>/` folders.
+  Briefs, prompts, builder and lane logs, and their sidecars go in that folder's
+  `work/`. WRSP's `briefs` root is never a PXLBLZ destination.
+
 ### Concurrent work and landing
 
 - Use the `reviewed-main-workflow` skill for every substantive slice, candidate
