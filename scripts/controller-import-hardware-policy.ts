@@ -3,6 +3,13 @@ import { decodePbp, PBP_HEADER_SIZE, PBP_VERSION } from '../src/engine/pbpEncode
 import { parsePxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 
+export function requireBenchSavedSlot(result: { ok: boolean; message?: string } | null, slot: string | undefined): string {
+  if (result === null) throw new Error('Studio Save completed without a result; no automatic retry')
+  if (!result.ok) throw new Error(`Studio Save failed: ${result.message || 'No failure message was returned'}; no automatic retry`)
+  if (!slot) throw new Error('Save succeeded without admitting the pending fixture')
+  return slot
+}
+
 export class BenchWorkerObservations<T> {
   readonly active = new Set<T>()
   readonly counts = new Map<T, number>()

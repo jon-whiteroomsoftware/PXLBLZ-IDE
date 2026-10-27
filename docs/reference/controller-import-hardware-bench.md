@@ -128,6 +128,10 @@ remembered startup connection hint before page navigation so Connect is explicit
 
 ## Evidence interpretation
 
+The diagnostic records Studio Save's real result before checking the admitted
+slot so compilation/product failures remain distinguishable from
+admission-observation gaps.
+
 The private ignored output contains streaming `events.jsonl`, version-1
 `report.json`, readable `report.md`, screenshots and raw Test pat `.bin` PBP
 payloads. The report identifies the product/base revisions, extension file

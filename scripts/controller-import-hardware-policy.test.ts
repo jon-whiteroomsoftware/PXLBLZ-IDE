@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
-import { BenchWorkerObservations, assertBenchMutation, assertBenchProfile, observeBenchImportRead, parseBenchArgs, validateBenchSessions, type BenchAdmissionState, type BenchMutation } from './controller-import-hardware-policy'
+import { BenchWorkerObservations, assertBenchMutation, assertBenchProfile, observeBenchImportRead, parseBenchArgs, requireBenchSavedSlot, validateBenchSessions, type BenchAdmissionState, type BenchMutation } from './controller-import-hardware-policy'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import { defaultControllerProfile } from '../src/store/controllerProfileStore'
 
@@ -93,6 +93,33 @@ describe('explicit hardware opt-in and account boundary', () => {
     expect(() => validateBenchSessions(null, {})).toThrow()
     const a = session('github:local-dev'); a.cookie.domain = 'Agent-Mini.local'
     expect(() => validateBenchSessions(a, session('github:local-agent-12'))).toThrow()
+  })
+})
+
+describe('Studio Save result before slot admission', () => {
+  it('preserves the exact failure without reporting a missing admission', () => {
+    const save = () => requireBenchSavedSlot({ ok: false, message: 'Compilation failed: unexpected token at line 7' }, undefined)
+    expect(save).toThrow(new Error('Studio Save failed: Compilation failed: unexpected token at line 7; no automatic retry'))
+    expect(save).not.toThrow('Save succeeded without admitting the pending fixture')
+  })
+  it('refuses a failed result even when a slot exists', () => {
+    expect(() => requireBenchSavedSlot({ ok: false, message: 'Controller disconnected' }, id))
+      .toThrow(new Error('Studio Save failed: Controller disconnected; no automatic retry'))
+  })
+  it('refuses a missing result', () => {
+    expect(() => requireBenchSavedSlot(null, id))
+      .toThrow(new Error('Studio Save completed without a result; no automatic retry'))
+  })
+  it.each([undefined, ''])('reports a missing failure message: %j', (message) => {
+    expect(() => requireBenchSavedSlot({ ok: false, message }, undefined))
+      .toThrow(new Error('Studio Save failed: No failure message was returned; no automatic retry'))
+  })
+  it('distinguishes a successful result without an admitted slot', () => {
+    expect(() => requireBenchSavedSlot({ ok: true }, undefined))
+      .toThrow(new Error('Save succeeded without admitting the pending fixture'))
+  })
+  it('returns the admitted slot after a successful result', () => {
+    expect(requireBenchSavedSlot({ ok: true }, id)).toBe(id)
   })
 })
 

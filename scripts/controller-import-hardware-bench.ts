@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { setTimeout as delay } from 'node:timers/promises'
-import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchMutation, assertBenchProfile, observeBenchImportRead, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
+import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchMutation, assertBenchProfile, observeBenchImportRead, requireBenchSavedSlot, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
 import { decodePbp } from '../src/engine/pbpEncode'
 import { benchExtensionFiles, prepareBenchExtension } from './controller-import-hardware-extension'
@@ -444,14 +444,14 @@ async function run() {
         return current.pushing ? 'pending' : current.pushResult?.ok ? 'saved' : current.pushResult ? 'failed' : 'pending'
       }, new URL('src/store/controllerStore.ts', options.url).href), { timeout: 90_000 }).not.toBe('pending')
       if (refused) throw new Error('Admission refused during Save')
-      const slot = Object.entries(state.admittedSlots).find(([, n]) => n === name)?.[0]
-      // This is an admitted pair, not a claim of persistence. Capture real list separately.
-      if (!slot) throw new Error('Save did not admit the pending fixture')
       const saved = await page.evaluate(async (moduleUrl) => {
         const { useControllerStore } = await import(/* @vite-ignore */ moduleUrl)
         return useControllerStore.getState().pushResult
       }, new URL('src/store/controllerStore.ts', options.url).href)
-      if (!saved?.ok) throw new Error('Studio Save failed; no automatic retry')
+      const admittedSlot = Object.entries(state.admittedSlots).find(([, n]) => n === name)?.[0]
+      event('studio-save-result', { name, ok: saved?.ok ?? null, message: saved?.message ?? null, admittedSlot: admittedSlot ?? null })
+      // This is an admitted pair, not a claim of persistence. Capture real list separately.
+      const slot = requireBenchSavedSlot(saved, admittedSlot)
       slots.set(name, slot)
       const listed = await snapshotDevice(page, `saved-list-${name}`)
       for (const entry of listed.list) state.savedSlots[entry.id] = entry.name
