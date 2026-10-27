@@ -1,6 +1,6 @@
 /** Explicit, operator-run hardware diagnostic. Never imported by a suite. */
 import { chromium, expect, type BrowserContext, type Page, type Worker } from '@playwright/test'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
@@ -10,6 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchMutation, assertBenchProfile, observeBenchImportRead, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
 import { decodePbp } from '../src/engine/pbpEncode'
+import { benchExtensionFiles, prepareBenchExtension } from './controller-import-hardware-extension'
 import { parsePxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerConfig, ControllerStatus, ProgramListEntry } from '../src/engine/ControllerProvider'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
@@ -20,10 +21,11 @@ const help = `Explicit #1221 Controller import diagnostic (no cleanup in S1).
     --url http://localhost:5174/PXLBLZ-IDE/ --session-a <private.json> \\
     --session-b <private.json> --out <ignored-directory> --run
 Optional: --headless (full Chromium), --run-id <ASCII-alphanumeric-hyphen>
-Uses the real extension and real production Save/Import paths. No hardware runs
+Uses a temporary pre-granted extension copy and real production Save/Import paths. No hardware runs
 are part of automated verification. Read docs/reference/controller-import-hardware-bench.md.
 `
 const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex')
+const fidelityCost = "Fidelity cost: the agent bench does not exercise the grant UI or the shipped match list. Jon's manual bench on 2026-10-27 exercised the grant on real Chrome."
 type Device = { config: ControllerConfig; status: ControllerStatus; list: ProgramListEntry[]; map?: number[][] | null }
 type Event = Record<string, unknown>
 type SpanMessage = { phase: 'start' | 'execute' | 'end' | 'error'; method: string; span: number; time: number; utc: string; args?: unknown[]; bytes?: number[]; source?: string; result?: unknown; status?: ControllerStatus; error?: string }
@@ -54,20 +56,17 @@ async function run() {
     const safe = JSON.parse(clean(JSON.stringify(item))) as Event
     events.push(safe); appendFileSync(join(out, 'events.jsonl'), `${JSON.stringify(safe)}\n`, { mode: 0o600 })
   }
-  const hashes: Record<string, string> = {}
-  const hashTree = (directory: string) => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name)
-      if (entry.isDirectory()) hashTree(path)
-      else hashes[relative(root, path)] = digest(readFileSync(path))
-    }
-  }
-  hashTree(join(root, 'extension'))
+  const sourceExtension = join(root, 'extension')
+  const extension = join(out, 'extension')
+  const extensionCopyProof = prepareBenchExtension(sourceExtension, extension, options.url)
+  const sourceExtensionHashes = benchExtensionFiles(sourceExtension)
+  const hashes = Object.fromEntries(Object.entries(sourceExtensionHashes).map(([path, sha]) => [`extension/${path}`, sha]))
+  event('temporary-extension-prepared', { extensionCopyProof, fidelityCost })
   const revision = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
   const report: Event = { version: 1, baseRevision: 'c35e8b767b7acf71bccfdb9600d895234ad7bc8c', productRevision: revision,
-    extensionHashes: hashes, accounts: { a: sessions.a.user.userId, b: sessions.b.user.userId },
+    extensionHashes: hashes, extensionCopyProof, fidelityCost, accounts: { a: sessions.a.user.userId, b: sessions.b.user.userId },
     outcome: 'blocked', cleanup: 'deferred: S2/S3 hardware proof required', screenshots: [],
-    residualGaps: ['S2 hardware persistence/readback qualification pending', 'S3 B brightness-wrapper qualification pending', 'Native permission interaction requires a real operator-capable Chromium host'] }
+    residualGaps: ['S2 hardware persistence/readback qualification pending', 'S3 B brightness-wrapper qualification pending', fidelityCost] }
   const names = [1, 2, 3].map((n) => `Test pat I20-${options.runId} ${n}`)
   const state: BenchAdmissionState = { target: options.device, scope: 'idle', allowedNames: names, pendingSaveName: null, pendingImport: null, pendingPattern: null,
     savedSlots: {}, admittedSlots: {}, priorActiveIds: [], usedDrainIds: [], drainDigest: null, allowNewSaveSlot: false }
@@ -264,7 +263,6 @@ async function run() {
   }
 
   const open = async (profile: string, session: BenchSession) => {
-    const extension = resolve(root, 'extension')
     const context = await chromium.launchPersistentContext(profile, { channel: 'chromium', headless: options.headless,
       args: [`--disable-extensions-except=${extension}`, `--load-extension=${extension}`], viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, baseURL: options.url })
     contexts.add(context)
@@ -290,6 +288,21 @@ async function run() {
     const runtime = await served.json() as { project?: string; commit?: string; worktree?: string }
     if (runtime.project !== 'pxlblz-ide' || !runtime.commit || !/^[a-f0-9]{40}$/.test(runtime.commit)) throw new Error('Invalid served product identity')
     if (report.servedRevision && report.servedRevision !== runtime.commit) throw new Error('Served product changed during the diagnostic')
+    try {
+      const rows = execFileSync('git', ['ls-tree', '-r', '-z', runtime.commit, '--', 'extension/'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean)
+      const servedHashes: Record<string, string> = {}
+      for (const row of rows) {
+        const match = /^(100644|100755) blob [a-f0-9]+\textension\/(.+)$/.exec(row)
+        if (!match) throw new Error('Non-regular served extension file')
+        servedHashes[match[2]] = digest(execFileSync('git', ['show', `${runtime.commit}:extension/${match[2]}`], { cwd: root }))
+      }
+      const current = benchExtensionFiles(sourceExtension)
+      for (const actual of [current, servedHashes]) {
+        if (JSON.stringify(Object.entries(actual).sort()) !== JSON.stringify(Object.entries(sourceExtensionHashes).sort())) throw new Error('Extension identity mismatch')
+      }
+    } catch { throw new Error('Served extension differs from the diagnostic source extension') }
+    report.servedExtensionIdentity = { commit: runtime.commit, sourceHashes: hashes, verified: true }
+    event('served-extension-identity-verified', { commit: runtime.commit, diagnosticRevision: revision, sourceHashes: hashes })
     report.diagnosticRevision = revision; report.productRevision = runtime.commit; report.servedRevision = runtime.commit
     event('served-product', { commit: runtime.commit, worktree: runtime.worktree })
     const page = context.pages()[0] ?? await context.newPage()
@@ -328,32 +341,23 @@ async function run() {
   }
   const connect = async (page: Page, worker: Worker) => {
     await wrapProvider(page)
-    const connectButton = page.getByRole('button', { name: 'Connect a Controller', exact: true })
-    await expect(connectButton).toBeVisible()
-    await connectButton.click()
-    await page.getByRole('textbox', { name: 'Controller IP address' }).fill(options.device)
-    await page.getByTestId('controller-go').click()
     const origins = [`http://${options.device}/*`, `ws://${options.device}/*`]
     const permission = await worker.evaluate(async (origins) => {
       const chrome = (globalThis as unknown as { chrome: { permissions: { contains: (arg: { origins: string[] }) => Promise<boolean> } } }).chrome
       return chrome.permissions.contains({ origins })
     }, origins)
     if (!permission) {
-      await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'pending')
-      const popup = await page.context().newPage()
-      await popup.goto(`chrome-extension://${new URL(worker.url()).host}/popup.html`)
-      const grant = popup.getByRole('button', { name: 'Grant access', exact: true })
-      await expect(grant).toBeVisible()
-      await grant.click()
-      // Chromium's native host-permission prompt is intentionally not bypassed.
-      const granted = await worker.evaluate(async (origins) => {
-        const chrome = (globalThis as unknown as { chrome: { permissions: { contains: (arg: { origins: string[] }) => Promise<boolean> } } }).chrome
-        return chrome.permissions.contains({ origins })
-      }, origins)
-      if (!granted) throw new Error('Native Chromium host-permission grant did not complete after real Grant access click')
-      if (!popup.isClosed()) await popup.close()
+      event('missing-grant', { origins })
+      throw new Error('Temporary bench extension lacks required Cark HTTP/WebSocket host permissions')
     }
+    event('temporary-extension-pre-grant-verified', { origins })
+    const connectButton = page.getByRole('button', { name: 'Connect a Controller', exact: true })
+    await expect(connectButton).toBeVisible()
+    await connectButton.click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill(options.device)
+    await page.getByTestId('controller-go').click()
     await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+    event('pre-granted-controller-live', { origins, phase: 'live' })
   }
   const snapshotDevice = async (page: Page, label: string, map = false) => {
     const snapshot = await page.evaluate(async ({ moduleUrl, map }) => {
@@ -613,7 +617,7 @@ async function run() {
     writeFileSync(join(out, 'report.json'), `${clean(JSON.stringify(report, null, 2))}\n`, { mode: 0o600 })
     const steps = events.filter((e) => e.kind === 'step-end').map((e) => `- Step ${e.step}: ${e.status}; ${Number(e.durationMs).toFixed(1)} ms${e.error ? `; ${e.error}` : ''}`).join('\n')
     const readbacks = events.filter((e) => e.kind === 'slot-readback' || e.kind === 'slot-readback-failed').map((e) => `- ${e.label}: ${e.slot}; SHA-256 ${e.sha256 ?? 'unproved'}${e.error ? `; ${e.error}` : ''}`).join('\n')
-    writeFileSync(join(out, 'report.md'), clean(`# Controller import hardware diagnostic\n\nOutcome: ${report.outcome}\n\nRevision: ${revision}\n\n${report.failure ?? ''}\n\nCleanup: ${report.cleanup}\n\n${steps}\n\n## Readbacks\n\n${readbacks}\n\nAccount A preservation: ${report.aPreservation ?? 'unproved'}.\n\nNo causal claim follows from temporal correlation. A save promise is not flash persistence proof. The relay PBP bytes are the authoritative artifact witness; worker clones and HTTP probes are timing observations.\n\nInspect report.json and events.jsonl for exact account/profile snapshots, row messages, source policy, receipt stages, timing spans, device identity and screenshot paths. S2 persistence/readback and S3 B wrapper hardware proof remain pending.\n`), { mode: 0o600 })
+    writeFileSync(join(out, 'report.md'), clean(`# Controller import hardware diagnostic\n\nOutcome: ${report.outcome}\n\nRevision: ${revision}\n\n${fidelityCost}\n\n## Temporary extension copy proof\n\n\`\`\`json\n${JSON.stringify(extensionCopyProof, null, 2)}\n\`\`\`\n\n${report.failure ?? ''}\n\nCleanup: ${report.cleanup}\n\n${steps}\n\n## Readbacks\n\n${readbacks}\n\nAccount A preservation: ${report.aPreservation ?? 'unproved'}.\n\nNo causal claim follows from temporal correlation. A save promise is not flash persistence proof. The relay PBP bytes are the authoritative artifact witness; worker clones and HTTP probes are timing observations.\n\nInspect report.json and events.jsonl for exact account/profile snapshots, row messages, source policy, receipt stages, timing spans, device identity and screenshot paths. S2 persistence/readback and S3 B wrapper hardware proof remain pending.\n`), { mode: 0o600 })
   }
   console.log(`Controller diagnostic ${report.outcome}; private evidence: ${within}/report.md`)
   if (report.outcome === 'blocked' || importFailed) process.exitCode = 1

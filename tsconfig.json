@@ -27,6 +27,8 @@
     "scripts/show-v2-parity.test.ts",
     "scripts/show-v2-baselines.ts",
     "scripts/controller-import-hardware-bench.ts",
+    "scripts/controller-import-hardware-extension.ts",
+    "scripts/controller-import-hardware-extension.test.ts",
     "scripts/controller-import-hardware-policy.ts",
     "scripts/controller-import-hardware-policy.test.ts",
     "scripts/authenticated-playwright-release.test.ts"

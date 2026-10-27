@@ -2,8 +2,9 @@
 
 `diagnostic:controller-import` is an explicit #1221 hardware diagnostic for #2
 Cark at `192.168.8.196`, firmware 3.70, 256 pixels and a 2D map. It uses the
-checkout's unpacked extension, the real provider and production Studio Save and
-Import controls. It belongs to no test suite, CI job, runner plan or push gate.
+checkout's extension in a temporary pre-granted copy, the real provider and
+production Studio Save and Import controls. It belongs to no test suite, CI job,
+runner plan or push gate.
 Offline verification does not qualify native permission handling or hardware.
 
 ## Invocation
@@ -35,11 +36,24 @@ Chromium channel. The host must have the repository Playwright browser installed
 and support unpacked extensions. Missing `--run` refuses before file mutations,
 browser launch or network requests; `--help` only prints help.
 
-The diagnostic clicks the real helper popup's **Grant access** after Connect
-creates a pending IP grant. It checks the HTTP and WebSocket origins for this
-device. If Chromium's native permission interaction does not complete, the run
-stops with its concrete failure. No manifest patch, blanket grant, fake relay,
-or permission bypass is provided.
+The diagnostic always loads a fresh private copy at `<out>/extension`, including
+on main port 5174. Only its manifest changes: `host_permissions` gains exactly
+`http://192.168.8.196/*` and `ws://192.168.8.196/*`. Optional permissions remain
+unchanged. The helper admits only `http://localhost:<numeric-port>/PXLBLZ-IDE/`
+without credentials, query or hash; for a port other than 5174 it appends that
+port's `http://localhost:<port>/*` content match once. This does not widen the
+runtime CLI policy. Repository `extension/` files remain unchanged.
+
+Before copying, the source manifest bytes must have SHA-256
+`326f933e446ca8942a32707afeedc30e9f02350c11cbddf6591d2b11a8a80299`.
+Any byte change refuses with `Source extension manifest differs from the admitted bench baseline`
+and requires explicit readmission. Symlinks, non-regular inputs and an existing
+destination refuse. The copy proof verifies complete file paths and identical
+non-manifest bytes after copying. Before any Connect click, the worker must
+confirm both exact device origins with `chrome.permissions.contains`; a missing
+grant stops the run. No grant popup opens, and connection must reach `data-phase=live`.
+
+Fidelity cost: the agent bench does not exercise the grant UI or the shipped match list. Jon's manual bench on 2026-10-27 exercised the grant on real Chrome.
 
 ## Scope and sequence
 
@@ -117,10 +131,17 @@ remembered startup connection hint before page navigation so Connect is explicit
 The private ignored output contains streaming `events.jsonl`, version-1
 `report.json`, readable `report.md`, screenshots and raw Test pat `.bin` PBP
 payloads. The report identifies the product/base revisions, extension file
-hashes, synthetic account IDs, device identity, fixture slots and deferred proof.
+hashes, source/patched manifest hashes, explicit permission/match additions,
+complete source/copied non-manifest hashes, synthetic account IDs, device
+identity, fixture slots and deferred proof. JSON and Markdown state the fidelity cost.
 Managed main's served commit is S1's observed product revision, obtained from
 the runtime's `/__identity` endpoint. Candidate hardware proof requires its own
 verified served revision; this correction adds no candidate-runtime route.
+After `/__identity` and before connection, local `git ls-tree` and `git show`
+verify the complete source extension path set and bytes against the served
+commit's `extension/`. A mismatch refuses with
+`Served extension differs from the diagnostic source extension`. Successful
+served-extension identity is recorded; diagnostic and served commits may differ.
 The diagnostic checkout revision is recorded separately. A changed served commit
 blocks a later profile opening rather than mixing revisions in one run.
 Events contain per-step status, provider spans, admission overhead, source and
