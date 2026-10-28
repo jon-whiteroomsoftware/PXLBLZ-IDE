@@ -442,7 +442,6 @@ describe('compiler settlement', () => {
 describe('fixture setup readback', () => {
   const bytes = encodePbp({ id: 's', name: 'Fixture', sourceCode: '', byteCode: new Uint8Array(12) })
   const different = encodePbp({ id: 's', name: 'Other', sourceCode: '', byteCode: new Uint8Array(12) })
-  const unreadable = new Error('Saved program s is not a readable PBP blob.')
   function clock(timeoutMs?: number) {
     let now = 0
     const wait = vi.fn(async (ms: number) => { now += ms })
@@ -460,22 +459,39 @@ describe('fixture setup readback', () => {
     const events = h.lines.map((line) => JSON.parse(line))
     expect(events.filter((e) => e.operation === 'readSavedProgram').map((e) => e.event)).toEqual(['start', 'end', 'start', 'error', 'start', 'end', 'start', 'end'])
     expect(events.filter((e) => e.operation === 'setup.readiness').map((e) => e.event)).toEqual(['start', 'end'])
+    expect(h.provider.firstHttpFailure).toBeUndefined()
   })
   it('caps waits and never renews the 5000ms deadline for persistent unreadable bytes', async () => {
     const options = clock()
-    const read = vi.fn(async () => { options.advance(17); throw unreadable })
+    const h = harness(vi.fn(async () => new Response(new Uint8Array())) as typeof fetch)
+    const read = vi.fn(async (remaining: number) => { options.advance(17); return h.provider.readSavedProgram('s', remaining) })
     await expect(waitForFixtureReadback(read, bytes, options)).rejects.toThrow('Setup read deadline exceeded')
     expect(options.now()).toBe(5000)
     expect(options.wait.mock.calls[options.wait.mock.calls.length - 1]).toEqual([69])
     expect(read.mock.calls).toHaveLength(43)
+    expect(h.provider.firstHttpFailure).toBeUndefined()
   })
-  it.each(['Saved program s read timed out.', 'GET /p/s -> 500', 'transport failed', 'guard failed'])('propagates %s unchanged without retry', async (message) => {
+  it.each(['Saved program s read timed out.', 'GET /p/s -> 500', 'transport failed', 'guard failed',
+    'Saved program s is not a readable PBP blob.',
+    'Saved program s response could not be decoded as PBP. Retry reading this saved program.',
+  ])('propagates %s unchanged without retry', async (message) => {
     const options = clock(); const error = new Error(message)
     const read = vi.fn().mockRejectedValue(error)
     if (message === 'guard failed') options.assertCurrent.mockImplementation(() => { throw error })
     await expect(waitForFixtureReadback(read, bytes, options)).rejects.toBe(error)
     expect(read).toHaveBeenCalledTimes(message === 'guard failed' ? 0 : 1)
     expect(options.wait).not.toHaveBeenCalled()
+  })
+  it.each([
+    'Saved program s is not a readable PBP blob.',
+    'Saved program s response could not be decoded as PBP. Retry reading this saved program.',
+  ])('records a transport rejection matching decoder text: %s', async (message) => {
+    const error = new Error(message)
+    const fetcher = vi.fn().mockRejectedValue(error)
+    const h = harness(fetcher)
+    await expect(h.provider.readSavedProgram('s')).rejects.toBe(error)
+    expect(h.provider.firstHttpFailure).toEqual({ operation: 'readSavedProgram', phase: 'setup', saveCorrelation: 'none' })
+    expect(fetcher).toHaveBeenCalledOnce()
   })
   it('accepts the initial exact match without waiting', async () => {
     const recovered = recoverSavedProgram('s', bytes)
@@ -542,16 +558,18 @@ describe('bounded saved-program reads', () => {
     const fetcher = vi.fn().mockResolvedValue(response)
     const h = harness(fetcher)
     if (status === 404) await expect(h.provider.readSavedProgram('s')).resolves.toBeNull()
-    else await expect(h.provider.readSavedProgram('s')).rejects.toThrow(status === 500 ? 'GET /p/s -> 500' : 'Saved program s is not a readable PBP blob.')
+    else await expect(h.provider.readSavedProgram('s')).rejects.toThrow(status === 500 ? 'GET /p/s -> 500' : 'Saved program s response could not be decoded as PBP. Retry reading this saved program.')
     expect(fetcher).toHaveBeenCalledOnce()
     if (status !== 200) expect(body).not.toHaveBeenCalled()
+    else expect(body).toHaveBeenCalledOnce()
+    expect(h.provider.firstHttpFailure).toEqual(status === 500 ? { operation: 'readSavedProgram', phase: 'setup', saveCorrelation: 'none' } : undefined)
   })
   it('refuses empty ids offline and preserves corrupt-200 recovery errors', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3])))
     const h = harness(fetcher)
     await expect(h.provider.readSavedProgram(' ')).rejects.toThrow('Saved program id is required')
     expect(fetcher).not.toHaveBeenCalled()
-    await expect(h.provider.readSavedProgram('s')).rejects.toThrow('Saved program s is not a readable PBP blob.')
+    await expect(h.provider.readSavedProgram('s')).rejects.toThrow('Saved program s response could not be decoded as PBP. Retry reading this saved program.')
   })
 })
 

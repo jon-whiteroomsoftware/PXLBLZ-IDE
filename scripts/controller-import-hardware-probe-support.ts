@@ -8,6 +8,8 @@ export const PROBE_HOST = '192.168.8.196'
 export const PROBE_FIDELITY = 'Direct engine/protocol probe without extension relay, UI or store guards; probe HTTP scheduling and cancellation differ.'
 export type ProbePhase = 'setup' | 'import' | 'observation' | 'restore'
 export type ProbeFields = Record<string, unknown>
+class ProbeSavedProgramDecodeError extends Error {}
+
 export class ProbeHttpQueue {
   private readonly owners = new Set<object>()
   private readonly listeners = new Set<(held: boolean) => void>()
@@ -157,7 +159,7 @@ export async function waitForFixtureReadback(
     let saved: RecoveredSavedProgram | null = null
     try { saved = await read(remaining) }
     catch (error) {
-      if (!(error instanceof Error && /^Saved program .+ is not a readable PBP blob\.$/.test(error.message))) throw error
+      if (!(error instanceof ProbeSavedProgramDecodeError)) throw error
     }
     options.assertCurrent()
     if (options.now() >= deadline) throw new Error('Setup read deadline exceeded')
@@ -442,12 +444,12 @@ export class NodeControllerImportProvider implements ImportProvider {
       decode: (bytes, status) => {
         if (status === 404) return null
         const recovery = recoverSavedProgram(id, bytes)
-        if (!recovery.ok) throw new Error(recovery.error.message)
+        if (!recovery.ok) throw new ProbeSavedProgramDecodeError(recovery.error.message)
         return recovery.value
       },
     })).catch((error: unknown) => {
       // Setup may retry this one known recovery error; it is not an HTTP stop.
-      if (!(error instanceof Error && /^Saved program .+ is not a readable PBP blob\.$/.test(error.message))) {
+      if (!(error instanceof ProbeSavedProgramDecodeError)) {
         this.firstHttpFailure ??= this.stopFields('readSavedProgram')
       }
       throw error
