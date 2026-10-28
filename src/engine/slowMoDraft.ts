@@ -17,6 +17,7 @@ export function slowMoSettingsFromDraft(draft: SlowMoDraft): SlowMoSettings | nu
   if (draft.inBetween === 'off') return null
   return {
     rate: draft.rate, stepMs: draft.stepMs, inBetween: draft.inBetween,
+    ...(draft.position === undefined ? {} : { position: draft.position }),
     stagger: { ...draft.stagger },
     persistence: draft.persistence.enabled
       ? { attackMs: draft.persistence.attackMs, decayMs: draft.persistence.decayMs }
@@ -30,6 +31,7 @@ export function slowMoDraftFromSettings(settings: SlowMoSettings | null, previou
   }
   return {
     rate: settings.rate, stepMs: settings.stepMs, inBetween: settings.inBetween,
+    ...(settings.position === undefined ? {} : { position: settings.position }),
     stagger: { ...settings.stagger },
     persistence: settings.persistence
       ? { enabled: true, attackMs: settings.persistence.attackMs, decayMs: settings.persistence.decayMs }

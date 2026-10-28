@@ -1,7 +1,7 @@
 import * as acorn from 'acorn'
 import { bundle, type BundleMetadata } from './bundle'
 import { emitFixedPoint } from './fxEmit'
-import { emitSlowMoWrapper, type SlowMoSettings, type SlowMoDeclineReason } from './slowMo'
+import { emitSlowMoWrapper, SLOW_MO_SPEED_SLIDER, type SlowMoSettings, type SlowMoDeclineReason } from './slowMo'
 import {
   selectRenderCompatibility,
   type MapDimension,
@@ -228,9 +228,15 @@ function applySlowMoPass(ctx: PassContext, pass: SlowMoPassRecipe, passId: strin
   summary.globalsAdded = [...after.functions, ...after.variables].filter(name => !beforeNames.has(name))
   summary.beforeRender = before.functions.has('beforeRender') ? 'wrapped' : 'synthesized'
   summary.exportsAdded = before.functions.has('beforeRender') ? [] : ['beforeRender']
+  const blend = result.plan.structure === 'blend' || result.plan.structure === 'blend-persistence'
+  if (blend) {
+    ctx.metadata.controls.push({ exportName: SLOW_MO_SPEED_SLIDER, kind: 'slider', label: 'Slow-mo speed' })
+    summary.exportsAdded.push(SLOW_MO_SPEED_SLIDER)
+  }
   ctx.code = result.code
   ctx.metadata.runtimeVars = [...new Set([
     ...(ctx.metadata.runtimeVars ?? ctx.metadata.patternVars), ...Object.keys(result.tunables),
+    ...(blend ? ['__pxlblz_slowmo_position'] : []),
   ])]
   for (const name of collectIdentifiers(result.code)) ctx.usedNames.add(name)
   return summary

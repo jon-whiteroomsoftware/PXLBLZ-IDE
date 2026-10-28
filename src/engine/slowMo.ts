@@ -10,9 +10,24 @@ import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from './show
 
 export const DEFAULT_SLOW_MO_STEP_MS = 16
 export const SLOW_MO_STEP_STOPS = [16, 32] as const
+export const SLOW_MO_SPEED_SLIDER = 'slider__pxlblz_slowmo_speed'
+
+function clampPosition(position: number): number {
+  if (!Number.isFinite(position)) throw new RangeError('Slow-mo position must be finite.')
+  return Math.max(0, Math.min(1, position))
+}
+
+export function slowMoRateFromPosition(position: number): number {
+  return 2 ** (-4 * (1 - clampPosition(position)))
+}
+
+export function slowMoPositionFromRate(rate: number): number {
+  return clampPosition(1 + Math.log2(rate) / 4)
+}
 
 export interface SlowMoSettings {
   rate: number
+  position?: number
   stepMs: number
   inBetween: 'clock' | 'hold' | 'blend' | 'eased'
   stagger: { shape: 'sweep' | 'radial' | 'scatter'; width: number }
@@ -88,6 +103,9 @@ export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: n
     if (name.startsWith(prefix)) {
       return decline('reserved-prefix', 'Slow-mo source uses the reserved __pxlblz_slowmo_ prefix.')
     }
+    if (name === SLOW_MO_SPEED_SLIDER) {
+      return decline('reserved-prefix', `Slow-mo source uses the reserved ${SLOW_MO_SPEED_SLIDER} name.`)
+    }
   }
   if (arrayWords > PIXELBLAZE_VM_ARRAY_WORDS) {
     return decline('array-budget', `Slow-mo needs ${arrayWords} array words; the VM budget is ${PIXELBLAZE_VM_ARRAY_WORDS}.`)
@@ -105,10 +123,13 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   if (plan.structure === 'clock') return { code, plan, tunables: {} }
   const p = `${reservedStem('slowmo')}_`
   const persistence = settings.persistence !== null
-  const rewritten = rewriteSlowMoSource(code, p)
+  const rewritten = rewriteSlowMoSource(code, p, true, !persistence)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const prelude = `${initializers}
 var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
+var ${p}position = ${settings.position === undefined ? -1 : clampPosition(settings.position)}
+var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
+export function ${SLOW_MO_SPEED_SLIDER}(v) { ${p}position = clamp(v,0,1) }
 var ${p}r = 0, ${p}g = 0, ${p}b = 0
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
 var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
@@ -120,10 +141,22 @@ function ${p}persist(current,target) {
   return current
 }
 ` : ''}function ${p}time(interval) { return (${p}T % interval) / interval }
-${emitColorCapture(p)}`
+${emitColorCapture(p, !persistence)}`
   const beforeRender = `export function beforeRender(delta) {
   ${p}cap = 0
-  if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
+  ${p}refresh = 0
+  if (${p}position >= 0) {
+    ${p}rate = pow(2,-4*(1-${p}position))
+    if (${p}position >= 0.97) ${p}bypass = 1
+    else if (${p}position < 0.94) ${p}bypass = 0
+    if (${p}bypass) ${p}rate = 1
+  } else ${p}bypass = 0
+  if (${p}bypass) {
+    ${p}T += delta * 0.0000152587890625
+    if (${p}T >= 16384) ${p}T -= 16384
+    ${p}in_beforeRender(delta)
+  }
+  else if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
   else {
     ${p}acc += delta * ${p}rate
     var ${p}n = 0
@@ -136,13 +169,15 @@ ${emitColorCapture(p)}`
     if (${p}acc >= ${p}step) ${p}acc = ${p}acc % ${p}step
     ${p}cap = ${p}n > 0
   }
+  if (${p}wasBypass && !${p}bypass) { ${p}cap = 1; ${p}refresh = 1 }
+  ${p}wasBypass = ${p}bypass
   ${p}f = ${p}acc / ${p}step
 ${persistence ? `  ${p}displayDelta = delta
   ${p}kUp = ${p}attack > 0 ? 1-exp(-delta/${p}attack) : 1
   ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1
 ` : ''}}`
   const update = ['r', 'g', 'b'].map(c => `
-    if (${p}phase == 0) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
+    if (${p}phase == 0 || ${p}refresh) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
     else { ${p}a${c}[index] = ${p}b${c}[index]; ${p}b${c}[index] = ${p}${c} }`).join('')
   const channels = ['r', 'g', 'b'].map(c => `${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c`).join(', ')
   const output = persistence ? `if (${p}displayDelta > 0 || ${p}phase == 0) {
@@ -176,6 +211,16 @@ ${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index],
     const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
     const dimension = name === 'render' ? '1D' : name === 'render2D' ? '2D' : '3D'
     return `export function ${name}(${args}) {
+  if (${p}bypass) {
+    ${p}r = 0; ${p}g = 0; ${p}b = 0
+    ${p}in_${name}(${args})
+${persistence ? `    if (${p}displayDelta > 0 || ${p}phase == 0) {
+${['r', 'g', 'b'].map(c => `      ${p}p${c}[index] = ${p}persist(${p}p${c}[index], ${p}${c} * 255)`).join('\n')}
+    }
+    rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)
+` : ''}    if (index == pixelCount-1) ${p}phase = 1
+    return
+  }
   if (${p}cap) { ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args}) }
   ${p}out(index,${p}width == 0 ? 0 : ${p}width * ${p}offset${dimension}(${args}))
 }`
@@ -183,10 +228,10 @@ ${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index],
   return { code: `${prelude}\n${offsets}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
 }
 
-function emitColorCapture(p: string): string {
-  return `function ${p}rgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
+function emitColorCapture(p: string, directBypass = false): string {
+  return `${directBypass ? `function ${p}hsv24(h,s,v) { if (${p}bypass) { hsv24(h,s,v); return }; ${p}hsv(h,s,v) }\n` : ''}function ${p}rgb(r,g,b) { ${directBypass ? `if (${p}bypass) { rgb(r,g,b); return }; ` : ''}${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
 function ${p}hsv(h,s,v) {
-  if (s == 0) { ${p}rgb(v,v,v); return }
+${directBypass ? `  if (${p}bypass) { hsv(h,s,v); return }\n` : ''}  if (s == 0) { ${p}rgb(v,v,v); return }
   var ${p}h6 = ((h % 1) + 1) % 1 * 6
   var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
   var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
@@ -236,6 +281,7 @@ ${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index],
 }
 
 export function slowMoTunables(settings: SlowMoSettings): Record<string, number> {
+  if (settings.position !== undefined) clampPosition(settings.position)
   if (!Number.isFinite(settings.rate) || settings.rate <= 0 || settings.rate > 1) {
     throw new RangeError('Slow-mo rate must be finite and greater than 0 and at most 1.')
   }
@@ -280,7 +326,7 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Node = Record<string, any>
 
-function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true): string {
+function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true, preserveHsv24 = false): string {
   const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
   const parents = new Map<Node, Node>()
   function visitParents(node: Node): void {
@@ -314,7 +360,7 @@ function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true):
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !isNameBound(scope, node.callee.name)) {
       const name = node.callee.name
       if ((redirectTime && name === 'time') || ['rgb', 'hsv', 'hsv24'].includes(name)) {
-        edit(node.callee, `${prefix}${name === 'hsv24' ? 'hsv' : name}`)
+        edit(node.callee, `${prefix}${name === 'hsv24' && !preserveHsv24 ? 'hsv' : name}`)
       }
     }
     if (node.type !== 'Identifier' || !entries.has(node.name)) return

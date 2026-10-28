@@ -130,9 +130,10 @@ for (const mode of modes) {
     it('I11 live attack/decay change the next response without re-priming authored clocks', () => {
       const input = structuredClone(settings), snapshot = structuredClone(input)
       const a = artifact(target, input), base = bundle(target, {})
-      for (const key of ['renderFns', 'controls', 'exportedVars', 'patternVars'] as const) {
+      for (const key of ['renderFns', 'exportedVars', 'patternVars'] as const) {
         expect(a.metadata[key]).toEqual(base.metadata[key])
       }
+      expect(a.metadata.controls).toEqual([...base.metadata.controls, { exportName: 'slider__pxlblz_slowmo_speed', kind: 'slider', label: 'Slow-mo speed' }])
       const names = Object.keys(slowMoTunables(input))
       expect(names).toHaveLength(7)
       expect(a.metadata.runtimeVars).toEqual(expect.arrayContaining(names))

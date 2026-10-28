@@ -299,10 +299,11 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     const source = 'export var gain=0.5; export function sliderGain(v){gain=v} export function render(i){rgb(gain,0,0)}'
     const base = bundle(source, {})
     const result = artifact(source)
-    for (const key of ['renderFns','controls','exportedVars','patternVars'] as const) expect(result.metadata[key]).toEqual(base.metadata[key])
-    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'rate', prefix+'step', prefix+'curve', prefix+'shape', prefix+'width'])
+    for (const key of ['renderFns','exportedVars','patternVars'] as const) expect(result.metadata[key]).toEqual(base.metadata[key])
+    expect(result.metadata.controls).toEqual([...base.metadata.controls, { exportName: 'slider__pxlblz_slowmo_speed', kind: 'slider', label: 'Slow-mo speed' }])
+    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'rate', prefix+'step', prefix+'curve', prefix+'shape', prefix+'width', prefix+'position'])
     expect(new Set(result.metadata.runtimeVars).size).toBe(result.metadata.runtimeVars!.length)
-    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender'], estimatedPixelCost: 0, slowMo: { arrayWords: 42, tunables: [prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'] } })
+    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender', 'slider__pxlblz_slowmo_speed'], estimatedPixelCost: 0, slowMo: { arrayWords: 42, tunables: [prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'] } })
     expect(result.summary.globalsAdded).toContain(prefix+'ar')
   })
 
@@ -311,8 +312,8 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     const libraries = { Lamp: 'var count=0; function tick(){count+=1} function value(){return count/16}' }
     const base = bundle(source, libraries)
     const result = artifact(source, settings, libraries)
-    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'])
-    expect(result.summary.passes[0]).toMatchObject({ beforeRender:'wrapped', exportsAdded:[] })
+    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width',prefix+'position'])
+    expect(result.summary.passes[0]).toMatchObject({ beforeRender:'wrapped', exportsAdded:['slider__pxlblz_slowmo_speed'] })
   })
 
   it('imports and executes the reciprocal pass-engine/slow-mo function boundary', async () => {
