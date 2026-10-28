@@ -216,10 +216,12 @@ describe('slow-mo planner', () => {
     const code = `paint(0); ${renderer}`
     expect(emitSlowMoWrapper(code, settings, 3)).toEqual({ code, plan: planSlowMo(code, settings, 3), tunables: {} })
   })
-  it('guards accepted later-slice features after named budget declines', () => {
+  it('accepts blend persistence but guards pending clock persistence after named budget declines', () => {
     const persistence = { ...settings, persistence: { attackMs: 0, decayMs: 100 } }
-    expect(() => emitSlowMoWrapper(renderer, persistence, 1133)).toThrow(/not implemented/i)
+    expect(emitSlowMoWrapper(renderer, persistence, 1133).plan.declined).toBeUndefined()
     expect(emitSlowMoWrapper(renderer, persistence, 1134).plan.declined?.reason).toBe('array-budget')
+    expect(() => emitSlowMoWrapper(renderer, { ...persistence, inBetween: 'clock' }, 3409)).toThrow(/not implemented/i)
+    expect(emitSlowMoWrapper(renderer, { ...persistence, inBetween: 'clock' }, 3410).plan.declined?.reason).toBe('array-budget')
     expect(emitSlowMoWrapper(renderer, { ...settings, stagger: { shape: 'scatter', width: 0.5 } }, 3).tunables.__pxlblz_slowmo_width).toBe(0.5)
   })
 })

@@ -15,6 +15,7 @@ export default tseslint.config(
       'src/pixelblaze/stock/patterns/*.js',
       // Frozen raw Pixelblaze-dialect fixture uses device built-ins.
       'src/test/fixtures/tubeRain3D-preSplash.js',
+      'src/test/fixtures/slowMoSliceBIdentity.js',
       'src/pixelblaze/stock/maps/sources/*.js',
       'src/engine/maps/sources/**',
       'test/divergence-harness/probe.js',

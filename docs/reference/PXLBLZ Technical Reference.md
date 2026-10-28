@@ -320,8 +320,18 @@ quantization. Each pixel blends inside `[o, o + 1 - width]`, with `o <= width`
 (strictly less for scatter), so its window ends at or before the interval
 boundary. Hold gives a wipe; width zero preserves slice-A pixels bit-exactly.
 
-The six wrapper arrays cost `6N + 24` words (1,560 at 256 pixels), excluding
-authored arrays. Clock mode without persistence uses an empty recipe. The
+Optional persistence applies per-channel attack/decay after the in-between
+output. Once per display frame, each coefficient is `1 - exp(-delta/tau)`
+(or 1 for zero tau), so attack and decay follow display time. Three arrays
+hold shown RGB in LED levels (0–255), snapping to the target below 1/64 of
+a level to close the Precise-mode tail. After priming, zero display delta
+preserves the shown pixels, including with zero taus. Attack (0–5,000 ms)
+and decay (0–10,000 ms) are live `runtimeVars`; persistence on/off rebuilds.
+
+The six blend arrays cost `6N + 24` words (1,560 at 256 pixels). Persistence
+adds three arrays, for `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133),
+excluding authored arrays. Clock mode without persistence uses an empty
+recipe; persistence-only over clock remains pending increment C2. The
 current wrapper runs at most four inner `beforeRender` steps per display
 frame, once each in order, advancing the clock for each, followed by one
 resulting capture. The display blends the latest two captures and skips

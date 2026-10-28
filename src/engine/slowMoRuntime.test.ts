@@ -351,7 +351,8 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     expect(declined).toMatchObject({ ...base, summary:{ passes:[{
       declined:{ reason:'array-budget',message:'Slow-mo needs 10242 array words; the VM budget is 10240.' },
     }] } })
-    expect(() => bundleWithPasses(source, {}, [{ kind:'slowmo',settings:persistence,pixelCount:1133 }])).toThrow(RangeError)
+    expect(bundleWithPasses(source, {}, [{ kind:'slowmo',settings:persistence,pixelCount:1133 }]).summary.passes[0].slowMo?.arrayWords).toBe(10233)
+    expect(() => artifact(source, { ...persistence, inBetween:'clock' })).toThrow(/not implemented/i)
   })
 
   it.each([

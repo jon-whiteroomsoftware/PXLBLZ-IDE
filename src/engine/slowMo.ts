@@ -99,11 +99,12 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   const plan = planSlowMo(code, settings, pixelCount)
   if (plan.declined) return { code, plan, tunables: {} }
   const tunables = slowMoTunables(settings)
-  if (settings.persistence !== null) {
+  if (plan.structure === 'persistence-only') {
     throw new RangeError('Slow-mo persistence is not implemented until slice C.')
   }
   if (plan.structure === 'clock') return { code, plan, tunables: {} }
   const p = `${reservedStem('slowmo')}_`
+  const persistence = settings.persistence !== null
   const rewritten = rewriteSlowMoSource(code, p)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const prelude = `${initializers}
@@ -111,7 +112,14 @@ var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
 var ${p}r = 0, ${p}g = 0, ${p}b = 0
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
 var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
-function ${p}time(interval) { return (${p}T % interval) / interval }
+${persistence ? `var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
+var ${p}kUp = 1, ${p}kDn = 1, ${p}displayDelta = 0
+function ${p}persist(current,target) {
+  current += (target-current) * (target>current ? ${p}kUp : ${p}kDn)
+  if (abs(target-current) < 0.015625) current = target
+  return current
+}
+` : ''}function ${p}time(interval) { return (${p}T % interval) / interval }
 function ${p}rgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
 function ${p}hsv(h,s,v) {
   if (s == 0) { ${p}rgb(v,v,v); return }
@@ -141,17 +149,24 @@ function ${p}hsv(h,s,v) {
     ${p}cap = ${p}n > 0
   }
   ${p}f = ${p}acc / ${p}step
-}`
+${persistence ? `  ${p}displayDelta = delta
+  ${p}kUp = ${p}attack > 0 ? 1-exp(-delta/${p}attack) : 1
+  ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1
+` : ''}}`
   const update = ['r', 'g', 'b'].map(c => `
     if (${p}phase == 0) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
     else { ${p}a${c}[index] = ${p}b${c}[index]; ${p}b${c}[index] = ${p}${c} }`).join('')
   const channels = ['r', 'g', 'b'].map(c => `${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c`).join(', ')
+  const output = persistence ? `if (${p}displayDelta > 0 || ${p}phase == 0) {
+${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c) * 255)`).join('\n')}
+  }
+  rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)` : `rgb(${channels})`
   const out = `function ${p}out(index,o) {
   if (${p}cap) {${update}
   }
   var ${p}u = clamp((${p}f-o)/(1-${p}width),0,1)
   var ${p}c = ${p}curve == 0 ? (${p}u >= 1) : ${p}curve == 1 ? ${p}u : ${p}u*${p}u*(3-2*${p}u)
-  rgb(${channels})
+  ${output}
   if (index == pixelCount-1) ${p}phase = 1
 }`
   const offsets = plan.renderFns.map(name => {
@@ -193,6 +208,15 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
   if (!['sweep', 'radial', 'scatter'].includes(settings.stagger.shape)) {
     throw new RangeError('Slow-mo stagger shape must be sweep, radial, or scatter.')
   }
+  if (settings.persistence !== null) {
+    const { attackMs, decayMs } = settings.persistence
+    if (!Number.isFinite(attackMs) || attackMs < 0 || attackMs > 5000) {
+      throw new RangeError('Slow-mo attack must be finite and between 0 and 5000 ms.')
+    }
+    if (!Number.isFinite(decayMs) || decayMs < 0 || decayMs > 10000) {
+      throw new RangeError('Slow-mo decay must be finite and between 0 and 10000 ms.')
+    }
+  }
   if (settings.inBetween === 'clock') return {}
   const p = `${reservedStem('slowmo')}_`
   return {
@@ -201,6 +225,10 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
     [`${p}curve`]: settings.inBetween === 'hold' ? 0 : settings.inBetween === 'blend' ? 1 : 2,
     [`${p}shape`]: ['sweep', 'radial', 'scatter'].indexOf(settings.stagger.shape),
     [`${p}width`]: settings.stagger.width,
+    ...(settings.persistence === null ? {} : {
+      [`${p}attack`]: settings.persistence.attackMs,
+      [`${p}decay`]: settings.persistence.decayMs,
+    }),
   }
 }
 
