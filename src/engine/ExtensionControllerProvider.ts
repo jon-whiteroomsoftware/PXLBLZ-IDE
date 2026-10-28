@@ -71,6 +71,8 @@ export interface ExtensionControllerProviderOptions {
   pingIntervalMs?: number
   /** Per-request reply timeout passed to the connection. Default 5000ms. */
   requestTimeoutMs?: number
+  /** Provisional operation-wide Save measurement cap. Default 60000ms. */
+  saveTimeoutMs?: number
   /** How long a (re)connect waits for the socket to open before failing the
    *  attempt and tearing down the half-open socket. Default 3000ms. Bounds the
    *  reconnect loop so it can't stall forever on one hung attempt (an unreachable
@@ -136,6 +138,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private readonly detectTimeoutMs: number
   private readonly pingIntervalMs: number
   private readonly requestTimeoutMs: number
+  private readonly saveTimeoutMs: number
   private readonly connectTimeoutMs: number
   private readonly livenessTimeoutMs: number
   private readonly maxReconnectAttempts: number
@@ -161,6 +164,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
     this.detectTimeoutMs = options.detectTimeoutMs ?? 500
     this.pingIntervalMs = options.pingIntervalMs ?? 1000
     this.requestTimeoutMs = options.requestTimeoutMs ?? 5000
+    this.saveTimeoutMs = options.saveTimeoutMs ?? 60000
     this.connectTimeoutMs = options.connectTimeoutMs ?? 3000
     this.livenessTimeoutMs = options.livenessTimeoutMs ?? 4000
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? Infinity
@@ -343,6 +347,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
       webSocketFactory: (url) => new RelayWebSocket(url, this.transport, this.connectTimeoutMs),
       pingIntervalMs: this.pingIntervalMs,
       requestTimeoutMs: this.requestTimeoutMs,
+      saveTimeoutMs: this.saveTimeoutMs,
       connectTimeoutMs: 0, // the relay owns permission-aware socket deadlines
       livenessTimeoutMs: this.livenessTimeoutMs,
     })
@@ -781,9 +786,9 @@ export class ExtensionControllerProvider implements ControllerProvider {
 
   /** Save a pattern as a persisted PBP record over the live connection (#236) — it
    *  appears in the device's Saved Patterns list, unlike a run-only bytecode push.
-   *  Fire-and-forget at the protocol level. */
+   *  Resolves only after the Controller confirms completion on this connection. */
   saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void> {
-    return this.fireAndForget((conn) => conn.saveProgram(opts.id, pbpBlob))
+    return this.withConn((conn) => conn.saveProgram(opts.id, pbpBlob))
   }
 
   setActiveProgram(programId: string, opts: { save: boolean }): Promise<void> {

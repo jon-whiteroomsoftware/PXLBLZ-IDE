@@ -178,6 +178,7 @@ function makeDeviceTransport(
         case 'send': {
           if ('binary' in msg.payload) {
             binaryWrites.push(base64ToBytes(msg.payload.binary))
+            reply(msg.connId, { ack: 1 })
             return
           }
           const cmd = JSON.parse(msg.payload.text) as Record<string, unknown>
@@ -203,7 +204,10 @@ function makeDeviceTransport(
           }
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
-          if ('setControls' in cmd) writes.push(cmd)
+          if ('setControls' in cmd) {
+            writes.push(cmd)
+            reply(msg.connId, { ack: 1 })
+          }
           if ('activeProgramId' in cmd) {
             writes.push(cmd)
             if (typeof cmd.activeProgramId === 'string') activeProgramId = cmd.activeProgramId
@@ -215,6 +219,7 @@ function makeDeviceTransport(
           }
           if ('setCode' in cmd) {
             writes.push(cmd)
+            reply(msg.connId, { ack: 1 })
             const setCode = cmd.setCode as { id?: unknown }
             pendingProgramId = typeof setCode.id === 'string' ? setCode.id : null
             if (opts.dropOnFirstSetCode && !droppedSetCode) {
@@ -244,6 +249,10 @@ function makeDeviceTransport(
     binaryWrites,
     isOpen: () => openSocket,
     pushFrame: (obj: object) => reply(lastConnId, obj),
+    captureFrameSender: () => {
+      const connId = lastConnId
+      return (obj: object) => reply(connId, obj)
+    },
     setActiveProgramId: (programId: string) => {
       activeProgramId = programId
     },
@@ -269,6 +278,63 @@ function makeDeviceTransport(
 const TARGET = { address: '192.168.8.224' }
 
 describe('ExtensionControllerProvider', () => {
+  it.each(['negative', 'deadline', 'close'] as const)('propagates %s Save failure', async (failure) => {
+    vi.useFakeTimers()
+    try {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport, saveTimeoutMs: 100, pingIntervalMs: 0, maxReconnectAttempts: 0 })
+      await p.connect(TARGET)
+      const message = failure === 'negative' ? 'device reported failure'
+        : failure === 'deadline' ? 'completion timed out' : 'connection closed or replaced'
+      const rejected = expect(p.saveProgram(new Uint8Array(8), { id: 'id' })).rejects.toThrow(`Controller Save unconfirmed: ${message}`)
+      if (failure === 'negative') d.pushFrame({ saveProgramSourceFile: 0 })
+      else if (failure === 'deadline') await vi.advanceTimersByTimeAsync(100)
+      else d.dropSocket()
+      await rejected
+      await p.disconnect()
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(d.binaryWrites).toHaveLength(1)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally { vi.useRealTimers() }
+  })
+
+  it('ignores old provider socket completion after reconnect', async () => {
+    const d = makeDeviceTransport()
+    const p = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
+    await p.connect(TARGET)
+    const oldFrame = d.captureFrameSender()
+    const first = expect(p.saveProgram(new Uint8Array(8), { id: 'old' })).rejects.toThrow('Controller Save unconfirmed:')
+    await p.disconnect()
+    await first
+    await p.connect(TARGET)
+    const done = vi.fn()
+    const second = p.saveProgram(new Uint8Array(8), { id: 'new' }).then(done)
+    oldFrame({ saveProgramSourceFile: 1 })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(done).not.toHaveBeenCalled()
+    d.pushFrame({ saveProgramSourceFile: 1 })
+    await second
+    await p.disconnect()
+  })
+
+  it('awaits device Save completion rather than local transmission or generic ack', async () => {
+    const d = makeDeviceTransport()
+    const p = new ExtensionControllerProvider({ transport: d.transport })
+    await p.connect(TARGET)
+    const done = vi.fn()
+    const save = p.saveProgram(new Uint8Array(8), { id: 'id' }).then(done)
+    d.pushFrame({ ack: 1 })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(d.binaryWrites).toHaveLength(1)
+    expect(done).not.toHaveBeenCalled()
+    d.pushFrame({ saveProgramSourceFile: 1 })
+    await save
+    expect(done).toHaveBeenCalledTimes(1)
+    await p.disconnect()
+  })
+
   it('reverses MAC bytes and builds the Pixelblaze cloud id', () => {
     expect(reverseMacBytes('34:94:54:EE:D4:3C')).toBe('3cd4ee549434')
     expect(reverseMacBytes('34-94-54-ee-d4-3c')).toBe('3cd4ee549434')

@@ -749,6 +749,20 @@ record from the exact embedded banner — artifact hash, transform ids,
 timestamp, optional Show output contract — making transform freshness locally
 computable.
 
+The Save promise waits for a truthy `saveProgramSourceFile` completion on the
+same current socket after the final frame is submitted. Save drains prior FIFO
+acknowledgements, then paces its 1280-byte-body chunks by truthy ack; completion
+may precede the final ack. Local sends and generic ack never establish success.
+Timeout, negative completion, connection loss/replacement, and send failure
+reject; failed Save or experimental type-1 source transmission prevents another
+Save on that socket until replacement. Wire debt survives request timeouts.
+During reservation, keepalive is suppressed and new ack-bearing commands and
+binary mutations reject; unrelated reads remain available. `saveTimeoutMs` is
+separate from request deadlines and defaults to a provisional 60-second
+measurement cap. Hardware latency will set the final deadline (at least 20
+seconds); helper HTTP ownership and probe work remain pending. See the
+[Controller Save transport agreement](contracts/controller-pattern-import.md#controller-save-transport).
+
 **Transient replacement fit.** Steady-state fit and replacement fit are
 different questions: a Pattern can pass every steady-state limit and still
 fail a direct large-to-large replacement, because activation briefly holds

@@ -11,6 +11,36 @@ per-item outcomes and failed-only retry without navigation. Final committed
 browser/native-firmware proof remains pending; these slices do not establish
 completion of #1221.
 
+## Controller Save transport
+
+`saveProgram` resolves only after a truthy `saveProgramSourceFile` completion
+arrives on the owning current socket after submission of the final type-1 frame.
+Local transmission and generic `ack` do not confirm Save. A defined falsey
+completion rejects with `Controller Save unconfirmed: device reported failure`;
+undefined completion is ignored. The operation-wide deadline includes waiting
+for prior acknowledgements and rejects with
+`Controller Save unconfirmed: completion timed out`. Connection loss,
+replacement, and send failure also reject with `Controller Save unconfirmed:`.
+
+Save reserves the socket before sending, drains prior wire acknowledgements,
+and sends each 1280-byte-body chunk only after the preceding chunk's truthy ack.
+The final ack may follow completion; reservation remains until it drains.
+Acknowledgement expectations stay in FIFO wire order even after a request's
+promise times out, so late replies cannot settle newer requests or advance Save.
+While reserved, automatic keepalive is suppressed and explicit ack-bearing
+commands and binary mutations reject with `Controller Save is pending`.
+Unrelated reads remain available. Ordinary transmission pacing is unchanged.
+
+A failed or timed-out Save makes production Save unavailable on that socket:
+`Controller Save unavailable on this socket; reconnect before saving again`.
+Experimental `putSourceCode` also makes the socket unavailable, because it uses
+the same uncorrelated completion field. Late completion cannot clear this state.
+Replacement clears socket-scoped state and ignores old callbacks; no automatic
+Save retry occurs. The separate `saveTimeoutMs` defaults to a provisional
+60,000ms measurement cap. The final deadline follows hardware latency evidence
+and must be at least 20 seconds. Helper HTTP ownership and probe changes remain
+pending; this transport agreement supplies no timer-based HTTP release signal.
+
 ## Source fidelity and identity
 
 `recoverSavedProgram` retains its existing stripped source and parsed stamp and

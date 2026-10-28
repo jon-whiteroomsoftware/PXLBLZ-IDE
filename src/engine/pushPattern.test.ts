@@ -235,6 +235,37 @@ describe('pushPattern — run-only (default)', () => {
 })
 
 describe('pushPattern — save mode (persist: true)', () => {
+  it('propagates unconfirmed Save without metadata or activation', async () => {
+    const error = new Error('Controller Save unconfirmed: completion timed out')
+    const { deps, saved, pushRecords } = makeDeps({ persist: true,
+      provider: makeProvider({ saveProgram: vi.fn().mockRejectedValue(error) }),
+    })
+    await expect(pushPattern(deps)).rejects.toBe(error)
+    expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+    expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+  })
+
+  it('holds metadata and activation until provider Save resolves', async () => {
+    let release!: () => void
+    let entered!: () => void
+    const started = new Promise<void>((resolve) => { entered = resolve })
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const { deps, saved, pushRecords } = makeDeps({ persist: true,
+      provider: makeProvider({ saveProgram: vi.fn(() => { entered(); return held }) }),
+    })
+    const push = pushPattern(deps)
+    await started
+    expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+    expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+    release()
+    await push
+    expect(saved).toHaveLength(1)
+    expect(pushRecords).toHaveLength(1)
+    expect(deps.provider.pushBytecode).toHaveBeenCalledTimes(1)
+  })
+
   it('mints + binds + saves a PBP record on the first save for a pattern', async () => {
     const { deps, saved } = makeDeps({ persist: true })
     const result = await pushPattern(deps)
