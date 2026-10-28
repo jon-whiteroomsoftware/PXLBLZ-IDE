@@ -3,6 +3,7 @@ import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
 import { BenchWorkerObservations, assertBenchArtifact, assertBenchImportedPattern, assertBenchMutation, assertBenchProfile, observeBenchImportRead, parseBenchArgs, requireBenchSavedSlot, validateBenchSessions, type BenchAdmissionState, type BenchMutation } from './controller-import-hardware-policy'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
+import type { BindingStore } from '../src/engine/controllerBinding'
 import { defaultControllerProfile } from '../src/store/controllerProfileStore'
 
 const id = 'pxb22222222222222'
@@ -69,10 +70,30 @@ describe('S4 origins, prefix and artifact witnesses', () => {
     expect(() => assertBenchArtifact(artifact(stampArtifact(source, { kind: 'pattern', id: 'b', transforms: ['hardware-brightness'] })), 'b', 'b')).toThrow()
   })
   it('requires actual account source, authored receipt, complete stage, binding and active slot', () => {
-    const input = { pattern: { id: 'b', src: source }, receipt: { patternId: 'b', programId: id, controllerDeviceId: 'device', sourceMode: 'authored-verified', stage: 'complete' }, binding: id, activeId: id, slot: id, deviceId: 'device' }
+    const input = { pattern: { id: 'b', src: source }, receipt: { patternId: 'b', programId: id, controllerDeviceId: 'device', sourceMode: 'authored-verified', stage: 'complete' }, bindings: { controller: { b: id } }, controllerId: 'controller', activeId: id, slot: id, deviceId: 'device' }
     expect(() => assertBenchImportedPattern(input)).not.toThrow()
-    for (const change of [{ receipt: { ...input.receipt, sourceMode: 'stored-artifact' } }, { receipt: { ...input.receipt, stage: 'saved-verified' } }, { binding: other }, { activeId: other }, { pattern: { id: 'b', src: '' } }, { pattern: { id: 'b', src: stampArtifact(source, { kind: 'pattern', id: 'old' }) } }]) {
+    for (const change of [{ receipt: { ...input.receipt, sourceMode: 'stored-artifact' } }, { receipt: { ...input.receipt, stage: 'saved-verified' } }, { bindings: { controller: { b: other } } }, { activeId: other }, { pattern: { id: 'b', src: '' } }, { pattern: { id: 'b', src: stampArtifact(source, { kind: 'pattern', id: 'old' }) } }]) {
       expect(() => assertBenchImportedPattern({ ...input, ...change })).toThrow()
+    }
+  })
+  it('checks the imported Pattern binding under the live Controller IP independently of receipt device identity', () => {
+    // Sanitized s4-i59-001 metadata shape: bindings use the transport address;
+    // the durable import receipt separately identifies the physical Controller.
+    const controllerId = '192.0.2.42'
+    const deviceId = 'pixelblaze_pb32_001122334455'
+    const input = { pattern: { id: 'imported-b', src: source },
+      receipt: { patternId: 'imported-b', programId: id, controllerDeviceId: deviceId, sourceMode: 'authored-verified', stage: 'complete' },
+      bindings: { [controllerId]: { 'imported-b': id } }, controllerId, deviceId, activeId: id, slot: id }
+    expect(() => assertBenchImportedPattern(input)).not.toThrow()
+    const invalidBindings: BindingStore[] = [
+      {},
+      { [deviceId]: { 'imported-b': id } },
+      { [controllerId]: { 'another-pattern': id } },
+      { '192.0.2.43': { 'imported-b': id } },
+      { [controllerId]: { 'imported-b': other }, [deviceId]: { 'imported-b': id } },
+    ]
+    for (const bindings of invalidBindings) {
+      expect(() => assertBenchImportedPattern({ ...input, bindings })).toThrow(/same-slot binding/)
     }
   })
 })

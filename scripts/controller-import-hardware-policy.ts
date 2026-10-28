@@ -2,6 +2,7 @@ import { isPxlblzProgramId } from '../src/engine/bytecodePush'
 import { decodePbp, PBP_HEADER_SIZE, PBP_VERSION } from '../src/engine/pbpEncode'
 import { artifactHash, parsePxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
+import type { BindingStore } from '../src/engine/controllerBinding'
 
 export function requireBenchSavedSlot(result: { ok: boolean; message?: string } | null, slot: string | undefined): string {
   if (result === null) throw new Error('Studio Save completed without a result; no automatic retry')
@@ -94,12 +95,16 @@ export function assertBenchArtifact(artifact: { sourceCode: string } | null, rol
 export function assertBenchImportedPattern(input: {
   pattern: { id: string; src: string } | undefined
   receipt: { patternId: string; programId: string; controllerDeviceId: string; sourceMode: string; stage: string } | undefined
-  binding: string | undefined; activeId: string | undefined; slot: string; deviceId: string; completedTarget?: string
+  bindings: BindingStore | undefined; controllerId: string
+  activeId: string | undefined; slot: string; deviceId: string; completedTarget?: string
 }): void {
   const { pattern, receipt } = input
+  // Product bindings use the connected transport address; receipt identity is
+  // independently guarded by the physical device ID below.
+  const binding = pattern && input.bindings?.[input.controllerId]?.[pattern.id]
   if (!pattern?.src.trim() || /Built with PXLBLZ-IDE|\/\/ pxlblz:|analogRead\s*\(\s*35\s*\)/.test(pattern.src)
     || !receipt || receipt.patternId !== pattern.id || receipt.programId !== input.slot || receipt.controllerDeviceId !== input.deviceId
-    || receipt.sourceMode !== 'authored-verified' || receipt.stage !== 'complete' || input.binding !== input.slot || input.activeId !== (input.completedTarget ?? input.slot)) throw new Error('S3 account source/complete authored receipt/same-slot binding/activation witness failed')
+    || receipt.sourceMode !== 'authored-verified' || receipt.stage !== 'complete' || binding !== input.slot || input.activeId !== (input.completedTarget ?? input.slot)) throw new Error('S3 account source/complete authored receipt/same-slot binding/activation witness failed')
 }
 
 export interface BenchSession {

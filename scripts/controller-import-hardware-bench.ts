@@ -18,6 +18,7 @@ import { benchExtensionFiles, prepareBenchExtension } from './controller-import-
 import { parsePxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerConfig, ControllerStatus, ProgramListEntry } from '../src/engine/ControllerProvider'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
+import type { BindingStore } from '../src/engine/controllerBinding'
 import type { PatternRecord } from '../src/engine/personalContentRecords'
 
 const help = `Explicit #1221 S4 Controller import diagnostic; never automated hardware qualification.
@@ -528,9 +529,9 @@ async function run() {
     const receipt = receipts[0]
     if (expectedId && receipt.patternId !== expectedId) throw new Error('Import account Pattern identity changed')
     const pattern = patterns.find(p => p.id === receipt.patternId)
-    const bindings = await api<{ value?: Record<string, Record<string, string>> }>(context, 'controller-metadata/controller-bindings')
+    const bindings = await api<{ value?: BindingStore }>(context, 'controller-metadata/controller-bindings')
     const current = await snapshotDevice(page, 'B-import-complete')
-    assertBenchImportedPattern({ pattern, receipt, binding: bindings.value?.[bProfile!.deviceId!]?.[receipt.patternId], activeId: current.config.activeProgramId, slot, deviceId: bProfile!.deviceId!, completedTarget })
+    assertBenchImportedPattern({ pattern, receipt, bindings: bindings.value, controllerId: options.device, activeId: current.config.activeProgramId, slot, deviceId: bProfile!.deviceId!, completedTarget })
     const artifact = await readSlot(page, slot, `B-reopened-${slot}`)
     assertBenchArtifact(artifact, 'b', receipt.patternId)
     if (edit && (!artifact!.sourceCode.includes(edit) || !pattern!.src.includes(edit))) throw new Error('Same-slot edit persistence is unproved')

@@ -425,7 +425,9 @@ not change product connection or firmware behavior.
    input must equal `READY <run-id>`; EOF, other text or delay grants nothing.
    Import T1. Assert its actual B personal source has no old banner/profile
    wrapper, its receipt is `authored-verified` and `complete`, binding retains
-   the same Controller slot and that slot is active. Reopened bytes require an
+   the same Controller slot and that slot is active. The binding lookup uses the
+   live Controller IP and imported Pattern ID; the receipt separately verifies
+   the physical device ID. Reopened bytes require an
    integrity-valid B Pattern stamp, hardware-brightness transform and
    `analogRead(35)`. Append `// I50 bench edit <run-id>` in Monaco, Save and
    require both the edit and B wrapper when reopening the same slot.
