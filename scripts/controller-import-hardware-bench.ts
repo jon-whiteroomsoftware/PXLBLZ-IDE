@@ -38,7 +38,7 @@ const digest = (bytes: Uint8Array | string) => createHash('sha256').update(bytes
 const fidelityCost = "Fidelity cost: the agent bench does not exercise the grant UI or the shipped match list. Jon's manual bench on 2026-10-27 exercised the grant on real Chrome."
 type Device = { config: ControllerConfig; status: ControllerStatus; list: ProgramListEntry[]; map?: number[][] | null }
 type Event = Record<string, unknown>
-type SpanMessage = { phase: 'start' | 'execute' | 'end' | 'error'; method: string; span: number; time: number; utc: string; args?: unknown[]; bytes?: number[]; source?: string; result?: unknown; status?: ControllerStatus; error?: string }
+type SpanMessage = { phase: 'start' | 'execute' | 'suppressed' | 'end' | 'error'; method: string; span: number; time: number; utc: string; args?: unknown[]; bytes?: number[]; source?: string; result?: unknown; status?: ControllerStatus; error?: string }
 
 async function run() {
   // Parse opt-in before reading sessions, creating directories, or loading a browser.
@@ -409,8 +409,11 @@ async function run() {
       gate.arm()
     })
     connections.get(page.context())!.connected = true
+    await page.evaluate(() => window.__benchPageAccess.armConnect())
     await page.getByTestId('controller-go').click()
+    await page.evaluate(() => window.__benchPageAccess.waitForConnect())
     await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+    event('controller-startup-ready', { origins, firmwareCheck: 'suppressed' })
     event('pre-granted-controller-live', { origins, phase: 'live' })
   }
   const snapshotDevice = async (page: Page, label: string, map = false) => {

@@ -388,6 +388,21 @@ is bound to its role's origin. Both `/api/me` identities pass before account or
 Controller mutations. Only one context connects to hardware at a time. The
 actual dispatcher awaits B2, A1, B3, B4, B5, A6, A7 and stops at the first failure.
 
+Each explicit Connect waits for the page-owned connection action to finish its
+bootstrap and launch the initial panel reads, then awaits every instrumented
+startup call through its final span. Required observations include provider
+connection, bootstrap config/raw map, panel list/config/vars and telemetry.
+Read failures stop the diagnostic even when the product catches them. A live
+pill or a momentary empty span set cannot release this gate, so navigation and
+the pre-Save HTTP probe cannot overlap unfinished startup I/O.
+
+The bench suppresses the automatic firmware-availability check and records
+`start`, `suppressed` and `end` spans with an `unknown` result. Neither
+`upgradeVersion: 'check'` nor `getUpgradeState` is sent. Map (raw and decoded),
+vars and telemetry reads also have provider spans; the real provider still
+executes all admitted non-firmware operations. This diagnostic-only policy does
+not change product connection or firmware behavior.
+
 1. **B2:** snapshot both accounts, then require one preexisting B profile for the
    target IP before connecting. Read config/map/list, confirm #2 Cark / 3.70 /
    256 pixels / 2D, and verify its physical identity against that profile. Record

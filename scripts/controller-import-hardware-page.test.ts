@@ -8,7 +8,7 @@ import { installBenchPageAccess } from './controller-import-hardware-page'
 const providerPath = '/PXLBLZ-IDE/src/engine/ExtensionControllerProvider.ts'
 const registryPath = '/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts'
 const storePath = '/PXLBLZ-IDE/src/store/controllerStore.ts'
-const methods = ['compile', 'getActiveProgramBytecodeSize', 'saveProgram', 'pushBytecode', 'readSavedProgram', 'getConfig', 'listPrograms', 'setVars', 'setRendererPaused', 'setControls', 'setBrightness', 'setName', 'setPixelCount', 'setActiveProgram', 'deleteProgram', 'setPixelMap']
+const methods = ['compile', 'getActiveProgramBytecodeSize', 'saveProgram', 'pushBytecode', 'readSavedProgram', 'connect', 'getConfig', 'listPrograms', 'getPixelMap', 'getPixelMapData', 'getVars', 'getTelemetry', 'checkFirmwareUpdate', 'setVars', 'setRendererPaused', 'setControls', 'setBrightness', 'setName', 'setPixelCount', 'setActiveProgram', 'deleteProgram', 'setPixelMap']
 
 // Only state and method effects are synthetic. Class identity and the active
 // provider registry come from repository source bundled as browser ESM.
@@ -22,6 +22,7 @@ async function fixture(graph: '' | '?t=hot', run: (page: Page, requests: string[
       if (typeof ExtensionControllerProvider.prototype[method] !== 'function') throw new Error('Missing real method ' + method);
       ExtensionControllerProvider.prototype[method] = async function (...args) {
         window.fx.events.push({ phase: 'delegate', method, args, receiver: this === window.fx.provider });
+        if (window.fx.hold === method) await new Promise(resolve => { window.fx.release = resolve; window.fx.held = true; });
         if (window.fx.fail === method) throw window.fx.error;
         if (method === 'getConfig') return window.fx.config;
         if (method === 'listPrograms') return window.fx.list;
@@ -33,7 +34,13 @@ async function fixture(graph: '' | '?t=hot', run: (page: Page, requests: string[
   const store = (query: string) => `
     import { getControllerProvider } from '${registryPath}${query}';
     export { getControllerProvider };
-    export const state = { pushing: false, pushResult: null, privateField: 'excluded' };
+    export const state = { pushing: false, pushResult: null, privateField: 'excluded', async addController(...args) {
+      window.fx.connectArgs = args;
+      const p = getControllerProvider();
+      await p.connect(args[0]);
+      await Promise.all([p.getConfig(), p.getPixelMapData()]);
+      void p.listPrograms(); void p.getConfig(); void p.getVars(); void p.getTelemetry(); void p.checkFirmwareUpdate();
+    } };
     export const useControllerStore = { getState: () => state };
   `
   const entry = `
@@ -166,7 +173,32 @@ it('reads current Save state and preserves operation arguments, returns and orig
     expect(await page.evaluate(`(async () => {
       fx.events = []; fx.reject = true;
       try { await window.__benchPageAccess.getProvider().listPrograms(); } catch (e) { return { error: e.message, events: fx.events }; }
-    })()`)).toEqual({ error: 'admission refused', events: [expect.objectContaining({ phase: 'start', method: 'listPrograms' })] })
+    })()`)).toEqual({ error: 'admission refused', events: [
+      expect.objectContaining({ phase: 'start', method: 'listPrograms' }),
+      expect.objectContaining({ phase: 'error', method: 'listPrograms', error: 'admission refused' }),
+    ] })
+  })
+}, 30_000)
+
+it('awaits page-owned Connect and pending panel reads with firmware traffic suppressed', async () => {
+  await fixture('?t=hot', async page => {
+    await page.evaluate(`
+      fx.hold = 'getVars';
+      window.__benchPageAccess.armConnect();
+      void fx.state.addController({ address: 'offline.invalid' }, 'seed name');
+      fx.connectReady = false;
+      void (fx.connectGate = window.__benchPageAccess.waitForConnect().then(() => { fx.connectReady = true; }));
+    `)
+    await page.waitForFunction('fx.held === true')
+    expect(await page.evaluate('fx.connectReady')).toBe(false)
+    await page.evaluate('fx.release(); fx.connectGate')
+    expect(await page.evaluate(`({ ready: fx.connectReady, args: fx.connectArgs,
+      methods: fx.events.filter(e => e.phase === 'delegate').map(e => e.method),
+      firmware: fx.events.filter(e => e.method === 'checkFirmwareUpdate').map(e => e.phase) })`)).toEqual({
+      ready: true, args: [{ address: 'offline.invalid' }, 'seed name'],
+      methods: ['connect', 'getConfig', 'getPixelMapData', 'listPrograms', 'getConfig', 'getVars', 'getTelemetry'],
+      firmware: ['start', 'suppressed', 'end'],
+    })
   })
 }, 30_000)
 
