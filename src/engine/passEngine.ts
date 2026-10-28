@@ -550,7 +550,7 @@ function firstFunctionName(source: string, excludedName?: string): string {
   return ''
 }
 
-function collectTopLevelBindings(source: string): { functions: Set<string>; variables: Set<string> } {
+export function collectTopLevelBindings(source: string): { functions: Set<string>; variables: Set<string> } {
   const functions = new Set<string>()
   const variables = new Set<string>()
   for (const node of parseModule(source).body as Node[]) {
@@ -565,7 +565,7 @@ function collectTopLevelBindings(source: string): { functions: Set<string>; vari
   return { functions, variables }
 }
 
-function collectIdentifiers(source: string): Set<string> {
+export function collectIdentifiers(source: string): Set<string> {
   const names = new Set<string>()
   walkAst(parseModule(source), (node) => {
     if (node.type === 'Identifier') names.add(node.name)
@@ -586,7 +586,7 @@ function reserveName(ctx: PassContext, passId: string, preferred: string): strin
   return name
 }
 
-function reservedStem(passId: string): string {
+export function reservedStem(passId: string): string {
   return `__pxlblz_${passId.replace(/[^A-Za-z0-9_]/g, '_')}`
 }
 
@@ -638,7 +638,7 @@ interface Scope {
   parent: Scope | null
 }
 
-function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope: Scope) => void): void {
+export function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node, scope: Scope) => void): void {
   if (!node || typeof node !== 'object') return
   if (node.type === 'Program') {
     const programScope = makeScope(scope, node.body as Node[])
@@ -722,7 +722,7 @@ function collectDeclarationNames(node: Node, names: Set<string>): void {
   }
 }
 
-function isNameBound(scope: Scope, name: string): boolean {
+export function isNameBound(scope: Scope, name: string): boolean {
   let current: Scope | null = scope
   while (current) {
     if (current.names.has(name)) return true
