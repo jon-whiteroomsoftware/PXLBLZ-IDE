@@ -14,8 +14,8 @@ import type { ControllerPushRecords } from '../src/engine/controllerPushRecord'
 import { makeProgramId } from '../src/engine/bytecodePush'
 import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
-import { NodeControllerImportProvider, ProbeEventRecorder, PROBE_FIDELITY, PROBE_HOST,
-  boundedAction, boundedHttpRead, byteSummary, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeArgs } from './controller-import-hardware-probe-support'
+import { NodeControllerImportProvider, ProbeEventRecorder, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
+  boundedAction, byteSummary, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeArgs } from './controller-import-hardware-probe-support'
 
 const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run'
 const luminousSource = 'export function render(i) { rgb(0.02,0.02,0) }\nexport function render2D(i,x,y) { rgb(0.02,0.02,0) }'
@@ -43,10 +43,6 @@ async function run(args: ProbeArgs) {
     return rawFetch(input, { ...init, redirect: 'error' })
   }
   let compilerReady = false
-  let httpHang = false; let consecutiveFailures = 0; let lastPollOk = false
-  let polling = false; let pollTimer: ReturnType<typeof setInterval> | undefined
-  const pendingPolls = new Set<Promise<void>>()
-  const polls = { attempted: 0, succeeded: 0, failed: 0, skippedAtCapacity: 0, maxConcurrent: 0 }
   const writes: { id: string; name: string; kind: string }[] = []
   const observed: { utc: string; phase: string; activeProgramId?: string; error?: string }[] = []
   const rowOutcomes: { id: string; name: string; outcome: string; stage?: string }[] = []
@@ -58,13 +54,14 @@ async function run(args: ProbeArgs) {
   let failure: unknown; let batchEnded = false; let qualified = false
   let outgoing: { measuredBytecodeSize: number; residentSize: number | null; activeId: string } | undefined
   const assertCurrent = () => {
-    if (httpHang) throw new Error('stopped-http-unavailable')
+    monitor.assertCurrent()
     if (!connection.isConnected) throw new Error('Controller connection is not open')
   }
   const provider = new NodeControllerImportProvider({ connection, fetcher: pinnedFetch,
     compiler: acquireAndCompile,
-    recorder, case: args.case, assertMutation: assertCurrent })
+    recorder, case: args.case, assertMutation: () => { assertCurrent(); monitor.markMutationStarted() } })
   const fields = () => ({ case: args.case, phase: provider.phase })
+  const monitor = new ProbeLivenessMonitor({ fetcher: pinnedFetch, recorder, fields })
   async function acquireAndCompile(source: string): Promise<Uint8Array> {
     let task: Promise<Uint8Array> | undefined
     try {
@@ -101,22 +98,6 @@ async function run(args: ProbeArgs) {
     try { const config = await provider.getConfig(); observed.push({ utc, phase: provider.phase, activeProgramId: config.activeProgramId }) }
     catch (error) { observed.push({ utc, phase: provider.phase, error: error instanceof Error ? error.message : String(error) }) }
   }
-  const poll = () => {
-    if (!polling) return
-    if (pendingPolls.size >= 4) { polls.skippedAtCapacity++; return }
-    polls.attempted++
-    const task = recorder.span('poll.list', fields(), () => boundedHttpRead({
-      path: '/list', fetcher: pinnedFetch, recorder, fields: fields(), timeoutMs: 1000,
-      timeoutMessage: 'GET /list timed out.', decode: () => undefined,
-    })).then(() => { polls.succeeded++; consecutiveFailures = 0; lastPollOk = true }, (error: unknown) => {
-      polls.failed++; lastPollOk = false
-      // An HTTP response is evidence of a responding server, even when non-ok.
-      if (error instanceof Error && /^GET \/list -> \d+$/.test(error.message)) consecutiveFailures = 0
-      else consecutiveFailures++
-      if (consecutiveFailures >= 3) httpHang = true
-    }).finally(() => { pendingPolls.delete(task) })
-    pendingPolls.add(task); polls.maxConcurrent = Math.max(polls.maxConcurrent, pendingPolls.size)
-  }
   const metadataStorage: ControllerMetadataStorage = {
     id: 'i24-memory', getPatternImports: async () => structuredClone(ledger), setPatternImports: async (next) => { ledger = structuredClone(next) },
     getControllerBindings: async () => structuredClone(bindings), setControllerBindings: async (next) => { bindings = structuredClone(next) },
@@ -136,7 +117,7 @@ async function run(args: ProbeArgs) {
     if (args.case === 'drain' && candidates.length !== 1) throw new Error('Expected exactly one saved LineDancer2D Pattern')
     const tiny = await provider.compile(luminousSource)
     compilerReady = true
-    polling = true; poll(); pollTimer = setInterval(poll, 250)
+    monitor.start()
     const targets: { id: string; name: string }[] = []
     for (const [index, name] of fixtureNames.entries()) {
       assertCurrent()
@@ -181,12 +162,12 @@ async function run(args: ProbeArgs) {
     }
     provider.phase = 'import'
     const batch = await runControllerPatternBatch(targets, async (row) => {
-      if (httpHang) { rowOutcomes.push({ ...row, outcome: 'stopped-http-unavailable' }); throw new Error('stopped-http-unavailable') }
+      if (monitor.httpUnavailable) { rowOutcomes.push({ ...row, outcome: 'stopped-http-unavailable' }); throw new Error('stopped-http-unavailable') }
       try {
         await importControllerPattern({ programId: row.id, controllerDeviceId: PROBE_HOST }, deps)
         rowOutcomes.push({ ...row, outcome: 'complete', stage: 'complete' })
       } catch (error) {
-        rowOutcomes.push({ ...row, outcome: httpHang ? 'stopped-http-unavailable' : 'failed',
+        rowOutcomes.push({ ...row, outcome: monitor.httpUnavailable ? 'stopped-http-unavailable' : 'failed',
           stage: error && typeof error === 'object' && 'stage' in error ? String(error.stage) : undefined })
         throw error
       }
@@ -200,14 +181,14 @@ async function run(args: ProbeArgs) {
   } catch (error) { failure = error }
   finally {
     // Even failed imports retain a full 60-second independent liveness window.
-    if (batchEnded || httpHang) {
+    if (batchEnded || monitor.httpUnavailable) {
       provider.phase = 'observation'
       const until = Date.now() + 60_000
       await observe()
       while (Date.now() < until - 5000) await wait(Math.min(250, until - 5000 - Date.now()))
       await observe()
       while (Date.now() < until) await wait(Math.min(250, until - Date.now()))
-      if (!httpHang && lastPollOk && compilerReady && connection.isConnected) {
+      if (!monitor.httpUnavailable && monitor.lastPollOk && compilerReady && connection.isConnected) {
         provider.phase = 'restore'
         try {
           const bytes = await provider.compile(luminousSource); const id = mint()
@@ -217,25 +198,25 @@ async function run(args: ProbeArgs) {
         } catch (error) { failure ??= error }
       }
     }
-    polling = false; clearInterval(pollTimer)
-    await Promise.allSettled([...pendingPolls])
+    await monitor.stop()
     await provider.disconnect()
     globalThis.fetch = rawFetch
-    const status = httpHang ? 'stopped-http-unavailable' : failure ? 'failed' : 'qualified'
+    const status = monitor.httpUnavailable ? 'stopped-http-unavailable' : failure ? 'failed' : 'qualified'
     const summary = {
-      case: args.case, runId: args.runId, status, qualified: qualified && !httpHang,
+      case: args.case, runId: args.runId, status, qualified: qualified && !monitor.httpUnavailable,
+      mutationsStarted: monitor.mutationsStarted,
       fidelity: PROBE_FIDELITY,
       residentQualification: args.case === 'drain' ? 'Unknown resident cache after observed saved-program switch.' : 'Known small resident seeded by confirmed push.',
-      rows: rowOutcomes, timing: sanitizedTimingTable(recorder.events), polls, writtenSlotsAndTransients: writes,
+      rows: rowOutcomes, timing: sanitizedTimingTable(recorder.events), polls: monitor.polls, writtenSlotsAndTransients: writes,
       drainActivations: recorder.events.filter((e) => e.event === 'end' && e.operation === 'pushBytecode' && e.activation === 'drain' && e.phase === 'import').length,
       deletedSlots: [], outgoing, observedActiveIds: observed.map(({ utc, phase, activeProgramId }) => ({ utc, phase, activeProgramId })),
       accountBCount: accountsB.size, receiptCount: Object.keys(ledger.byPatternId).length,
-      failure: httpHang ? 'HTTP unavailable; eng-lead/power-cycle discussion required.' : failure ? 'Run failed; inspect private report and events.' : undefined,
+      failure: monitor.httpUnavailable ? 'HTTP unavailable; discuss observed liveness with the eng lead.' : failure ? 'Run failed; inspect private report and events.' : undefined,
     }
     writeFileSync(resolve(root, 'report.json'), JSON.stringify({ summary, failure: failure instanceof Error ? { message: failure.message, stack: failure.stack } : String(failure),
       accountsA: [...accountsA.values()], accountsB: [...accountsB.values()], ledger, bindings, pushRecords, labels, observed }, null, 2), { mode: 0o600 })
     console.log(JSON.stringify(summary, null, 2))
-    if (failure || httpHang || !qualified) process.exitCode = 1
+    if (failure || monitor.httpUnavailable || !qualified) process.exitCode = 1
   }
 }
 

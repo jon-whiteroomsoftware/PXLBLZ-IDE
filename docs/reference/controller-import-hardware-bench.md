@@ -68,16 +68,31 @@ Pattern, seeding a known small resident footprint. It imports the same fixtures;
 any confirmed drain activation fails the no-drain precondition. Neither case
 creates a saved control slot.
 
-Independent raw `GET /list` polling begins before setup writes, attempts every
-250ms with a 1000ms fetch/body deadline and at most four overlapping requests,
-and continues through the batch and 60 seconds after it ends, including ordinary
-row failure. Config/active-id observations are timestamped during that window.
-Three consecutive poll timeout/transport failures latch `stopped-http-unavailable`
-and forbid further mutations, including restoration; subsequent rows report
-stopped. An HTTP error response is recorded but is not a transport-hang verdict.
-The probe retains a 60-second observation window for a latched setup hang too,
-then closes the socket and requires eng-lead/power-cycle discussion. It never
-reboots, reconnects or automatically retries the whole run.
+Independent raw `GET /list` polling begins before setup writes, with one request
+in flight and a 5000ms deadline covering headers and body. Each next attempt starts
+1000ms after the previous attempt settles. Polling continues through the batch and
+60 seconds after it ends, including ordinary row failure. Config/active-id
+observations are timestamped during that window.
+
+Exactly 20 seconds without a full successful 2xx body read, measured from poll
+start or the last success, declares `stopped-http-unavailable`, even with a request
+pending. HTTP errors, body failures, transport failures and deadlines do not
+refresh that window. A later success clears the verdict before the first mutation.
+After mutations begin, an unavailable verdict is terminal: subsequent rows stop,
+and HTTP recovery is recorded but cannot permit another write, including
+restoration. A refused mutation does not mark mutations as started. The probe
+retains a 60-second observation window for a setup hang too, then closes the socket
+for eng-lead discussion of observed liveness. It never reboots, reconnects or
+automatically retries the whole run.
+
+In `i25-drain-001`, `/list` successes took 451–865ms and a compiler fetch took
+about 2.5 seconds. The old 250ms polling schedule, 1-second deadline and up to four
+overlapping requests stopped setup before any Pattern mutation; HTTP later
+returned 31 responses with status 200. This run exposed probe self-load and
+suggested serialization or busy-window contention. Single-request service and
+firmware-wide serialization remain unproved; the observation establishes no
+product root cause or S2 direction. See the
+[I25 diagnosis](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221#issuecomment-6456992468).
 
 After the observation window, responsive HTTP permits one separately labelled
 `restore` push of the tiny luminous Pattern, with active ids observed before and

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
-import { NodeControllerImportProvider, ProbeEventRecorder, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeConnection } from './controller-import-hardware-probe-support'
+import { NodeControllerImportProvider, ProbeEventRecorder, ProbeLivenessMonitor, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeConnection } from './controller-import-hardware-probe-support'
 import { recoverSavedProgram } from '../src/engine/controllerSavedProgramRead'
 
 function harness(fetcher: typeof fetch = vi.fn(), compiler: (source: string) => Promise<Uint8Array> | Uint8Array = () => new Uint8Array(12)) {
@@ -14,7 +14,197 @@ function harness(fetcher: typeof fetch = vi.fn(), compiler: (source: string) => 
   }
   return { lines, recorder, connection, provider: new NodeControllerImportProvider({ connection, fetcher, compiler, recorder }) }
 }
-afterEach(() => vi.useRealTimers())
+afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
+
+describe('probe liveness monitor', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((done) => { resolve = done })
+    return { promise, resolve }
+  }
+  function setup(fetcher: typeof fetch) {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    const h = harness(fetcher)
+    let phase = 'setup'
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, fields: () => ({ phase, case: 'drain' }), now: Date.now })
+    const provider = new NodeControllerImportProvider({ connection: h.connection, fetcher, recorder: h.recorder,
+      compiler: () => new Uint8Array(12), assertMutation: () => {
+        monitor.assertCurrent()
+        if (!h.connection.isConnected) throw new Error('Controller connection is not open')
+        monitor.markMutationStarted()
+      } })
+    const save = () => provider.saveProgram(encodePbp({ id: 'fixture', name: 'Fixture', sourceCode: '', byteCode: new Uint8Array(12) }), { id: 'fixture' })
+    const stop = async () => {
+      const stopped = monitor.stop()
+      await vi.advanceTimersByTimeAsync(5000)
+      await stopped
+      await monitor.stop()
+      expect(vi.getTimerCount()).toBe(0)
+    }
+    const paired = () => {
+      for (const operation of ['poll.list', 'http.read']) {
+        const events = h.recorder.events.filter((e) => e.operation === operation)
+        expect(events.filter((e) => e.event === 'start')).toHaveLength(monitor.polls.attempted)
+        for (const start of events.filter((e) => e.event === 'start')) {
+          expect(events.filter((e) => e.spanId === start.spanId).map((e) => e.event)).toEqual([
+            'start', expect.stringMatching(/^(end|error)$/),
+          ])
+          expect(start).toMatchObject({ case: 'drain', phase: expect.stringMatching(/^(setup|import)$/) })
+        }
+      }
+    }
+    return { ...h, monitor, save, provider, stop, paired, setPhase: () => { phase = 'import' } }
+  }
+
+  it('serializes slow poll requests with a full second after settlement', async () => {
+    const body = deferred<ArrayBuffer>()
+    const first = new Response(null)
+    vi.spyOn(first, 'arrayBuffer').mockReturnValue(body.promise)
+    const fetcher = vi.fn().mockResolvedValueOnce(first).mockImplementation(async () => new Response(null))
+    const h = setup(fetcher)
+    h.monitor.start(); h.monitor.start()
+    await vi.advanceTimersByTimeAsync(4500)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    body.resolve(new ArrayBuffer(0)); await vi.advanceTimersByTimeAsync(0)
+    expect(h.monitor.lastPollOk).toBe(true)
+    h.setPhase()
+    await vi.advanceTimersByTimeAsync(999)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(h.monitor.polls).toEqual({ attempted: 2, succeeded: 2, failed: 0, skippedAtCapacity: 0, maxConcurrent: 1 })
+    expect(h.recorder.events.filter((e) => e.operation === 'poll.list' && e.event === 'start').map((e) => e.phase)).toEqual(['setup', 'import'])
+    await h.stop(); h.paired()
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    h.monitor.start()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['fetch', 'body'] as const)('uses the 5000ms deadline for headers and body (%s)', async (boundary) => {
+    const headers = deferred<Response>(); const body = deferred<ArrayBuffer>()
+    const response = new Response(null)
+    vi.spyOn(response, 'arrayBuffer').mockReturnValue(body.promise)
+    const signals: AbortSignal[] = []
+    const fetcher = vi.fn((_url, options) => {
+      signals.push(options.signal)
+      return boundary === 'fetch' ? headers.promise : Promise.resolve(response)
+    })
+    const h = setup(fetcher)
+    h.monitor.start()
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(h.monitor.polls.failed).toBe(0)
+    expect(signals[0].aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(h.monitor.polls.failed).toBe(1)
+    expect(h.monitor.lastPollOk).toBe(false)
+    expect(signals[0].aborted).toBe(true)
+    expect(h.recorder.events.filter((e) => e.operation === 'poll.list').map((e) => [e.event, e.durationMs, e.error])).toEqual([
+      ['start', undefined, undefined], ['error', 5000, 'GET /list timed out.'],
+    ])
+    headers.resolve(response); body.resolve(new ArrayBuffer(0))
+    await vi.advanceTimersByTimeAsync(999)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(h.monitor.polls.succeeded).toBe(0)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    await h.stop(); h.paired()
+    const attempts = fetcher.mock.calls.length
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(fetcher).toHaveBeenCalledTimes(attempts)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('declares unavailable only at 20 seconds without success and clears before mutation', async () => {
+    const recovery = deferred<Response>()
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('transport failed')).mockImplementation(() => recovery.promise)
+    const h = setup(fetcher)
+    h.monitor.start()
+    await vi.advanceTimersByTimeAsync(19_999)
+    expect(() => h.monitor.assertCurrent()).not.toThrow()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(() => h.monitor.assertCurrent()).toThrow('stopped-http-unavailable')
+    await expect(h.save()).rejects.toThrow('stopped-http-unavailable')
+    expect(h.monitor.mutationsStarted).toBe(false)
+    expect(h.connection.saveProgram).not.toHaveBeenCalled()
+    recovery.resolve(new Response(null)); await vi.advanceTimersByTimeAsync(0)
+    expect(h.monitor.httpUnavailable).toBe(false)
+    expect(h.monitor.lastPollOk).toBe(true)
+    await h.save()
+    expect(h.monitor.mutationsStarted).toBe(true)
+    expect(h.connection.saveProgram).toHaveBeenCalledOnce()
+    await h.stop(); h.paired()
+  })
+
+  it('awaits a bounded pending attempt on stop without rearming either timer', async () => {
+    const body = deferred<ArrayBuffer>()
+    const response = new Response(null)
+    vi.spyOn(response, 'arrayBuffer').mockReturnValue(body.promise)
+    const fetcher = vi.fn().mockResolvedValue(response)
+    const h = setup(fetcher)
+    h.monitor.start(); await vi.advanceTimersByTimeAsync(0)
+    let finished = false
+    const stopped = h.monitor.stop().then(() => { finished = true })
+    const stoppedAgain = h.monitor.stop()
+    await vi.advanceTimersByTimeAsync(4999)
+    expect(finished).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await stopped; await stoppedAgain
+    expect(finished).toBe(true)
+    expect(h.monitor.polls.failed).toBe(1)
+    body.resolve(new ArrayBuffer(0)); await vi.advanceTimersByTimeAsync(30_000)
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(h.monitor.httpUnavailable).toBe(false)
+    expect(h.monitor.polls.succeeded).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    h.paired()
+  })
+
+  it('refreshes the verdict window on each success', async () => {
+    const body = deferred<ArrayBuffer>()
+    const response = new Response(null)
+    vi.spyOn(response, 'arrayBuffer').mockReturnValue(body.promise)
+    const fetcher = vi.fn().mockResolvedValueOnce(response).mockImplementation(async () => new Response(null, { status: 503 }))
+    const h = setup(fetcher)
+    h.monitor.start()
+    await vi.advanceTimersByTimeAsync(4000)
+    body.resolve(new ArrayBuffer(0)); await vi.advanceTimersByTimeAsync(0)
+    expect(h.monitor.polls.succeeded).toBe(1)
+    await vi.advanceTimersByTimeAsync(16_000)
+    expect(h.monitor.lastPollOk).toBe(false)
+    expect(h.monitor.polls.failed).toBeGreaterThan(0)
+    expect(() => h.monitor.assertCurrent()).not.toThrow()
+    await vi.advanceTimersByTimeAsync(3999)
+    expect(() => h.monitor.assertCurrent()).not.toThrow()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(() => h.monitor.assertCurrent()).toThrow('stopped-http-unavailable')
+    await h.stop(); h.paired()
+  })
+
+  it('keeps a post-mutation verdict terminal despite HTTP recovery', async () => {
+    const recovery = deferred<Response>()
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(null)).mockImplementation(() => recovery.promise)
+    const h = setup(fetcher)
+    h.monitor.start(); await vi.advanceTimersByTimeAsync(0)
+    await h.save()
+    expect(h.connection.saveProgram).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(19_999)
+    expect(() => h.monitor.assertCurrent()).not.toThrow()
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(h.save()).rejects.toThrow('stopped-http-unavailable')
+    expect(h.connection.saveProgram).toHaveBeenCalledOnce()
+    recovery.resolve(new Response(null)); await vi.advanceTimersByTimeAsync(0)
+    expect(h.monitor.polls.succeeded).toBe(2)
+    expect(h.monitor.lastPollOk).toBe(true)
+    expect(h.monitor.httpUnavailable).toBe(true)
+    expect(() => h.monitor.markMutationStarted()).toThrow('stopped-http-unavailable')
+    await expect(h.save()).rejects.toThrow('stopped-http-unavailable')
+    await expect(h.provider.pushBytecode(new Uint8Array(12), { id: 'restore' })).rejects.toThrow('stopped-http-unavailable')
+    expect(h.connection.saveProgram).toHaveBeenCalledOnce()
+    expect(h.connection.pushByteCodeAndWait).not.toHaveBeenCalled()
+    await h.stop(); h.paired()
+  })
+})
 
 describe('compiler settlement', () => {
   it('awaits each independent compile before recording bytes or completion and preserves rejection', async () => {

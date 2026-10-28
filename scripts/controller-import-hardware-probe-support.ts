@@ -122,6 +122,65 @@ export async function boundedHttpRead<T>(options: {
   }, options.timeoutMs, options.timeoutMessage))
 }
 
+/** Diagnostic liveness observer; mutations make a later unavailable verdict irreversible. */
+export class ProbeLivenessMonitor {
+  private started = false
+  private stopped = false
+  private unavailable = false
+  private pollOk = false
+  private mutated = false
+  private pollTimer: ReturnType<typeof setTimeout> | undefined
+  private verdictTimer: ReturnType<typeof setTimeout> | undefined
+  private pending: Promise<void> | undefined
+  private readonly now: () => number
+  readonly polls = { attempted: 0, succeeded: 0, failed: 0, skippedAtCapacity: 0, maxConcurrent: 0 }
+  constructor(private readonly options: {
+    fetcher: typeof fetch; recorder: ProbeEventRecorder; fields: () => ProbeFields; now?: () => number
+  }) { this.now = options.now ?? Date.now }
+  get httpUnavailable() { return this.unavailable }
+  get lastPollOk() { return this.pollOk }
+  get mutationsStarted() { return this.mutated }
+  assertCurrent() { if (this.unavailable) throw new Error('stopped-http-unavailable') }
+  markMutationStarted() { this.assertCurrent(); this.mutated = true }
+  start() {
+    if (this.started || this.stopped) return
+    this.started = true
+    this.armVerdict(this.now())
+    this.poll()
+  }
+  async stop() {
+    this.stopped = true
+    clearTimeout(this.pollTimer)
+    clearTimeout(this.verdictTimer)
+    await this.pending
+  }
+  private armVerdict(lastSuccessOrStart: number) {
+    clearTimeout(this.verdictTimer)
+    if (this.stopped) return
+    this.verdictTimer = setTimeout(() => { this.unavailable = true },
+      Math.max(0, lastSuccessOrStart + 20_000 - this.now()))
+  }
+  private poll() {
+    if (this.stopped) return
+    this.polls.attempted++
+    this.polls.maxConcurrent = 1
+    const fields = this.options.fields()
+    this.pending = this.options.recorder.span('poll.list', fields, () => boundedHttpRead({
+      path: '/list', fetcher: this.options.fetcher, recorder: this.options.recorder, fields,
+      timeoutMs: 5000, timeoutMessage: 'GET /list timed out.', decode: () => undefined,
+    })).then(() => {
+      this.polls.succeeded++; this.pollOk = true
+      if (!this.mutated) this.unavailable = false
+      this.armVerdict(this.now())
+    }, () => {
+      this.polls.failed++; this.pollOk = false
+    }).finally(() => {
+      this.pending = undefined
+      if (!this.stopped) this.pollTimer = setTimeout(() => this.poll(), 1000)
+    })
+  }
+}
+
 export type ProbeConnection = Pick<PixelblazeConnection,
   'isConnected' | 'connect' | 'close' | 'getConfig' | 'listPrograms' | 'setActiveProgram' | 'saveProgram' | 'pushByteCodeAndWait'>
 
