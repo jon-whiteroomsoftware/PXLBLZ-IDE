@@ -1,7 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_LIGHT_SIZE } from '../engine/camera'
-import type { SlowMoSettings } from '../engine/slowMo'
+import type { SlowMoPlan, SlowMoSettings } from '../engine/slowMo'
+
+export interface SlowMoPreviewArtifact {
+  code: string
+  arrayWords: number
+  declined?: SlowMoPlan['declined']
+}
 
 export type FidelityMode = 'fidelity' | 'fast'
 
@@ -9,6 +15,7 @@ interface PreviewState {
   isRunning: boolean
   speed: number
   slowMo: SlowMoSettings | null
+  slowMoArtifact: SlowMoPreviewArtifact | null
   brightness: number
   // Preview light size: the drawn diameter of each light source as a
   // fraction of the inter-dot pitch (diameter = pitch × lightSize). Grows the
@@ -46,6 +53,7 @@ interface PreviewState {
   setFidelity: (fidelity: FidelityMode) => void
   setSpeed: (speed: number) => void
   setSlowMo: (slowMo: SlowMoSettings | null) => void
+  setSlowMoArtifact: (artifact: SlowMoPreviewArtifact | null) => void
   setBrightness: (brightness: number) => void
   setLightSize: (lightSize: number) => void
   setDiffusion: (diffusion: number) => void
@@ -59,6 +67,7 @@ export const previewInitialState = {
   isRunning: true,
   speed: 1,
   slowMo: null as SlowMoSettings | null,
+  slowMoArtifact: null as SlowMoPreviewArtifact | null,
   brightness: 1,
   lightSize: DEFAULT_LIGHT_SIZE,
   diffusion: 0.5,
@@ -110,8 +119,8 @@ function clampDiffusion(d: number): number {
 export function mergePersistedPreview(persisted: unknown, current: PreviewState): PreviewState {
   const raw = (persisted ?? {}) as Partial<
     Pick<PreviewState, 'fidelity' | 'lightSizeSticky' | 'diffusionSticky' | 'lightSize' | 'diffusion'>
-  > & { grid?: { diffusion?: number }; brightness?: number; speed?: number; slowMo?: SlowMoSettings | null }
-  const { grid: legacyGrid, brightness: _b, speed: _s, slowMo: _sm, lightSize, diffusion, ...p } = raw
+  > & { grid?: { diffusion?: number }; brightness?: number; speed?: number; slowMo?: SlowMoSettings | null; slowMoArtifact?: SlowMoPreviewArtifact | null }
+  const { grid: legacyGrid, brightness: _b, speed: _s, slowMo: _sm, slowMoArtifact: _artifact, lightSize, diffusion, ...p } = raw
   return {
     ...current,
     ...p,
@@ -133,6 +142,7 @@ export const usePreviewStore = create<PreviewState>()(
       setFidelity: (fidelity) => set({ fidelity }),
       setSpeed: (speed) => set({ speed }),
       setSlowMo: (slowMo) => set({ slowMo }),
+      setSlowMoArtifact: (slowMoArtifact) => set({ slowMoArtifact }),
       setBrightness: (brightness) => set({ brightness }),
       setLightSize: (lightSize) => set({ lightSize: clampLightSize(lightSize) }),
       setDiffusion: (diffusion) => set({ diffusion: clampDiffusion(diffusion) }),

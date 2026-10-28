@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
 import { CompactBrightness } from './CompactBrightness'
 import { controlIcon } from '@/components/iconScale'
@@ -374,6 +374,38 @@ export function PreviewViewportSection({
   const speed = usePreviewStore(s => s.speed)
   const slowMo = usePreviewStore(s => s.slowMo)
   const setSlowMo = usePreviewStore(s => s.setSlowMo)
+  const slowMoArtifact = usePreviewStore(s => s.slowMoArtifact)
+  const [copyFailure, setCopyFailure] = useState<{
+    artifact: NonNullable<typeof slowMoArtifact>
+    message: string
+  } | null>(null)
+  const copyError = copyFailure?.artifact === slowMoArtifact ? copyFailure.message : null
+  const copySlowMo = async () => {
+    setCopyFailure(null)
+    const artifact = slowMoArtifact
+    if (!artifact) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(artifact.code)
+      } else {
+        const focus = document.activeElement
+        const textarea = document.createElement('textarea')
+        textarea.value = artifact.code
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        try {
+          document.body.appendChild(textarea)
+          textarea.select()
+          if (!document.execCommand('copy')) throw new Error('Copy failed')
+        } finally {
+          textarea.remove()
+          if (focus instanceof HTMLElement) focus.focus()
+        }
+      }
+    } catch {
+      setCopyFailure({ artifact, message: 'Could not copy generated code.' })
+    }
+  }
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
   const summaryMode = pattern && Boolean(mode)
 
@@ -461,7 +493,10 @@ export function PreviewViewportSection({
         )}
       </DeckGrid>
       {pattern && slowMoEnabled() && (
-        <SlowMoLab settings={slowMo} onChange={setSlowMo} declined={null} arrayWords={null} />
+        <>
+          <SlowMoLab settings={slowMo} onChange={setSlowMo} declined={slowMoArtifact?.declined ?? null} arrayWords={slowMoArtifact?.arrayWords ?? null} onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
+          {copyError && <p role="status">{copyError}</p>}
+        </>
       )}
       {pattern && (
         <DeckGrid gapY="gap-y-[3px]" className="mb-[5px] -mt-1.5">

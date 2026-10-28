@@ -16,7 +16,9 @@ import { useCameraStore } from '@/store/cameraStore'
 import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { selectRenderCompatibility } from '@/engine/renderCompatibility'
-import { bundle } from '@/engine/bundle'
+import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
+import { slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
@@ -45,6 +47,18 @@ function cube3DCanvasPx(containerWidth: number, containerHeight?: number): numbe
   return Math.max(1, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
+function slowMoPreviewRecipe(settings: SlowMoSettings | null, pixelCount: number): PassRecipe {
+  return slowMoEnabled() && settings && settings.inBetween !== 'clock'
+    ? [{ kind: 'slowmo', settings, pixelCount }] : []
+}
+
+function publishSlowMoArtifact(artifact: ReturnType<typeof bundleWithPasses>) {
+  const summary = artifact.summary.passes.find(pass => pass.kind === 'slowmo')
+  usePreviewStore.getState().setSlowMoArtifact(slowMoEnabled() ? {
+    code: artifact.code, arrayWords: summary?.slowMo?.arrayWords ?? 0, declined: summary?.declined,
+  } : null)
+}
+
 // The deck uses its intrinsic height; the preview fits the remaining space.
 export function Preview({
   showDeck = true,
@@ -68,6 +82,10 @@ export function Preview({
   const lightSize = usePreviewStore((s) => s.lightSize)
   const diffusion = usePreviewStore((s) => s.diffusion)
   const fidelity = usePreviewStore((s) => s.fidelity)
+  const slowMo = usePreviewStore((s) => s.slowMo)
+  const labEnabled = slowMoEnabled()
+  const slowMoStructure = !labEnabled || !slowMo || slowMo.inBetween === 'clock'
+    ? 'baseline' : `blend:${slowMo.persistence !== null}`
   const editorSource = useEditorStore((s) => s.source)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
   const compileStatus = useEditorStore((s) => s.compileStatus)
@@ -89,6 +107,15 @@ export function Preview({
   const libraries = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
+  const executionRef = useRef<{
+    source: string
+    libraries: Record<string, string>
+    pixelCount: number
+    base: ReturnType<typeof bundleWithPasses>
+    artifact: ReturnType<typeof bundleWithPasses>
+    settingsKey: string
+    wrapped: boolean
+  } | null>(null)
   // The 2D viewport the renderer fits within: the pane width, the height left
   // after reserving the reachable deck, and the live light size. The layout's
   // extent/aspect come from the active map's `pos`, measured inside the renderer.
@@ -171,16 +198,16 @@ export function Preview({
     // Bundle first so the Pattern's native dimensionality (highest render fn) is
     // known before resolving its layout — it drives Recommended/default ordering,
     // never a map filter.
-    let bundled: ReturnType<typeof bundle>
+    let bundled: ReturnType<typeof bundleWithPasses>
     try {
-      bundled = bundle(previewSource, libraries)
+      bundled = bundleWithPasses(previewSource, libraries, [])
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
       return
     }
-    const { code, fxCode, metadata } = bundled
-    const nativeDim = nativeDimension(metadata.renderFns)
+    const { metadata: baseMetadata } = bundled
+    const nativeDim = nativeDimension(baseMetadata.renderFns)
     useEditorStore.getState().setNativeDim(nativeDim)
 
     // Resolve the active layout: a 1D Pattern combines mapped/Index `[x]` with a
@@ -228,6 +255,10 @@ export function Preview({
     }
 
     const { mapPoints, pixelCount, draw } = layout
+    const settings = usePreviewStore.getState().slowMo
+    const recipe = slowMoPreviewRecipe(settings, pixelCount)
+    const artifact = recipe.length ? bundleWithPasses(previewSource, libraries, recipe) : bundled
+    const { code, fxCode, metadata } = artifact
     const renderCompatibility = selectRenderCompatibility(layout.mapDim, metadata.renderFns)
     // Split the draw channel back into the prior locals so the renderer wiring
     // below is unchanged: the 3D channel carries positions + (solid-eligible)
@@ -262,6 +293,12 @@ export function Preview({
     try {
       handle = loadPattern(fidelity === 'fast' ? code : fxCode, metadata, shim.builtins)
       handleRef.current = handle
+      executionRef.current = {
+        source: previewSource, libraries, pixelCount, base: bundled, artifact,
+        settingsKey: slowMoEnabled() ? JSON.stringify(settings) : '',
+        wrapped: recipe.length > 0 && !artifact.summary.passes.some(pass => pass.declined),
+      }
+      publishSlowMoArtifact(artifact)
       useEditorStore.getState().setPatternVars(metadata.patternVars)
       useEditorStore.getState().setControls(withControlDescriptions(activeDemoName, metadata.controls))
       // Seed control UI from the pattern's own initialised vars so swatches and
@@ -299,6 +336,10 @@ export function Preview({
       }
       useControlStore.getState().resetControls(defaults)
     } catch (err) {
+      handleRef.current = null
+      shimRef.current = null
+      executionRef.current = null
+      usePreviewStore.getState().setSlowMoArtifact(null)
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
       return
@@ -346,11 +387,21 @@ export function Preview({
       handle, shim, clock,
       mapPoints, pixelCount,
       renderCompatibility,
-      getSpeed: () => usePreviewStore.getState().speed,
+      getSpeed: () => {
+        const state = usePreviewStore.getState()
+        return state.speed * (slowMoEnabled() && state.slowMo?.inBetween === 'clock' ? state.slowMo.rate : 1)
+      },
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,
       paint,
-      onError: (err) => setRuntimeError(err.message),
+      onError: (err) => {
+        loopRef.current = null
+        handleRef.current = null
+        shimRef.current = null
+        executionRef.current = null
+        usePreviewStore.getState().setSlowMoArtifact(null)
+        setRuntimeError(err.message)
+      },
       onFps: (fps) => usePreviewStore.getState().setFps(fps),
       onFrame: (_delta, _builtins, elapsedMs) => {
         // Telemetry is unconditional (#150): publish elapsed every frame so the
@@ -374,10 +425,38 @@ export function Preview({
     loopRef.current = loop
     loop.renderPreviewFrame()
 
-    if (usePreviewStore.getState().isRunning) loop.start()
+    if (handleRef.current === handle && usePreviewStore.getState().isRunning) loop.start()
 
-    return () => loop.stop()
-  }, [previewSource, viewportReady, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName])
+    return () => {
+      loop.stop()
+      loopRef.current = null
+      handleRef.current = null
+      shimRef.current = null
+      executionRef.current = null
+      usePreviewStore.getState().setSlowMoArtifact(null)
+    }
+  }, [previewSource, viewportReady, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName, activePatternId, slowMoStructure])
+
+  useEffect(() => {
+    const context = executionRef.current
+    const handle = handleRef.current
+    const shim = shimRef.current
+    if (!context || !handle || !shim) return
+    const settingsKey = labEnabled ? JSON.stringify(slowMo) : ''
+    if (settingsKey === context.settingsKey) return
+    if (context.wrapped && labEnabled && slowMo) {
+      for (const [name, value] of Object.entries(slowMoTunables(slowMo))) {
+        handle.setRuntimeVar(name, shim.encodeScalar(value))
+      }
+      if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
+      if (executionRef.current !== context) return
+    }
+    const recipe = slowMoPreviewRecipe(slowMo, context.pixelCount)
+    const artifact = recipe.length ? bundleWithPasses(context.source, context.libraries, recipe) : context.base
+    context.artifact = artifact
+    context.settingsKey = settingsKey
+    publishSlowMoArtifact(artifact)
+  }, [labEnabled, slowMo])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky

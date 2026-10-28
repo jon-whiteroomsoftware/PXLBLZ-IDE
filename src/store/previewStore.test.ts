@@ -18,6 +18,28 @@ beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
 })
 
+describe('session-only generated slow-mo artifact', () => {
+  it('replaces, drops stale persistence, preserves live values, and resets', async () => {
+    const live = { code: 'live', arrayWords: 120 }
+    const store = usePreviewStore.getState()
+    store.setSlowMoArtifact({ code: 'old', arrayWords: 0 })
+    store.setSlowMoArtifact(live)
+    store.setSlowMo(slowMoSample)
+    const merged = mergePersistedPreview({ slowMo: null, slowMoArtifact: { code: 'stale' } }, usePreviewStore.getState())
+    expect(merged.slowMoArtifact).toEqual(live)
+    expect(merged.slowMo).toEqual(slowMoSample)
+    const saved = localStorage.getItem('pixelblaze-preview')!
+    expect(JSON.parse(saved).state).toEqual({ fidelity: 'fast', lightSizeSticky: 0.5, diffusionSticky: 0.5 })
+    store.setSlowMoArtifact(null)
+    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    usePreviewStore.setState(previewInitialState)
+    localStorage.setItem('pixelblaze-preview', saved)
+    await usePreviewStore.persist.rehydrate()
+    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(usePreviewStore.getState().slowMo).toBeNull()
+  })
+})
+
 describe('previewStore', () => {
   it('starts running', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
@@ -218,6 +240,7 @@ describe('I17: Controller artifact isolation from preview slow-mo', () => {
     const clock: SlowMoSettings = { ...slowMoSample, inBetween: 'clock' }
     for (const slowMo of [null, slowMoSample, clock, null]) {
       usePreviewStore.getState().setSlowMo(slowMo)
+      usePreviewStore.getState().setSlowMoArtifact(slowMo ? { code: 'preview-only wrapper', arrayWords: 120 } : null)
       expect(usePreviewStore.getState().slowMo).toEqual(slowMo)
       const currentRecipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
       expect(currentRecipe).toEqual(recipe)
