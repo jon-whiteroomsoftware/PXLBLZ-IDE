@@ -1,12 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_LIGHT_SIZE } from '../engine/camera'
+import type { SlowMoSettings } from '../engine/slowMo'
 
 export type FidelityMode = 'fidelity' | 'fast'
 
 interface PreviewState {
   isRunning: boolean
   speed: number
+  slowMo: SlowMoSettings | null
   brightness: number
   // Preview light size: the drawn diameter of each light source as a
   // fraction of the inter-dot pitch (diameter = pitch × lightSize). Grows the
@@ -43,6 +45,7 @@ interface PreviewState {
   setElapsed: (elapsed: number | null) => void
   setFidelity: (fidelity: FidelityMode) => void
   setSpeed: (speed: number) => void
+  setSlowMo: (slowMo: SlowMoSettings | null) => void
   setBrightness: (brightness: number) => void
   setLightSize: (lightSize: number) => void
   setDiffusion: (diffusion: number) => void
@@ -55,6 +58,7 @@ interface PreviewState {
 export const previewInitialState = {
   isRunning: true,
   speed: 1,
+  slowMo: null as SlowMoSettings | null,
   brightness: 1,
   lightSize: DEFAULT_LIGHT_SIZE,
   diffusion: 0.5,
@@ -96,6 +100,7 @@ function clampDiffusion(d: number): number {
 // `brightness`/`speed` are per-pattern cascaded (seeded by the resolver on open), so
 // they are NOT persisted; a legacy blob's `brightness`/`speed`/`grid` are explicitly
 // destructured OUT and dropped — they can never land back on state.
+// Session-only slow-mo is also dropped, preserving the current live setting.
 //
 // Migration: a pre-cascade blob persisted the live `lightSize`/`diffusion`. Lift those
 // into the new global-sticky baselines so a returning user keeps their dialled-in
@@ -105,8 +110,8 @@ function clampDiffusion(d: number): number {
 export function mergePersistedPreview(persisted: unknown, current: PreviewState): PreviewState {
   const raw = (persisted ?? {}) as Partial<
     Pick<PreviewState, 'fidelity' | 'lightSizeSticky' | 'diffusionSticky' | 'lightSize' | 'diffusion'>
-  > & { grid?: { diffusion?: number }; brightness?: number; speed?: number }
-  const { grid: legacyGrid, brightness: _b, speed: _s, lightSize, diffusion, ...p } = raw
+  > & { grid?: { diffusion?: number }; brightness?: number; speed?: number; slowMo?: SlowMoSettings | null }
+  const { grid: legacyGrid, brightness: _b, speed: _s, slowMo: _sm, lightSize, diffusion, ...p } = raw
   return {
     ...current,
     ...p,
@@ -127,6 +132,7 @@ export const usePreviewStore = create<PreviewState>()(
       setElapsed: (elapsed) => set({ elapsed }),
       setFidelity: (fidelity) => set({ fidelity }),
       setSpeed: (speed) => set({ speed }),
+      setSlowMo: (slowMo) => set({ slowMo }),
       setBrightness: (brightness) => set({ brightness }),
       setLightSize: (lightSize) => set({ lightSize: clampLightSize(lightSize) }),
       setDiffusion: (diffusion) => set({ diffusion: clampDiffusion(diffusion) }),
