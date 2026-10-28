@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1238",
+  "route": "/PXLBLZ-IDE/studio/patterns/slowmo-persistence-controls?capture&slowmo=1",
+  "operation": "At c2c33e3959405d3d8d620b58000520ffb59aa459, drove the real Studio Pattern route with host Playwright using a synthetic authenticated user. Enabled Blend persistence, set attack to 5000 ms and decay to 10000 ms, checked desktop 1440x1000 and narrow 768x1000 control bounds, and completed dropdown Enter/Escape and slider Home/End/Tab keyboard round trips; both captures were opened and inspected.",
+  "captures": [
+    ".wrsp/ui-proof/1238-k12-persistence-desktop.png",
+    ".wrsp/ui-proof/1238-k12-persistence-narrow.png"
+  ],
+  "capturedAtCommit": "c2c33e3959405d3d8d620b58000520ffb59aa459"
+}
