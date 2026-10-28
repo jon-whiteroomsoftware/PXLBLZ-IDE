@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1236",
+  "route": "/PXLBLZ-IDE/studio/patterns/TestPattern2D?capture",
+  "operation": "Opened the same Pattern without slowmo=1, then supplied stale active lab settings through the capture API. The panel remains absent; page and console error collection was empty.",
+  "captures": [
+    ".wrsp/ui-proof/1236-k4-no-flag.png"
+  ],
+  "capturedAtCommit": "5fb5fcc6ba6deb6808b4ad6f56a5149661d7f982"
+}

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1236",
+  "route": "/PXLBLZ-IDE/studio/patterns/FastPaletteBlending?capture&slowmo=1",
+  "operation": "Opened the palette Pattern, enabled 1/4 Blend through the capture API, and observed the palette-output refusal with the unwrapped preview displayed. Page and console error collection was empty.",
+  "captures": [
+    ".wrsp/ui-proof/1236-k4-refusal.png"
+  ],
+  "capturedAtCommit": "5fb5fcc6ba6deb6808b4ad6f56a5149661d7f982"
+}
