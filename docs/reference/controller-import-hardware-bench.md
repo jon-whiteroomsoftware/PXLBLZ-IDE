@@ -7,8 +7,9 @@ production Studio Save and Import controls. It belongs to no test suite, CI job,
 runner plan or push gate.
 Offline verification does not qualify native permission handling or hardware.
 
-The UI diagnostic below remains parked. S1 also provides the separate direct-engine
-probe described next; its results cannot qualify extension, UI or store behavior.
+The S4 UI diagnostic below is prepared offline and remains held for Jon's later
+hardware go. S1 also provides the separate direct-engine probe described next;
+its results cannot qualify extension, UI or store behavior.
 
 The production helper now serializes full-body Controller HTTP per normalized
 host across page ports and holds new HTTP starts while any socket owns a Save.
@@ -324,8 +325,9 @@ private device artifacts remain unpublished.
 
 ## Invocation
 
-An operator must provision the managed main runtime on port 5174 and the #1221
-runtime assignment first. Obtain two distinct synthetic sessions using
+An operator must provision managed main for A on port 5174 and the admitted
+#1221 candidate for B on port 5179 first. This reference does not authorize a
+hardware run. Obtain two distinct synthetic sessions using
 `npm run dev:session -- --developer --json` and
 `npm run dev:session -- --issue 1221 --json`. Keep only their JSON output in
 private ignored files. Using `npm run --silent dev:session -- ...` suppresses
@@ -341,18 +343,26 @@ Controller addresses, other URLs, unsupported accounts and missing opt-in.
 npm run diagnostic:controller-import -- --help
 npm run diagnostic:controller-import -- \
   --device 192.168.8.196 \
-  --url http://localhost:5174/PXLBLZ-IDE/ \
+  --url-a http://localhost:5174/PXLBLZ-IDE/ \
+  --url-b http://localhost:5179/PXLBLZ-IDE/ \
+  --steps 2,1,3,4,5,6 \
   --session-a .wrsp/private-a.json --session-b .wrsp/private-b.json \
-  --out .wrsp/i20-run-001 --run-id run-001 --run
+  --out .wrsp/i50-run-001 --run-id run-001 --run
 ```
 
 The default browser is headed full Chromium. `--headless` also selects the full
 Chromium channel. The host must have the repository Playwright browser installed
 and support unpacked extensions. Missing `--run` refuses before file mutations,
-browser launch or network requests; `--help` only prints help.
+browser launch or network requests; `--help` only prints help. Both URLs are
+required exact strings. Aliases, swapped origins, other ports, credentials,
+whitespace, queries, hashes, duplicate arguments and unknown flags refuse.
+`--steps` must be a nonempty prefix of `2,1,3,4,5,6,7`. A preparation-only prefix
+can stop safely; another process cannot resume its in-memory prerequisites.
+Selecting 7 also requires `--cleanup-inventory <private.json>`, read before launch.
 
-The diagnostic always loads a fresh private copy at `<out>/extension`, including
-on main port 5174. Only its manifest changes: `host_permissions` gains exactly
+The diagnostic loads one fresh private copy at `<out>/extension`, prepared for
+B's port 5179 while retaining the main 5174 match. Only its manifest changes:
+`host_permissions` gains exactly
 `http://192.168.8.196/*` and `ws://192.168.8.196/*`. Optional permissions remain
 unchanged. The helper admits only `http://localhost:<numeric-port>/PXLBLZ-IDE/`
 without credentials, query or hash; for a port other than 5174 it appends that
@@ -372,52 +382,85 @@ Fidelity cost: the agent bench does not exercise the grant UI or the shipped mat
 
 ## Scope and sequence
 
-Two independent temporary persistent profiles receive only their localhost
-session cookies. Both `/api/me` identities must match before setup. Only one
-profile connects to hardware at a time. The profiles are removed on exit;
-the account Patterns and Controller slots remain.
+Two temporary persistent profiles receive only their synthetic localhost
+session cookies. Each context, page, API request, module import and navigation
+is bound to its role's origin. Both `/api/me` identities pass before account or
+Controller mutations. Only one context connects to hardware at a time. The
+actual dispatcher awaits B2, A1, B3, B4, B5, A6, A7 and stops at the first failure.
 
-1. Snapshot account content, bindings, push records, receipts and real device
-   config/list/map. Create A's three red, green and blue editable fixtures named
-   `Test pat I20-<run-id> 1` through `3`; use Studio Save and reopen actual PBP
-   bytes. Associate the profile with the provider's recovered physical identity.
-2. After A's first live Connect, wait up to ten seconds for exactly one matching
-   auto-created physical profile; never POST a duplicate while creation is pending.
-   A has no inputs or enabled transforms; its factory's disabled brightness and
-   power-cap defaults are accepted. Use B's matching profile, or seed it before
-   its first Connect if absent. B has exactly one analog pin-35 input with finite
-   smoothing in [0,1], fallback .5 and invert false, and one enabled multiply-output
-   brightness transform referencing that input. Preserve the observed .2 smoothing
-   and disabled power cap. Both profiles require the standard v3 board, empty
-   bindings, no electrical profile and automatic Pattern updates disabled.
-   Disabled transforms remain inert. An incompatible existing physical profile
-   is recorded in full and preserved, then blocks the run.
-3. Assert the fixtures occur in **Unimported PXLBLZ Patterns** and capture the
-   desktop and narrow presentation. Narrow clipping is evidence, not a fix.
-4. Import T1 with **Import and save**. Record source policy, notice, ledger,
-   readback and active identity. On success append `// I20 bench edit` through
-   Monaco, then Studio Save back to that same slot.
-5. Reload before bulk selection to discard the provider's known active bytecode
-   footprint. Confirm select-all cancellation preserves account records and
-   causes no device writes. Then select only T2/T3 and use the real bulk dialog.
-   A disabled running row blocks this interaction; nothing else is played to
-   bypass it. Ordinary provider errors are recorded while production continues
-   later captured rows. Final UI outcomes determine import failure; failures
-   are never retried and no new bulk attempt follows a final failure.
-6. Close B, reopen A's retained profile and compare the complete saved fixture
-   records, including source, controls and timestamps. Capture A's Saved list
-   classification and final active-id/read-health witnesses read-only.
-7. Record `deferred: S2/S3 hardware proof required`. Delete nothing. A failed
-   transaction may leave the production black drain active; that is evidence.
+1. **B2:** snapshot both accounts, then require one preexisting B profile for the
+   target IP before connecting. Read config/map/list, confirm #2 Cark / 3.70 /
+   256 pixels / 2D, and verify its physical identity against that profile. Record
+   original active ID and full saved inventory. B requires one analog pin-35
+   input, finite smoothing in [0,1], fallback .5, invert false and one enabled
+   multiply-output brightness transform referencing it. Missing or incompatible
+   profiles stop without overwrite or seed. Close B cleanly.
+2. **A1:** reopen A and validate its inert physical profile: no inputs or enabled
+   transforms. Both roles require standard v3, empty bindings, no electrical
+   profile and automatic updates disabled; disabled defaults remain inert.
+   Create the three red, green and blue `Test pat I20-<run-id> 1` through `3`
+   fixtures, use normal Studio Save and reopen actual PBP. Every A stamp must
+   have valid integrity, kind `pattern`, the A record ID and empty transforms.
+   Capture complete A records and close A cleanly.
+3. **B3:** reopen B, assert all three **Unimported PXLBLZ Patterns** rows and
+   capture desktop/narrow views. Clipping remains a report-only observation.
+4. **B4:** before the first Import-and-save click, one combined physical request
+   asks Jon to attend through bulk/cleanup, observe B's pot changing T1 brightness
+   and LEDs never being left dark, and return a minimum pot to lit. Terminal
+   input must equal `READY <run-id>`; EOF, other text or delay grants nothing.
+   Import T1. Assert its actual B personal source has no old banner/profile
+   wrapper, its receipt is `authored-verified` and `complete`, binding retains
+   the same Controller slot and that slot is active. Reopened bytes require an
+   integrity-valid B Pattern stamp, hardware-brightness transform and
+   `analogRead(35)`. Append `// I50 bench edit <run-id>` in Monaco, Save and
+   require both the edit and B wrapper when reopening the same slot.
+5. **B5:** disconnect and await clean close before reloading to clear the known
+   resident footprint. Select-all cancellation must preserve complete account
+   snapshots and admit zero provider mutations. Read and record the actual
+   unique secondary non-submit dismiss label (or exact Cancel/Done) before
+   capture/click. Select only T2/T3,
+   retain that captured membership through self-activation, require exactly two
+   row results, both Saved rows, both B-stamped reopened artifacts and T3 active.
+   Record the running row's Delete-only reason without deleting. Capture Studio,
+   result and Saved classification at desktop/narrow widths. No retry follows
+   any failed assertion.
+6. **A6:** close B cleanly and reopen A. Compare complete A fixture records,
+   including controls and timestamps, and record A's own Saved classification
+   without requiring B's classification result. Retain A for cleanup.
+7. **A7:** require successful steps 1–6 and exact terminal input
+   `PROOF <run-id> S2 S3 POT LIT`. Record this attestation with UTC, run ID,
+   diagnostic revision and both served revisions. Only then admit cleanup.
 
-Jon granted broad Pattern authority on **192.168.8.196 only**, including playing,
-modifying and deleting existing Patterns. S1 still runs only the seven steps
-above and defers cleanup. The explicit future `pattern` admission scope requires
-an exact pending id/name from the captured saved slots, including arbitrary
-non-PXLBLZ IDs. It permits transient Play (`save:false`), Delete, same-name
-structurally readable PBP Save and a target push after that admitted Save.
-An artifact stamp is optional for an existing Pattern. No nameless drain is
-admitted in this scope; captured slot/name metadata remains unchanged.
+Before every connected full navigation or context destruction the real provider
+disconnects to suppress reconnect intent. A worker-installed native WebSocket
+witness then requests close(1000) and awaits the retained actual close event,
+bounded to five seconds. A close request or context-close promise grants nothing.
+Each explicit Connect arms one construction; concurrent, unarmed or replacement
+construction, abnormal close, error or missing event permanently stops the run.
+Worker disappearance also stops. UTC construction/open/request/actual-close times
+and actual codes are flushed before destruction. Unconnected API contexts require
+no fictional socket witness. Finalization can close existing sockets and collect
+retained evidence; it never reconnects, and cannot erase an earlier gate failure.
+
+Cleanup input is a private JSON object with `startup`, `controller`, `a` and `b`.
+The startup is `{id,name,source:"operator-confirmed-startup"}`; deletion arrays
+contain exact `{id,name}` pairs of preexisting Test pats and may be empty. A name
+matching `^Test pat(?:[ -]|$)` alone grants no authority. Step 7 appends this run's
+known Controller fixtures, A records and B imports. All exact pairs must match
+fresh inventories without duplicate IDs, ambiguous names or mismatches before
+the first deletion. Every pair is reread immediately before its mutation.
+
+The operator-confirmed startup must be the exact non-Test saved pair in both the
+original B inventory and the fresh inventory. Config exposes active ID, not
+configured startup. Missing confirmation or an unavailable pair stops with
+`Original saved startup Pattern is unavailable; cleanup held`. The harness plays
+only that pair transiently with `save:false`, confirms its active ID, then deletes
+only admitted Controller pairs and admitted account records through their own
+origins. B account cleanup opens no hardware connection. Metadata copies remove
+only corresponding Pattern IDs and matching deleted-slot labels, preserving
+siblings. Final inventories, complete sibling records, metadata and active
+startup are reopened and asserted. Cleanup errors stop immediately; startup
+settings are never edited and no recovery connection is made.
 
 Fixture Save and Import retain their narrower constraints. Admission runs before
 the actual provider method delegates. Save admission checks readable PBP
@@ -447,22 +490,21 @@ The diagnostic records Studio Save's real result before checking the admitted
 slot so compilation/product failures remain distinguishable from
 admission-observation gaps.
 
-The private ignored output contains streaming `events.jsonl`, version-1
+The private ignored output contains streaming `events.jsonl`, version-2
 `report.json`, readable `report.md`, screenshots and raw Test pat `.bin` PBP
 payloads. The report identifies the product/base revisions, extension file
 hashes, source/patched manifest hashes, explicit permission/match additions,
 complete source/copied non-manifest hashes, synthetic account IDs, device
-identity, fixture slots and deferred proof. JSON and Markdown state the fidelity cost.
-Managed main's served commit is S1's observed product revision, obtained from
-the runtime's `/__identity` endpoint. Candidate hardware proof requires its own
-verified served revision; this correction adds no candidate-runtime route.
+identity, fixture slots, selected/completed steps, cleanup admission and operator
+proof. JSON and Markdown state the fidelity cost. Each runtime's `/__identity`
+provides its independently pinned `servedRevisions.a` or `.b`.
 After `/__identity` and before connection, local `git ls-tree` and `git show`
 verify the complete source extension path set and bytes against the served
 commit's `extension/`. A mismatch refuses with
 `Served extension differs from the diagnostic source extension`. Successful
 served-extension identity is recorded; diagnostic and served commits may differ.
-The diagnostic checkout revision is recorded separately. A changed served commit
-blocks a later profile opening rather than mixing revisions in one run.
+The diagnostic checkout revision is recorded separately. A and B may serve
+different valid local git objects; a changed same-role commit blocks reopening.
 Events contain per-step status, provider spans, admission overhead, source and
 stamp witnesses, receipt stages, active reads and account preservation.
 
@@ -483,13 +525,11 @@ observation gaps. Worker clocks and page clocks have separate origins; compare
 their UTC anchors and their own elapsed spans, not raw monotonic values across
 contexts. Relay PBP bytes remain the authoritative payload witness.
 
-Node samples GET `/list` with `Connection: close`, a ten-second abort bound and at
-most one probe in flight. Sampling occurs before writes, concurrently with Save
-entry, and serially at elapsed targets 0/5/15/30 seconds after the import batch.
-Targets and actual elapsed times are recorded; a slow probe can move later
-samples past their nominal targets. This schedule is diagnostic sampling and
-does not change product backoff or timeouts. Each completed probe records its
-path, declared length, content/transfer encodings and actual decoded body bytes.
+Node reads GET `/list` serially before/after Save and import with
+`Connection: close`, a ten-second bound covering the complete body and at most
+one probe in flight. Health errors stop the run. Full bodies, status and timing
+are retained privately. No health probe overlaps Save, and no fixed post-import
+delay schedule serves as success evidence.
 
 A resolved `saveProgram` promise proves positive device completion, while reopened
 saved-program readback supplies artifact evidence. A page saved-program read can time
@@ -498,11 +538,11 @@ the provider error, relay response and worker-body spans separately. Raw PBP
 bytes can be reopened with the existing `decodePbp`/`recoverSavedProgram`
 helpers to check names, source, stamps and bytecode independently.
 
-`reproduced` means an observed hardware import failure, `not-reproduced` means
-the attempted sequence completed without that failure, and `blocked` means a
-required identity, permission, selection or verification boundary was unusable.
-Blocked and import-failure runs exit nonzero while retaining evidence. Temporal
-correlation between a save and HTTP unavailability is not a root-cause claim.
-Current wrapped-source behavior is expected in S1: a missing B brightness wrapper
-is recorded as pending S3 qualification. S2 persistence/readback proof and S3
-wrapper proof remain required before cleanup is considered.
+`completed-selected-prefix` means all selected assertions and final close gates
+passed. `blocked` or `failed` exits nonzero with the exact cause/stage retained.
+Reports distinguish hardware proof attested from cleanup completed/held. A
+missing or damaged stamp, wrong wrapper, incomplete receipt or wrong binding
+fails S4; source inspection alone never qualifies physical behavior. Offline
+fake-operated tests prove dispatcher/operator/socket/cleanup boundaries only.
+Real browser integration, native permissions, physical close and S2/S3 hardware
+remain unproved until the separately authorized run.

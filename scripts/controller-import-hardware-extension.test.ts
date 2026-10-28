@@ -27,7 +27,7 @@ function tree(directory: string, prefix = ''): Record<string, string> {
   }).sort(([a], [b]) => a.localeCompare(b)))
 }
 describe('temporary bench extension consumer directory', () => {
-  it.each([5174, 5176])('preserves complete source and copies only admitted changes for port %s', (port) => {
+  it.each([5174, 5176, 5179])('preserves complete source and copies only admitted changes for port %s', (port) => {
     expect(hash(manifestBytes)).toBe(baseline)
     const { source, destination } = fixture(); const before = tree(source)
     const original = JSON.parse(manifestBytes.toString())

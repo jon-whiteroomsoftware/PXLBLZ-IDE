@@ -1,6 +1,6 @@
 import { isPxlblzProgramId } from '../src/engine/bytecodePush'
 import { decodePbp, PBP_HEADER_SIZE, PBP_VERSION } from '../src/engine/pbpEncode'
-import { parsePxlblzBanner } from '../src/engine/artifactStamp'
+import { artifactHash, parsePxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 
 export function requireBenchSavedSlot(result: { ok: boolean; message?: string } | null, slot: string | undefined): string {
@@ -49,7 +49,10 @@ export function assertBenchProfile(profile: ControllerProfile, role: 'a' | 'b'):
 export interface BenchOptions {
   help: boolean
   device: string
-  url: string
+  urlA: string
+  urlB: string
+  steps: number[]
+  cleanupInventory?: string
   sessionA: string
   sessionB: string
   out: string
@@ -60,7 +63,7 @@ export function parseBenchArgs(argv: string[]): BenchOptions {
   if (argv.length === 1 && argv[0] === '--help') return { help: true } as BenchOptions
   const values = new Map<string, string>()
   const flags = new Set<string>()
-  const valued = ['--device', '--url', '--session-a', '--session-b', '--out', '--run-id']
+  const valued = ['--device', '--url-a', '--url-b', '--steps', '--session-a', '--session-b', '--out', '--run-id', '--cleanup-inventory']
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i]
     if (values.has(key) || flags.has(key)) throw new Error(`Duplicate argument ${key}`)
@@ -69,12 +72,34 @@ export function parseBenchArgs(argv: string[]): BenchOptions {
     else throw new Error(`Unknown or incomplete argument ${key}`)
   }
   if (!flags.has('--run')) throw new Error('Explicit --run is required; nothing was started')
-  for (const key of valued.filter((key) => key !== '--run-id')) if (!values.get(key)) throw new Error(`Required ${key}`)
+  for (const key of valued.filter((key) => !['--run-id', '--cleanup-inventory'].includes(key))) if (!values.get(key)) throw new Error(`Required ${key}`)
   if (values.get('--device') !== '192.168.8.196') throw new Error('Only Controller 192.168.8.196 is admitted')
-  if (values.get('--url') !== 'http://localhost:5174/PXLBLZ-IDE/') throw new Error('Only http://localhost:5174/PXLBLZ-IDE/ is admitted')
+  if (values.get('--url-a') !== 'http://localhost:5174/PXLBLZ-IDE/' || values.get('--url-b') !== 'http://localhost:5179/PXLBLZ-IDE/') throw new Error('Only exact A localhost:5174 and B localhost:5179 origins are admitted')
+  const raw = values.get('--steps')!
+  const steps = raw.split(',').map(Number)
+  if (!/^[1-7](,[1-7])*$/.test(raw) || steps.length > 7 || steps.some((n, i) => n !== [2, 1, 3, 4, 5, 6, 7][i])) throw new Error('steps must be a nonempty prefix of 2,1,3,4,5,6,7; no process resume')
+  if (steps.includes(7) && !values.get('--cleanup-inventory')) throw new Error('Step 7 requires --cleanup-inventory')
   const runId = values.get('--run-id') ?? new Date().toISOString().replace(/[^0-9A-Za-z]/g, '')
   if (!/^[A-Za-z0-9-]+$/.test(runId)) throw new Error('run-id must be ASCII alphanumeric/hyphen')
-  return { help: false, device: values.get('--device')!, url: values.get('--url')!, sessionA: values.get('--session-a')!, sessionB: values.get('--session-b')!, out: values.get('--out')!, headless: flags.has('--headless'), runId }
+  return { help: false, device: values.get('--device')!, urlA: values.get('--url-a')!, urlB: values.get('--url-b')!, steps, cleanupInventory: values.get('--cleanup-inventory'), sessionA: values.get('--session-a')!, sessionB: values.get('--session-b')!, out: values.get('--out')!, headless: flags.has('--headless'), runId }
+}
+
+export function assertBenchArtifact(artifact: { sourceCode: string } | null, role: 'a' | 'b', id: string): void {
+  const source = artifact?.sourceCode ?? ''
+  const stamp = parsePxlblzBanner(source)
+  if (!stamp || stamp.hash !== artifactHash(source) || stamp.kind !== 'pattern' || stamp.id !== id
+    || (role === 'a' ? stamp.transforms.length !== 0 : !stamp.transforms.includes('hardware-brightness') || !/analogRead\s*\(\s*35\s*\)/.test(source))) throw new Error(`S3 ${role.toUpperCase()} artifact integrity/identity/transform witness failed`)
+}
+
+export function assertBenchImportedPattern(input: {
+  pattern: { id: string; src: string } | undefined
+  receipt: { patternId: string; programId: string; controllerDeviceId: string; sourceMode: string; stage: string } | undefined
+  binding: string | undefined; activeId: string | undefined; slot: string; deviceId: string; completedTarget?: string
+}): void {
+  const { pattern, receipt } = input
+  if (!pattern?.src.trim() || /Built with PXLBLZ-IDE|\/\/ pxlblz:|analogRead\s*\(\s*35\s*\)/.test(pattern.src)
+    || !receipt || receipt.patternId !== pattern.id || receipt.programId !== input.slot || receipt.controllerDeviceId !== input.deviceId
+    || receipt.sourceMode !== 'authored-verified' || receipt.stage !== 'complete' || input.binding !== input.slot || input.activeId !== (input.completedTarget ?? input.slot)) throw new Error('S3 account source/complete authored receipt/same-slot binding/activation witness failed')
 }
 
 export interface BenchSession {
@@ -115,6 +140,7 @@ export interface BenchAdmissionState {
   usedDrainIds: string[]
   drainDigest: string | null
   allowNewSaveSlot: boolean
+  cleanup?: { proof: boolean; startup: { id: string; name: string }; controller: { id: string; name: string }[] }
 }
 /** Reads observe production row order; they never grant arbitrary write authority. */
 export function observeBenchImportRead(state: BenchAdmissionState, capturedTargets: readonly { id: string; name: string }[], programId: string): boolean {
@@ -134,6 +160,14 @@ export function assertBenchMutation(request: BenchMutation, state: BenchAdmissio
     const pair = state.pendingPattern
     if (!pair || state.savedSlots[pair.id] !== pair.name) refuse('Pattern pair is absent from captured slots')
     if (!('id' in request) || request.id !== pair!.id) refuse('Pattern substituted the captured slot')
+    if (state.cleanup) {
+      if (!state.cleanup.proof) refuse('Cleanup lacks bound proof')
+      if (request.method === 'setActiveProgram') {
+        if (pair!.id !== state.cleanup.startup.id || pair!.name !== state.cleanup.startup.name || /^Test pat(?:[ -]|$)/.test(pair!.name)) refuse('Cleanup activation is not the original saved startup')
+      } else if (request.method === 'deleteProgram') {
+        if (!/^Test pat(?:[ -]|$)/.test(pair!.name) || !state.cleanup.controller.some(p => p.id === pair!.id && p.name === pair!.name)) refuse('Cleanup delete pair was not verified')
+      } else refuse('Cleanup permits only exact activation and deletion')
+    }
     if (request.method === 'setActiveProgram') {
       if (request.save !== false) refuse('Pattern activation must be transient')
       return

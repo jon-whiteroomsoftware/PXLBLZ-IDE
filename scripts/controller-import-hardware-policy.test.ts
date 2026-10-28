@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
-import { BenchWorkerObservations, assertBenchMutation, assertBenchProfile, observeBenchImportRead, parseBenchArgs, requireBenchSavedSlot, validateBenchSessions, type BenchAdmissionState, type BenchMutation } from './controller-import-hardware-policy'
+import { BenchWorkerObservations, assertBenchArtifact, assertBenchImportedPattern, assertBenchMutation, assertBenchProfile, observeBenchImportRead, parseBenchArgs, requireBenchSavedSlot, validateBenchSessions, type BenchAdmissionState, type BenchMutation } from './controller-import-hardware-policy'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import { defaultControllerProfile } from '../src/store/controllerProfileStore'
 
@@ -9,7 +9,7 @@ const id = 'pxb22222222222222'
 const other = 'pxb33333333333333'
 const drain = 'pxb44444444444444'
 const name = 'Test pat I20-offline 1'
-const args = ['--device', '192.168.8.196', '--url', 'http://localhost:5174/PXLBLZ-IDE/', '--session-a', 'a.json', '--session-b', 'b.json', '--out', '.wrsp/bench', '--run']
+const args = ['--device', '192.168.8.196', '--url-a', 'http://localhost:5174/PXLBLZ-IDE/', '--url-b', 'http://localhost:5179/PXLBLZ-IDE/', '--steps', '2,1,3,4,5,6', '--session-a', 'a.json', '--session-b', 'b.json', '--out', '.wrsp/bench', '--run']
 const session = (userId: string) => ({ user: { userId }, cookie: { name: 'session', value: 'private', domain: 'localhost', path: '/' }, cookies: [] })
 const pbp = () => encodePbp({ id: 'account-pattern', name, sourceCode: stampArtifact('export function render(i) { rgb(1,0,0) }', { kind: 'pattern', id: 'different-account-pattern' }), byteCode: new Uint8Array([1, 2]) })
 function state(): BenchAdmissionState {
@@ -18,6 +18,64 @@ function state(): BenchAdmissionState {
 }
 const save = (): BenchMutation => ({ method: 'saveProgram', id, pbp: pbp() })
 function delegate(request: BenchMutation, s: BenchAdmissionState, spy: () => void) { assertBenchMutation(request, s); spy() }
+
+describe('S4 origins, prefix and artifact witnesses', () => {
+  it('narrows cleanup activation/deletion to verified exact pairs after proof', () => {
+    const startup = { id: other, name: 'Saved startup' }
+    const s: BenchAdmissionState = { ...state(), scope: 'pattern', pendingPattern: { id, name }, cleanup: { proof: false, startup, controller: [{ id, name }] } }
+    const spy = vi.fn()
+    expect(() => delegate({ method: 'deleteProgram', id }, s, spy)).toThrow(/proof/)
+    expect(spy).not.toHaveBeenCalled()
+    s.cleanup!.proof = true
+    delegate({ method: 'deleteProgram', id }, s, spy)
+    expect(() => delegate({ method: 'setActiveProgram', id, save: false }, s, spy)).toThrow(/startup/)
+    s.pendingPattern = startup; s.savedSlots[other] = startup.name
+    delegate({ method: 'setActiveProgram', id: other, save: false }, s, spy)
+    expect(() => delegate({ method: 'deleteProgram', id: other }, s, spy)).toThrow()
+    expect(() => delegate({ method: 'setActiveProgram', id: other, save: true }, s, spy)).toThrow()
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+  it.each(['2', '2,1', '2,1,3,4,5,6', '2,1,3,4,5,6,7'])('accepts exact prefix %s', steps => {
+    const input = args.map(x => x === '2,1,3,4,5,6' ? steps : x)
+    if (steps.endsWith('7')) input.push('--cleanup-inventory', 'private.json')
+    expect(parseBenchArgs(input).steps).toEqual(steps.split(',').map(Number))
+  })
+  it.each(['', '1', '2,3', '2,1,1', '2,1,4', '2,1,3,4,5,6,8', '2,1,3,4,5,6,7'])('refuses unsafe/missing cleanup prefix %s', steps => {
+    expect(() => parseBenchArgs(args.map(x => x === '2,1,3,4,5,6' ? steps : x))).toThrow()
+  })
+  it.each(['http://127.0.0.1:5179/PXLBLZ-IDE/', 'http://localhost:5174/PXLBLZ-IDE/', 'http://localhost:5179/PXLBLZ-IDE/?x', 'http://user@localhost:5179/PXLBLZ-IDE/', 'http://localhost:5179/PXLBLZ-IDE/\n'])('refuses B origin %s', url => {
+    expect(() => parseBenchArgs(args.map(x => x === 'http://localhost:5179/PXLBLZ-IDE/' ? url : x))).toThrow()
+  })
+  it.each(['http://localhost:5179/PXLBLZ-IDE/', 'http://127.0.0.1:5174/PXLBLZ-IDE/', 'http://localhost:5174/PXLBLZ-IDE/#x', 'http://localhost:5174/PXLBLZ-IDE/?x', 'http://user@localhost:5174/PXLBLZ-IDE/', ' http://localhost:5174/PXLBLZ-IDE/'])('refuses A origin %s', url => {
+    expect(() => parseBenchArgs(args.map(x => x === 'http://localhost:5174/PXLBLZ-IDE/' ? url : x))).toThrow()
+  })
+  it('requires both origins and steps, refuses duplicates and old URL flag', () => {
+    for (const key of ['--url-a', '--url-b', '--steps']) {
+      const i = args.indexOf(key); expect(() => parseBenchArgs([...args.slice(0, i), ...args.slice(i + 2)])).toThrow()
+    }
+    expect(() => parseBenchArgs([...args, '--url-a', 'http://localhost:5174/PXLBLZ-IDE/'])).toThrow()
+    expect(() => parseBenchArgs([...args, '--url', 'http://localhost:5174/PXLBLZ-IDE/'])).toThrow()
+  })
+  const source = 'export function render(i) { rgb(1,0,0) }'
+  const artifact = (src: string) => ({ name, sourceCode: src })
+  it('requires an integrity-valid empty A stamp and exact B identity/brightness wrapper', () => {
+    expect(() => assertBenchArtifact(artifact(stampArtifact(source, { kind: 'pattern', id: 'a' })), 'a', 'a')).not.toThrow()
+    for (const bad of [source, stampArtifact(source, { kind: 'pattern', id: 'a', transforms: ['power-cap'] }), stampArtifact(source, { kind: 'pattern', id: 'a' }) + 'damage']) {
+      expect(() => assertBenchArtifact(artifact(bad), 'a', 'a')).toThrow()
+    }
+    const wrapped = stampArtifact(source + '\nvar pot = analogRead(35)', { kind: 'pattern', id: 'b', transforms: ['hardware-brightness'] })
+    expect(() => assertBenchArtifact(artifact(wrapped), 'b', 'b')).not.toThrow()
+    expect(() => assertBenchArtifact(artifact(wrapped), 'b', 'wrong')).toThrow()
+    expect(() => assertBenchArtifact(artifact(stampArtifact(source, { kind: 'pattern', id: 'b', transforms: ['hardware-brightness'] })), 'b', 'b')).toThrow()
+  })
+  it('requires actual account source, authored receipt, complete stage, binding and active slot', () => {
+    const input = { pattern: { id: 'b', src: source }, receipt: { patternId: 'b', programId: id, controllerDeviceId: 'device', sourceMode: 'authored-verified', stage: 'complete' }, binding: id, activeId: id, slot: id, deviceId: 'device' }
+    expect(() => assertBenchImportedPattern(input)).not.toThrow()
+    for (const change of [{ receipt: { ...input.receipt, sourceMode: 'stored-artifact' } }, { receipt: { ...input.receipt, stage: 'saved-verified' } }, { binding: other }, { activeId: other }, { pattern: { id: 'b', src: '' } }, { pattern: { id: 'b', src: stampArtifact(source, { kind: 'pattern', id: 'old' }) } }]) {
+      expect(() => assertBenchImportedPattern({ ...input, ...change })).toThrow()
+    }
+  })
+})
 
 describe('worker observation lifecycle', () => {
   it('forgets deliberately closed B and permits the later A Save', () => {
