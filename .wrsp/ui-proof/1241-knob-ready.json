@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1241",
+  "route": "/PXLBLZ-IDE/studio/patterns/k22-knob-proof?capture&slowmo=1",
+  "operation": "Moved speed live in Precise, captured 24 frames, checked readout at 1440/900 px and keyboard adjustment; Copy generated code observed through synthetic clipboard sink contains reserved slider.",
+  "captures": [
+    ".wrsp/ui-proof/1241-knob-ready-1440.png",
+    ".wrsp/ui-proof/1241-knob-ready-900.png"
+  ],
+  "capturedAtCommit": "2c98a2d1e287e416406c316fd7aaf0515aeceff6"
+}
