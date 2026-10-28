@@ -15,7 +15,7 @@ import { makeProgramId } from '../src/engine/bytecodePush'
 import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
-  boundedAction, byteSummary, parseProbeArgs, runProbeBatches, sanitizedTimingTable, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
+  boundedAction, byteSummary, gateProbeSaveSocket, parseProbeArgs, runProbeBatches, sanitizedTimingTable, successfulProbeSaves, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
 import { closeProbeResources, createProbeRuntime } from './controller-import-hardware-probe-runtime'
 
 const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run [--http overlap|serial] [--repeat N]\nDefaults: --http overlap --repeat 1. Repeat must be a positive safe integer; control permits only 1.'
@@ -44,6 +44,7 @@ async function run(args: ProbeArgs) {
       return { batchIndex: batch.batchIndex, identity: batch.identity, status: batch.status, success: batch.success,
         qualified: batch.qualified, connected: batch.connected, httpStopped: batch.httpStopped, firstStop: batch.firstStop,
         queue: batch.queue, cleanupErrors: batch.cleanupErrors, drainActivations: batch.drainActivations,
+        successfulSaves: batch.successfulSaves,
         rows: { complete: batch.rows.filter((row) => row.outcome === 'complete').length,
           failed: batch.rows.filter((row) => row.outcome !== 'complete').length },
         httpRequests: { count: requests.length, totalDurationMs: durations.reduce((sum, duration) => sum + duration, 0),
@@ -61,7 +62,7 @@ async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
   const queue = new ProbeHttpQueue(args.http, recorder)
   const connection = new PixelblazeConnection({ host: PROBE_HOST, webSocketFactory: (url) => {
     if (url !== `ws://${PROBE_HOST}:81`) throw new Error('Unapproved Controller WebSocket')
-    return runtime.webSocketFactory(url)
+    return gateProbeSaveSocket(runtime.webSocketFactory(url), queue)
   }, requestTimeoutMs: 5000, connectTimeoutMs: 5000 })
   const rawFetch = globalThis.fetch
   // This guard also pins the reused compiler helper's fetches and refuses redirects.
@@ -264,6 +265,7 @@ async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
         provider.stopFields(connected ? 'batch.result' : 'connection.lost')) : undefined,
     mutationsStarted: monitor.mutationsStarted,
     fidelity: PROBE_FIDELITY,
+    successfulSaves: successfulProbeSaves(recorder.events),
     residentQualification: args.case === 'drain' ? 'Unknown resident cache after observed saved-program switch.' : 'Known small resident seeded by confirmed push.',
     rows: rowOutcomes, timing: sanitizedTimingTable(recorder.events), polls: monitor.polls, writtenSlotsAndTransients: writes,
     drainActivations: recorder.events.filter((e) => e.event === 'end' && e.operation === 'pushBytecode' && e.activation === 'drain' && e.phase === 'import').length,

@@ -17,9 +17,10 @@ timeouts and local close requests do not. Cloud discovery remains independent.
 The unpacked helper must be reloaded separately for adoption; helper publication
 remains held. VM provider/relay tests prove this software agreement, not physical
 behavior. Helper restart clears ownership, and reconnect after close can overlap
-an ongoing firmware write. Direct-probe alignment with these ownership boundaries
-and physical Save latency/overlap measurements remain pending; the probe's
-optional HTTP serial mode below does not establish that fidelity.
+an ongoing firmware write. The direct probe enforces these Save ownership
+boundaries in both HTTP modes; outside Save, only its optional serial mode
+matches helper HTTP serialization. Physical Save latency/overlap measurements
+remain pending.
 
 ## S1 direct-engine diagnostic
 
@@ -46,7 +47,11 @@ outgoing measured size and resident knownness, active-id observations and fideli
 cost. Source, PBP/config/account bodies and raw errors stay off stdout. Do not
 publish the private run directory.
 
-`--http overlap` (default) preserves independent HTTP scheduling. `--http serial`
+`--http overlap` (default) is diagnostic stress scheduling: HTTP requests may
+overlap outside Save. Both modes hold all new HTTP starts from the first type-1
+Save frame until defined completion or actual owning socket close. Generic ack,
+local close request, rejected Save and deadline do not release that hold; old
+sockets cannot release another owner's hold. `--http serial`
 puts saved `/p/<id>` reads, `/list` liveness polls and complete compiler acquisitions
 in one FIFO queue for this probe's pinned device. A turn includes headers, body,
 decode and settlement; a deadline aborts the owned operation and the turn remains
@@ -118,9 +123,10 @@ in flight and a 5000ms deadline covering headers and body. Each next attempt sta
 60 seconds after it ends, including ordinary row failure. Config/active-id
 observations are timestamped during that window.
 
-Exactly 20 seconds without a full successful 2xx body read, measured from poll
-start or the last success, declares `stopped-http-unavailable`, even with a request
-pending. HTTP errors, body failures, transport failures and deadlines do not
+Exactly 20 ungated seconds without a full successful 2xx body read, measured from
+poll start or the last success and excluding socket-owned Save holds, declares
+`stopped-http-unavailable`, even with a request pending. HTTP errors, body failures,
+transport failures and deadlines do not
 refresh that window. A later success clears the verdict before the first mutation.
 After mutations begin, an unavailable verdict is terminal: subsequent rows stop,
 and HTTP recovery is recorded but cannot permit another write, including
@@ -162,11 +168,20 @@ existing download attempts cannot issue another request after that deadline.
 The recorded pinned GET wrapper stays installed until the helper settles, then
 global fetch is restored in `finally`. No compiler closure is cached across calls.
 No alternate connection follows a compiler timeout. Resident-size
-bookkeeping and fire-and-forget Save mirror
+bookkeeping mirrors
 [`ExtensionControllerProvider`, lines 758–786](../../src/engine/ExtensionControllerProvider.ts#L758-L786):
 clear before attempted push, cache only confirmed activation, invalidate on saved
 switch/disconnect, and return a known size only while config reports that id.
-Save resolves after synchronous frame send without an invented acknowledgement.
+Save awaits the protocol's actual positive completion; its span includes that
+complete latency and rejects on unconfirmed Save. Reports list successful Save
+latencies by ordinal, phase and slot, with count and maximum, excluding pending
+and rejected Saves. The 60-second protocol cap remains provisional; measured
+hardware latency must set the final deadline at no less than 20 seconds.
+The liveness verdict clock pauses during socket-owned Save and resumes its
+remaining 20-second ungated budget on release. Gating creates no failed poll or
+fabricated success. Shutdown cancels queued polling without releasing Save.
+Production helper HTTP is always serialized; the default probe's HTTP/HTTP
+overlap is a fidelity boundary, even though both enforce Save admission holds.
 
 Each batch's [runtime](../../scripts/controller-import-hardware-probe-runtime.ts)
 keeps Node's global fetch implementation with one owned undici 7.29.0 Agent,
@@ -380,8 +395,8 @@ samples past their nominal targets. This schedule is diagnostic sampling and
 does not change product backoff or timeouts. Each completed probe records its
 path, declared length, content/transfer encodings and actual decoded body bytes.
 
-A resolved `saveProgram` promise only proves that the fire-and-forget command
-was sent. It never proves flash persistence. A page saved-program read can time
+A resolved `saveProgram` promise proves positive device completion, while reopened
+saved-program readback supplies artifact evidence. A page saved-program read can time
 out after five seconds while the extension's HTTP fetch finishes later; compare
 the provider error, relay response and worker-body spans separately. Raw PBP
 bytes can be reopened with the existing `decodePbp`/`recoverSavedProgram`

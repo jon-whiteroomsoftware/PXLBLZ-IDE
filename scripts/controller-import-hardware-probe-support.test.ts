@@ -3,6 +3,8 @@ import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
 import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, runProbeBatches, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeConnection } from './controller-import-hardware-probe-support'
 import { recoverSavedProgram } from '../src/engine/controllerSavedProgramRead'
+import { PixelblazeConnection, type WebSocketLike } from '../src/engine/PixelblazeConnection'
+import { gateProbeSaveSocket, successfulProbeSaves } from './controller-import-hardware-probe-support'
 
 function harness(fetcher: typeof fetch = vi.fn(), compiler: (source: string) => Promise<Uint8Array> | Uint8Array = () => new Uint8Array(12)) {
   const lines: string[] = []
@@ -10,13 +12,172 @@ function harness(fetcher: typeof fetch = vi.fn(), compiler: (source: string) => 
   const connection: ProbeConnection = {
     isConnected: true, connect: vi.fn(async () => {}), close: vi.fn(),
     getConfig: vi.fn(async () => ({ activeProgramId: 'active' })), listPrograms: vi.fn(async () => []),
-    setActiveProgram: vi.fn(), saveProgram: vi.fn(), pushByteCodeAndWait: vi.fn(async () => {}),
+    setActiveProgram: vi.fn(), saveProgram: vi.fn(async () => {}), pushByteCodeAndWait: vi.fn(async () => {}),
   }
   return { lines, recorder, connection, provider: new NodeControllerImportProvider({ connection, fetcher, compiler, recorder }) }
 }
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
 
+describe('awaited Save and socket-owned HTTP admission', () => {
+  it.each(['resolve', 'reject'] as const)('keeps the provider Save span open until %s', async (outcome) => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    const h = harness()
+    let resolve!: () => void; let reject!: (error: Error) => void
+    vi.mocked(h.connection.saveProgram).mockReturnValue(new Promise<void>((yes, no) => { resolve = yes; reject = no }))
+    const done = vi.fn()
+    const save = h.provider.saveProgram(new Uint8Array(), { id: 'slot' }).then(done, () => 'rejected')
+    await vi.advanceTimersByTimeAsync(25000)
+    expect(done).not.toHaveBeenCalled()
+    expect(successfulProbeSaves(h.recorder.events)).toEqual({ completions: [], count: 0, maxDurationMs: 0 })
+    expect(sanitizedTimingTable(h.recorder.events).filter((e) => e.operation === 'saveProgram')).toEqual([])
+    if (outcome === 'resolve') resolve(); else reject(new Error('private failure'))
+    await save
+    expect(successfulProbeSaves(h.recorder.events)).toEqual(outcome === 'resolve'
+      ? { completions: [{ saveOrdinal: 1, phase: 'setup', slot: 'slot', durationMs: 25000 }], count: 1, maxDurationMs: 25000 }
+      : { completions: [], count: 0, maxDurationMs: 0 })
+    expect(sanitizedTimingTable(h.recorder.events).filter((e) => e.operation === 'saveProgram')).toEqual([
+      expect.objectContaining({ outcome: outcome === 'resolve' ? 'end' : 'error', durationMs: 25000 }),
+    ])
+  })
+
+  function socket(): WebSocketLike {
+    return { readyState: 1, send: vi.fn(), close: vi.fn(), onopen: null, onclose: null, onerror: null, onmessage: null }
+  }
+  it.each(['serial', 'overlap'] as const)('admits HTTP only after real positive multi-chunk completion (%s)', async (mode) => {
+    vi.useFakeTimers()
+    const h = harness(); const queue = new ProbeHttpQueue(mode, h.recorder); const raw = socket()
+    const conn = new PixelblazeConnection({ host: 'fixture', webSocketFactory: () => gateProbeSaveSocket(raw, queue) })
+    const connecting = conn.connect(); raw.onopen?.({}); await connecting
+    const save = conn.saveProgram('slot', new Uint8Array(3000))
+    const fetcher = vi.fn(async () => {})
+    const tasks = ['liveness', 'read', 'compiler'].map((name) => queue.run(name, {}, fetcher))
+    for (let i = 0; i < 3; i++) { raw.onmessage?.({ data: '{"ack":1}' }); await vi.advanceTimersByTimeAsync(0) }
+    expect(fetcher).not.toHaveBeenCalled(); expect(queue.saveHeld).toBe(true)
+    raw.onmessage?.({ data: '{"saveProgramSourceFile":true}' })
+    await save; await Promise.all(tasks)
+    expect(fetcher).toHaveBeenCalledTimes(3)
+    conn.close(); raw.onclose?.({}); expect(vi.getTimerCount()).toBe(0)
+  })
+  it.each(['serial', 'overlap'] as const)('gates real multi-frame Save, deadlines and owner events (%s)', async (mode) => {
+    vi.useFakeTimers()
+    const h = harness(); const queue = new ProbeHttpQueue(mode, h.recorder)
+    const raw = socket()
+    const conn = new PixelblazeConnection({ host: 'fixture', saveTimeoutMs: 100,
+      webSocketFactory: () => gateProbeSaveSocket(raw, queue) })
+    const connecting = conn.connect(); raw.onopen?.({}); await connecting
+    const save = conn.saveProgram('slot', new Uint8Array(3000)).catch(() => 'deadline')
+    expect(queue.saveHeld).toBe(true)
+    const fetcher = vi.fn(async () => undefined)
+    const tasks = ['liveness', 'read', 'compiler'].map((name) => queue.run(name, {}, fetcher))
+    const cancel = new AbortController()
+    const cancelled = queue.run('cancelled', {}, fetcher, cancel.signal).catch(() => 'cancelled')
+    cancel.abort(); expect(await cancelled).toBe('cancelled')
+    for (let i = 0; i < 4; i++) raw.onmessage?.({ data: '{"ack":1}' })
+    await vi.advanceTimersByTimeAsync(100)
+    expect(await save).toBe('deadline'); expect(fetcher).not.toHaveBeenCalled()
+    conn.close(); expect(queue.saveHeld).toBe(true)
+    raw.onmessage?.({ data: '{"saveProgramSourceFile":1}' })
+    await Promise.all(tasks); expect(fetcher).toHaveBeenCalledTimes(3)
+    const next = socket(); const wrapped = gateProbeSaveSocket(next, queue)
+    wrapped.send(new Uint8Array([1, 1])); expect(queue.saveHeld).toBe(true)
+    raw.onclose?.({}); raw.onmessage?.({ data: '{"saveProgramSourceFile":1}' })
+    expect(queue.saveHeld).toBe(true)
+    next.onmessage?.({ data: '{"saveProgramSourceFile":false}' }); expect(queue.saveHeld).toBe(false)
+    wrapped.send(new Uint8Array([1, 3])); wrapped.close(); expect(queue.saveHeld).toBe(true)
+    next.onclose?.({}); expect(queue.saveHeld).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['serial', 'overlap'] as const)('rechecks Save at action start and body settlement (%s)', async (mode) => {
+    const h = harness(); const queue = new ProbeHttpQueue(mode, h.recorder)
+    let finish!: () => void
+    let started!: () => void
+    const entered = new Promise<void>((resolve) => { started = resolve })
+    const first = queue.run('first', {}, () => new Promise<void>((done) => { finish = done; started() }))
+    await entered
+    const secondAction = vi.fn(async () => {})
+    const second = queue.run('second', {}, secondAction)
+    const owner = {}; queue.beginSave(owner)
+    finish(); await first
+    expect(secondAction).not.toHaveBeenCalled()
+    queue.endSave(owner); await second
+    expect(secondAction).toHaveBeenCalledTimes(1)
+  })
+
+  it('observes malformed messages independently and forwards original bytes', () => {
+    const h = harness(); const queue = new ProbeHttpQueue('overlap', h.recorder)
+    const raw = socket(); const wrapped = gateProbeSaveSocket(raw, queue)
+    const observer = vi.fn(); wrapped.onmessage = observer
+    const continuation = new Uint8Array([1, 0]); wrapped.send(continuation)
+    expect(queue.saveHeld).toBe(false); expect(raw.send).toHaveBeenCalledWith(continuation)
+    wrapped.send(new Uint8Array([1, 1]))
+    for (const data of ['{broken', 'null', '1', '[]', '{"ack":1}']) {
+      const message = { data }; expect(() => raw.onmessage?.(message)).not.toThrow()
+      expect(observer).toHaveBeenLastCalledWith(message)
+      expect(queue.saveHeld).toBe(true)
+    }
+    raw.onclose?.({})
+  })
+})
+
 describe('probe liveness monitor', () => {
+  it.each(['serial', 'overlap'] as const)('pauses only gated unhealthy time and stops cleanly while held (%s)', async (mode) => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    const fetcher = vi.fn(async () => { throw new Error('offline') })
+    const h = harness(fetcher); const queue = new ProbeHttpQueue(mode, h.recorder)
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, fields: () => ({ phase: 'import' }), queue, now: Date.now })
+    monitor.start(); await vi.advanceTimersByTimeAsync(10_000)
+    const owner = {}; queue.beginSave(owner)
+    const counts = { ...monitor.polls }; const starts = fetcher.mock.calls.length
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(monitor.httpUnavailable).toBe(false); expect(monitor.polls).toEqual(counts)
+    expect(fetcher).toHaveBeenCalledTimes(starts)
+    queue.endSave(owner)
+    await vi.advanceTimersByTimeAsync(9999); expect(monitor.httpUnavailable).toBe(false)
+    await vi.advanceTimersByTimeAsync(1); expect(monitor.httpUnavailable).toBe(true)
+    queue.beginSave(owner); await monitor.stop()
+    expect(vi.getTimerCount()).toBe(0)
+    const stoppedStarts = fetcher.mock.calls.length
+    queue.endSave(owner); await vi.advanceTimersByTimeAsync(30_000)
+    expect(fetcher).toHaveBeenCalledTimes(stoppedStarts)
+  })
+
+  it('cancels a queued poll on stop without counting gating as failure', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    const fetcher = vi.fn(async () => new Response(null))
+    const h = harness(fetcher); const queue = new ProbeHttpQueue('serial', h.recorder)
+    let release!: () => void; let started!: () => void
+    const entered = new Promise<void>((resolve) => { started = resolve })
+    const body = queue.run('body', {}, () => new Promise<void>((resolve) => { release = resolve; started() }))
+    await entered
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, fields: () => ({ phase: 'setup' }), queue })
+    monitor.start(); const owner = {}; queue.beginSave(owner)
+    await monitor.stop()
+    expect(monitor.polls.failed).toBe(0); expect(fetcher).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+    release(); await body; queue.endSave(owner)
+    await vi.advanceTimersByTimeAsync(30_000); expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('resets the ungated clock on success while preserving a terminal mutation stop', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    let ok = false
+    const fetcher = vi.fn(async () => { if (!ok) throw new Error('offline'); return new Response(null) })
+    const h = harness(fetcher); const queue = new ProbeHttpQueue('overlap', h.recorder)
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, fields: () => ({ phase: 'import' }), queue })
+    monitor.start(); await vi.advanceTimersByTimeAsync(10_000)
+    const owner = {}; queue.beginSave(owner); await vi.advanceTimersByTimeAsync(30_000)
+    queue.endSave(owner); ok = true; await vi.advanceTimersByTimeAsync(1000)
+    expect(monitor.lastPollOk).toBe(true)
+    monitor.markMutationStarted(); ok = false
+    await vi.advanceTimersByTimeAsync(19_999); expect(monitor.httpUnavailable).toBe(false)
+    await vi.advanceTimersByTimeAsync(1); expect(monitor.httpUnavailable).toBe(true)
+    queue.beginSave(owner); await vi.advanceTimersByTimeAsync(30_000); queue.endSave(owner)
+    ok = true; await vi.advanceTimersByTimeAsync(1000)
+    expect(monitor.lastPollOk).toBe(true); expect(() => monitor.assertCurrent()).toThrow('stopped-http-unavailable')
+    await monitor.stop(); expect(vi.getTimerCount()).toBe(0)
+  })
+
   function deferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((done) => { resolve = done })

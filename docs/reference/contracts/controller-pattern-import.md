@@ -32,8 +32,12 @@ after close or restarting the helper can admit HTTP while firmware still writes;
 this reconnect/write-overlap residual is accepted, not proof of firmware
 quiescence. Reload the unpacked helper in `chrome://extensions` to adopt these
 changes; updating the app alone does not update the helper. Helper publication
-remains held. Direct-probe fidelity and physical latency/overlap proof remain
-pending; VM tests establish only the software agreement.
+remains held. The direct probe awaits protocol Save completion and applies the
+same socket-owned HTTP admission hold in both scheduling modes. Its default
+overlap mode still permits HTTP/HTTP overlap outside Save; the production helper
+serializes all Controller HTTP. Probe liveness excludes held time while retaining
+the prior unhealthy budget. Physical latency/overlap proof remains pending;
+offline tests establish only the software agreement.
 
 `saveProgram` resolves only after a truthy `saveProgramSourceFile` completion
 arrives on the owning current socket after submission of the final type-1 frame.
@@ -63,7 +67,8 @@ the same uncorrelated completion field. Late completion cannot clear this state.
 Replacement clears socket-scoped state and ignores old callbacks; no automatic
 Save retry occurs. The separate `saveTimeoutMs` defaults to a provisional
 60,000ms measurement cap. The final deadline follows hardware latency evidence
-and must be at least 20 seconds. Probe changes remain pending; this transport
+and must be at least 20 seconds. Probe reports include only successfully awaited
+Save completion latencies by ordinal, phase and slot; this transport
 agreement supplies no timer-based HTTP release signal.
 
 ## Source fidelity and identity

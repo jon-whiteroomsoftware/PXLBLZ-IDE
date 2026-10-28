@@ -353,6 +353,32 @@ describe('selected-slot Controller Pattern import execution', () => {
     expect(f.deps.personalContent.createPattern).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['negative', 'deadline', 'close'])('stops at rejected Save (%s) with durable write-pending ownership', async (kind) => {
+    const f = authoredFixture()
+    const entered = deferred<void>(); const held = deferred<void>()
+    let readsAtSave = 0
+    let verifiedAtSave = 0
+    const bindings = structuredClone(f.bindings()); const records = structuredClone(f.records())
+    f.deps.provider.saveProgram.mockImplementationOnce(async () => {
+      readsAtSave = f.deps.provider.readSavedProgram.mock.calls.length
+      verifiedAtSave = f.deps.onPatternVerified.mock.calls.length
+      entered.resolve(); await held.promise; throw new Error(kind)
+    })
+    const result = importControllerPattern(input, f.deps).catch((error: unknown) => error)
+    await entered.promise
+    const assertStopped = async () => {
+      expect(f.deps.provider.readSavedProgram).toHaveBeenCalledTimes(readsAtSave)
+      expect((await f.storage().getPatternImports!()).byPatternId['personal-1'].stage).toBe('write-pending')
+      expect(f.accounts.size).toBe(1)
+      expect(f.bindings()).toEqual(bindings); expect(f.records()).toEqual(records)
+      expect(f.deps.provider.pushBytecode).not.toHaveBeenCalled()
+      expect(f.deps.onPatternVerified).toHaveBeenCalledTimes(verifiedAtSave)
+    }
+    try { await assertStopped() }
+    finally { held.resolve(); expect(await result).toBeInstanceOf(Error) }
+    await assertStopped()
+  })
+
   it.each(['read-error', 'mismatch'])('does not verify a %s save readback', async (kind) => {
     const f = makeDeps()
     const save = f.deps.provider.saveProgram.getMockImplementation()!

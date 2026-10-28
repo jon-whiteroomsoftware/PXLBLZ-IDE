@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { PixelblazeConnection } from '../src/engine/PixelblazeConnection'
+import type { PixelblazeConnection, WebSocketLike } from '../src/engine/PixelblazeConnection'
 import type { ControllerPatternImportExecutionDeps } from '../src/engine/controllerPatternImportExecution'
 import { recoverSavedProgram, type RecoveredSavedProgram } from '../src/engine/controllerSavedProgramRead'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
@@ -9,6 +9,32 @@ export const PROBE_FIDELITY = 'Direct engine/protocol probe without extension re
 export type ProbePhase = 'setup' | 'import' | 'observation' | 'restore'
 export type ProbeFields = Record<string, unknown>
 export class ProbeHttpQueue {
+  private readonly owners = new Set<object>()
+  private readonly listeners = new Set<(held: boolean) => void>()
+  get saveHeld() { return this.owners.size > 0 }
+  beginSave(owner: object) {
+    const held = this.saveHeld; this.owners.add(owner)
+    if (!held) for (const listener of this.listeners) listener(true)
+  }
+  endSave(owner: object) {
+    if (!this.owners.delete(owner) || this.saveHeld) return
+    for (const listener of this.listeners) listener(false)
+    this.wake()
+  }
+  onSaveHoldChange(listener: (held: boolean) => void) {
+    this.listeners.add(listener); return () => { this.listeners.delete(listener) }
+  }
+  private wake() { for (const turn of this.waiting.splice(0)) turn() }
+  private waitForSave(signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => { unsubscribe(); signal?.removeEventListener('abort', abort) }
+      const abort = () => { cleanup(); reject(signal?.reason ?? new Error('HTTP turn cancelled')) }
+      const unsubscribe = this.onSaveHoldChange((held) => { if (!held) { cleanup(); resolve() } })
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
+      else if (!this.saveHeld) { cleanup(); resolve() }
+    })
+  }
   private active = 0
   private readonly waiting: (() => void)[] = []
   readonly stats = { admitted: 0, cancelled: 0, maxConcurrent: 0, totalWaitMs: 0, maxWaitMs: 0 }
@@ -25,6 +51,7 @@ export class ProbeHttpQueue {
           reject(signal?.reason ?? new Error('HTTP turn cancelled'))
         }
         const admit = () => {
+          if (this.saveHeld || (this.mode === 'serial' && this.active > 0)) { this.waiting.push(admit); return }
           signal?.removeEventListener('abort', abort)
           if (signal?.aborted) { abort(); return }
           this.active++; this.stats.admitted++
@@ -33,7 +60,7 @@ export class ProbeHttpQueue {
         }
         if (signal?.aborted) { abort(); return }
         signal?.addEventListener('abort', abort, { once: true })
-        if (this.mode === 'overlap' || this.active === 0) admit()
+        if (!this.saveHeld && (this.mode === 'overlap' || this.active === 0)) admit()
         else this.waiting.push(admit)
       }) } finally {
         const waitMs = this.now() - queuedAt
@@ -42,10 +69,41 @@ export class ProbeHttpQueue {
       }
       // End the explicit queue span at admission; request service time is separate.
     }).then(async () => {
-      try { signal?.throwIfAborted(); return await action() }
-      finally { this.active--; this.waiting.shift()?.() }
+      try {
+        while (this.saveHeld) await this.waitForSave(signal)
+        signal?.throwIfAborted(); return await action()
+      }
+      finally { this.active--; this.wake() }
     })
   }
+}
+
+/** Observe ownership independently of protocol parsing; relay the original event. */
+export function gateProbeSaveSocket(socket: WebSocketLike, queue: ProbeHttpQueue, _fields?: () => ProbeFields): WebSocketLike {
+  const wrapped: WebSocketLike = {
+    get readyState() { return socket.readyState },
+    set readyState(value) { socket.readyState = value },
+    send(data) {
+      if (data instanceof Uint8Array && data[0] === 1 && (data[1] & 1) !== 0) queue.beginSave(socket)
+      socket.send(data)
+    },
+    close() { socket.close() },
+    onopen: socket.onopen, onclose: socket.onclose, onerror: socket.onerror, onmessage: socket.onmessage,
+  }
+  socket.onopen = (event) => wrapped.onopen?.(event)
+  socket.onerror = (event) => wrapped.onerror?.(event)
+  socket.onclose = (event) => { queue.endSave(socket); wrapped.onclose?.(event) }
+  socket.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+      try {
+        const message: unknown = JSON.parse(event.data)
+        if (message !== null && typeof message === 'object' &&
+          'saveProgramSourceFile' in message && message.saveProgramSourceFile !== undefined) queue.endSave(socket)
+      } catch { /* Malformed observations still reach the protocol unchanged. */ }
+    }
+    wrapped.onmessage?.(event)
+  }
+  return wrapped
 }
 
 export type ProbeStop = { phase: ProbePhase; operation: string; saveOrdinal?: number; slot?: string;
@@ -145,6 +203,12 @@ export function sanitizedTimingTable(events: readonly ProbeEvent[]) {
   }))
 }
 
+export function successfulProbeSaves(events: readonly ProbeEvent[]) {
+  const completions = events.filter((event) => event.operation === 'saveProgram' && event.event === 'end')
+    .map(({ saveOrdinal, phase, slot, durationMs }) => ({ saveOrdinal, phase, slot, durationMs }))
+  return { completions, count: completions.length, maxDurationMs: Math.max(0, ...completions.map((save) => save.durationMs ?? 0)) }
+}
+
 export type ProbeArgs = { device: typeof PROBE_HOST; case: 'drain' | 'control'; runId: string; run: true; http: 'overlap' | 'serial'; repeat: number }
 export function parseProbeArgs(argv: string[]): ProbeArgs | { help: true } {
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) return { help: true }
@@ -230,6 +294,9 @@ export class ProbeLivenessMonitor {
   private verdictTimer: ReturnType<typeof setTimeout> | undefined
   private pending: Promise<void> | undefined
   private readonly shutdown = new AbortController()
+  private unsubscribe: (() => void) | undefined
+  private budget = 20_000
+  private clockStarted = 0
   firstStop: ProbeStop | undefined
   private readonly now: () => number
   readonly polls = { attempted: 0, succeeded: 0, failed: 0, skippedAtCapacity: 0, maxConcurrent: 0 }
@@ -245,27 +312,39 @@ export class ProbeLivenessMonitor {
   start() {
     if (this.started || this.stopped) return
     this.started = true
+    this.unsubscribe = this.options.queue?.onSaveHoldChange((held) => {
+      if (held) {
+        this.budget = Math.max(0, this.budget - (this.now() - this.clockStarted))
+        clearTimeout(this.verdictTimer); clearTimeout(this.pollTimer)
+      } else {
+        this.armVerdict(this.now(), false)
+        if (!this.pending) this.pollTimer = setTimeout(() => this.poll(), 1000)
+      }
+    })
     this.armVerdict(this.now())
     this.poll()
   }
   async stop() {
     this.stopped = true
+    this.unsubscribe?.(); this.unsubscribe = undefined
     clearTimeout(this.pollTimer)
     clearTimeout(this.verdictTimer)
     if (this.options.queue) this.shutdown.abort()
     await this.pending
   }
-  private armVerdict(lastSuccessOrStart: number) {
+  private armVerdict(lastSuccessOrStart: number, reset = true) {
     clearTimeout(this.verdictTimer)
-    if (this.stopped) return
+    if (reset) this.budget = 20_000
+    this.clockStarted = lastSuccessOrStart
+    if (this.stopped || this.options.queue?.saveHeld) return
     this.verdictTimer = setTimeout(() => {
       this.unavailable = true
       this.firstStop ??= this.options.stopFields?.() ?? { phase: this.options.fields().phase as ProbePhase, operation: 'poll.list', saveCorrelation: 'none' }
     },
-      Math.max(0, lastSuccessOrStart + 20_000 - this.now()))
+      Math.max(0, this.budget - (this.now() - lastSuccessOrStart)))
   }
   private poll() {
-    if (this.stopped) return
+    if (this.stopped || this.options.queue?.saveHeld) return
     this.polls.attempted++
     this.polls.maxConcurrent = 1
     const fields = this.options.fields()
@@ -278,10 +357,10 @@ export class ProbeLivenessMonitor {
       if (!this.mutated) { this.unavailable = false; this.firstStop = undefined }
       this.armVerdict(this.now())
     }, () => {
-      this.polls.failed++; this.pollOk = false
+      if (!this.shutdown.signal.aborted) { this.polls.failed++; this.pollOk = false }
     }).finally(() => {
       this.pending = undefined
-      if (!this.stopped) this.pollTimer = setTimeout(() => this.poll(), 1000)
+      if (!this.stopped && !this.options.queue?.saveHeld) this.pollTimer = setTimeout(() => this.poll(), 1000)
     })
   }
 }
@@ -344,7 +423,7 @@ export class NodeControllerImportProvider implements ImportProvider {
     this.lastSave = { saveOrdinal: ++this.saveOrdinal, slot: opts.id, savePhase: this.phase }
     const recovered = recoverSavedProgram(opts.id, bytes)
     return this.span('saveProgram', { slot: opts.id, name: recovered.ok ? recovered.value.deviceName : undefined, ...byteSummary(bytes) }, () => {
-      this.options.assertMutation?.(); this.connection.saveProgram(opts.id, bytes)
+      this.options.assertMutation?.(); return this.connection.saveProgram(opts.id, bytes)
     })
   }
   setActiveProgram(id: string, opts: { save: boolean }) {

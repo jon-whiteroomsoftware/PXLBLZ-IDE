@@ -769,7 +769,11 @@ or actual owner close. Provider deadlines never release HTTP ownership. Cloud
 discovery is independent. Ownership is in memory: helper restart or reconnect
 after close may overlap a firmware write. Adoption requires separately reloading
 the unpacked helper; publication remains held. Direct-probe fidelity and physical
-latency/overlap proof remain pending. See the
+latency/overlap proof remain pending. The direct probe now awaits Save completion,
+holds new HTTP starts on socket-owned Save in both modes, and pauses its liveness
+verdict budget while held. Its default diagnostic mode still overlaps HTTP
+outside Save, unlike the helper's full-body FIFO. Reports expose successful Save
+completion latencies; the provisional cap is not a measured final deadline. See the
 [Controller Save transport agreement](contracts/controller-pattern-import.md#controller-save-transport).
 
 **Transient replacement fit.** Steady-state fit and replacement fit are
