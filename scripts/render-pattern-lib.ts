@@ -1,5 +1,6 @@
 // Pure helpers for the headless pattern video renderer (#576). The Playwright
 // driver (render-pattern.ts) owns all I/O; everything here is table-testable.
+import type { SlowMoSettings } from '../src/engine/slowMo'
 
 export interface RenderConfig {
   /** Demo to mount; with --file it only supplies the map/preview config. */
@@ -21,6 +22,7 @@ export interface RenderConfig {
   lightSize: number | null
   /** Pattern arithmetic override; null keeps the stored preview mode. */
   fidelity: 'fast' | 'precise' | null
+  slowMo: SlowMoSettings | null
   /** Show id to record from its stage preview (#879); exclusive with demo/file. */
   show: string | null
   /** Virtual time of the first frame, in seconds; reached by a headless pre-roll. */
@@ -61,6 +63,31 @@ function nonNegativeNumber(flag: string, raw: string | undefined): number {
   return value
 }
 
+function parseSlowMo(raw: string): SlowMoSettings {
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { throw new Error('--slowmo requires a SlowMoSettings JSON object.') }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('--slowmo requires a SlowMoSettings JSON object.')
+  }
+  const { rate, stepMs, inBetween, stagger, persistence } = parsed as Record<string, unknown>
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0 || rate > 1) {
+    throw new Error('--slowmo rate must be finite and in (0, 1].')
+  }
+  if (typeof stepMs !== 'number' || !Number.isFinite(stepMs) || stepMs <= 0 || stepMs > 32767) {
+    throw new Error('--slowmo stepMs must be finite and in (0, 32767].')
+  }
+  if (inBetween !== 'clock' && inBetween !== 'hold' && inBetween !== 'blend' && inBetween !== 'eased') {
+    throw new Error('--slowmo inBetween must be clock, hold, blend, or eased.')
+  }
+  const offset = stagger as Record<string, unknown> | null
+  if (typeof offset !== 'object' || offset === null || Array.isArray(offset) ||
+    (offset.shape !== 'sweep' && offset.shape !== 'radial' && offset.shape !== 'scatter') || offset.width !== 0) {
+    throw new Error('--slowmo stagger must have shape sweep, radial, or scatter and width 0 in slice A.')
+  }
+  if (persistence !== null) throw new Error('--slowmo persistence must be null in slice A.')
+  return { rate, stepMs, inBetween, stagger: { shape: offset.shape, width: 0 }, persistence: null }
+}
+
 export function parseRenderArgs(argv: string[]): RenderConfig {
   let demo: string | null = null
   let file: string | null = null
@@ -74,6 +101,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let diffusion: number | null = null
   let lightSize: number | null = null
   let fidelity: RenderConfig['fidelity'] = null
+  let slowMo: SlowMoSettings | null = null
   let show: string | null = null
   let startSeconds = 0
 
@@ -89,6 +117,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
       case '--demo': demo = value(); break
       case '--file': file = value(); break
       case '--show': show = value(); break
+      case '--slowmo': slowMo = parseSlowMo(value()); break
       case '--start': startSeconds = nonNegativeNumber(flag, value()); break
       case '--seconds': seconds = positiveNumber(flag, value()); break
       case '--fps': fps = positiveNumber(flag, value()); break
@@ -128,6 +157,9 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   if (show !== null && (demo !== null || file !== null)) {
     throw new Error('--show records a Show from its stage preview and cannot be combined with --demo or --file.')
   }
+  if (show !== null && slowMo !== null) {
+    throw new Error('--slowmo is supported for Pattern renders only.')
+  }
   if (show !== null && fidelity !== null) {
     throw new Error('--fidelity is supported for Pattern renders only.')
   }
@@ -140,7 +172,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   const baseName = name ?? (show ? showBasename(show) : file ? fileBasename(file) : demo!)
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
-  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, lightSize, fidelity, show, startSeconds }
+  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, lightSize, fidelity, slowMo, show, startSeconds }
 }
 
 function showBasename(showId: string): string {

@@ -12,6 +12,9 @@ import { slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
 import { createRenderLoop, type RenderLoopConfig } from '@/engine/renderLoop'
 import { loadPattern } from '@/engine/loadPattern'
 import { createShim, createFxShim } from '@/engine/shim'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { bundle } from '@/engine/bundle'
 
 const { paint } = vi.hoisted(() => ({ paint: vi.fn() }))
 vi.mock('@/engine/renderer', () => ({ createRenderer: () => ({
@@ -49,6 +52,28 @@ afterEach(() => { cleanup(); history.replaceState(null, '', originalUrl) })
 
 describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity => {
   beforeEach(() => usePreviewStore.setState({ fidelity }))
+  it.each(['absent', 'off'])('loads the complete stock baseline artifact with slow-mo %s', mode => {
+    for (const [name, stockSource] of Object.entries(DEMOS)) {
+      vi.clearAllMocks()
+      history.replaceState(null, '', mode === 'absent' ? location.pathname : `${location.pathname}?slowmo=1`)
+      usePreviewStore.setState({ ...previewInitialState, fidelity, isRunning: false, slowMo: mode === 'off' ? null : settings })
+      useMapStore.setState(mapInitialState)
+      useEditorStore.setState({ ...editorInitialState, previewSource: stockSource })
+      usePatternStore.setState(patternInitialState)
+      useControlStore.setState(controlInitialState)
+      const base = bundle(stockSource, LIBRARIES)
+      const view = render(<Preview showDeck={false} pixelCountCap={16} />)
+      expect(vi.mocked(loadPattern).mock.calls.length, `${name}: actual load`).toBeGreaterThan(0)
+      expect(last(vi.mocked(loadPattern).mock.calls)[0], `${name}: complete ${fidelity} artifact`).toBe(fidelity === 'fast' ? base.code : base.fxCode)
+      expect(vi.mocked(loadPattern).mock.results.every(result => result.type === 'return'), `${name}: execution load`).toBe(true)
+      const error = view.container.querySelector('.text-red-400')
+      expect(error, `${name}: ${error?.textContent ?? 'no preview error'}`).toBeNull()
+      expect(paint, `${name}: initial frame`).toHaveBeenCalled()
+      if (mode === 'absent') expect(usePreviewStore.getState().slowMoArtifact, name).toBeNull()
+      else expect(usePreviewStore.getState().slowMoArtifact?.code, name).toBe(base.code)
+      view.unmount()
+    }
+  })
   it.each(['absent', 'off', 'clock'])('preserves the complete baseline artifact: %s', mode => {
     if (mode === 'absent') {
       history.replaceState(null, '', location.pathname)

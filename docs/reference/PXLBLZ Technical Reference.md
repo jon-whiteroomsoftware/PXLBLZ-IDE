@@ -397,6 +397,18 @@ paints, and publishes FPS and watched vars. Runtime exceptions stop the loop.
 `tickHeadless` executes all stateful render work without painting; Show seek
 replay depends on it because render functions may mutate state.
 
+The flagged slow-mo lab (`?slowmo=1`) applies `bundleWithPasses` to Pattern
+preview after resolving the pixel count. The recipe is empty with the flag
+absent, Off, or Clock, preserving complete `code`/`fxCode` identity with
+`bundle()`. Clock composes preview Speed × rate; the blend family uses the
+wrapper's fixed-step rate with ordinary preview Speed.
+
+Live rate, step, and curve values update encoded runtime globals without
+resetting time. Source, Pattern, layout, fidelity, or baseline-versus-wrapper
+changes re-prime the preview. Refusals keep the unwrapped preview running;
+Copy generated code projects current values into code initializers. Lab state
+stays session-only.
+
 The Show Stage has two advancement contracts: live playback advances once per
 presented frame (`advanceLive`), deterministic seek advances at fixed 60 Hz
 (`advanceTo`). Fast replay flattens samples and compatibility at creation and

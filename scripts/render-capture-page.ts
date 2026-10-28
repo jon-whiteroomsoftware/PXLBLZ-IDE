@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test'
+import type { SlowMoSettings } from '../src/engine/slowMo'
 
 export interface CaptureSequenceCall {
   frames: number
@@ -51,6 +52,7 @@ export const HIDE_SHOW_CHROME_CSS = `
 export const PREVIEW_CANVAS = '[data-testid="preview-pane"] canvas'
 
 export interface PatternCaptureSetup {
+  slowMo?: SlowMoSettings
   width: number
   /** Source to rebuild on a fresh clock; undefined reuses the route's own preview source (getPreviewSource). */
   source?: string
@@ -78,7 +80,7 @@ export async function preparePatternCapture(page: Page, setup: PatternCaptureSet
   // ms from pattern t=0.
   const source = setup.source ?? await page.evaluate(() =>
     (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz.getPreviewSource())
-  await page.evaluate(({ code, diffusion, lightSize, fidelity }) => {
+  await page.evaluate(({ code, diffusion, lightSize, fidelity, slowMo }) => {
     const api = (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz
     api.setPreview({ isRunning: false })
     // Store overrides land before the rebuild below, which reads them when
@@ -86,6 +88,7 @@ export async function preparePatternCapture(page: Page, setup: PatternCaptureSet
     if (diffusion !== null) api.setPreview({ diffusion })
     if (lightSize !== null) api.setPreview({ lightSize })
     if (fidelity !== undefined) api.setPreview({ fidelity })
+    if (slowMo !== undefined) api.setPreview({ slowMo })
     api.loadSource('')
     // Defer the reload a macrotask so React commits the teardown first.
     return new Promise<void>((resolve) => {
@@ -94,7 +97,7 @@ export async function preparePatternCapture(page: Page, setup: PatternCaptureSet
         resolve()
       }, 50)
     })
-  }, { code: source, diffusion: setup.diffusion, lightSize: setup.lightSize, fidelity: setup.fidelity })
+  }, { code: source, diffusion: setup.diffusion, lightSize: setup.lightSize, fidelity: setup.fidelity, slowMo: setup.slowMo })
   // The preview loop rebuilds in a React effect; give it a beat, then make
   // sure no compile/runtime error is covering the canvas.
   await page.waitForTimeout(750)

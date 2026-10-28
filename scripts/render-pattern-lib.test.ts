@@ -17,6 +17,7 @@ describe('parseRenderArgs', () => {
       diffusion: null,
       lightSize: null,
       fidelity: null,
+      slowMo: null,
       show: null,
       startSeconds: 0,
     })
@@ -83,6 +84,54 @@ describe('parseRenderArgs', () => {
   it.each(['fast', 'precise'])('rejects explicit Show fidelity %s', (fidelity) => {
     expect(() => parseRenderArgs(['--show', 'stock-show-x', '--fidelity', fidelity]))
       .toThrow('--fidelity is supported for Pattern renders only.')
+  })
+
+  describe('--slowmo', () => {
+    const settings = { rate: 0.25, stepMs: 16, inBetween: 'blend', stagger: { shape: 'sweep', width: 0 }, persistence: null }
+    const parse = (input: unknown) => parseRenderArgs(['--demo', 'A', '--slowmo', JSON.stringify(input)]).slowMo
+
+    it.each(['clock', 'hold', 'blend', 'eased'])('accepts complete %s settings across rates and steps', inBetween => {
+      for (const rate of [1, 1 / 4, 1 / 32]) for (const stepMs of [16, 32]) {
+        const expected = { ...settings, rate, stepMs, inBetween }
+        expect(parse(expected)).toEqual(expected)
+      }
+    })
+    it.each(['sweep', 'radial', 'scatter'])('copies only known fields for %s', shape => {
+      const expected = { ...settings, stagger: { shape, width: 0 } }
+      expect(parse({ ...expected, extra: true, stagger: { ...expected.stagger, extra: true } })).toEqual(expected)
+    })
+    it('accepts the runtime numeric bounds beyond the lab stops', () => {
+      expect(parse({ ...settings, rate: Number.MIN_VALUE, stepMs: 32767 })).toEqual({ ...settings, rate: Number.MIN_VALUE, stepMs: 32767 })
+    })
+    it('preserves omission for Patterns and Shows', () => {
+      expect(parseRenderArgs(['--demo', 'A']).slowMo).toBeNull()
+      expect(parseRenderArgs(['--show', 'stock-show-x']).slowMo).toBeNull()
+    })
+    it('requires a flag value', () => {
+      expect(() => parseRenderArgs(['--demo', 'A', '--slowmo'])).toThrow('--slowmo requires a value.')
+    })
+    it.each(['{', 'null', '[]', '1', '"settings"'])('rejects non-object JSON %s', raw => {
+      expect(() => parseRenderArgs(['--demo', 'A', '--slowmo', raw])).toThrow('--slowmo requires a SlowMoSettings JSON object.')
+    })
+    it.each([
+      ['rate', [undefined, 0, -1, 1.1, '0.25', 1e308], '--slowmo rate must be finite and in (0, 1].'],
+      ['stepMs', [undefined, 0, -1, 32768, '16', 1e308], '--slowmo stepMs must be finite and in (0, 32767].'],
+      ['inBetween', [undefined, 'future'], '--slowmo inBetween must be clock, hold, blend, or eased.'],
+      ['stagger', [undefined, null, [], { width: 0 }, { shape: 'future', width: 0 }, { shape: 'sweep', width: 0.1 }, { shape: 'sweep' }], '--slowmo stagger must have shape sweep, radial, or scatter and width 0 in slice A.'],
+      ['persistence', [undefined, {}, { attackMs: 0, decayMs: 0 }], '--slowmo persistence must be null in slice A.'],
+    ] as const)('rejects invalid or missing %s', (field, values, message) => {
+      for (const value of values) expect(() => parse({ ...settings, [field]: value })).toThrow(message)
+    })
+    it.each([false, true])('rejects Show settings in either argument order (first=%s)', first => {
+      const slowMo = ['--slowmo', JSON.stringify(settings)]
+      const show = ['--show', 'stock-show-x']
+      expect(() => parseRenderArgs(first ? [...slowMo, ...show] : [...show, ...slowMo]))
+        .toThrow('--slowmo is supported for Pattern renders only.')
+    })
+    it('rejects Show slow-mo independently of explicit fidelity', () => {
+      expect(() => parseRenderArgs(['--show', 'stock-show-x', '--fidelity', 'precise', '--slowmo', JSON.stringify(settings)]))
+        .toThrow('--slowmo is supported for Pattern renders only.')
+    })
   })
 
   it('accepts --file with --demo naming the mount point, keeping the file name', () => {
