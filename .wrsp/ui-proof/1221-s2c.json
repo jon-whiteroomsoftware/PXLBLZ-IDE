@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1221",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-select-1218",
+  "operation": "On the production authenticated route with the synthetic helper, selected all three Saved rows including the running Pattern. Verified its visible Delete exclusion reason and checked state at 1440px and 760px, then confirmed Delete listed only Owned Aurora and Owned Embers and cancelled without mutation. All three focused bulk-selection/Run/responsive Chromium flows passed. Repo Playwright fallback followed empty in-app browser discovery and two unavailable-iab probes; captures were opened and inspected. Known central/header narrow clipping remains for S4 reporting.",
+  "captures": [".wrsp/ui-proof/1221-s2c-desktop.png", ".wrsp/ui-proof/1221-s2c-narrow.png"],
+  "capturedAtCommit": "fc031a3c93ae550594add2a3a82a27d52d8e8fde"
+}
