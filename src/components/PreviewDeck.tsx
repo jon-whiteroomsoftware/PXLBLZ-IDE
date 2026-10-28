@@ -20,6 +20,8 @@ import {
 import { effectivePixelCount } from '@/engine/layout'
 import { CoordinateViewSelect, MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
 import { SpeedSelector } from '@/components/SpeedSelector'
+import { SlowMoLab } from '@/components/SlowMoLab'
+import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
 import { ControlsPanel } from '@/components/ControlsPanel'
@@ -370,6 +372,8 @@ export function PreviewViewportSection({
   const pattern = profile === 'pattern'
   const togglePlayback = usePreviewStore((s) => s.toggle)
   const speed = usePreviewStore(s => s.speed)
+  const slowMo = usePreviewStore(s => s.slowMo)
+  const setSlowMo = usePreviewStore(s => s.setSlowMo)
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
   const summaryMode = pattern && Boolean(mode)
 
@@ -456,6 +460,9 @@ export function PreviewViewportSection({
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
         )}
       </DeckGrid>
+      {pattern && slowMoEnabled() && (
+        <SlowMoLab settings={slowMo} onChange={setSlowMo} declined={null} arrayWords={null} />
+      )}
       {pattern && (
         <DeckGrid gapY="gap-y-[3px]" className="mb-[5px] -mt-1.5">
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />

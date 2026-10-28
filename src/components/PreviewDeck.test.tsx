@@ -1,7 +1,8 @@
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { PreviewDeck } from './PreviewDeck'
+import { PreviewDeck, PreviewViewportSection } from './PreviewDeck'
+import userEvent from '@testing-library/user-event'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
@@ -9,12 +10,50 @@ import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
 import { AUTO_MAP_ID } from '@/engine/settings'
 
+const originalUrl = location.href
+afterEach(() => history.replaceState(null, '', originalUrl))
+
 beforeEach(() => {
+  history.replaceState(null, '', location.pathname)
   usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true } })
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+})
+
+describe('Preview slow-mo lab gate', () => {
+  const settings = { rate: 1, stepMs: 16, inBetween: 'hold', stagger: { shape: 'sweep', width: 0 }, persistence: null } as const
+
+  it.each(['', '?slowmo=0', '?slowmo=true'])('hides the panel with %s despite stale active settings (I18 panel absence only)', (query) => {
+    history.replaceState(null, '', `${location.pathname}${query}`)
+    usePreviewStore.setState({ slowMo: settings })
+    render(<PreviewViewportSection profile="pattern" />)
+    expect(screen.queryByTestId('slowmo-lab')).not.toBeInTheDocument()
+  })
+
+  it('shows the flagged Pattern panel and writes complete settings through the actual store', async () => {
+    const user = userEvent.setup()
+    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
+    render(<PreviewViewportSection profile="pattern" />)
+    expect(screen.getByTestId('slowmo-lab')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy generated code' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Slow-mo method' }))
+    await user.click(screen.getByRole('option', { name: 'Hold' }))
+    expect(usePreviewStore.getState().slowMo).toEqual(settings)
+    expect(screen.getByRole('button', { name: 'Slow-mo rate' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Slow-mo method' }))
+    await user.click(screen.getByRole('option', { name: 'Off' }))
+    expect(usePreviewStore.getState().slowMo).toBeNull()
+    expect(screen.getByRole('button', { name: 'Slow-mo rate' })).toBeDisabled()
+  })
+
+  it('never mounts in the Show profile with the flag and active settings', () => {
+    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
+    usePreviewStore.setState({ slowMo: settings })
+    render(<PreviewViewportSection profile="show" />)
+    expect(screen.queryByTestId('slowmo-lab')).not.toBeInTheDocument()
+  })
 })
 
 describe('PreviewDeck (smoke)', () => {
