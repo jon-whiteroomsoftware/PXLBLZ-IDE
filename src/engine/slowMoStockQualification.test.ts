@@ -10,7 +10,7 @@ const settings: SlowMoSettings = {
   rate: 1 / 4, stepMs: 16, inBetween: 'blend',
   stagger: { shape: 'sweep', width: 0 }, persistence: null,
 }
-const paletteIds = new Set(['AuroraSphere', 'FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
+const paletteIds = new Set(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
 const stock = Object.entries(DEMOS).sort(([a], [b]) => a.localeCompare(b)).map(([id, source]) => {
   const base = bundle(source, LIBRARIES)
   const dimension = nativeDimension(base.metadata.renderFns)
@@ -35,11 +35,14 @@ function assertPixels(result: FastReplayResult, length: number, context: string)
   })
 }
 
-describe('I16 runtime subset; exact refusal census pending #1236', () => {
-  it('reports the diagnostic refusal census without claiming the four-Pattern floor', () => {
+describe('I16 full stock sweep', () => {
+  it('declines exactly the three palette callers and wraps AuroraSphere despite its paint comment', () => {
     expect(stock.length).toBeGreaterThan(0)
     const declined = stock.filter(({ wrapped }) => wrapped.summary.passes[0].declined).map(({ id }) => id)
-    console.info(`I16 runtime subset; exact refusal census pending #1236: ${stock.length} stock Patterns; observed declines: ${declined.join(', ')}`)
+    expect(declined.sort()).toEqual(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
+    const aurora = stock.find(({ id }) => id === 'AuroraSphere')
+    expect(aurora).toBeDefined()
+    expect(aurora!.wrapped.summary.passes[0].declined).toBeUndefined()
   })
 
   for (const { id, base, wrapped, dimension, points } of stock) {

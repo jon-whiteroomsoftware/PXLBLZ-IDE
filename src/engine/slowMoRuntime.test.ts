@@ -49,7 +49,7 @@ for (const mode of modes) {
     for (const [entry, args, dimension] of [
       ['render', 'index', 1], ['render2D', 'index,x,y', 2], ['render3D', 'index,x,y,z', 3],
     ] as const) {
-      it.each(['rgb', 'hsv', 'hsv24', 'none'])(`I2 ${entry} preserves lagged real frames with %s`, sink => {
+      it.each(['rgb', 'hsv', 'hsv24', 'none'])(`I2 ${entry} preserves previous real frames after single-real-step advances with %s`, sink => {
         const call = sink === 'none' ? '' : `${sink}(count/16, index/4, 0.5)`
         const source = `export var count=0; export function beforeRender(d){count+=1}
 export function ${entry}(${args}) {${call}}`
@@ -57,15 +57,65 @@ export function ${entry}(${args}) {${call}}`
         const wrapped = runtime(source, mode, dimension)
         let previous = base.advanceLive(0).pixels
         close(wrapped.advanceLive(0).pixels, previous, tolerance)
+        // At rate 1/4, each 64 ms display advance runs exactly one 16 ms real step.
         for (let i = 0; i < 5; i++) {
           const next = base.advanceLive(16).pixels
           close(wrapped.advanceLive(64).pixels, previous, sink === 'rgb' && mode === 'fast' ? 0 : tolerance)
           previous = next
         }
       })
+
+      it.each(['hold', 'blend', 'eased'] as const)(`I2 catch-up ${entry} preserves histories and latest captures with %s`, inBetween => {
+        const source = `export var calls=0, renders=0
+export var deltas=array(16), ticks=array(16)
+export function beforeRender(delta) {
+  deltas[calls]=delta
+  ticks[calls]=time(0.015625)
+  calls+=1
+}
+export function ${entry}(${args}) {
+  renders+=1
+  rgb((calls-1)/16,ticks[calls-1],index/4)
+}`
+        const base = runtime(source, mode, dimension, false)
+        const captures = [base.advanceLive(0).pixels.map(pixel => [...pixel])]
+        for (let i = 0; i < 6; i++) captures.push(base.advanceLive(16).pixels.map(pixel => [...pixel]))
+        const prepared = artifact(source, { ...settings, rate: 1, inBetween })
+        const wrapped = createFastReplayRuntime({ ...prepared, dimension }, {
+          mapPoints: points, randomSeed: 7, fidelity: mode,
+        })
+        const c = inBetween === 'hold' ? 0 : inBetween === 'blend' ? 0.25 : 0.15625
+        const interpolate = (a: number, b: number) => captures[a].map((pixel, i) =>
+          pixel.map((value, channel) => value + (captures[b][i][channel] - value) * c))
+        // A capture traverses the inner renderer once, even when several clock steps run.
+        const rows = [
+          { delta: 0, calls: 1, renders: 3, pixels: captures[0] },
+          { delta: 48, calls: 4, renders: 6, pixels: captures[0] },
+          { delta: 4, calls: 4, renders: 6, pixels: interpolate(0, 3) },
+          { delta: 12, calls: 5, renders: 9, pixels: captures[3] },
+          { delta: 32, calls: 7, renders: 12, pixels: captures[4] },
+          { delta: 4, calls: 7, renders: 12, pixels: interpolate(4, 6) },
+        ]
+        for (const row of rows) {
+          const result = wrapped.advanceLive(row.delta)
+          // Replay getters expose mutable state: snapshot pixels and exports before advancing.
+          const pixels = result.pixels.map(pixel => [...pixel])
+          const exports = result.exports
+          const decode = (value: unknown) => Number(value) / (mode === 'fast' ? 1 : 65536)
+          const calls = decode(exports.calls)
+          const renders = decode(exports.renders)
+          const deltas = Array.from(exports.deltas as ArrayLike<number>).slice(0, row.calls).map(decode)
+          const ticks = Array.from(exports.ticks as ArrayLike<number>).slice(0, row.calls).map(decode)
+          expect.soft(calls).toBe(row.calls)
+          expect.soft(deltas).toEqual(Array.from({ length: row.calls }, (_, i) => i === 0 ? 0 : 16))
+          expect.soft(ticks).toEqual(Array.from({ length: row.calls }, (_, i) => i / 64))
+          expect(renders).toBe(row.renders)
+          close(pixels, row.pixels, mode === 'fast' ? 0 : 2 ** -8)
+        }
+      })
     }
 
-    it('I2 clock and top-level time run finitely through several real frames', () => {
+    it('I2 clock and top-level time preserve previous frames after single-real-step advances', () => {
       const source = `var initial=time(0.25); var t=0;
 export function beforeRender(d){t=time(0.25)}
 export function render(i){rgb(initial+t, time(1), 0)}`
@@ -73,6 +123,7 @@ export function render(i){rgb(initial+t, time(1), 0)}`
       const wrapped = runtime(source, mode)
       let previous = base.advanceLive(0).pixels
       close(wrapped.advanceLive(0).pixels, previous, tolerance)
+      // Each 64 ms display advance at rate 1/4 runs exactly one real step.
       for (let i = 0; i < 8; i++) {
         const next = base.advanceLive(16).pixels
         close(wrapped.advanceLive(64).pixels, previous, tolerance)

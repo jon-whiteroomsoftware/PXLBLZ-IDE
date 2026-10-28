@@ -313,8 +313,10 @@ exact `code`/`fxCode` and exposes its reason in the summary.
 
 The six wrapper arrays cost `6N + 24` words (1,560 at 256 pixels), excluding
 authored arrays. Clock mode without persistence uses an empty recipe. The
-current wrapper calls inner `beforeRender` at most four times per display
-frame, followed by one capture; multi-step fidelity remains unresolved in
+current wrapper runs at most four inner `beforeRender` steps per display
+frame, once each in order, advancing the clock for each, followed by one
+resulting capture. The display blends the latest two captures and skips
+intermediate real frames on screen, with no extra render pass, as accepted in
 [#1236](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1236).
 Push and Show compilation are unchanged.
 
