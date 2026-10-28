@@ -196,6 +196,10 @@ Read failures describe the observed response bytes. Decoder failures report
 They diagnose neither saved-slot corruption nor the cause or completeness of a
 partial response. An unavailable or undecodable retry response preserves durable
 progress and its diagnostic cause; it is not evidence of a changed slot digest.
+An unreadable retry with a planned or account-saved receipt uses the prefix
+`Import already started; saved program could not be read. Retry checks the same slot.`
+and preserves its diagnostic cause, making no negative claim about whether an
+account copy exists.
 Saved verification proves bytes, so an incomplete activation reports
 `Controller copy verified; activation is unconfirmed. Retry resumes this import.`
 Missing execution evidence uses the neutral progress-read error and retains its

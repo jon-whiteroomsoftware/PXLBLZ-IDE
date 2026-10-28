@@ -336,32 +336,51 @@ describe('running Pattern recovery', () => {
 })
 
 describe('selected-slot Controller Pattern import execution', () => {
-  it.each((['write-pending', 'saved-verified', 'metadata-pending'] as const).flatMap((stage) =>
-    (['null', 'lossless', 'malformed', 'rejected'] as const).map((fault) => ({ stage, fault }))))(
-    'preserves durable $stage on unreadable retry response ($fault)', async ({ stage, fault }) => {
+  it.each([
+    ...(['planned', 'account-saved', 'write-pending', 'saved-verified', 'metadata-pending'] as const)
+      .map((stage) => ({ stage, persistedCopy: false })),
+    { stage: 'planned' as const, persistedCopy: true },
+  ].flatMap((scenario) => (['null', 'lossless', 'malformed', 'rejected'] as const)
+    .map((fault) => ({ ...scenario, fault }))))(
+    'preserves durable $stage on unreadable retry response ($fault, persisted copy: $persistedCopy)', async ({ stage, persistedCopy, fault }) => {
       const f = authoredFixture()
-      f.faults.add(`ledger-${stage}-after`)
+      if (persistedCopy) f.deps.personalContent.createPattern.mockImplementationOnce(async (record) => {
+        f.accounts.set(record.id, structuredClone(record)); f.faults.add('list'); throw new Error('lost POST response')
+      })
+      else f.faults.add(`ledger-${stage}-after`)
       await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+      expect(f.ledger().byPatternId['personal-1'].stage).toBe(stage)
+      expect(f.accounts.size).toBe(stage === 'planned' && !persistedCopy ? 0 : 1)
       const snapshot = () => structuredClone({ accounts: [...f.accounts], programs: [...f.programs],
         ledger: f.ledger(), bindings: f.bindings(), records: f.records(),
         calls: [f.deps.provider.saveProgram.mock.calls.length, f.deps.provider.pushBytecode.mock.calls.length,
+          f.deps.provider.compile.mock.calls.length,
           f.deps.allocatePatternId.mock.calls.length, f.deps.personalContent.createPattern.mock.calls.length] })
       const before = snapshot()
       const diagnostic = fault === 'malformed' ? 'Saved program response could not be decoded as PBP.'
         : fault === 'rejected' ? `Saved program ${slot} response could not be decoded as PBP. Retry reading this saved program.`
           : 'Saved program response is unavailable.'
-      if (fault === 'rejected') f.deps.provider.readSavedProgram.mockRejectedValueOnce(new Error(diagnostic))
+      const readError = new Error(diagnostic)
+      if (fault === 'rejected') f.deps.provider.readSavedProgram.mockRejectedValueOnce(readError)
       else if (fault === 'null') f.deps.provider.readSavedProgram.mockResolvedValueOnce(null)
       else f.deps.provider.readSavedProgram.mockResolvedValueOnce({ programId: slot, deviceName: '', sourceCode: source,
         stamp: null, ...(fault === 'malformed' ? { storedArtifact: { pbp: Uint8Array.of(1), sourceCode: source } } : {}) })
       const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+      expect(failure).toBeInstanceOf(ControllerPatternImportExecutionError)
       expect(failure).toMatchObject({ stage, patternId: 'personal-1', programId: slot,
         cause: { message: diagnostic }, message: expect.stringContaining(diagnostic) })
+      if (fault === 'rejected') expect((failure as Error).cause).toBe(readError)
       expect((failure as Error).message).not.toContain('Saved Pattern changed')
-      expect((failure as Error).message).toContain(stage === 'write-pending'
+      expect((failure as Error).message).not.toContain('No Pattern was imported')
+      if (stage === 'planned' || stage === 'account-saved') expect((failure as Error).message).toBe(
+        `Import already started; saved program could not be read. Retry checks the same slot. ${diagnostic}`)
+      else expect((failure as Error).message).toContain(stage === 'write-pending'
         ? 'a prior Controller write may have completed' : 'Controller copy verified')
       expect(snapshot()).toEqual(before)
       await expect(importControllerPattern(input, f.deps)).resolves.toEqual({ patternId: 'personal-1', programId: slot, complete: true })
+      expect(f.deps.allocatePatternId).toHaveBeenCalledTimes(1)
+      expect(f.accounts.size).toBe(1)
+      expect(f.deps.personalContent.createPattern).toHaveBeenCalledTimes(1)
     })
 
   it.each(['binding-before', 'ledger-complete-before'])('reports confirmed running without drain after %s', async (fault) => {

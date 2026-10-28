@@ -55,6 +55,7 @@ const messages = {
   bookkeeping: 'Controller binding saved; import bookkeeping is incomplete. Retry finishes this import.',
   destination: 'The import binding points to another saved program. Refresh before retrying.',
   unreadable: 'Saved program could not be read. No Pattern was imported.',
+  retryUnreadable: 'Import already started; saved program could not be read. Retry checks the same slot.',
   progressRead: 'Import progress could not be read. Retry checks this saved program again.',
   compile: 'Saved Pattern source cannot compile. Nothing was sent.',
 }
@@ -105,7 +106,7 @@ export async function importControllerPattern(
         ? 'Account copy saved; a prior Controller write may have completed. Retry checks the same slot.'
         : durableStage === 'saved-verified' ? messages.activate
           : 'Controller copy verified; account binding or import bookkeeping is incomplete. Retry finishes this import.'
-      : message
+      : message === messages.unreadable && receipt ? messages.retryUnreadable : message
     return new ControllerPatternImportExecutionError(reportedMessage, reportedStage,
       receipt?.patternId ?? null, input.programId, cause)
   }
