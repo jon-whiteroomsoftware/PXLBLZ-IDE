@@ -15,6 +15,7 @@ import { prepareControllerArtifactDelivery } from './controllerArtifactDelivery'
 import { loadPattern } from './loadPattern'
 import { createShim } from './shim'
 import { createPlaneMap } from './maps'
+import { queueControllerDeviceWrite } from './controllerDeviceWriteQueue'
 
 const source = '// Author: Ada\nexport function render(i) { rgb(0.8, 0.4, 0.2) }'
 const slot = makeProgramId(() => 0)
@@ -69,6 +70,7 @@ function makeDeps() {
   })
   let allocated = 0
   const provider = {
+    getConfig: vi.fn(async (): Promise<{ activeProgramId?: string }> => ({ activeProgramId: 'unrelated' })),
     compile: vi.fn(async () => { fail('compile'); return goodBytecode(12) }),
     getActiveProgramBytecodeSize: vi.fn(async (): Promise<number | null> => 8),
     pushBytecode: vi.fn(async (_bytes: Uint8Array, _opts: { id: string; name: string }) => { fail('activate') }),
@@ -115,6 +117,159 @@ function authoredFixture() {
   f.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source })
   return f
 }
+
+function runningFixture() {
+  const f = authoredFixture()
+  const prior = { programId: 'previous', name: 'Prior saved Pattern', bytecode: goodBytecode(20) }
+  prior.bytecode[8] = 71
+  f.programs.set(prior.programId, encodePbp({ id: prior.programId, name: prior.name,
+    byteCode: prior.bytecode, sourceCode: source, previewImage: new Uint8Array() }))
+  let running = { ...prior, bytecode: prior.bytecode.slice() }
+  let size: number | null = null
+  const order: string[] = []
+  f.deps.provider.getConfig.mockImplementation(async () => ({ activeProgramId: running.programId }))
+  f.deps.provider.getActiveProgramBytecodeSize.mockImplementation(async () => size)
+  f.deps.provider.pushBytecode.mockImplementation(async (bytes, opts) => {
+    order.push(opts.id)
+    running = { programId: opts.id, name: opts.name, bytecode: bytes.slice() }
+    size = bytes.length
+  })
+  return { ...f, prior, running: () => running, order,
+    deps: { ...f.deps, mintDrainId: () => 'drain' } }
+}
+
+describe('running Pattern recovery', () => {
+  const unreadable = "The running Pattern's saved copy could not be read or validated. No drain was sent."
+  const previous = 'Previous Pattern restored from its saved copy.'
+  const unconfirmed = 'Recovery is unconfirmed; the Controller may still show the drain.'
+  const noWrites = (f: ReturnType<typeof runningFixture>) => {
+    expect(f.deps.provider.pushBytecode).not.toHaveBeenCalled()
+    expect(f.deps.provider.saveProgram).not.toHaveBeenCalled()
+    expect(f.running()).toEqual(f.prior)
+  }
+  it.each(['no-id', 'config-rejection', 'changed-id'])('refuses before drain on %s', async (kind) => {
+    const f = runningFixture()
+    if (kind === 'no-id') f.deps.provider.getConfig.mockResolvedValue({ activeProgramId: ' ' })
+    if (kind === 'config-rejection') f.deps.provider.getConfig.mockRejectedValue(new Error('config lost'))
+    if (kind === 'changed-id') f.deps.provider.getConfig.mockResolvedValueOnce({ activeProgramId: 'previous' })
+      .mockResolvedValueOnce({ activeProgramId: 'other' })
+    const reason = kind === 'no-id' ? 'The running Pattern has no active ID. No drain was sent.'
+      : kind === 'changed-id' ? 'The running Pattern changed during recovery capture. No drain was sent.'
+        : 'The running Pattern could not be read. No drain was sent.'
+    await expect(importControllerPattern(input, f.deps)).rejects.toThrow(reason)
+    noWrites(f)
+  })
+  it.each(['absent', 'read-rejection', 'no-artifact', 'decode', 'header'])(
+    'refuses before drain for prior saved copy %s', async (kind) => {
+      const f = runningFixture()
+      const read = f.deps.provider.readSavedProgram.getMockImplementation()!
+      f.deps.provider.readSavedProgram.mockImplementation(async (id) => {
+        const saved = await read(id)
+        if (id !== 'previous') return saved
+        if (kind === 'absent') return null
+        if (kind === 'read-rejection') throw new Error('file lost')
+        if (kind === 'no-artifact') return saved && { ...saved, storedArtifact: undefined }
+        return saved && { ...saved, storedArtifact: { ...saved.storedArtifact!, pbp: kind === 'decode'
+          ? Uint8Array.of(1, 2) : encodePbp({ id, name: 'bad', sourceCode: source,
+            byteCode: new Uint8Array(12), previewImage: new Uint8Array() }) } }
+      })
+      await expect(importControllerPattern(input, f.deps)).rejects.toThrow(unreadable)
+      noWrites(f)
+    })
+  it.each(['save', 'readback', 'digest'])('restores previous exact running Pattern after %s failure', async (kind) => {
+    const f = runningFixture()
+    const bindings = structuredClone(f.bindings()); const records = structuredClone(f.records())
+    const programs = structuredClone([...f.programs])
+    if (kind === 'save') f.faults.add('save-before')
+    else {
+      const save = f.deps.provider.saveProgram.getMockImplementation()!
+      f.deps.provider.saveProgram.mockImplementationOnce(async (bytes, opts) => {
+        await save(bytes, opts)
+        if (kind === 'readback') f.faults.add('read')
+        else f.programs.set(slot, blob())
+      })
+    }
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    expect(failure).toMatchObject({ message: expect.stringContaining(previous),
+      recovery: { status: 'previous', programId: 'previous', name: f.prior.name }, stage: 'write-pending' })
+    expect(f.running()).toEqual(f.prior)
+    expect(f.order).toEqual(['drain', 'previous'])
+    expect(f.bindings()).toEqual(bindings); expect(f.records()).toEqual(records)
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('write-pending')
+    if (kind === 'save') expect([...f.programs]).toEqual(programs)
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+  })
+  it('runs equality-verified authored delivery when saved-verified bookkeeping fails', async () => {
+    const f = runningFixture(); f.faults.add('ledger-saved-verified-before')
+    const origin = f.programs.get(slot)!.slice()
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    const target = decodePbp(f.programs.get(slot)!)!
+    expect(f.programs.get(slot)).not.toEqual(origin)
+    expect(failure).toMatchObject({ message: expect.stringContaining('Imported Pattern is running.'),
+      recovery: { status: 'imported', programId: slot, name: target.name }, stage: 'write-pending' })
+    expect(f.running()).toEqual({ programId: slot, name: target.name, bytecode: target.byteCode })
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect(f.bindings()['address-A']).toBeUndefined(); expect(f.records()['address-A']).toBeUndefined()
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('write-pending')
+  })
+  it('prefers verified imported bytes on saved-verified retry after ambiguous target failure', async () => {
+    const f = runningFixture(); f.faults.add('ledger-saved-verified-after')
+    await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+    const target = decodePbp(f.programs.get(slot)!)!
+    f.deps.provider.getActiveProgramBytecodeSize.mockResolvedValue(null)
+    const push = f.deps.provider.pushBytecode.getMockImplementation()!
+    let failed = false
+    f.deps.provider.pushBytecode.mockImplementation(async (bytes, opts) => {
+      await push(bytes, opts)
+      if (opts.id === slot && !failed) { failed = true; throw new Error('target response lost') }
+    })
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    expect(failure).toMatchObject({ stage: 'saved-verified', patternId: 'personal-1', programId: slot,
+      recovery: { status: 'imported' }, message: expect.stringContaining('Imported Pattern is running.') })
+    expect(f.running()).toEqual({ programId: slot, name: target.name, bytecode: target.byteCode })
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('saved-verified')
+    expect(f.bindings()['address-A']).toBeUndefined()
+  })
+  it.each(['session', 'transport'])('reports unconfirmed recovery after dispatched drain loses %s', async (kind) => {
+    const f = runningFixture()
+    const push = f.deps.provider.pushBytecode.getMockImplementation()!
+    f.deps.provider.pushBytecode.mockImplementation(async (bytes, opts) => {
+      await push(bytes, opts)
+      if (kind === 'session') f.deps.assertCurrent.mockImplementation(() => { throw new Error('session lost') })
+      else f.deps.provider.getActiveProgramBytecodeSize.mockRejectedValue(new Error('transport lost'))
+      throw new Error('drain response lost')
+    })
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    expect(failure).toMatchObject({ recovery: { status: 'unconfirmed', cause: expect.any(Error) },
+      message: expect.stringContaining(unconfirmed) })
+    expect(f.running().programId).toBe('drain'); expect(f.order).toEqual(['drain'])
+    expect(f.deps.provider.saveProgram).not.toHaveBeenCalled()
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('write-pending')
+  })
+  it('holds the Controller queue until recovery activation settles', async () => {
+    const f = runningFixture(); f.faults.add('save-before')
+    const entered = deferred<void>(); const release = deferred<void>()
+    const push = f.deps.provider.pushBytecode.getMockImplementation()!
+    f.deps.provider.pushBytecode.mockImplementation(async (bytes, opts) => {
+      await push(bytes, opts)
+      if (opts.id === 'previous') { entered.resolve(); await release.promise }
+    })
+    const result = importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    // Also release on the old implementation's failure, keeping red proof bounded.
+    void result.then(() => entered.resolve())
+    await entered.promise
+    const next = vi.fn(async () => { f.order.push('next') })
+    const queued = queueControllerDeviceWrite(f.deps.controllerId, next)
+    const held = f.order.includes('previous')
+    try {
+      await queueControllerDeviceWrite('independent-controller', async () => {})
+      expect(held).toBe(true); expect(next).not.toHaveBeenCalled()
+    }
+    finally { release.resolve(); await result; await queued }
+    expect(f.order).toEqual(['drain', 'previous', 'next'])
+  })
+})
 
 describe('selected-slot Controller Pattern import execution', () => {
   it.each(['reject', 'malformed'])('keeps unreadable retry progress neutral (%s)', async (fault) => {

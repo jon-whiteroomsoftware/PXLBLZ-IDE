@@ -12,7 +12,7 @@ import {
   findControllerPatternImport, readControllerPatternImportLedger, sha256ControllerProgram,
   type ControllerImportStage, type ControllerPatternImportReceipt, type KnownControllerImportSource,
 } from './controllerPatternImport'
-import { activateTarget, drainBeforeUnsafeActivation } from './pushPattern'
+import { activateTarget, drainBeforeUnsafeActivation, requiresControllerDrain } from './pushPattern'
 import { decodePbp, encodePbp } from './pbpEncode'
 import { bundleWithPasses } from './passEngine'
 import { controllerProfilePassRecipe } from './controllerProfilePassRecipe'
@@ -24,7 +24,7 @@ import { withBinding, type BindingStore } from './controllerBinding'
 import { withPushRecord } from './controllerPushRecord'
 
 export interface ControllerPatternImportExecutionDeps {
-  provider: Pick<ControllerProvider, 'compile' | 'getActiveProgramBytecodeSize' | 'pushBytecode' | 'saveProgram' | 'readSavedProgram'>
+  provider: Pick<ControllerProvider, 'compile' | 'getConfig' | 'getActiveProgramBytecodeSize' | 'pushBytecode' | 'saveProgram' | 'readSavedProgram'>
   controllerId: string
   metadataStorage: ControllerMetadataStorage
   personalContent: Pick<PersonalContentProvider, 'listPatterns' | 'createPattern'>
@@ -59,9 +59,13 @@ const messages = {
   compile: 'Saved Pattern source cannot compile. Nothing was sent.',
 }
 
+export type ControllerPatternImportRecovery =
+  | { status: 'imported' | 'previous'; programId: string; name: string }
+  | { status: 'unconfirmed'; cause?: unknown }
+
 export class ControllerPatternImportExecutionError extends Error {
   constructor(message: string, public readonly stage: Stage, public readonly patternId: string | null,
-    public readonly programId: string, cause?: unknown) {
+    public readonly programId: string, cause?: unknown, public readonly recovery?: ControllerPatternImportRecovery) {
     const detail = cause instanceof Error ? cause.message : cause === undefined ? '' : String(cause)
     super(detail && message !== messages.progressRead && !message.includes(detail) ? `${message} ${detail}` : message, { cause })
     this.name = 'ControllerPatternImportExecutionError'
@@ -160,122 +164,10 @@ export async function importControllerPattern(
   try {
     guard()
     return await (deps.queue ?? queueControllerDeviceWrite)(deps.controllerId, async () => {
-      guard()
-      receipt = findControllerPatternImport(await ledger(), input.controllerDeviceId, input.programId)
-      failureMessage = messages.unreadable
-      if (receipt?.stage === 'complete') return { patternId: receipt.patternId, programId: input.programId, complete: true }
-      stage = receipt?.stage ?? 'assessment'
-      const observed = await readSlot()
-      failureMessage = messages.create
-      const patterns = await accounts()
-      const bindings = await call(() => deps.metadataStorage.getControllerBindings())
-      let record: PatternRecord
-      let newIntent = false
-      let action: ReturnType<typeof controllerPatternImportRetry> = 'write'
-      if (!receipt) {
-        if (Object.values(bindings[deps.controllerId] ?? {}).includes(input.programId)) {
-          throw error('This saved program is already linked to an account Pattern.')
-        }
-        const knownSource = await call(() => deps.resolveKnownSource(observed.saved))
-        const assessment = await call(() => assessControllerPatternImport({ programId: input.programId, pbp: observed.pbp, knownSource }))
-        if (!assessment.ok) throw error(assessment.message)
-        const plan = await call(() => createControllerPatternImportPlan({ assessment, patternId: deps.allocatePatternId(),
-          controllerDeviceId: input.controllerDeviceId, programId: input.programId, now: deps.now(), existingNames: patterns.map((r) => r.name) }))
-        receipt = plan.receipt
-        record = plan.record
-        newIntent = true
-      } else {
-        stage = receipt.stage
-        checkBinding(bindings, receipt.patternId)
-        const existing = patterns.find((r) => r.id === receipt!.patternId)
-        if (!existing && receipt.stage !== 'planned') throw error(messages.account)
-        const digest = existing ? await accountDigest(existing) : null
-        if (existing && digest !== receipt.accountRecordDigest) throw error(messages.account)
-        action = controllerPatternImportRetry({ receipt, accountRecordDigest: digest, observedPbpDigest: observed.digest })
-        if (action === 'conflict') throw error(messages.slot)
-        if (!existing) {
-          const knownSource = await call(() => deps.resolveKnownSource(observed.saved))
-          const assessment = await call(() => assessControllerPatternImport({ programId: input.programId, pbp: observed.pbp, knownSource }))
-          if (!assessment.ok || assessment.sourceMode !== receipt.sourceMode) throw error(messages.account)
-          const reconstructed = await call(() => createControllerPatternImportPlan({ assessment,
-            patternId: receipt!.patternId, controllerDeviceId: input.controllerDeviceId, programId: input.programId,
-            now: receipt!.createdAt, existingNames: patterns.map((r) => r.name) }))
-          if (reconstructed.receipt.accountRecordDigest !== receipt.accountRecordDigest) throw error(messages.account)
-          record = reconstructed.record
-        } else record = existing
-      }
-      checkBinding(bindings, receipt.patternId)
-      // Validity beyond the ledger's wire schema is execution-specific. Never
-      // interpret a verified stage without its delivery witness.
-      if (stages.indexOf(receipt.stage) >= stages.indexOf('write-pending') && !receipt.deliveryDigest) throw error(messages.slot)
-      if (receipt.sourceMode === 'authored-verified' && stages.indexOf(receipt.stage) >= stages.indexOf('write-pending')
-        && receipt.profileSignature === undefined) throw error(messages.slot)
-      if (receipt.sourceMode === 'stored-artifact' && receipt.profileSignature !== undefined) throw error(messages.slot)
-      if (receipt.sourceMode === 'stored-artifact' && [receipt.deliveryDigest, receipt.writeBaselineDigest]
-        .some((digest) => digest !== undefined && digest !== receipt!.origin.pbpDigest)) throw error(messages.slot)
-      let profile: ControllerProfile | null = null
-      stage = 'preparation'
-      failureMessage = messages.compile
-      if (receipt.sourceMode === 'authored-verified') {
-        await call(deps.waitForProfileWrites)
-        const loaded = await call(() => deps.loadProfile(receipt!.patternId))
-        profile = loaded.profile
-        signature = loaded.signature
-        guard()
-      }
-      const profileChanged = receipt.sourceMode === 'authored-verified' && receipt.profileSignature !== undefined
-        && receipt.profileSignature !== signature
-      if (profileChanged) action = 'write'
-      let delivery: Uint8Array = observed.pbp.slice()
-      if (newIntent || action === 'write' || action === 'create-account') {
-        const recipe = receipt.sourceMode === 'authored-verified'
-          ? controllerProfilePassRecipe(profile, record.src, record.id) : []
-        if (receipt.sourceMode === 'authored-verified' && deps.mapDim) {
-          recipe.push({ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: deps.mapDim })
-        }
-        const bundled = bundleWithPasses(record.src, deps.libraries, recipe)
-        if (deps.mapDim) {
-          const hardware = planHardwareRenderer(deps.mapDim, bundled.metadata.renderFns, deps.firmwareVersion)
-          if (hardware.firmwareSupport === 'unsupported') throw new Error(hardware.reason ?? 'Unsupported Controller renderer/map combination')
-        }
-        const collision = bundled.warnings.find((w) => w.code === 'renderer-adapter-name-collision')
-        if (collision) throw new Error(collision.message)
-        if (receipt.sourceMode === 'authored-verified') {
-          const bytecode = await call(() => deps.provider.compile(bundled.code))
-          if (!bytecodeHeaderReconciles(bytecode)) throw new Error('Compiled bytecode failed its header sanity check')
-          delivery = encodePbp({ id: input.programId, name: record.name, byteCode: bytecode, previewImage: observed.decoded.jpeg,
-            sourceCode: stampArtifact(bundled.code, { kind: 'pattern', id: record.id, name: record.name,
-              transforms: artifactTransformIds(bundled.summary.passes), stampedAt: new Date(receipt.createdAt) }) })
-        }
-      }
-      guard()
-      stage = 'planned'
-      failureMessage = messages.create
-      if (newIntent) {
-        const planned = receipt
-        receipt = await call(() => mutateControllerPatternImport({ storage: deps.metadataStorage, assertAccountSession: guard },
-          planned.patternId, (current) => {
-            if (current) throw new Error('Import destination already exists')
-            return planned
-          }))
-      }
-      if (!patterns.some((r) => r.id === record.id)) {
-        let postError: unknown
-        try { await call(() => deps.personalContent.createPattern(record)) } catch (cause) {
-          if (cause instanceof ControllerPatternImportExecutionError) throw cause
-          postError = cause
-        }
-        const reopened = (await accounts()).find((r) => r.id === record.id)
-        if (!reopened || await accountDigest(reopened) !== receipt.accountRecordDigest) throw error(messages.create, postError)
-        record = reopened
-      }
-      guard()
-      deps.onPatternVerified?.(structuredClone(record))
-      guard()
-      if (receipt.stage === 'planned') await progress('account-saved')
-
-      let verified = observed
-      let drainedForWrite = false
+      type RunningSnapshot = { programId: string; name: string; bytecode: Uint8Array }
+      let previous: RunningSnapshot | undefined
+      let verifiedTarget: RunningSnapshot | undefined
+      let drainDispatched = false
       const activationDeps = {
         provider: {
           compile: (source: string) => call(() => deps.provider.compile(source)),
@@ -283,67 +175,243 @@ export async function importControllerPattern(
           pushBytecode: (bytes: Uint8Array, opts: { id: string; name: string }) => call(() => deps.provider.pushBytecode(bytes, opts)),
         }, assertDeviceSession: guard, mintDrainId: deps.mintDrainId,
       }
-      if (newIntent || action === 'write' || action === 'create-account') {
-        stage = 'write-pending'
-        failureMessage = messages.write
-        await checkAccount()
-        checkBinding(await call(() => deps.metadataStorage.getControllerBindings()), record.id)
-        const latest = await readSlot()
-        if (latest.digest !== observed.digest) throw error(messages.slot)
-        const deliveryDigest = await call(() => sha256ControllerProgram(delivery))
-        await progress('write-pending', { deliveryDigest, writeBaselineDigest: observed.digest,
-          ...(signature !== undefined ? { profileSignature: signature } : {}) })
-        const decoded = decodePbp(delivery)!
-        await drainBeforeUnsafeActivation(activationDeps, decoded.byteCode.length)
-        drainedForWrite = true
-        await call(() => deps.provider.saveProgram(delivery.slice(), { id: input.programId }))
-        verified = await readSlot()
-        if (verified.digest !== deliveryDigest) throw new Error('Saved PBP readback differs from delivery')
-        await progress('saved-verified')
-      } else if (action === 'activate' && receipt.stage !== 'saved-verified') {
-        stage = 'saved-verified'
-        failureMessage = messages.activate
-        await progress('saved-verified')
-      }
-      if (receipt.stage === 'saved-verified') {
-        stage = 'saved-verified'
-        failureMessage = messages.activate
-        await checkAccount()
-        verified = await readSlot()
-        if (verified.digest !== receipt.deliveryDigest) throw error(messages.slot)
-        if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw error(messages.slot)
-        if (!drainedForWrite) await drainBeforeUnsafeActivation(activationDeps, verified.decoded.byteCode.length)
-        await activateTarget(activationDeps, verified.decoded.byteCode.slice(), { id: input.programId, name: verified.decoded.name })
-        await progress('activated')
-      }
-      stage = 'metadata-pending'
-      failureMessage = messages.binding
-      if (receipt.stage === 'activated') await progress('metadata-pending')
-      if (receipt.stage !== 'metadata-pending') throw error(messages.slot)
-      await metadataTurn(async () => {
-        await checkAccount()
-        verified = await readSlot()
-        if (verified.digest !== receipt!.deliveryDigest) throw error(messages.slot)
-        const latestBindings = await call(() => deps.metadataStorage.getControllerBindings())
-        checkBinding(latestBindings, record.id)
-        await call(() => deps.metadataStorage.setControllerBindings(withBinding(latestBindings, deps.controllerId, record.id, input.programId)))
-        const confirmed = await call(() => deps.metadataStorage.getControllerBindings())
-        if (confirmed[deps.controllerId]?.[record.id] !== input.programId) throw new Error('Binding readback failed')
-        failureMessage = messages.bookkeeping
-        if (receipt!.sourceMode === 'authored-verified') {
-          const banner = parsePxlblzBanner(verified.decoded.sourceCode)
-          if (!banner || banner.id !== record.id || banner.hash !== artifactHash(verified.decoded.sourceCode)) throw new Error('Delivery banner is invalid')
-          const pushRecord = { transforms: banner.transforms, artifactHash: banner.hash, stampedAt: banner.stamped,
-            name: verified.decoded.name, profileSignature: receipt!.profileSignature, sourceHash: artifactHash(record.src) }
-          const latestRecords = await call(() => deps.metadataStorage.getPushRecords())
-          await call(() => setPushRecords(withPushRecord(latestRecords, deps.controllerId, record.id, pushRecord), deps.metadataStorage))
-          const confirmedRecords = await call(() => deps.metadataStorage.getPushRecords())
-          if (stableJson(confirmedRecords[deps.controllerId]?.[record.id]) !== stableJson(pushRecord)) throw new Error('Push record readback failed')
+      const capturePreviousRunning = async (): Promise<void> => {
+        if (previous) return
+        const config = async () => {
+          try { return await call(() => deps.provider.getConfig()) } catch (cause) {
+            if (cause instanceof ControllerPatternImportExecutionError) throw cause
+            throw error('The running Pattern could not be read. No drain was sent.', cause)
+          }
         }
-        await progress('complete')
-      })
-      guard()
-      return { patternId: receipt.patternId, programId: input.programId, complete: true }
+        const id = (await config()).activeProgramId
+        if (!id?.trim()) throw error('The running Pattern has no active ID. No drain was sent.')
+        let snapshot: RunningSnapshot
+        try {
+          const saved = await call(() => deps.provider.readSavedProgram(id))
+          const decoded = saved?.storedArtifact && decodePbp(saved.storedArtifact.pbp.slice())
+          if (!decoded || !bytecodeHeaderReconciles(decoded.byteCode)) throw new Error('Invalid saved PBP')
+          snapshot = { programId: id, name: decoded.name, bytecode: decoded.byteCode.slice() }
+        } catch (cause) {
+          if (cause instanceof ControllerPatternImportExecutionError) throw cause
+          throw error("The running Pattern's saved copy could not be read or validated. No drain was sent.", cause)
+        }
+        if ((await config()).activeProgramId !== id) {
+          throw error('The running Pattern changed during recovery capture. No drain was sent.')
+        }
+        previous = snapshot
+      }
+      const drainForImport = async (incomingBytes: number): Promise<void> => {
+        const residentSize = await activationDeps.provider.getActiveProgramBytecodeSize()
+        if (!requiresControllerDrain(incomingBytes, residentSize)) return
+        await capturePreviousRunning()
+        await drainBeforeUnsafeActivation({ ...activationDeps, provider: {
+          ...activationDeps.provider,
+          getActiveProgramBytecodeSize: async () => residentSize,
+          pushBytecode: (bytes, opts) => call(() => {
+            drainDispatched = true
+            return deps.provider.pushBytecode(bytes, opts)
+          }),
+        } }, incomingBytes)
+      }
+      try {
+        guard()
+        receipt = findControllerPatternImport(await ledger(), input.controllerDeviceId, input.programId)
+        failureMessage = messages.unreadable
+        if (receipt?.stage === 'complete') return { patternId: receipt.patternId, programId: input.programId, complete: true }
+        stage = receipt?.stage ?? 'assessment'
+        const observed = await readSlot()
+        failureMessage = messages.create
+        const patterns = await accounts()
+        const bindings = await call(() => deps.metadataStorage.getControllerBindings())
+        let record: PatternRecord
+        let newIntent = false
+        let action: ReturnType<typeof controllerPatternImportRetry> = 'write'
+        if (!receipt) {
+          if (Object.values(bindings[deps.controllerId] ?? {}).includes(input.programId)) {
+            throw error('This saved program is already linked to an account Pattern.')
+          }
+          const knownSource = await call(() => deps.resolveKnownSource(observed.saved))
+          const assessment = await call(() => assessControllerPatternImport({ programId: input.programId, pbp: observed.pbp, knownSource }))
+          if (!assessment.ok) throw error(assessment.message)
+          const plan = await call(() => createControllerPatternImportPlan({ assessment, patternId: deps.allocatePatternId(),
+            controllerDeviceId: input.controllerDeviceId, programId: input.programId, now: deps.now(), existingNames: patterns.map((r) => r.name) }))
+          receipt = plan.receipt
+          record = plan.record
+          newIntent = true
+        } else {
+          stage = receipt.stage
+          checkBinding(bindings, receipt.patternId)
+          const existing = patterns.find((r) => r.id === receipt!.patternId)
+          if (!existing && receipt.stage !== 'planned') throw error(messages.account)
+          const digest = existing ? await accountDigest(existing) : null
+          if (existing && digest !== receipt.accountRecordDigest) throw error(messages.account)
+          action = controllerPatternImportRetry({ receipt, accountRecordDigest: digest, observedPbpDigest: observed.digest })
+          if (action === 'conflict') throw error(messages.slot)
+          if (!existing) {
+            const knownSource = await call(() => deps.resolveKnownSource(observed.saved))
+            const assessment = await call(() => assessControllerPatternImport({ programId: input.programId, pbp: observed.pbp, knownSource }))
+            if (!assessment.ok || assessment.sourceMode !== receipt.sourceMode) throw error(messages.account)
+            const reconstructed = await call(() => createControllerPatternImportPlan({ assessment,
+              patternId: receipt!.patternId, controllerDeviceId: input.controllerDeviceId, programId: input.programId,
+              now: receipt!.createdAt, existingNames: patterns.map((r) => r.name) }))
+            if (reconstructed.receipt.accountRecordDigest !== receipt.accountRecordDigest) throw error(messages.account)
+            record = reconstructed.record
+          } else record = existing
+        }
+        checkBinding(bindings, receipt.patternId)
+        // Validity beyond the ledger's wire schema is execution-specific. Never
+        // interpret a verified stage without its delivery witness.
+        if (stages.indexOf(receipt.stage) >= stages.indexOf('write-pending') && !receipt.deliveryDigest) throw error(messages.slot)
+        if (receipt.sourceMode === 'authored-verified' && stages.indexOf(receipt.stage) >= stages.indexOf('write-pending')
+          && receipt.profileSignature === undefined) throw error(messages.slot)
+        if (receipt.sourceMode === 'stored-artifact' && receipt.profileSignature !== undefined) throw error(messages.slot)
+        if (receipt.sourceMode === 'stored-artifact' && [receipt.deliveryDigest, receipt.writeBaselineDigest]
+          .some((digest) => digest !== undefined && digest !== receipt!.origin.pbpDigest)) throw error(messages.slot)
+        let profile: ControllerProfile | null = null
+        stage = 'preparation'
+        failureMessage = messages.compile
+        if (receipt.sourceMode === 'authored-verified') {
+          await call(deps.waitForProfileWrites)
+          const loaded = await call(() => deps.loadProfile(receipt!.patternId))
+          profile = loaded.profile
+          signature = loaded.signature
+          guard()
+        }
+        const profileChanged = receipt.sourceMode === 'authored-verified' && receipt.profileSignature !== undefined
+          && receipt.profileSignature !== signature
+        if (profileChanged) action = 'write'
+        let delivery: Uint8Array = observed.pbp.slice()
+        if (newIntent || action === 'write' || action === 'create-account') {
+          const recipe = receipt.sourceMode === 'authored-verified'
+            ? controllerProfilePassRecipe(profile, record.src, record.id) : []
+          if (receipt.sourceMode === 'authored-verified' && deps.mapDim) {
+            recipe.push({ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: deps.mapDim })
+          }
+          const bundled = bundleWithPasses(record.src, deps.libraries, recipe)
+          if (deps.mapDim) {
+            const hardware = planHardwareRenderer(deps.mapDim, bundled.metadata.renderFns, deps.firmwareVersion)
+            if (hardware.firmwareSupport === 'unsupported') throw new Error(hardware.reason ?? 'Unsupported Controller renderer/map combination')
+          }
+          const collision = bundled.warnings.find((w) => w.code === 'renderer-adapter-name-collision')
+          if (collision) throw new Error(collision.message)
+          if (receipt.sourceMode === 'authored-verified') {
+            const bytecode = await call(() => deps.provider.compile(bundled.code))
+            if (!bytecodeHeaderReconciles(bytecode)) throw new Error('Compiled bytecode failed its header sanity check')
+            delivery = encodePbp({ id: input.programId, name: record.name, byteCode: bytecode, previewImage: observed.decoded.jpeg,
+              sourceCode: stampArtifact(bundled.code, { kind: 'pattern', id: record.id, name: record.name,
+                transforms: artifactTransformIds(bundled.summary.passes), stampedAt: new Date(receipt.createdAt) }) })
+          }
+        }
+        guard()
+        stage = 'planned'
+        failureMessage = messages.create
+        if (newIntent) {
+          const planned = receipt
+          receipt = await call(() => mutateControllerPatternImport({ storage: deps.metadataStorage, assertAccountSession: guard },
+            planned.patternId, (current) => {
+              if (current) throw new Error('Import destination already exists')
+              return planned
+            }))
+        }
+        if (!patterns.some((r) => r.id === record.id)) {
+          let postError: unknown
+          try { await call(() => deps.personalContent.createPattern(record)) } catch (cause) {
+            if (cause instanceof ControllerPatternImportExecutionError) throw cause
+            postError = cause
+          }
+          const reopened = (await accounts()).find((r) => r.id === record.id)
+          if (!reopened || await accountDigest(reopened) !== receipt.accountRecordDigest) throw error(messages.create, postError)
+          record = reopened
+        }
+        guard()
+        deps.onPatternVerified?.(structuredClone(record))
+        guard()
+        if (receipt.stage === 'planned') await progress('account-saved')
+
+        let verified = observed
+        let drainedForWrite = false
+        if (newIntent || action === 'write' || action === 'create-account') {
+          stage = 'write-pending'
+          failureMessage = messages.write
+          await checkAccount()
+          checkBinding(await call(() => deps.metadataStorage.getControllerBindings()), record.id)
+          const latest = await readSlot()
+          if (latest.digest !== observed.digest) throw error(messages.slot)
+          const deliveryDigest = await call(() => sha256ControllerProgram(delivery))
+          await progress('write-pending', { deliveryDigest, writeBaselineDigest: observed.digest,
+            ...(signature !== undefined ? { profileSignature: signature } : {}) })
+          const decoded = decodePbp(delivery)!
+          await drainForImport(decoded.byteCode.length)
+          drainedForWrite = true
+          await call(() => deps.provider.saveProgram(delivery.slice(), { id: input.programId }))
+          verified = await readSlot()
+          if (verified.digest !== deliveryDigest) throw new Error('Saved PBP readback differs from delivery')
+          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw error(messages.slot)
+          verifiedTarget = { programId: input.programId, name: verified.decoded.name, bytecode: verified.decoded.byteCode.slice() }
+          await progress('saved-verified')
+        } else if (action === 'activate' && receipt.stage !== 'saved-verified') {
+          stage = 'saved-verified'
+          failureMessage = messages.activate
+          await progress('saved-verified')
+        }
+        if (receipt.stage === 'saved-verified') {
+          stage = 'saved-verified'
+          failureMessage = messages.activate
+          await checkAccount()
+          verified = await readSlot()
+          if (verified.digest !== receipt.deliveryDigest) throw error(messages.slot)
+          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw error(messages.slot)
+          verifiedTarget = { programId: input.programId, name: verified.decoded.name, bytecode: verified.decoded.byteCode.slice() }
+          if (!drainedForWrite) await drainForImport(verified.decoded.byteCode.length)
+          await activateTarget(activationDeps, verified.decoded.byteCode.slice(), { id: input.programId, name: verified.decoded.name })
+          await progress('activated')
+        }
+        stage = 'metadata-pending'
+        failureMessage = messages.binding
+        if (receipt.stage === 'activated') await progress('metadata-pending')
+        if (receipt.stage !== 'metadata-pending') throw error(messages.slot)
+        await metadataTurn(async () => {
+          await checkAccount()
+          verified = await readSlot()
+          if (verified.digest !== receipt!.deliveryDigest) throw error(messages.slot)
+          const latestBindings = await call(() => deps.metadataStorage.getControllerBindings())
+          checkBinding(latestBindings, record.id)
+          await call(() => deps.metadataStorage.setControllerBindings(withBinding(latestBindings, deps.controllerId, record.id, input.programId)))
+          const confirmed = await call(() => deps.metadataStorage.getControllerBindings())
+          if (confirmed[deps.controllerId]?.[record.id] !== input.programId) throw new Error('Binding readback failed')
+          failureMessage = messages.bookkeeping
+          if (receipt!.sourceMode === 'authored-verified') {
+            const banner = parsePxlblzBanner(verified.decoded.sourceCode)
+            if (!banner || banner.id !== record.id || banner.hash !== artifactHash(verified.decoded.sourceCode)) throw new Error('Delivery banner is invalid')
+            const pushRecord = { transforms: banner.transforms, artifactHash: banner.hash, stampedAt: banner.stamped,
+              name: verified.decoded.name, profileSignature: receipt!.profileSignature, sourceHash: artifactHash(record.src) }
+            const latestRecords = await call(() => deps.metadataStorage.getPushRecords())
+            await call(() => setPushRecords(withPushRecord(latestRecords, deps.controllerId, record.id, pushRecord), deps.metadataStorage))
+            const confirmedRecords = await call(() => deps.metadataStorage.getPushRecords())
+            if (stableJson(confirmedRecords[deps.controllerId]?.[record.id]) !== stableJson(pushRecord)) throw new Error('Push record readback failed')
+          }
+          await progress('complete')
+        })
+        guard()
+        return { patternId: receipt.patternId, programId: input.programId, complete: true }
+      } catch (cause) {
+        const original = cause instanceof ControllerPatternImportExecutionError ? cause : error(failureMessage, cause)
+        if (!drainDispatched) throw original
+        const target = verifiedTarget ?? previous
+        let recovery: ControllerPatternImportRecovery
+        try {
+          guard()
+          if (!target) throw new Error('No running Pattern recovery snapshot', { cause })
+          await drainBeforeUnsafeActivation(activationDeps, target.bytecode.length)
+          await activateTarget(activationDeps, target.bytecode.slice(), { id: target.programId, name: target.name })
+          recovery = { status: verifiedTarget ? 'imported' : 'previous', programId: target.programId, name: target.name }
+        } catch (cause) { recovery = { status: 'unconfirmed', cause } }
+        const suffix = recovery.status === 'imported' ? 'Imported Pattern is running.'
+          : recovery.status === 'previous' ? 'Previous Pattern restored from its saved copy.'
+            : 'Recovery is unconfirmed; the Controller may still show the drain.'
+        throw new ControllerPatternImportExecutionError(`${original.message} ${suffix}`, original.stage,
+          original.patternId, original.programId, original, recovery)
+      }
     })
   } catch (cause) {
     if (cause instanceof ControllerPatternImportExecutionError) throw cause

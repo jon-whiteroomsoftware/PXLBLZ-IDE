@@ -191,6 +191,31 @@ verified unchanged-profile copy resumes activation or metadata without compiling
 or re-saving. A changed authored profile first requires valid old retry evidence,
 then uses the observed verified digest as its next write baseline.
 
+Before a required drain, the command captures the running Pattern's saved copy:
+two guarded config reads must report the same nonblank active ID around a
+lossless PBP read, decode and bytecode-header validation. It refuses without
+sending a drain when there is no active ID, the running Pattern cannot be read,
+its saved copy cannot be read or validated, or the active ID changes during
+capture. The visible reason ends `No drain was sent.` An account copy and write
+intent may already exist. A replacement that needs no drain needs no capture.
+
+After drain dispatch, including an ambiguous rejected activation, a failed
+command retains the Controller queue for one bounded recovery attempt. It
+prefers the imported copy once selected-slot readback equals delivery and its
+bytecode header validates, even if the saved-verification ledger mutation
+rejects; otherwise it restores the captured previous saved copy. Recovery uses
+the shared replacement-safety and confirmed-activation helpers, preserving all
+session, profile and view guards. It never saves, changes ledger progress,
+publishes a binding or push record, allocates a destination, or completes the
+failed import. The original error retains its durable stage and identities.
+Confirmed recovery appends `Imported Pattern is running.` or `Previous Pattern
+restored from its saved copy.` to that error; the command still fails.
+
+The previous snapshot is a saved copy: restoring it does not restore unsaved
+live code. A guard or transport failure can leave recovery unconfirmed; the
+error explicitly says `Recovery is unconfirmed; the Controller may still show
+the drain.` Recovery neither reconnects nor bypasses a guard.
+
 Bindings and authored push records are merged from fresh reads and confirmed by
 readback. Short metadata turns serialize concurrent import commands so sibling
 keys survive; this is client-local coordination, separate from the ledger owner.
@@ -271,6 +296,13 @@ stale-session rejection. `controllerPatternImportExecution.test.ts` exercises
 creation, same-slot writes, exact readback/activation, persistent-response
 failures, stable retries, profile changes and concurrent Controller intents
 through reopening fakes and the real ledger owner/device queues.
+Stateful running-Pattern regressions cover every pre-drain capture refusal,
+exact previous-byte restoration after Save/readback failure, equality-verified
+authored delivery recovery after ledger failure, verified retry preference,
+ambiguous drain dispatch with session/transport loss, and queue ownership until
+recovery settles. The fakes change running identity and bytes before activation
+settles; assertions check that state and the visible error. These are software
+proofs; physical Controller recovery remains hardware evidence.
 
 `controllerStore.test.ts` reopens imported records and policy, edits ordinary
 Pattern fields, then calls real manual Save and generated-Pattern sends. Decoded
