@@ -156,6 +156,7 @@ export function DeckSelect<T extends string | number>({
             onClick={() => {
               onChange(opt.value)
               setIsOpen(false)
+              window.setTimeout(() => triggerRef.current?.focus(), 0)
             }}
             onKeyDown={(event) => handleOptionKeyDown(event, i)}
             className={`block w-full whitespace-nowrap text-left px-3 py-0.5 text-xs tabular-nums transition-colors hover:bg-zinc-800 ${

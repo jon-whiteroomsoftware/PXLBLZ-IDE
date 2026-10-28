@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { DeckSelect } from './DeckSelect'
@@ -112,6 +112,40 @@ describe('DeckSelect keyboard navigation', () => {
     await user.click(screen.getByRole('option', { name: 'Strand' }))
 
     expect(onChange).toHaveBeenCalledWith('strand')
+  })
+
+  it.each([
+    { activation: 'Enter', portaled: false },
+    { activation: 'Enter', portaled: true },
+    { activation: 'click', portaled: false },
+    { activation: 'click', portaled: true },
+  ])('returns focus after $activation selection with portaled=$portaled', async ({ activation, portaled }) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <DeckSelect
+        ariaLabel="Map"
+        value="square"
+        options={[
+          { value: 'square', label: 'Square' },
+          { value: 'cube', label: 'Cube' },
+        ]}
+        onChange={onChange}
+        portaled={portaled}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: 'Map' })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    const cube = screen.getByRole('option', { name: 'Cube' })
+    expect(cube).toHaveFocus()
+    if (activation === 'Enter') await user.keyboard('{Enter}')
+    else await user.click(cube)
+
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('cube')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it('remeasures an unclamped menu after it closes and reopens', async () => {
