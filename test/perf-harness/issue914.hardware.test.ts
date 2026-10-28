@@ -46,7 +46,8 @@ const CASES = [
     name: 'IridescentFibers',
     rule: 'A (beforeRender table)',
     base: () => readFileSync(join(FIXTURES_DIR, 'IridescentFibers.preopt.js'), 'utf8'),
-    transformed: () => readFileSync(join(PATTERNS_DIR, 'IridescentFibers.js'), 'utf8'),
+    // Freeze #916's historical transform before #1242.
+    transformed: () => readFileSync(join(HERE, 'fixtures/issue1242/IridescentFibers.preedit.js'), 'utf8'),
   },
   {
     name: 'ClockworkIris',

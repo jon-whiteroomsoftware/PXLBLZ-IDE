@@ -29,6 +29,20 @@ or Gallery Show is missing a keyframe or its key is stale (Show artifacts are
 named `show--<id>.json.gz`; pass the Show id to regenerate one). To hand-pick a poster moment, add
 the Pattern to `src/pixelblaze/stock/keyframeOverrides.ts` and re-run.
 
+Editing an existing stock Pattern also changes the compile inputs of every Show
+that uses it, even when the Show catalogue is unchanged. Run
+`scripts/show-v2-parity.test.ts` and `src/engine/showV2Baselines.test.ts` alongside
+the stock census checks. An intentional source change can move the recipe hashes
+in `docs/reference/evidence/issue-1063-flat-transition-multizone/census-lowering.json`
+and the compiled, EPE, and runtime evidence in
+`docs/reference/evidence/issue-1042-v2-baselines/`. Measure every changed record,
+preserve routing and capacity verdicts, and update only the affected pins with a
+recensus note. Generate the v2 baselines with `npm run show:v2-baselines -- --write`
+on the Node major recorded in `baselines.json`'s `generator.nodeMajor`; that major
+can differ from the Gallery keyframe generator's. Update the two file digests in
+`showV2Baselines.test.ts` after checking the per-record and runtime-frame diffs.
+Keep historical source fixtures unchanged.
+
 ## Adding a stock demo Pattern
 
 Stock demos are built in themed cohorts of three, one per dimensionality

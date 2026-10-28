@@ -120,7 +120,7 @@ describe('inventoried lowering census', () => {
       route: prepared.provenance.route,
       recipeSha256: sha256(stableJson(prepared.recipe)),
       ...(expected!.sourceSha256 ? { sourceSha256: sha256(stableJson(compileShow(prepared.recipe, libraries))) } : {}),
-    }).toEqual(expected) // re-pinned when track time moved to seconds (#1197)
+    }).toEqual(expected) // re-pinned when track time moved to seconds (#1197); intentional stock-source recensus for #1242
   }
 
   it('keeps every converted v1 record on its route, recipe and bytes', { timeout: 60_000 }, () => {
