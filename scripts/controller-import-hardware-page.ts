@@ -26,12 +26,15 @@ export async function installBenchPageAccess(page: Page, origin: string): Promis
     let store: ControllerStore | undefined
     let getter: (() => ControllerProvider) | undefined
     let ambiguous = false
-    const assertReady = () => {
-      if (ambiguous) throw new Error('Ambiguous page Controller store')
-      if (!store || !getter || !constructors.size) throw new Error('Page Controller modules are unavailable')
+    // Method syntax keeps tsx keepNames from adding an external __name dependency to this serialized callback.
+    const guards = {
+      assertReady() {
+        if (ambiguous) throw new Error('Ambiguous page Controller store')
+        if (!store || !getter || !constructors.size) throw new Error('Page Controller modules are unavailable')
+      },
     }
     window.__benchPageAccess = {
-      assertReady,
+      assertReady: guards.assertReady,
       registerStore(next, nextGetter) {
         if (store && (store !== next || getter !== nextGetter)) {
           ambiguous = true
@@ -73,13 +76,13 @@ export async function installBenchPageAccess(page: Page, origin: string): Promis
         constructors.add(constructor)
       },
       getProvider() {
-        assertReady()
+        guards.assertReady()
         const provider = getter!()
         for (const constructor of constructors) if (provider instanceof constructor) return provider
         throw new Error('Real ExtensionControllerProvider is required')
       },
       getSaveState() {
-        assertReady()
+        guards.assertReady()
         const { pushing, pushResult } = store!.getState()
         return { pushing, pushResult }
       },

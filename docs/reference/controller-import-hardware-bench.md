@@ -479,6 +479,9 @@ Missing registrations, ambiguous distinct stores, Null and fixture providers
 fail closed. The offline regression uses the actual provider class with memory
 delegates and a throwing transport; it proves module identity and admission
 ordering, not Controller connectivity, protocol behavior or S4 qualification.
+The standard tsx command's serialized page callback is self-contained. An
+actual-tsx VM regression covers callback serialization and memory delegates;
+the existing real-class browser cases cover page module identity.
 Save admission checks readable PBP
 name/source/header and the actual Controller slot ID, independently of the
 account Pattern banner ID. An existing unrelated slot cannot be admitted by
