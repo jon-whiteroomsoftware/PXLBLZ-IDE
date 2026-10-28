@@ -5,9 +5,78 @@ import { recoverSavedProgram, type RecoveredSavedProgram } from '../src/engine/c
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
 
 export const PROBE_HOST = '192.168.8.196'
-export const PROBE_FIDELITY = 'No extension relay, UI or store guards; the Controller sees the same request sequence.'
+export const PROBE_FIDELITY = 'Direct engine/protocol probe without extension relay, UI or store guards; probe HTTP scheduling and cancellation differ.'
 export type ProbePhase = 'setup' | 'import' | 'observation' | 'restore'
 export type ProbeFields = Record<string, unknown>
+export class ProbeHttpQueue {
+  private active = 0
+  private readonly waiting: (() => void)[] = []
+  readonly stats = { admitted: 0, cancelled: 0, maxConcurrent: 0, totalWaitMs: 0, maxWaitMs: 0 }
+  constructor(readonly mode: 'overlap' | 'serial', readonly recorder: ProbeEventRecorder,
+    private readonly now = () => performance.now()) {}
+  run<T>(operation: string, fields: ProbeFields, action: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    const queuedAt = this.now()
+    return this.recorder.span('http.queue', { ...fields, requestOperation: operation, mode: this.mode }, async (details) => {
+      try { await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          const index = this.waiting.indexOf(admit)
+          if (index >= 0) this.waiting.splice(index, 1)
+          this.stats.cancelled++
+          reject(signal?.reason ?? new Error('HTTP turn cancelled'))
+        }
+        const admit = () => {
+          signal?.removeEventListener('abort', abort)
+          if (signal?.aborted) { abort(); return }
+          this.active++; this.stats.admitted++
+          this.stats.maxConcurrent = Math.max(this.stats.maxConcurrent, this.active)
+          resolve()
+        }
+        if (signal?.aborted) { abort(); return }
+        signal?.addEventListener('abort', abort, { once: true })
+        if (this.mode === 'overlap' || this.active === 0) admit()
+        else this.waiting.push(admit)
+      }) } finally {
+        const waitMs = this.now() - queuedAt
+        details.queueWaitMs = waitMs
+        this.stats.totalWaitMs += waitMs; this.stats.maxWaitMs = Math.max(this.stats.maxWaitMs, waitMs)
+      }
+      // End the explicit queue span at admission; request service time is separate.
+    }).then(async () => {
+      try { signal?.throwIfAborted(); return await action() }
+      finally { this.active--; this.waiting.shift()?.() }
+    })
+  }
+}
+
+export type ProbeStop = { phase: ProbePhase; operation: string; saveOrdinal?: number; slot?: string;
+  savePhase?: ProbePhase; saveCorrelation?: 'last-attempt' | 'none' }
+export type ProbeBatchResult = {
+  success: boolean; httpStopped: boolean; connected: boolean; qualified: boolean;
+  firstStop?: ProbeStop
+}
+export async function runProbeBatches<T extends ProbeBatchResult>(repeat: number, runBatch: (batchIndex: number) => Promise<T>) {
+  if (!Number.isSafeInteger(repeat) || repeat < 1) throw new Error('Invalid repeat count')
+  const batches: T[] = []
+  const outcomes: { batchIndex: number; status: string }[] = []
+  let firstStop: (ProbeStop & { batchIndex: number }) | undefined
+  for (let batchIndex = 1; batchIndex <= repeat; batchIndex++) {
+    let result: T
+    try { result = await runBatch(batchIndex) }
+    catch {
+      outcomes.push({ batchIndex, status: 'setup-failed' })
+      firstStop = { batchIndex, phase: 'setup', operation: 'batch.setup', saveCorrelation: 'none' }; break
+    }
+    batches.push(result)
+    outcomes.push({ batchIndex, status: result.httpStopped ? 'stopped-http-unavailable' : !result.connected ? 'lost-connection' :
+      !result.qualified ? 'unqualified' : !result.success ? 'failed' : 'qualified' })
+    if (!result.success || result.httpStopped || !result.connected || !result.qualified) {
+      firstStop = { batchIndex, phase: 'setup', operation: result.connected ? 'batch.result' : 'connection.lost', ...result.firstStop }
+      break
+    }
+  }
+  return { requested: repeat, completed: batches.length, batches, outcomes, firstStop,
+    success: !firstStop && batches.length === repeat }
+}
 export type ProbeEvent = ProbeFields & {
   spanId: string; event: 'start' | 'end' | 'error'; operation: string; utc: string; elapsedMs: number; durationMs?: number
 }
@@ -70,17 +139,19 @@ export function sanitizedTimingTable(events: readonly ProbeEvent[]) {
     operation: e.operation, phase: e.phase, case: e.case, spanId: e.spanId, utc: e.utc,
     elapsedMs: e.elapsedMs, durationMs: e.durationMs, outcome: e.event,
     status: e.status, byteLength: e.byteLength, sha256: e.sha256,
-    slot: e.slot, name: e.name, activation: e.activation,
+    slot: e.slot, name: e.name, activation: e.activation, mode: e.mode,
+    path: e.path, requestOperation: e.requestOperation, queueWaitMs: e.queueWaitMs,
+    saveOrdinal: e.saveOrdinal, savePhase: e.savePhase, saveSlot: e.saveSlot,
   }))
 }
 
-export type ProbeArgs = { device: typeof PROBE_HOST; case: 'drain' | 'control'; runId: string; run: true }
+export type ProbeArgs = { device: typeof PROBE_HOST; case: 'drain' | 'control'; runId: string; run: true; http: 'overlap' | 'serial'; repeat: number }
 export function parseProbeArgs(argv: string[]): ProbeArgs | { help: true } {
   if (argv.length === 1 && (argv[0] === '--help' || argv[0] === '-h')) return { help: true }
   const values = new Map<string, string | true>()
   for (let i = 0; i < argv.length; i++) {
     const key = argv[i]
-    if (!['--device', '--case', '--run-id', '--run'].includes(key) || values.has(key)) throw new Error('Unknown or repeated argument')
+    if (!['--device', '--case', '--run-id', '--run', '--http', '--repeat'].includes(key) || values.has(key)) throw new Error('Unknown or repeated argument')
     if (key === '--run') values.set(key, true)
     else { const value = argv[++i]; if (!value || value.startsWith('--')) throw new Error('Missing argument'); values.set(key, value) }
   }
@@ -88,38 +159,64 @@ export function parseProbeArgs(argv: string[]): ProbeArgs | { help: true } {
   const mode = values.get('--case'); const runId = values.get('--run-id')
   if (mode !== 'drain' && mode !== 'control') throw new Error('Case must be drain or control')
   if (typeof runId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(runId)) throw new Error('Invalid ASCII run id')
-  return { device: PROBE_HOST, case: mode, runId, run: true }
+  const http = values.get('--http') ?? 'overlap'
+  const repeatText = values.get('--repeat') ?? '1'
+  const repeat = Number(repeatText)
+  if (http !== 'overlap' && http !== 'serial') throw new Error('Invalid HTTP mode')
+  if (typeof repeatText !== 'string' || !/^\d+$/.test(repeatText) || !Number.isSafeInteger(repeat) || repeat < 1 || (mode === 'control' && repeat > 1)) throw new Error('Invalid repeat count')
+  return { device: PROBE_HOST, case: mode, runId, run: true, http, repeat }
 }
 
 /** Deadline covers headers, body and decode; settling late can never replace a timeout. */
-export async function boundedAction<T>(action: (signal: AbortSignal) => Promise<T>, timeoutMs: number, message: string): Promise<T> {
+export async function boundedAction<T>(action: (signal: AbortSignal) => Promise<T>, timeoutMs: number, message: string,
+  options: { settle?: boolean; signal?: AbortSignal } = {}): Promise<T> {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => { reject(new Error(message)); controller.abort() }, timeoutMs)
   })
-  try { return await Promise.race([Promise.resolve().then(() => action(controller.signal)), deadline]) }
-  finally { clearTimeout(timer) }
+  let cancel!: () => void
+  const cancelled = new Promise<never>((_resolve, reject) => {
+    cancel = () => { controller.abort(); reject(options.signal?.reason ?? new Error('HTTP operation cancelled')) }
+    if (options.signal?.aborted) cancel()
+    else options.signal?.addEventListener('abort', cancel, { once: true })
+  })
+  const task = Promise.resolve().then(() => { controller.signal.throwIfAborted(); return action(controller.signal) })
+  try { return await Promise.race([task, deadline, cancelled]) }
+  finally {
+    clearTimeout(timer); options.signal?.removeEventListener('abort', cancel)
+    // Serial ownership outlives the deadline race until the aborted operation
+    // actually settles. An abort-ignoring body cannot admit another HTTP turn.
+    if (options.settle) await task.catch(() => undefined)
+  }
 }
 
 export async function boundedHttpRead<T>(options: {
   path: string; fetcher: typeof fetch; recorder: ProbeEventRecorder; fields: ProbeFields;
-  timeoutMs: number; timeoutMessage: string; decode: (bytes: Uint8Array, status: number) => T
+  timeoutMs: number; timeoutMessage: string; decode: (bytes: Uint8Array, status: number) => T;
+  queue?: ProbeHttpQueue; signal?: AbortSignal
 }): Promise<T> {
   if (!(options.path === '/list' || /^\/p\/[^/]+$/.test(options.path))) throw new Error('Unapproved HTTP path')
-  return options.recorder.span('http.read', { ...options.fields, path: options.path }, (details) => boundedAction(async (signal) => {
+  const fields = { ...options.fields, path: options.path }
+  const action = () => options.recorder.span('http.read', fields, (details) => boundedAction(async (signal) => {
     const response = await options.fetcher(`http://${PROBE_HOST}${options.path}`, { signal, redirect: 'error' })
     signal.throwIfAborted()
     details.status = response.status
     await options.recorder.span('http.headers', { ...options.fields, path: options.path, status: response.status }, () => undefined)
-    if (response.status === 404 && options.path.startsWith('/p/')) return options.decode(new Uint8Array(), response.status)
-    if (!response.ok) throw new Error(`GET ${options.path} -> ${response.status}`)
+    if (!response.ok) {
+      // These paths do not decode a body. Cancel it before relinquishing the turn.
+      await response.body?.cancel()
+      signal.throwIfAborted()
+      if (response.status === 404 && options.path.startsWith('/p/')) return options.decode(new Uint8Array(), response.status)
+      throw new Error(`GET ${options.path} -> ${response.status}`)
+    }
     // Record bytes even when recovery rejects empty or corrupt successful responses.
     const bytes = new Uint8Array(await response.arrayBuffer())
     signal.throwIfAborted()
     Object.assign(details, byteSummary(bytes))
     return options.decode(bytes, response.status)
-  }, options.timeoutMs, options.timeoutMessage))
+  }, options.timeoutMs, options.timeoutMessage, { settle: options.queue?.mode === 'serial', signal: options.signal }))
+  return options.queue ? options.queue.run('http.read', fields, action, options.signal) : action()
 }
 
 /** Diagnostic liveness observer; mutations make a later unavailable verdict irreversible. */
@@ -132,10 +229,13 @@ export class ProbeLivenessMonitor {
   private pollTimer: ReturnType<typeof setTimeout> | undefined
   private verdictTimer: ReturnType<typeof setTimeout> | undefined
   private pending: Promise<void> | undefined
+  private readonly shutdown = new AbortController()
+  firstStop: ProbeStop | undefined
   private readonly now: () => number
   readonly polls = { attempted: 0, succeeded: 0, failed: 0, skippedAtCapacity: 0, maxConcurrent: 0 }
   constructor(private readonly options: {
-    fetcher: typeof fetch; recorder: ProbeEventRecorder; fields: () => ProbeFields; now?: () => number
+    fetcher: typeof fetch; recorder: ProbeEventRecorder; fields: () => ProbeFields; now?: () => number; queue?: ProbeHttpQueue;
+    stopFields?: () => ProbeStop
   }) { this.now = options.now ?? Date.now }
   get httpUnavailable() { return this.unavailable }
   get lastPollOk() { return this.pollOk }
@@ -152,12 +252,16 @@ export class ProbeLivenessMonitor {
     this.stopped = true
     clearTimeout(this.pollTimer)
     clearTimeout(this.verdictTimer)
+    if (this.options.queue) this.shutdown.abort()
     await this.pending
   }
   private armVerdict(lastSuccessOrStart: number) {
     clearTimeout(this.verdictTimer)
     if (this.stopped) return
-    this.verdictTimer = setTimeout(() => { this.unavailable = true },
+    this.verdictTimer = setTimeout(() => {
+      this.unavailable = true
+      this.firstStop ??= this.options.stopFields?.() ?? { phase: this.options.fields().phase as ProbePhase, operation: 'poll.list', saveCorrelation: 'none' }
+    },
       Math.max(0, lastSuccessOrStart + 20_000 - this.now()))
   }
   private poll() {
@@ -167,10 +271,11 @@ export class ProbeLivenessMonitor {
     const fields = this.options.fields()
     this.pending = this.options.recorder.span('poll.list', fields, () => boundedHttpRead({
       path: '/list', fetcher: this.options.fetcher, recorder: this.options.recorder, fields,
+      queue: this.options.queue, signal: this.shutdown.signal,
       timeoutMs: 5000, timeoutMessage: 'GET /list timed out.', decode: () => undefined,
     })).then(() => {
       this.polls.succeeded++; this.pollOk = true
-      if (!this.mutated) this.unavailable = false
+      if (!this.mutated) { this.unavailable = false; this.firstStop = undefined }
       this.armVerdict(this.now())
     }, () => {
       this.polls.failed++; this.pollOk = false
@@ -187,15 +292,22 @@ export type ProbeConnection = Pick<PixelblazeConnection,
 type ImportProvider = ControllerPatternImportExecutionDeps['provider']
 export class NodeControllerImportProvider implements ImportProvider {
   phase: ProbePhase = 'setup'
+  private saveOrdinal = 0
+  lastSave: { saveOrdinal: number; slot: string; savePhase: ProbePhase } | undefined
+  firstHttpFailure: ProbeStop | undefined
   private known: { id: string; size: number } | null = null
   private drainDigest: string | null = null
   private readonly connection: ProbeConnection
   constructor(private readonly options: {
     connection: ProbeConnection; fetcher: typeof fetch; compiler: (source: string) => Promise<Uint8Array> | Uint8Array;
-    recorder: ProbeEventRecorder; case?: 'drain' | 'control'; assertMutation?: () => void
+    recorder: ProbeEventRecorder; case?: 'drain' | 'control'; assertMutation?: () => void; queue?: ProbeHttpQueue
   }) { this.connection = options.connection }
   get isConnected() { return this.connection.isConnected }
-  private fields(extra: ProbeFields = {}) { return { case: this.options.case, phase: this.phase, ...extra } }
+  private fields(extra: ProbeFields = {}) { return { case: this.options.case, phase: this.phase,
+    saveOrdinal: this.lastSave?.saveOrdinal, savePhase: this.lastSave?.savePhase, saveSlot: this.lastSave?.slot, ...extra } }
+  stopFields(operation: string): ProbeStop {
+    return { phase: this.phase, operation, ...this.lastSave, saveCorrelation: this.lastSave ? 'last-attempt' : 'none' }
+  }
   private span<T>(operation: string, fields: ProbeFields, action: (details: ProbeFields) => Promise<T> | T) {
     return this.options.recorder.span(operation, this.fields(fields), action)
   }
@@ -229,6 +341,7 @@ export class NodeControllerImportProvider implements ImportProvider {
     })
   }
   saveProgram(bytes: Uint8Array, opts: { id: string }) {
+    this.lastSave = { saveOrdinal: ++this.saveOrdinal, slot: opts.id, savePhase: this.phase }
     const recovered = recoverSavedProgram(opts.id, bytes)
     return this.span('saveProgram', { slot: opts.id, name: recovered.ok ? recovered.value.deviceName : undefined, ...byteSummary(bytes) }, () => {
       this.options.assertMutation?.(); this.connection.saveProgram(opts.id, bytes)
@@ -240,11 +353,12 @@ export class NodeControllerImportProvider implements ImportProvider {
       this.options.assertMutation?.(); this.connection.setActiveProgram(id, opts.save)
     })
   }
-  async readSavedProgram(programId: string, timeoutMs = 5000) {
+  async readSavedProgram(programId: string, timeoutMs = 5000, signal?: AbortSignal) {
     const id = programId.trim()
     if (!id) throw new Error('Saved program id is required')
     return this.span('readSavedProgram', { slot: id }, () => boundedHttpRead({
       path: `/p/${encodeURIComponent(id)}`, fetcher: this.options.fetcher, recorder: this.options.recorder,
+      queue: this.options.queue, signal,
       fields: this.fields({ slot: id }), timeoutMs, timeoutMessage: `Saved program ${id} read timed out.`,
       decode: (bytes, status) => {
         if (status === 404) return null
@@ -252,6 +366,12 @@ export class NodeControllerImportProvider implements ImportProvider {
         if (!recovery.ok) throw new Error(recovery.error.message)
         return recovery.value
       },
-    }))
+    })).catch((error: unknown) => {
+      // Setup may retry this one known recovery error; it is not an HTTP stop.
+      if (!(error instanceof Error && /^Saved program .+ is not a readable PBP blob\.$/.test(error.message))) {
+        this.firstHttpFailure ??= this.stopFields('readSavedProgram')
+      }
+      throw error
+    })
   }
 }

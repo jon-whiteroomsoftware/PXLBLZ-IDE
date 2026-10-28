@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, realpathSync, writeFi
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PixelblazeConnection } from '../src/engine/PixelblazeConnection'
-import { fetchControllerCompiler, nodeWebSocketFactory } from '../test/perf-harness/controllerHardware'
+import { fetchControllerCompiler } from '../test/perf-harness/controllerHardware'
 import { importControllerPattern, type ControllerPatternImportExecutionDeps } from '../src/engine/controllerPatternImportExecution'
 import { runControllerPatternBatch } from '../src/engine/controllerPatternBatch'
 import { readControllerPatternImportLedger } from '../src/engine/controllerPatternImport'
@@ -14,10 +14,11 @@ import type { ControllerPushRecords } from '../src/engine/controllerPushRecord'
 import { makeProgramId } from '../src/engine/bytecodePush'
 import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
-import { NodeControllerImportProvider, ProbeEventRecorder, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
-  boundedAction, byteSummary, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeArgs } from './controller-import-hardware-probe-support'
+import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
+  boundedAction, byteSummary, parseProbeArgs, runProbeBatches, sanitizedTimingTable, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
+import { closeProbeResources, createProbeRuntime } from './controller-import-hardware-probe-runtime'
 
-const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run'
+const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run [--http overlap|serial] [--repeat N]\nDefaults: --http overlap --repeat 1. Repeat must be a positive safe integer; control permits only 1.'
 const luminousSource = 'export function render(i) { rgb(0.02,0.02,0) }\nexport function render2D(i,x,y) { rgb(0.02,0.02,0) }'
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms))
 
@@ -30,17 +31,44 @@ async function run(args: ProbeArgs) {
   mkdirSync(privateRoot, { recursive: true, mode: 0o700 })
   const root = resolve(privateRoot, args.runId)
   mkdirSync(root, { mode: 0o700 })
+  const result = await runProbeBatches(args.repeat, async (batchIndex) => {
+    const batchRoot = args.repeat === 1 ? root : resolve(root, `batch-${String(batchIndex).padStart(3, '0')}`)
+    if (args.repeat > 1) mkdirSync(batchRoot, { mode: 0o700 })
+    return runBatch(args, batchRoot, batchIndex)
+  })
+  const summary = { case: args.case, runId: args.runId, http: args.http, requested: result.requested,
+    completed: result.completed, success: result.success, outcomes: result.outcomes, firstStop: result.firstStop,
+    batches: args.repeat === 1 ? result.batches : result.batches.map((batch) => {
+      const requests = batch.timing.filter((event) => event.operation === 'http.read' || event.operation === 'compiler.http')
+      const durations = requests.map((event) => event.durationMs ?? 0)
+      return { batchIndex: batch.batchIndex, identity: batch.identity, status: batch.status, success: batch.success,
+        qualified: batch.qualified, connected: batch.connected, httpStopped: batch.httpStopped, firstStop: batch.firstStop,
+        queue: batch.queue, cleanupErrors: batch.cleanupErrors, drainActivations: batch.drainActivations,
+        rows: { complete: batch.rows.filter((row) => row.outcome === 'complete').length,
+          failed: batch.rows.filter((row) => row.outcome !== 'complete').length },
+        httpRequests: { count: requests.length, totalDurationMs: durations.reduce((sum, duration) => sum + duration, 0),
+          maxDurationMs: Math.max(0, ...durations) } }
+    }) }
+  if (args.repeat > 1) writeFileSync(resolve(root, 'report.json'), JSON.stringify(summary, null, 2), { mode: 0o600 })
+  console.log(JSON.stringify(summary, null, 2))
+  if (!result.success) process.exitCode = 1
+}
+
+async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
+  const identity = args.repeat === 1 ? args.runId : `${args.runId}-batch-${String(batchIndex).padStart(3, '0')}`
   const recorder = new ProbeEventRecorder((line) => appendFileSync(resolve(root, 'events.jsonl'), `${line}\n`, { mode: 0o600 }))
+  const runtime = createProbeRuntime()
+  const queue = new ProbeHttpQueue(args.http, recorder)
   const connection = new PixelblazeConnection({ host: PROBE_HOST, webSocketFactory: (url) => {
     if (url !== `ws://${PROBE_HOST}:81`) throw new Error('Unapproved Controller WebSocket')
-    return nodeWebSocketFactory(url)
+    return runtime.webSocketFactory(url)
   }, requestTimeoutMs: 5000, connectTimeoutMs: 5000 })
   const rawFetch = globalThis.fetch
   // This guard also pins the reused compiler helper's fetches and refuses redirects.
   const pinnedFetch: typeof fetch = (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
     if (url.origin !== `http://${PROBE_HOST}` || (init?.method && init.method !== 'GET')) return Promise.reject(new Error('Unapproved Controller HTTP request'))
-    return rawFetch(input, { ...init, redirect: 'error' })
+    return runtime.fetch(input, { ...init, redirect: 'error' })
   }
   let compilerReady = false
   const writes: { id: string; name: string; kind: string }[] = []
@@ -52,6 +80,10 @@ async function run(args: ProbeArgs) {
   let ledger = readControllerPatternImportLedger(undefined)
   let bindings: BindingStore = {}; let pushRecords: ControllerPushRecords = {}; let labels: ProgramLabelStore = {}
   let failure: unknown; let batchEnded = false; let qualified = false
+  let connected: boolean
+  let cleanupErrors: string[]
+  let firstCompilerFailure: ProbeStop | undefined
+  let failureStop: ProbeStop | undefined
   let outgoing: { measuredBytecodeSize: number; residentSize: number | null; activeId: string } | undefined
   const assertCurrent = () => {
     monitor.assertCurrent()
@@ -59,16 +91,21 @@ async function run(args: ProbeArgs) {
   }
   const provider = new NodeControllerImportProvider({ connection, fetcher: pinnedFetch,
     compiler: acquireAndCompile,
-    recorder, case: args.case, assertMutation: () => { assertCurrent(); monitor.markMutationStarted() } })
+    recorder, queue, case: args.case, assertMutation: () => { assertCurrent(); monitor.markMutationStarted() } })
   const fields = () => ({ case: args.case, phase: provider.phase })
-  const monitor = new ProbeLivenessMonitor({ fetcher: pinnedFetch, recorder, fields })
+  const monitor = new ProbeLivenessMonitor({ fetcher: pinnedFetch, recorder, fields, queue,
+    stopFields: () => provider.stopFields('poll.list') })
   async function acquireAndCompile(source: string): Promise<Uint8Array> {
+    return queue.run('compiler.acquire', { ...fields(), path: '/index.html.gz' }, () => compileAdmitted(source))
+  }
+  async function compileAdmitted(source: string): Promise<Uint8Array> {
     let task: Promise<Uint8Array> | undefined
     try {
       return await recorder.span('compiler.acquire', fields(), () => boundedAction(async (signal) => {
         globalThis.fetch = (input, init) => {
           signal.throwIfAborted()
-          return recorder.span('compiler.http', fields(), async (details) => {
+          const path = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).pathname
+          return recorder.span('compiler.http', { ...fields(), path }, async (details) => {
             const response = await pinnedFetch(input, { ...init, signal })
             details.status = response.status
             const bytes = new Uint8Array(await response.arrayBuffer())
@@ -84,7 +121,10 @@ async function run(args: ProbeArgs) {
           return bytes
         })()
         return await task
-      }, 5000, 'Controller compiler load timed out.'))
+      }, 5000, 'Controller compiler load timed out.', { settle: true }))
+    } catch (error) {
+      firstCompilerFailure ??= provider.stopFields('compiler.acquire')
+      throw error
     } finally {
       // Keep the abort guard installed until the helper finishes all its attempts.
       if (task) await task.catch(() => undefined)
@@ -111,7 +151,7 @@ async function run(args: ProbeArgs) {
     const initialList = await provider.listPrograms()
     for (const item of initialList) mintUsed.add(item.id)
     if (initialConfig.activeProgramId) mintUsed.add(initialConfig.activeProgramId)
-    const fixtureNames = ['T2', 'T3'].map((suffix) => `Test pat I24 ${args.runId} ${suffix}`)
+    const fixtureNames = ['T2', 'T3'].map((suffix) => `Test pat I24 ${identity} ${suffix}`)
     if (initialList.some((item) => fixtureNames.includes(item.name))) throw new Error('Fixture name already exists')
     const candidates = initialList.filter((item) => /LineDancer2D/i.test(item.name))
     if (args.case === 'drain' && candidates.length !== 1) throw new Error('Expected exactly one saved LineDancer2D Pattern')
@@ -121,7 +161,7 @@ async function run(args: ProbeArgs) {
     const targets: { id: string; name: string }[] = []
     for (const [index, name] of fixtureNames.entries()) {
       assertCurrent()
-      const id = mint(); const accountId = `i24-${args.runId}-A-T${index + 2}`
+      const id = mint(); const accountId = `i24-${identity}-A-T${index + 2}`
       const source = `export function render(i) { rgb(${index === 0 ? '0,0.2,0' : '0,0,0.2'}) }\nexport function render2D(i,x,y) { rgb(${index === 0 ? '0,0.2,0' : '0,0,0.2'}) }`
       const record: PatternRecord = { id: accountId, name, src: source, controls: {}, updatedAt: Date.now() }
       accountsA.set(accountId, structuredClone(record))
@@ -131,8 +171,9 @@ async function run(args: ProbeArgs) {
       writes.push({ id, name, kind: 'fixture-save' })
       await provider.saveProgram(pbp, { id })
       await recorder.span('setup.readiness', { ...fields(), slot: id, name }, () =>
-        waitForFixtureReadback((remaining) => provider.readSavedProgram(id, remaining), pbp,
-          { now: Date.now, wait, assertCurrent }))
+        boundedAction((signal) => waitForFixtureReadback((remaining) => provider.readSavedProgram(id, remaining, signal), pbp,
+          { now: Date.now, wait, assertCurrent: () => { signal.throwIfAborted(); assertCurrent() } }),
+        5000, 'Setup read deadline exceeded', { settle: true }))
       targets.push({ id, name })
     }
     if (args.case === 'drain') {
@@ -144,7 +185,7 @@ async function run(args: ProbeArgs) {
       if (active.activeProgramId !== candidates[0].id) throw new Error('LineDancer2D activation unconfirmed')
       outgoing = { measuredBytecodeSize: decoded.byteCode.length, residentSize: await provider.getActiveProgramBytecodeSize(), activeId: candidates[0].id }
     } else {
-      const id = mint(); const name = `Test pat I24 ${args.runId} control`
+      const id = mint(); const name = `Test pat I24 ${identity} control`
       writes.push({ id, name, kind: 'control-transient' }); await provider.pushBytecode(tiny, { id, name })
       outgoing = { measuredBytecodeSize: tiny.length, residentSize: await provider.getActiveProgramBytecodeSize(), activeId: id }
       if (outgoing.residentSize !== tiny.length) throw new Error('Known small control resident unconfirmed')
@@ -157,7 +198,7 @@ async function run(args: ProbeArgs) {
       loadProfile: async () => ({ profile: null, signature: 'i24-memory-profile' }),
       assertProfileCurrent: (_id, signature) => { if (signature !== 'i24-memory-profile') throw new Error('Profile changed') },
       libraries: {}, mapDim: 2, firmwareVersion: initialConfig.firmwareVersion ?? '3.70',
-      allocatePatternId: () => `i24-${args.runId}-B-${++allocatedB}`, now: () => Date.now(),
+      allocatePatternId: () => `i24-${identity}-B-${++allocatedB}`, now: () => Date.now(),
       mintDrainId: () => { const id = mint(); writes.push({ id, name: '', kind: 'drain-transient' }); return id },
     }
     provider.phase = 'import'
@@ -167,6 +208,7 @@ async function run(args: ProbeArgs) {
         await importControllerPattern({ programId: row.id, controllerDeviceId: PROBE_HOST }, deps)
         rowOutcomes.push({ ...row, outcome: 'complete', stage: 'complete' })
       } catch (error) {
+        failureStop ??= provider.firstHttpFailure ?? firstCompilerFailure ?? provider.stopFields('importControllerPattern')
         rowOutcomes.push({ ...row, outcome: monitor.httpUnavailable ? 'stopped-http-unavailable' : 'failed',
           stage: error && typeof error === 'object' && 'stage' in error ? String(error.stage) : undefined })
         throw error
@@ -176,10 +218,13 @@ async function run(args: ProbeArgs) {
     writeFileSync(resolve(root, 'batch.json'), JSON.stringify(batch, null, 2), { mode: 0o600 })
     const drainCount = recorder.events.filter((e) => e.event === 'end' && e.operation === 'pushBytecode' && e.activation === 'drain' && e.phase === 'import').length
     qualified = args.case === 'drain' ? drainCount > 0 : drainCount === 0
-    if (!qualified) failure = new Error('Case precondition unproved')
-    else if (batch.failed.length) failure = new Error('Import row failure reproduced')
-  } catch (error) { failure = error }
-  finally {
+    if (!qualified) { failure = new Error('Case precondition unproved'); failureStop ??= provider.stopFields('batch.qualification') }
+    else if (batch.failed.length) { failure = new Error('Import row failure reproduced'); failureStop ??= provider.stopFields('importControllerPattern') }
+  } catch (error) {
+    failure = error
+    failureStop ??= provider.firstHttpFailure ?? firstCompilerFailure ?? provider.stopFields('batch.setup')
+  }
+  try {
     // Even failed imports retain a full 60-second independent liveness window.
     if (batchEnded || monitor.httpUnavailable) {
       provider.phase = 'observation'
@@ -192,32 +237,43 @@ async function run(args: ProbeArgs) {
         provider.phase = 'restore'
         try {
           const bytes = await provider.compile(luminousSource); const id = mint()
-          const name = `Test pat I24 ${args.runId} restore`
+          const name = `Test pat I24 ${identity} restore`
           writes.push({ id, name, kind: 'restore-transient' })
           await provider.pushBytecode(bytes, { id, name }); await observe()
-        } catch (error) { failure ??= error }
+        } catch (error) { failure ??= error; failureStop ??= firstCompilerFailure ?? provider.stopFields('restore') }
       }
     }
-    await monitor.stop()
-    await provider.disconnect()
-    globalThis.fetch = rawFetch
-    const status = monitor.httpUnavailable ? 'stopped-http-unavailable' : failure ? 'failed' : 'qualified'
-    const summary = {
-      case: args.case, runId: args.runId, status, qualified: qualified && !monitor.httpUnavailable,
-      mutationsStarted: monitor.mutationsStarted,
-      fidelity: PROBE_FIDELITY,
-      residentQualification: args.case === 'drain' ? 'Unknown resident cache after observed saved-program switch.' : 'Known small resident seeded by confirmed push.',
-      rows: rowOutcomes, timing: sanitizedTimingTable(recorder.events), polls: monitor.polls, writtenSlotsAndTransients: writes,
-      drainActivations: recorder.events.filter((e) => e.event === 'end' && e.operation === 'pushBytecode' && e.activation === 'drain' && e.phase === 'import').length,
-      deletedSlots: [], outgoing, observedActiveIds: observed.map(({ utc, phase, activeProgramId }) => ({ utc, phase, activeProgramId })),
-      accountBCount: accountsB.size, receiptCount: Object.keys(ledger.byPatternId).length,
-      failure: monitor.httpUnavailable ? 'HTTP unavailable; discuss observed liveness with the eng lead.' : failure ? 'Run failed; inspect private report and events.' : undefined,
-    }
-    writeFileSync(resolve(root, 'report.json'), JSON.stringify({ summary, failure: failure instanceof Error ? { message: failure.message, stack: failure.stack } : String(failure),
-      accountsA: [...accountsA.values()], accountsB: [...accountsB.values()], ledger, bindings, pushRecords, labels, observed }, null, 2), { mode: 0o600 })
-    console.log(JSON.stringify(summary, null, 2))
-    if (failure || monitor.httpUnavailable || !qualified) process.exitCode = 1
+  } catch (error) { failure ??= error; failureStop ??= provider.stopFields('observation') }
+  finally {
+    connected = connection.isConnected
+    const cleanupFailures = await closeProbeResources({ stopMonitor: () => monitor.stop(),
+      disconnectProvider: () => provider.disconnect(), closeRuntime: () => runtime.close(),
+      restoreFetch: () => { globalThis.fetch = rawFetch } })
+    failure ??= cleanupFailures[0]?.error
+    if (cleanupFailures.length) failureStop ??= provider.stopFields(cleanupFailures[0].operation)
+    cleanupErrors = cleanupFailures.map((item) => item.operation)
   }
+  const status = monitor.httpUnavailable ? 'stopped-http-unavailable' : failure || !connected ? 'failed' : 'qualified'
+  const summary = {
+    case: args.case, runId: args.runId, batchIndex, identity, status, qualified: qualified && !monitor.httpUnavailable,
+    http: args.http, queue: queue.stats, cleanupErrors, connected,
+    success: !failure && !monitor.httpUnavailable && qualified && connected,
+    httpStopped: monitor.httpUnavailable,
+    firstStop: failure || monitor.httpUnavailable || !qualified || !connected
+      ? failureStop ?? (monitor.httpUnavailable ? monitor.firstStop :
+        provider.stopFields(connected ? 'batch.result' : 'connection.lost')) : undefined,
+    mutationsStarted: monitor.mutationsStarted,
+    fidelity: PROBE_FIDELITY,
+    residentQualification: args.case === 'drain' ? 'Unknown resident cache after observed saved-program switch.' : 'Known small resident seeded by confirmed push.',
+    rows: rowOutcomes, timing: sanitizedTimingTable(recorder.events), polls: monitor.polls, writtenSlotsAndTransients: writes,
+    drainActivations: recorder.events.filter((e) => e.event === 'end' && e.operation === 'pushBytecode' && e.activation === 'drain' && e.phase === 'import').length,
+    deletedSlots: [], outgoing, observedActiveIds: observed.map(({ utc, phase, activeProgramId }) => ({ utc, phase, activeProgramId })),
+    accountBCount: accountsB.size, receiptCount: Object.keys(ledger.byPatternId).length,
+    failure: monitor.httpUnavailable ? 'HTTP unavailable; discuss observed liveness with the eng lead.' : failure || !connected ? 'Run failed; inspect private report and events.' : undefined,
+  }
+  writeFileSync(resolve(root, 'report.json'), JSON.stringify({ summary, failure: failure instanceof Error ? { message: failure.message, stack: failure.stack } : String(failure),
+    accountsA: [...accountsA.values()], accountsB: [...accountsB.values()], ledger, bindings, pushRecords, labels, observed }, null, 2), { mode: 0o600 })
+  return summary
 }
 
 try {

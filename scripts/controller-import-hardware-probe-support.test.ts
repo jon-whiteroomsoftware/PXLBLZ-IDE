@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encodePbp } from '../src/engine/pbpEncode'
 import { stampArtifact } from '../src/engine/artifactStamp'
-import { NodeControllerImportProvider, ProbeEventRecorder, ProbeLivenessMonitor, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeConnection } from './controller-import-hardware-probe-support'
+import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, runProbeBatches, parseProbeArgs, sanitizedTimingTable, waitForFixtureReadback, type ProbeConnection } from './controller-import-hardware-probe-support'
 import { recoverSavedProgram } from '../src/engine/controllerSavedProgramRead'
 
 function harness(fetcher: typeof fetch = vi.fn(), compiler: (source: string) => Promise<Uint8Array> | Uint8Array = () => new Uint8Array(12)) {
@@ -395,8 +395,174 @@ describe('resident footprint', () => {
 describe('explicit admission', () => {
   const args = ['--device', '192.168.8.196', '--case', 'drain', '--run-id', 'i24-offline', '--run']
   it('accepts only the pinned target and complete opt-in; help is inert', () => {
-    expect(parseProbeArgs(args)).toEqual({ device: '192.168.8.196', case: 'drain', runId: 'i24-offline', run: true })
+    expect(parseProbeArgs(args)).toEqual({ device: '192.168.8.196', case: 'drain', runId: 'i24-offline', run: true, http: 'overlap', repeat: 1 })
+    expect(parseProbeArgs([...args, '--http', 'serial', '--repeat', '3'])).toMatchObject({ http: 'serial', repeat: 3 })
     expect(parseProbeArgs(['--help'])).toEqual({ help: true })
     for (const bad of [args.slice(0, -1), [...args, '--other'], args.map((x) => x === '192.168.8.196' ? 'example.com' : x), args.map((x) => x === 'drain' ? 'other' : x), args.map((x) => x === 'i24-offline' ? '../escape' : x)]) expect(() => parseProbeArgs(bad)).toThrow()
+    for (const value of ['0', '-1', '1.5', 'NaN', '9007199254740992', '1e2', '']) expect(() => parseProbeArgs([...args, '--repeat', value])).toThrow()
+    for (const extra of [['--http', 'other'], ['--http', 'serial', '--http', 'overlap'], ['--repeat', '2', '--repeat', '2']]) expect(() => parseProbeArgs([...args, ...extra])).toThrow()
+    expect(() => parseProbeArgs([...args.map((value) => value === 'drain' ? 'control' : value), '--repeat', '2'])).toThrow()
+  })
+})
+
+describe('fresh batch sequence', () => {
+  const good = { success: true, httpStopped: false, connected: true, qualified: true }
+  it('awaits all successful fresh batches in order', async () => {
+    const identities: string[] = []; let active = 0
+    const result = await runProbeBatches(3, async (index) => {
+      expect(active++).toBe(0); identities.push(`batch-${index}`)
+      await Promise.resolve(); active--
+      return { ...good, identity: `batch-${index}` }
+    })
+    expect(identities).toEqual(['batch-1', 'batch-2', 'batch-3'])
+    expect(result).toMatchObject({ requested: 3, completed: 3, success: true, firstStop: undefined })
+    expect(result.batches.map((batch) => batch.identity)).toEqual(identities)
+  })
+  it.each([false, true])('correlates read and liveness stops only to actual attempted saves (saved=%s)', async (saved) => {
+    vi.useFakeTimers()
+    const fetcher = vi.fn().mockRejectedValue(new Error('offline'))
+    const h = harness(fetcher)
+    if (saved) {
+      const bytes = encodePbp({ id: 'slot', name: 'Fixture', sourceCode: '', byteCode: new Uint8Array(12) })
+      await h.provider.saveProgram(bytes, { id: 'setup-slot' })
+      h.provider.phase = 'import'
+      await h.provider.saveProgram(bytes, { id: 'import-slot' })
+      await expect(h.provider.readSavedProgram('import-slot')).rejects.toThrow('offline')
+      expect(h.provider.firstHttpFailure).toEqual({ phase: 'import', operation: 'readSavedProgram',
+        saveOrdinal: 2, slot: 'import-slot', savePhase: 'import', saveCorrelation: 'last-attempt' })
+    }
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, fields: () => ({ phase: h.provider.phase }),
+      stopFields: () => h.provider.stopFields('poll.list') })
+    monitor.start(); monitor.markMutationStarted()
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(monitor.firstStop).toEqual(saved ? { phase: 'import', operation: 'poll.list', saveOrdinal: 2,
+      slot: 'import-slot', savePhase: 'import', saveCorrelation: 'last-attempt' } :
+      { phase: 'setup', operation: 'poll.list', saveCorrelation: 'none' })
+    await monitor.stop(); expect(vi.getTimerCount()).toBe(0)
+  })
+  it.each(['lost', 'failed', 'unqualified', 'setup'] as const)('stops after %s without retry', async (kind) => {
+    const run = vi.fn(async (index: number) => {
+      if (index === 2 && kind === 'setup') throw new Error('setup failed')
+      return { ...good, connected: !(index === 2 && kind === 'lost'), success: !(index === 2 && kind === 'failed'), qualified: !(index === 2 && kind === 'unqualified') }
+    })
+    const result = await runProbeBatches(3, run)
+    expect(run.mock.calls).toEqual([[1], [2]])
+    expect(result.success).toBe(false)
+    expect(result.firstStop).toMatchObject({ batchIndex: 2, operation: kind === 'setup' ? 'batch.setup' : kind === 'lost' ? 'connection.lost' : 'batch.result' })
+  })
+  it('awaits fresh batch identities and stops on the second HTTP stop with save correlation', async () => {
+    const order: string[] = []
+    const result = await runProbeBatches(3, async (batchIndex) => {
+      order.push(`start-${batchIndex}`)
+      await Promise.resolve()
+      order.push(`end-${batchIndex}`)
+      return batchIndex === 2 ? { ...good, success: false, httpStopped: true,
+        firstStop: { phase: 'import' as const, operation: 'readSavedProgram', saveOrdinal: 3, slot: 'fresh-2' } } : good
+    })
+    expect(order).toEqual(['start-1', 'end-1', 'start-2', 'end-2'])
+    expect(result).toMatchObject({ requested: 3, completed: 2, firstStop: {
+      batchIndex: 2, phase: 'import', operation: 'readSavedProgram', saveOrdinal: 3, slot: 'fresh-2',
+    } })
+  })
+})
+
+describe('whole-body queue', () => {
+  it.each(['serial', 'overlap'] as const)('holds only serial saved read bodies ahead of liveness and compiler work (%s)', async (mode) => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    let finish!: (body: ArrayBuffer) => void
+    const body = new Promise<ArrayBuffer>((done) => { finish = done })
+    const response = new Response(null)
+    let activeBodies = 0; let maxBodies = 0
+    const readBody = async (pending: Promise<ArrayBuffer>) => {
+      activeBodies++; maxBodies = Math.max(maxBodies, activeBodies)
+      try { return await pending } finally { activeBodies-- }
+    }
+    vi.spyOn(response, 'arrayBuffer').mockImplementation(() => readBody(body))
+    const starts: string[] = []
+    const fetcher = vi.fn(async (url) => {
+      starts.push(String(url).split('/').pop()!)
+      if (starts.length === 1) return response
+      const next = new Response(null)
+      vi.spyOn(next, 'arrayBuffer').mockImplementation(() => readBody(Promise.resolve(new ArrayBuffer(0))))
+      return next
+    })
+    const h = harness(fetcher)
+    const queue = new ProbeHttpQueue(mode, h.recorder, Date.now)
+    const provider = new NodeControllerImportProvider({ connection: h.connection, recorder: h.recorder, fetcher, queue,
+      compiler: () => queue.run('compiler.acquire', {}, async () => {
+        const response = await fetcher('http://fixture/compiler')
+        await response.arrayBuffer()
+        return new Uint8Array(1)
+      }) })
+    const read = provider.readSavedProgram('saved').catch(() => undefined)
+    await vi.advanceTimersByTimeAsync(0)
+    const monitor = new ProbeLivenessMonitor({ recorder: h.recorder, fetcher, queue, fields: () => ({}) })
+    monitor.start()
+    const compile = provider.compile('')
+    await vi.advanceTimersByTimeAsync(100)
+    expect(starts).toEqual(mode === 'serial' ? ['saved'] : ['saved', 'compiler', 'list'])
+    finish(new ArrayBuffer(0))
+    await read; await compile; await monitor.stop()
+    expect(starts).toEqual(mode === 'serial' ? ['saved', 'list', 'compiler'] : ['saved', 'compiler', 'list'])
+    expect(queue.stats.maxConcurrent).toBe(mode === 'serial' ? 1 : 3)
+    expect(activeBodies).toBe(0)
+    if (mode === 'serial') expect(maxBodies).toBe(1)
+    else expect(maxBodies).toBeGreaterThan(1)
+    if (mode === 'serial') {
+      const timing = sanitizedTimingTable(h.recorder.events)
+      expect(timing.find((event) => event.operation === 'http.queue' && event.path === '/list')).toMatchObject({ durationMs: 100, queueWaitMs: 100 })
+      expect(timing.find((event) => event.operation === 'http.read' && event.path === '/list')).toMatchObject({ durationMs: 0 })
+    }
+    expect(vi.getTimerCount()).toBe(0)
+  })
+  it.each(['success', 'reject', 'timeout'] as const)('settles the first body before the next request (%s)', async (outcome) => {
+    vi.useFakeTimers(); vi.setSystemTime(0)
+    let finish!: () => void
+    let rejectBody!: (error: unknown) => void
+    const bytes = encodePbp({ id: 'first', name: 'Fixture', sourceCode: '', byteCode: new Uint8Array(12) })
+    const body = new Promise<ArrayBuffer>((done, fail) => { finish = () => done(bytes.slice().buffer); rejectBody = fail })
+    const response = new Response(null)
+    vi.spyOn(response, 'arrayBuffer').mockReturnValue(body)
+    const fetcher = vi.fn(async (_url, init) => {
+      if (fetcher.mock.calls.length === 1) {
+        init?.signal?.addEventListener('abort', () => rejectBody(new Error('body cancelled')), { once: true })
+        return response
+      }
+      return new Response(null)
+    })
+    const h = harness(fetcher); const queue = new ProbeHttpQueue('serial', h.recorder, Date.now)
+    const provider = new NodeControllerImportProvider({ connection: h.connection, recorder: h.recorder, fetcher, queue, compiler: () => new Uint8Array() })
+    const read = provider.readSavedProgram('first').catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(0)
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, queue, fields: () => ({}) })
+    monitor.start()
+    if (outcome === 'timeout') await vi.advanceTimersByTimeAsync(5000)
+    else { if (outcome === 'reject') rejectBody(new Error('body rejected')); else finish(); await vi.advanceTimersByTimeAsync(0) }
+    const result = await read
+    if (outcome === 'success') expect(result).toMatchObject({ programId: 'first' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(monitor.lastPollOk).toBe(true)
+    expect(queue.stats.maxConcurrent).toBe(1)
+    if (outcome === 'timeout') expect(h.recorder.events.find((event) => event.operation === 'http.read' && event.event === 'error')).toMatchObject({ durationMs: 5000 })
+    await monitor.stop(); expect(vi.getTimerCount()).toBe(0)
+  })
+  it('does not release an abort-ignoring body on a timeout race and cancels queued polling at shutdown', async () => {
+    vi.useFakeTimers()
+    let finish!: (bytes: ArrayBuffer) => void
+    const body = new Promise<ArrayBuffer>((done) => { finish = done })
+    const response = new Response(null); vi.spyOn(response, 'arrayBuffer').mockReturnValue(body)
+    const fetcher = vi.fn(async () => response)
+    const h = harness(fetcher); const queue = new ProbeHttpQueue('serial', h.recorder)
+    const provider = new NodeControllerImportProvider({ connection: h.connection, recorder: h.recorder, fetcher, queue, compiler: () => new Uint8Array() })
+    const read = provider.readSavedProgram('first').catch(() => undefined)
+    await vi.advanceTimersByTimeAsync(0)
+    const monitor = new ProbeLivenessMonitor({ fetcher, recorder: h.recorder, queue, fields: () => ({}) })
+    monitor.start(); await vi.advanceTimersByTimeAsync(5000)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    await monitor.stop()
+    finish(new ArrayBuffer(0)); await read
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(queue.stats.cancelled).toBe(1)
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

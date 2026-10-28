@@ -22,6 +22,7 @@ Run from the probe's worktree with a fresh ASCII run id:
 npx tsx scripts/controller-import-hardware-probe.ts --help
 npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain --run-id i24-drain-001 --run
 npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case control --run-id i24-control-001 --run
+npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain --run-id i26-serial-001 --http serial --repeat 3 --run
 ```
 
 Each invocation requires the exact address, one supported case and `--run`.
@@ -33,6 +34,38 @@ operation timings, HTTP poll aggregates, saved slot/name and transient-id ledger
 outgoing measured size and resident knownness, active-id observations and fidelity
 cost. Source, PBP/config/account bodies and raw errors stay off stdout. Do not
 publish the private run directory.
+
+`--http overlap` (default) preserves independent HTTP scheduling. `--http serial`
+puts saved `/p/<id>` reads, `/list` liveness polls and complete compiler acquisitions
+in one FIFO queue for this probe's pinned device. A turn includes headers, body,
+decode and settlement; a deadline aborts the owned operation and the turn remains
+held until that operation settles. Non-OK bodies are cancelled before releasing
+the turn. Compiler helper attempts share one acquisition turn without nesting
+another queue admission. Queue wait and request duration are recorded separately:
+`http.queue` ends at admission, before the `http.read` or `compiler.http` request
+span and its 5000ms deadline begin. Aggregate maximum concurrency and queue wait
+distinguish probe pressure from service time. The setup readiness deadline still
+covers five seconds total, including queue wait. Polls get ordinary FIFO turns;
+shutdown cancels queued polling. This is optional diagnostic scheduling, not
+product HTTP serialization or evidence that the firmware serializes requests.
+
+`--repeat N` defaults to 1 and accepts positive safe integers; control refuses
+values above 1. Repeat 1 retains the artifact layout and fixture names above.
+For larger drain runs, the exclusive run directory contains `batch-001/`,
+`batch-002/`, etc., each with the existing private artifacts, plus an aggregate
+`report.json` at the run root. Fixture names and account identities include the
+batch index. Each batch performs fresh inventory, mints new slots, selects the
+saved LineDancer2D and confirms its active id and unknown resident cache. It owns
+fresh in-memory accounts, receipts, connections and HTTP resources. Cleanup
+finishes before the next batch starts. The first HTTP stop, lost connection,
+failed/unqualified result or thrown setup failure ends the sequence without a
+batch retry. Reports include requested/completed counts, each outcome and the
+first stop's batch, phase, operation and last attempted save ordinal/slot where
+known. Save phase remains distinct from failure phase; an uncorrelated liveness
+stop explicitly records no save correlation. Full per-batch timing, rows and slot
+ledgers remain private; stdout exposes sanitized summaries. Failed or incomplete
+sequences exit nonzero. Every drain batch still needs an observed import drain
+activation to qualify.
 
 The probe creates two in-memory A Patterns named `Test pat I24 <run-id> T2/T3`,
 green and blue with 1D/2D render functions, original A identity stamps and real
@@ -106,8 +139,8 @@ fixture slots and run-only ids. It changes no settings, brightness, map, pixel
 count, network, sequencer, firmware or reboot state.
 
 The Node provider uses [`PixelblazeConnection`, lines 134–135](../../src/engine/PixelblazeConnection.ts#L134-L135)
-with the documented Node `ws` factory and reuses
-[`fetchControllerCompiler` / `nodeWebSocketFactory`](../../test/perf-harness/controllerHardware.ts).
+with an owned Node `ws` factory and reuses
+[`fetchControllerCompiler`](../../test/perf-harness/controllerHardware.ts).
 Connection and correlated request deadlines are 5000ms; activation defaults are
 unchanged. Compiler acquisition is per compile, matching
 [`background.js`, lines 435–442](../../extension/background.js#L435-L442): every
@@ -124,20 +157,38 @@ clear before attempted push, cache only confirmed activation, invalidate on save
 switch/disconnect, and return a known size only while config reports that id.
 Save resolves after synchronous frame send without an invented acknowledgement.
 
+Each batch's [runtime](../../scripts/controller-import-hardware-probe-runtime.ts)
+keeps Node's global fetch implementation with one owned undici 7.29.0 Agent,
+without imposing a connection limit in overlap mode or altering headers. The CLI
+retains its pinned-origin, GET and redirect guard. All exit paths stop the monitor,
+disconnect the provider, destroy the owned HTTP dispatcher, terminate and await
+owned WebSockets (including connecting sockets), then restore global fetch before
+writing the final report. Cleanup is idempotent and creates no timer; failures
+are explicit failed results and do not skip remaining owners or the report.
+The offline child-process oracle uses parent-owned loopback HTTP and WebSocket
+fixtures to prove natural exit with an unfinished body and a peer that does not
+complete graceful close. It does not identify which handle kept the observed I26
+process alive after reporting and disconnecting, or establish hardware behavior.
+No process-wide dispatcher or unrelated handle is destroyed.
+
 Saved reads mirror [`background.js`, lines 472–480](../../extension/background.js#L472-L480)
 (GET path, status and body) and
 [`ExtensionControllerProvider`, lines 509–550](../../src/engine/ExtensionControllerProvider.ts#L509-L550)
 (recovery), with the [5000ms timeout at line 170](../../src/engine/ExtensionControllerProvider.ts#L170): trimmed
 encoded id, 404 as missing, other non-OK status as `GET /p/<encoded-id> -> <status>`,
-and successful bytes recovered even when empty/corrupt. The 5000ms deadline covers
-fetch, body and recovery, aborts unfinished fetch and reports
+and successful bytes recovered even when empty/corrupt. Production's provider
+5000ms reply timeout does not cancel the helper's HTTP fetch. The probe instead
+owns a 5000ms deadline covering fetch, body and recovery, aborts unfinished fetch and reports
 `Saved program <id> read timed out.` without an internal retry. Readiness retries
 belong only to fixture setup; import and provider reads retain zero retries.
+The probe's queue holds each admitted read through the whole body, and its owned
+fetch abort and resource cleanup differ from the extension relay's lifetime.
+These matches do not establish identical complete HTTP scheduling or cancellation.
 Recorder spans pair start with end/error, record UTC/monotonic duration and body size/hash, and
 distinguish setup, import, observation and restore.
 
-Every result states: **No extension relay, UI or store guards; the Controller sees
-the same request sequence.** The drain qualification begins with unknown resident
+Every result states: **Direct engine/protocol probe without extension relay, UI or
+store guards; probe HTTP scheduling and cancellation differ.** The drain qualification begins with unknown resident
 cache after an observed saved-program switch; control begins with a known small
 resident established by confirmed push. These observations isolate the direct
 engine/protocol sequence and cannot prove UI guards, relay behavior or native
