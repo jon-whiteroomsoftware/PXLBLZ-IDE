@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1237",
+  "route": "/PXLBLZ-IDE/studio/patterns/slowmo-stagger-controls?capture&slowmo=1",
+  "operation": "Opened the paused Pattern lab at 1440x1000 and set Blend, 1/4, Sweep and width 0.50 through the UI. Stagger and Copy controls fit; these captures cover layout only, since a later keyboard sequence in this run failed after an earlier complete six-test pass.",
+  "captures": [
+    ".wrsp/ui-proof/1237-k8-desktop.png"
+  ],
+  "capturedAtCommit": "c28b567649d8abb3148bc8286654c2d8d99e5164"
+}
