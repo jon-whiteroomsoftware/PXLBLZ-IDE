@@ -35,7 +35,7 @@ export function recoverSavedProgram(
       ok: false,
       error: {
         kind: 'undecodable',
-        message: `Saved program ${programId} is not a readable PBP blob.`,
+        message: `Saved program ${programId} response could not be decoded as PBP. Retry reading this saved program.`,
       },
     }
   }

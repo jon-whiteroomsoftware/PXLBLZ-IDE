@@ -437,6 +437,9 @@ test('group-local cross-account bulk import retains named durable failures and r
     await dialog.getByRole('button', { name: 'Import and save', exact: true }).click()
     await expect(dialog.getByRole('heading')).toHaveText('Import results')
     await expect(dialog).toContainText('2 imported')
+    await expect(dialog.getByText('Alpha: Import completed.', { exact: true })).toHaveCount(1)
+    await expect(dialog.getByText('Gamma: Import completed.', { exact: true })).toHaveCount(1)
+    await expect(dialog.getByText('Beta: Import completed.', { exact: true })).toHaveCount(0)
     await expect(dialog.getByRole('alert')).toContainText('Beta: Controller binding saved; import bookkeeping is incomplete')
     await expect(b).toHaveURL(controllerRoute)
     const mixed = await json<{ patterns: PatternRecord[] }>(request, 'patterns')
@@ -468,6 +471,7 @@ test('group-local cross-account bulk import retains named durable failures and r
     expectedMetadataFailure = false
     await dialog.getByRole('button', { name: 'Retry failed', exact: true }).click()
     await expect(dialog).toContainText('3 imported')
+    for (const name of names) await expect(dialog.getByText(`${name}: Import completed.`, { exact: true })).toHaveCount(1)
     await expect(dialog.getByRole('button', { name: 'Retry failed', exact: true })).toHaveCount(0)
     const complete = await json<{ value: ControllerPatternImportLedger }>(request, 'controller-metadata/controller-pattern-imports')
     expect(complete.value.byPatternId).toEqual(Object.fromEntries(receipts.map((r) => [r.patternId, { ...r, stage: 'complete' }])))

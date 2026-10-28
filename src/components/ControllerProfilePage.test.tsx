@@ -394,7 +394,10 @@ describe('single-item PXLBLZ Controller import', () => {
     await act(async () => { hold.resolve() })
     expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
     expect(screen.getByRole('alertdialog')).toHaveTextContent('2 imported')
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Beta: Controller binding saved; import bookkeeping is incomplete')
+    expect(screen.getByText('Alpha: Import completed.')).toBeInTheDocument()
+    expect(screen.getByText('Gamma: Import completed.')).toBeInTheDocument()
+    expect(screen.queryByText('Beta: Import completed.')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Beta: Controller binding saved; import bookkeeping is incomplete. Retry finishes this import. Synthetic completion failure Imported Pattern is running.')
     expect(account.size).toBe(3)
     expect(createPattern).toHaveBeenCalledTimes(3)
     expect(save.mock.calls.map(([, target]) => target.id)).toEqual(slots)
@@ -410,6 +413,7 @@ describe('single-item PXLBLZ Controller import', () => {
     const readCount = read.mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'Retry failed' }))
     await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent('3 imported'))
+    for (const name of ['Alpha', 'Beta', 'Gamma']) expect(screen.getAllByText(`${name}: Import completed.`)).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Retry failed' })).not.toBeInTheDocument()
     expect(account.size).toBe(3)
     expect(createPattern).toHaveBeenCalledTimes(3)
@@ -422,6 +426,40 @@ describe('single-item PXLBLZ Controller import', () => {
     expect(Object.values((fixture.importLedger as ControllerPatternImportLedger).byPatternId).every((r) => r.stage === 'complete')).toBe(true)
     expect(useRouterStore.getState().route).toEqual(route)
     expect(usePatternStore.getState().activePatternId).toBe(subject)
+  })
+
+  it.each(['refresh', 'sync'] as const)('opens a completed single import despite rejected %s observation', async (observation) => {
+    const { fixture, slots, account, createPattern, save, push } = batchImportFixture()
+    const refresh = useControllerPanelStore.getState().refreshPrograms
+    const sync = useControllerSavedProgramsLiveStore.getState().syncProfile
+    const button = await screen.findByRole('button', { name: 'Import Alpha' })
+    await waitFor(() => expect(button).toBeEnabled())
+    fireEvent.click(button)
+    const complete = () => Object.values((fixture.importLedger as ControllerPatternImportLedger).byPatternId)
+      .some((receipt) => receipt.stage === 'complete')
+    let rejected = false
+    const rejectObservation = () => {
+      if (complete() && !rejected) { rejected = true; throw new Error('Observation failed') }
+    }
+    act(() => {
+      if (observation === 'refresh') useControllerPanelStore.setState({ refreshPrograms: async (...args) => {
+        rejectObservation(); return refresh(...args)
+      } })
+      else useControllerSavedProgramsLiveStore.setState({ syncProfile: async (...args) => {
+        rejectObservation(); return sync(...args)
+      } })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(rejected).toBe(true)
+    const [record] = account.values()
+    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
+    expect((fixture.importLedger as ControllerPatternImportLedger).byPatternId[record.id]).toMatchObject({ stage: 'complete', programId: slots[0] })
+    expect(account.size).toBe(1)
+    expect(createPattern).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(push).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('retires a held batch with its account view before later targets read or mutate', async () => {

@@ -815,14 +815,18 @@ describe('ExtensionControllerProvider', () => {
       await expect(p.readSavedProgram('BROKEN')).rejects.toThrow('GET /p/BROKEN -> 500')
     })
 
-    it('surfaces an undecodable PBP as a clean read error', async () => {
+    it.each([
+      ['short', Uint8Array.from([1, 2, 3])],
+      ['truncated', encodePbp({ id: 'BROKEN', name: 'Example', sourceCode: 'export function render(i) {}',
+        byteCode: new Uint8Array(8) }).slice(0, -1)],
+    ])('surfaces a %s successful response as a neutral read error', async (_kind, programData) => {
       const p = new ExtensionControllerProvider({
-        transport: makeDeviceTransport({ programData: Uint8Array.from([1, 2, 3]) }).transport,
+        transport: makeDeviceTransport({ programData }).transport,
       })
       await p.connect(TARGET)
 
       await expect(p.readSavedProgram('BROKEN')).rejects.toThrow(
-        'Saved program BROKEN is not a readable PBP blob.',
+        'Saved program BROKEN response could not be decoded as PBP. Retry reading this saved program.',
       )
     })
 

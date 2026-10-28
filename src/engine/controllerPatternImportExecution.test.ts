@@ -1,6 +1,7 @@
 import { vi } from 'vitest'
 import { importControllerPattern, ControllerPatternImportExecutionError } from './controllerPatternImportExecution'
 import { makeProgramId } from './bytecodePush'
+import * as bytecodePush from './bytecodePush'
 import { stampArtifact, parsePxlblzBanner } from './artifactStamp'
 import { bundleWithPasses } from './passEngine'
 import { decodePbp, encodePbp } from './pbpEncode'
@@ -335,6 +336,90 @@ describe('running Pattern recovery', () => {
 })
 
 describe('selected-slot Controller Pattern import execution', () => {
+  it.each((['write-pending', 'saved-verified', 'metadata-pending'] as const).flatMap((stage) =>
+    (['null', 'lossless', 'malformed', 'rejected'] as const).map((fault) => ({ stage, fault }))))(
+    'preserves durable $stage on unreadable retry response ($fault)', async ({ stage, fault }) => {
+      const f = authoredFixture()
+      f.faults.add(`ledger-${stage}-after`)
+      await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+      const snapshot = () => structuredClone({ accounts: [...f.accounts], programs: [...f.programs],
+        ledger: f.ledger(), bindings: f.bindings(), records: f.records(),
+        calls: [f.deps.provider.saveProgram.mock.calls.length, f.deps.provider.pushBytecode.mock.calls.length,
+          f.deps.allocatePatternId.mock.calls.length, f.deps.personalContent.createPattern.mock.calls.length] })
+      const before = snapshot()
+      const diagnostic = fault === 'malformed' ? 'Saved program response could not be decoded as PBP.'
+        : fault === 'rejected' ? `Saved program ${slot} response could not be decoded as PBP. Retry reading this saved program.`
+          : 'Saved program response is unavailable.'
+      if (fault === 'rejected') f.deps.provider.readSavedProgram.mockRejectedValueOnce(new Error(diagnostic))
+      else if (fault === 'null') f.deps.provider.readSavedProgram.mockResolvedValueOnce(null)
+      else f.deps.provider.readSavedProgram.mockResolvedValueOnce({ programId: slot, deviceName: '', sourceCode: source,
+        stamp: null, ...(fault === 'malformed' ? { storedArtifact: { pbp: Uint8Array.of(1), sourceCode: source } } : {}) })
+      const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+      expect(failure).toMatchObject({ stage, patternId: 'personal-1', programId: slot,
+        cause: { message: diagnostic }, message: expect.stringContaining(diagnostic) })
+      expect((failure as Error).message).not.toContain('Saved Pattern changed')
+      expect((failure as Error).message).toContain(stage === 'write-pending'
+        ? 'a prior Controller write may have completed' : 'Controller copy verified')
+      expect(snapshot()).toEqual(before)
+      await expect(importControllerPattern(input, f.deps)).resolves.toEqual({ patternId: 'personal-1', programId: slot, complete: true })
+    })
+
+  it.each(['binding-before', 'ledger-complete-before'])('reports confirmed running without drain after %s', async (fault) => {
+    const f = makeDeps(); f.faults.add(fault)
+    const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ stage: 'metadata-pending', patternId: 'personal-1', programId: slot,
+      recovery: { status: 'imported', programId: slot }, cause: { cause: { message: fault } },
+      message: expect.stringMatching(/Imported Pattern is running\.$/) })
+    expect(f.deps.provider.pushBytecode).toHaveBeenCalledTimes(1)
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect(f.deps.provider.getActiveProgramBytecodeSize).toHaveBeenCalledTimes(1)
+    expect(f.deps.provider.getConfig).not.toHaveBeenCalled()
+    expect(f.deps.provider.readSavedProgram).toHaveBeenCalledTimes(5)
+    expect(f.ledger().byPatternId['personal-1'].stage).toBe('metadata-pending')
+  })
+
+  it('reports missing verified execution evidence through the progress boundary', async () => {
+    const f = authoredFixture(); f.faults.add('ledger-saved-verified-after')
+    await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+    delete f.ledger().byPatternId['personal-1'].deliveryDigest
+    const before = structuredClone({ ledger: f.ledger(), programs: [...f.programs], accounts: [...f.accounts],
+      bindings: f.bindings(), records: f.records() })
+    const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ message: 'Import progress could not be read. Retry checks this saved program again.', cause: expect.any(Error) })
+    expect((failure as Error).cause).toMatchObject({ message: 'Import progress is missing required execution evidence.' })
+    expect({ ledger: f.ledger(), programs: [...f.programs], accounts: [...f.accounts],
+      bindings: f.bindings(), records: f.records() }).toEqual(before)
+  })
+
+  it.each(['after-save', 'before-activation'] as const)('reports neutral header validation %s', async (point) => {
+    const f = authoredFixture()
+    let validation: ReturnType<typeof vi.spyOn> | undefined
+    if (point === 'before-activation') {
+      f.faults.add('ledger-saved-verified-after')
+      await expect(importControllerPattern(input, f.deps)).rejects.toThrow()
+      validation = vi.spyOn(bytecodePush, 'bytecodeHeaderReconciles').mockReturnValueOnce(false)
+    } else {
+      const save = f.deps.provider.saveProgram.getMockImplementation()!
+      f.deps.provider.saveProgram.mockImplementationOnce(async (bytes, opts) => {
+        await save(bytes, opts)
+        validation = vi.spyOn(bytecodePush, 'bytecodeHeaderReconciles').mockReturnValueOnce(false)
+      })
+    }
+    try {
+      const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+      expect(failure).toMatchObject({ stage: point === 'after-save' ? 'write-pending' : 'saved-verified',
+        patternId: 'personal-1', programId: slot,
+        cause: { message: 'Saved program bytecode header could not be validated.' },
+        message: expect.stringContaining('Saved program bytecode header could not be validated.') })
+      expect((failure as Error).message).not.toContain('Saved Pattern changed')
+      if (point === 'before-activation') expect((failure as Error).message).toContain('activation is unconfirmed')
+      expect(f.deps.provider.pushBytecode).not.toHaveBeenCalled()
+      expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+      expect(f.bindings()).toEqual({ sibling: { seed: 'keep' } })
+      expect(f.records()['address-A']).toBeUndefined()
+    } finally { validation?.mockRestore() }
+  })
+
   it.each(['reject', 'malformed'])('keeps unreadable retry progress neutral (%s)', async (fault) => {
     const f = makeDeps()
     f.faults.add('ledger-complete-before')
@@ -538,7 +623,12 @@ describe('selected-slot Controller Pattern import execution', () => {
     if (kind === 'lossless') f.deps.provider.readSavedProgram.mockResolvedValue({
       programId: slot, deviceName: '', sourceCode: source, stamp: null,
     })
-    await expect(importControllerPattern(input, f.deps)).rejects.toMatchObject({ stage: 'assessment', patternId: null, programId: slot })
+    const failure = await importControllerPattern(input, f.deps).catch((error: unknown) => error)
+    expect(failure).toMatchObject({ stage: 'assessment', patternId: null, programId: slot })
+    if (kind !== 'header') expect(failure).toMatchObject({
+      message: 'Saved program could not be read. No Pattern was imported. Saved program response is unavailable.',
+      cause: { message: 'Saved program response is unavailable.' },
+    })
     expect(f.deps.personalContent.createPattern).not.toHaveBeenCalled()
     expect(f.deps.provider.saveProgram).not.toHaveBeenCalled()
   })
@@ -748,7 +838,7 @@ describe('selected-slot Controller Pattern import execution', () => {
     f.deps.provider.getActiveProgramBytecodeSize.mockResolvedValue(null)
     f.faults.add('activate')
     await expect(importControllerPattern(input, f.deps)).rejects.toThrow(verified
-      ? 'Controller copy verified; activation did not complete.' : 'Account copy saved; Controller write could not be confirmed.')
+      ? 'Controller copy verified; activation is unconfirmed.' : 'Account copy saved; Controller write could not be confirmed.')
     expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(verified ? 1 : 0)
   })
 })

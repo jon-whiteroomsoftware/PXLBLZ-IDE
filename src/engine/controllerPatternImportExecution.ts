@@ -50,7 +50,7 @@ const messages = {
   account: 'The imported account Pattern changed. Retry will not overwrite it.',
   create: 'Account copy could not be confirmed. Nothing was sent. Retry reuses this import.',
   write: 'Account copy saved; Controller write could not be confirmed. Retry checks the same slot.',
-  activate: 'Controller copy verified; activation did not complete. Retry resumes this import.',
+  activate: 'Controller copy verified; activation is unconfirmed. Retry resumes this import.',
   binding: 'Controller copy verified; account binding is incomplete. Retry finishes this import.',
   bookkeeping: 'Controller binding saved; import bookkeeping is incomplete. Retry finishes this import.',
   destination: 'The import binding points to another saved program. Refresh before retrying.',
@@ -141,10 +141,10 @@ export async function importControllerPattern(
   }
   const readSlot = async () => {
     const saved = await call(() => deps.provider.readSavedProgram(input.programId))
-    if (!saved?.storedArtifact) throw error(receipt ? messages.slot : messages.unreadable)
+    if (!saved?.storedArtifact) throw new Error('Saved program response is unavailable.')
     const pbp = saved.storedArtifact.pbp.slice()
     const decoded = decodePbp(pbp)
-    if (!decoded) throw error(receipt ? messages.slot : messages.unreadable)
+    if (!decoded) throw new Error('Saved program response could not be decoded as PBP.')
     const digest = await call(() => sha256ControllerProgram(pbp))
     return { saved, pbp, decoded, digest }
   }
@@ -246,6 +246,10 @@ export async function importControllerPattern(
           if (!existing && receipt.stage !== 'planned') throw error(messages.account)
           const digest = existing ? await accountDigest(existing) : null
           if (existing && digest !== receipt.accountRecordDigest) throw error(messages.account)
+          // Verified execution requires a delivery witness before retry conflict checks.
+          if (stages.indexOf(receipt.stage) >= stages.indexOf('write-pending') && !receipt.deliveryDigest) {
+            throw error(messages.progressRead, new Error('Import progress is missing required execution evidence.'))
+          }
           action = controllerPatternImportRetry({ receipt, accountRecordDigest: digest, observedPbpDigest: observed.digest })
           if (action === 'conflict') throw error(messages.slot)
           if (!existing) {
@@ -260,9 +264,6 @@ export async function importControllerPattern(
           } else record = existing
         }
         checkBinding(bindings, receipt.patternId)
-        // Validity beyond the ledger's wire schema is execution-specific. Never
-        // interpret a verified stage without its delivery witness.
-        if (stages.indexOf(receipt.stage) >= stages.indexOf('write-pending') && !receipt.deliveryDigest) throw error(messages.slot)
         if (receipt.sourceMode === 'authored-verified' && stages.indexOf(receipt.stage) >= stages.indexOf('write-pending')
           && receipt.profileSignature === undefined) throw error(messages.slot)
         if (receipt.sourceMode === 'stored-artifact' && receipt.profileSignature !== undefined) throw error(messages.slot)
@@ -347,7 +348,7 @@ export async function importControllerPattern(
           await call(() => deps.provider.saveProgram(delivery.slice(), { id: input.programId }))
           verified = await readSlot()
           if (verified.digest !== deliveryDigest) throw new Error('Saved PBP readback differs from delivery')
-          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw error(messages.slot)
+          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw new Error('Saved program bytecode header could not be validated.')
           verifiedTarget = { programId: input.programId, name: verified.decoded.name, bytecode: verified.decoded.byteCode.slice() }
           await progress('saved-verified')
         } else if (action === 'activate' && receipt.stage !== 'saved-verified') {
@@ -361,7 +362,7 @@ export async function importControllerPattern(
           await checkAccount()
           verified = await readSlot()
           if (verified.digest !== receipt.deliveryDigest) throw error(messages.slot)
-          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw error(messages.slot)
+          if (!bytecodeHeaderReconciles(verified.decoded.byteCode)) throw new Error('Saved program bytecode header could not be validated.')
           verifiedTarget = { programId: input.programId, name: verified.decoded.name, bytecode: verified.decoded.byteCode.slice() }
           if (!drainedForWrite) await drainForImport(verified.decoded.byteCode.length)
           await activateTarget(activationDeps, verified.decoded.byteCode.slice(), { id: input.programId, name: verified.decoded.name })
@@ -371,7 +372,7 @@ export async function importControllerPattern(
         stage = 'metadata-pending'
         failureMessage = messages.binding
         if (receipt.stage === 'activated') await progress('metadata-pending')
-        if (receipt.stage !== 'metadata-pending') throw error(messages.slot)
+        if (receipt.stage !== 'metadata-pending') throw error(messages.progressRead, new Error('Import progress is missing required execution evidence.'))
         await metadataTurn(async () => {
           await checkAccount()
           verified = await readSlot()
@@ -398,7 +399,7 @@ export async function importControllerPattern(
         return { patternId: receipt.patternId, programId: input.programId, complete: true }
       } catch (cause) {
         const original = cause instanceof ControllerPatternImportExecutionError ? cause : error(failureMessage, cause)
-        if (!drainDispatched) throw original
+        if (!drainDispatched && !targetActivationConfirmed) throw original
         const target = verifiedTarget ?? previous
         let recovery: ControllerPatternImportRecovery
         if (targetActivationConfirmed) {

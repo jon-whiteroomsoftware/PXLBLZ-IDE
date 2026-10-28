@@ -1283,15 +1283,17 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         controllerId: target.view.liveIp, controllerDeviceId: target.view.deviceId,
         programId: target.program.programId, assertViewCurrent })
       assertViewCurrent()
-      await refreshControllerPrograms(target.view.liveIp)
-      assertViewCurrent()
-      requestSavedProgramsRefresh(target.view.profileId)
-      await syncSavedPrograms(target.view.profileId, {
-        controllerId: target.view.liveIp, liveEpoch: target.view.liveEpoch,
-        programs: useControllerPanelStore.getState().programsByController[target.view.liveIp] ?? EMPTY_CONTROLLER_PROGRAMS,
-        pushRecordsRevision: getControllerPushRecordsRevision(),
-        refreshGeneration: useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[target.view.profileId] ?? 0,
-      })
+      try {
+        await refreshControllerPrograms(target.view.liveIp)
+        assertViewCurrent()
+        requestSavedProgramsRefresh(target.view.profileId)
+        await syncSavedPrograms(target.view.profileId, {
+          controllerId: target.view.liveIp, liveEpoch: target.view.liveEpoch,
+          programs: useControllerPanelStore.getState().programsByController[target.view.liveIp] ?? EMPTY_CONTROLLER_PROGRAMS,
+          pushRecordsRevision: getControllerPushRecordsRevision(),
+          refreshGeneration: useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[target.view.profileId] ?? 0,
+        })
+      } catch { /* Inventory observation cannot relabel command completion. */ }
       assertViewCurrent()
       setLedgerGeneration((value) => value + 1)
       setSingleImport(null)
@@ -1303,7 +1305,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       if (currentImportView.current === target.view) {
         setLedgerGeneration((value) => value + 1)
         setImportingProgramId(null)
-        void refreshControllerPrograms(target.view.liveIp)
+        void refreshControllerPrograms(target.view.liveIp).catch(() => {})
       }
     }
   }
@@ -1488,7 +1490,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         setLedgerGeneration((value) => value + 1)
         requestSavedProgramsRefresh(capturedView.profileId)
         // Refresh is observation, not a write outcome.
-        void refreshControllerPrograms(controllerId)
+        void refreshControllerPrograms(controllerId).catch(() => {})
       }
     }
   }
@@ -1547,6 +1549,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
             ? `${pendingPxlblzBatchImport.result.succeeded.length} imported`
             : 'Create editable Studio Patterns and write them back to these saved Controller slots. Recoverable authored source uses this profile; wrapped source keeps its old profile behavior.'}</AlertDialogDescription>
           {!pendingPxlblzBatchImport.result && <ul className="my-3 space-y-1 text-xs text-zinc-300">{controllerPatternBatchNames(pendingPxlblzBatchImport.targets).map((name, index) => <li key={index}>{name}</li>)}</ul>}
+          {pendingPxlblzBatchImport.result?.succeeded.map((pattern) => <p key={pattern.id} className="my-2 text-xs text-zinc-300">{pattern.name}: Import completed.</p>)}
           {pendingPxlblzBatchImport.result?.failed.map(({ pattern, error }) => <p key={pattern.id} role="alert" className="my-2 text-xs text-red-300">{pattern.name}: {error}</p>)}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={batchBusy} onClick={() => setPendingPxlblzBatchImport(null)}>{pendingPxlblzBatchImport.result ? 'Close' : 'Cancel'}</AlertDialogCancel>

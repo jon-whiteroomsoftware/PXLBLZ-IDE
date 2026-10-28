@@ -906,12 +906,14 @@ deleted one, creates a personal Pattern from foreign source, or explains that
 recovery is impossible; this recovery does not mutate the Controller.
 
 Single-item and bulk Import in Unimported PXLBLZ Patterns confirm before downloading,
-creates a fresh personal Pattern, and writes only the selected Controller slot.
+create a fresh personal Pattern, and write only the selected Controller slot.
 Exact canonical source receives the current profile; wrapped source preserves
 its exact PBP and old behavior. The durable account ledger governs that policy
 and the editor's persistent amber notice. An incomplete bound receipt offers
 Resume import after reload; retries retain the same Pattern and slot identities
-and report prior durable write progress truthfully. Unreadable import metadata
+and report prior durable write progress truthfully. Reporting distinguishes
+response-read failures, named command completion, and confirmed running status;
+observational refresh failures preserve completed import outcomes. Unreadable import metadata
 disables Import and Resume without disabling ordinary inventory or Run. See
 [Controller Pattern import](contracts/controller-pattern-import.md) for fidelity,
 session guards, and evidence limits. Final committed browser and native-firmware

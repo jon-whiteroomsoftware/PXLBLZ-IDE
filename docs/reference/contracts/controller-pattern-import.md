@@ -191,6 +191,16 @@ verified unchanged-profile copy resumes activation or metadata without compiling
 or re-saving. A changed authored profile first requires valid old retry evidence,
 then uses the observed verified digest as its next write baseline.
 
+Read failures describe the observed response bytes. Decoder failures report
+`Saved program {programId} response could not be decoded as PBP. Retry reading this saved program.`
+They diagnose neither saved-slot corruption nor the cause or completeness of a
+partial response. An unavailable or undecodable retry response preserves durable
+progress and its diagnostic cause; it is not evidence of a changed slot digest.
+Saved verification proves bytes, so an incomplete activation reports
+`Controller copy verified; activation is unconfirmed. Retry resumes this import.`
+Missing execution evidence uses the neutral progress-read error and retains its
+cause. Actual digest and binding conflicts retain their existing refusals.
+
 Before a required drain, the command captures the running Pattern's saved copy:
 two guarded config reads must report the same nonblank active ID around a
 lossless PBP read, decode and bytecode-header validation. It refuses without
@@ -229,6 +239,12 @@ keys survive; this is client-local coordination, separate from the ledger owner.
 Completion is written last. Binding success survives a later bookkeeping failure;
 Retry finishes the remaining work and retains the durable source policy.
 
+Command completion and current running status are distinct observations.
+Historical completion returns without rereading the slot. After a completed
+single import, inventory refresh and profile sync are observational: their
+failure cannot relabel completion, keep the confirmation open, or prevent
+navigation to the completed destination while the captured view is current.
+
 An unavailable or malformed progress ledger leaves the receipt unknown. The
 visible error neutrally asks Retry to check the same saved program again; it
 claims no destination or durable stage and preserves the diagnostic cause
@@ -265,6 +281,13 @@ clears local outcomes; durable Resume remains available after remount. Busy work
 locks dismissal and conflicting writes. View/account changes retire pending
 dialogs and stale outcomes. Bulk import never navigates or changes the open
 Studio subject.
+
+Each successful bulk row displays exactly `{name}: Import completed.` alongside
+the completion count and exact named failures. Later rows may activate other
+slots, so a completed row makes no claim that its Pattern remains running.
+Failed-only retry shows each prior and newly completed name once, removes
+resolved failures, and never resubmits completed rows. Observational refresh or
+sync failure cannot relabel a completed bulk command.
 
 ## Later delivery and reconciliation
 
