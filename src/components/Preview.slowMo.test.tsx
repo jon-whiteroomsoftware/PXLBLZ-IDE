@@ -130,6 +130,138 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     reopened.render(shim.encodeScalar(0))
     expect(shim.capturedPixel()).toEqual([1, 0, 0])
   })
+  it.each(['blend', 'clock'] as const)('runs %s persistence, preserves live clocks and reopens current Copy pixels', inBetween => {
+    const fixture = 'export var patternMs = 0, patternClock = 0; export function beforeRender(d) { patternMs += d; patternClock = time(1) } export function render(i) { rgb(1,0,0) }'
+    useEditorStore.setState({ previewSource: fixture })
+    let current: SlowMoSettings = { ...settings, inBetween, persistence: { attackMs: 5000, decayMs: 2000 } }
+    usePreviewStore.setState({ slowMo: current, speed: 2 })
+    render(<Preview showDeck={false} pixelCountCap={16} />)
+    act(() => usePreviewStore.getState().setSpeed(2))
+    const expected = bundleWithPasses(fixture, {}, [{ kind: 'slowmo', settings: current, pixelCount: 16 }])
+    expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? expected.code : expected.fxCode)
+    expect(usePreviewStore.getState().slowMoArtifact?.code).toBe(expected.code)
+    expect(usePreviewStore.getState().slowMoArtifact?.arrayWords).toBe(inBetween === 'blend' ? 180 : 60)
+    expect(config().getSpeed()).toBe(inBetween === 'clock' ? 0.5 : 2)
+    const tolerance = fidelity === 'fast' ? 2 ** -10 : 2 ** -8
+    expect(pixels()[0]).toEqual([0, 0, 0])
+    tick(16); finite()
+    // Clock scales delta by Speed × rate; the wrapper divides by rate for display-time persistence.
+    expect(Math.abs(pixels()[0][0] - (1 - Math.exp(-32 / 5000)))).toBeLessThanOrEqual(tolerance)
+    expect(pixels()[0][0]).toBeGreaterThan(0)
+    tick(64)
+    const running = loop()
+    const handle = config().handle
+    const clock = config().clock
+    const setter = vi.spyOn(handle, 'setRuntimeVar')
+    const before = clock.getTime()
+    const authoredBefore = handle.getExports()
+    expect(before).toBeGreaterThan(0)
+    expect(authoredBefore.patternMs).toBeGreaterThan(0)
+    expect(authoredBefore.patternClock).toBeGreaterThan(0)
+    for (const persistence of [
+      { attackMs: 0, decayMs: 2000 }, { attackMs: 5000, decayMs: 2000 },
+      { attackMs: 5000, decayMs: 0 }, { attackMs: 5000, decayMs: 10000 },
+      { attackMs: 1500, decayMs: 2000 },
+    ]) {
+      current = { ...current, persistence }
+      setter.mockClear()
+      act(() => usePreviewStore.getState().setSlowMo(current))
+      expect(loop()).toBe(running)
+      expect(config().handle).toBe(handle)
+      expect(config().clock).toBe(clock)
+      expect(clock.getTime()).toBe(before)
+      expect(handle.getExports()).toEqual(authoredBefore)
+      for (const [name, value] of Object.entries(slowMoTunables(current))) {
+        expect(setter).toHaveBeenCalledWith(name, config().shim.encodeScalar(value))
+      }
+      const expectedCurrent = bundleWithPasses(fixture, {}, [{ kind: 'slowmo', settings: current, pixelCount: 16 }])
+      const copy = usePreviewStore.getState().slowMoArtifact!.code
+      expect(copy).toBe(expectedCurrent.code)
+      const copied = bundle(copy, {})
+      const prepare = (artifact: typeof copied) => {
+        let time = 0
+        const shim = (fidelity === 'fast' ? createShim : createFxShim)({
+          pixelCount: 16, mapPoints: config().mapPoints, dimensions: 1, getVirtualTime: () => time,
+        })
+        const reopened = loadPattern(fidelity === 'fast' ? artifact.code : artifact.fxCode, artifact.metadata, shim.builtins)
+        return (delta: number) => {
+          const scaled = delta * config().getSpeed()
+          time += scaled
+          reopened.beforeRender(shim.encodeScalar(scaled))
+          return Array.from({ length: 16 }, (_, i) => {
+            reopened.render(shim.encodeScalar(i))
+            return [...shim.capturedPixel()]
+          })
+        }
+      }
+      const reopened = prepare(copied)
+      const independent = prepare(expectedCurrent)
+      for (const delta of [0, 16, 64]) {
+        const actualPixels = reopened(delta)
+        const expectedPixels = independent(delta)
+        actualPixels.forEach((pixel, i) => pixel.forEach((value, c) => {
+          expect(Number.isFinite(value)).toBe(true)
+          expect(Math.abs(value - expectedPixels[i][c])).toBeLessThanOrEqual(tolerance)
+        }))
+        if (delta === 16 && persistence.attackMs > 0) {
+          expect(actualPixels[0][0]).toBeGreaterThan(0)
+          expect(Math.abs(actualPixels[0][0] - (1 - Math.exp(-32 / persistence.attackMs)))).toBeLessThanOrEqual(tolerance)
+        }
+      }
+    }
+    tick(16); finite()
+    expect(clock.getTime()).toBeGreaterThan(before)
+  })
+
+  it('ignores stale Clock persistence completely when the flag is absent', () => {
+    history.replaceState(null, '', location.pathname)
+    usePreviewStore.setState({ slowMo: { ...settings, inBetween: 'clock', persistence: { attackMs: 1500, decayMs: 2000 } }, speed: 2 })
+    render(<Preview showDeck={false} pixelCountCap={16} />)
+    act(() => usePreviewStore.getState().setSpeed(2))
+    const baseline = bundle(source, {})
+    expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? baseline.code : baseline.fxCode)
+    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(config().getSpeed()).toBe(2)
+    tick(16); finite()
+    expect(pixels()[0]).toEqual([1, 0, 0])
+  })
+
+  it('re-primes every persistence structure transition after positive elapsed time', () => {
+    render(<Preview showDeck={false} pixelCountCap={16} />)
+    for (const [inBetween, persistence] of [
+      ['blend', { attackMs: 1500, decayMs: 2000 }], ['blend', null],
+      ['clock', null], ['clock', { attackMs: 1500, decayMs: 2000 }],
+      ['clock', null], ['clock', { attackMs: 1500, decayMs: 2000 }],
+      ['blend', { attackMs: 1500, decayMs: 2000 }], ['clock', { attackMs: 1500, decayMs: 2000 }],
+    ] as const) {
+      tick(64)
+      expect(config().clock.getTime()).toBeGreaterThan(0)
+      const previous = loop()
+      const handle = config().handle
+      act(() => usePreviewStore.getState().setSlowMo({ ...settings, inBetween, persistence }))
+      expect(loop()).not.toBe(previous)
+      expect(config().handle).not.toBe(handle)
+      expect(config().clock.getTime()).toBe(0)
+      finite()
+    }
+  })
+
+  it.each([['blend', 1134], ['clock', 3410]] as const)('declines %s persistence over budget without changing baseline bytes or execution', (inBetween, count) => {
+    useMapStore.setState({ activePixelCount: count })
+    usePreviewStore.setState({ slowMo: { ...settings, inBetween, persistence: { attackMs: 1500, decayMs: 2000 } } })
+    render(<Preview />)
+    act(() => useMapStore.setState({ activePixelCount: count }))
+    const base = bundle(source, {})
+    expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? base.code : base.fxCode)
+    expect(usePreviewStore.getState().slowMoArtifact?.code).toBe(base.code)
+    const declined = usePreviewStore.getState().slowMoArtifact?.declined
+    expect(declined?.reason).toBe('array-budget')
+    expect(screen.getByText(declined!.message)).toBeInTheDocument()
+    const before = config().clock.getTime()
+    tick(16); finite()
+    expect(config().clock.getTime()).toBe(before + 16 * config().getSpeed())
+    expect(pixels()[0]).toEqual([1, 0, 0])
+  })
   it('paints the RGB hold, linear, and smoothstep equations without reloading', () => {
     useEditorStore.setState({ previewSource: 'var frame = -1; export function beforeRender(delta) { frame += 1 } export function render(i) { rgb(frame % 2 == 0, 0, frame % 2 != 0) }' })
     render(<Preview showDeck={false} pixelCountCap={16} />)

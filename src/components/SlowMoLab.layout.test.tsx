@@ -26,9 +26,9 @@ beforeEach(() => {
     isRunning: false,
     slowMo: {
       rate: 0.25, stepMs: 16, inBetween: 'blend',
-      stagger: { shape: 'sweep', width: 0 }, persistence: null,
+      stagger: { shape: 'sweep', width: 0 }, persistence: { attackMs: 5000, decayMs: 10000 },
     },
-    slowMoArtifact: { code: 'fixture', arrayWords: 1560 },
+    slowMoArtifact: { code: 'fixture', arrayWords: 2340 },
     elapsed: 1000,
   })
   useEditorStore.setState({ layoutLabel: '16×16' })
@@ -98,14 +98,14 @@ describe('Slow-mo lab in the production preview grid', () => {
       }
     }
 
-    for (const name of ['Renderer', 'Speed', 'Slow-mo rate', 'Slow-mo step', 'Slow-mo method', 'Slow-mo stagger']) {
+    for (const name of ['Renderer', 'Speed', 'Slow-mo rate', 'Slow-mo step', 'Slow-mo method', 'Slow-mo stagger', 'Slow-mo persistence']) {
       const control = screen.getByRole('button', { name })
       expect(control).toBeEnabled()
       expect(control.getBoundingClientRect().bottom).toBeLessThanOrEqual(host.getBoundingClientRect().bottom)
       control.focus()
       expect(document.activeElement).toBe(control)
     }
-    for (const name of ['Light size', 'Diffusion', 'Slow-mo stagger width']) {
+    for (const name of ['Light size', 'Diffusion', 'Slow-mo stagger width', 'Slow-mo attack', 'Slow-mo decay']) {
       const control = screen.getByRole('slider', { name })
       expect(control).toBeEnabled()
       control.focus()

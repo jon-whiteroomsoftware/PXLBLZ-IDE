@@ -38,6 +38,12 @@ describe('SlowMoLab', () => {
     expect(screen.getByRole('button', { name: 'Slow-mo stagger' })).toHaveTextContent('Sweep')
     expect(screen.getByRole('slider', { name: 'Slow-mo stagger width' })).toBeDisabled()
     expect(screen.getByRole('slider', { name: 'Slow-mo stagger width' })).toHaveAttribute('aria-valuetext', 'Off')
+    expect(screen.getByRole('group', { name: 'After-effect' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Slow-mo persistence' })).toBeDisabled()
+    for (const [name, value] of [['attack', '0'], ['decay', '2000']]) {
+      expect(screen.getByRole('slider', { name: `Slow-mo ${name}` })).toBeDisabled()
+      expect(screen.getByRole('slider', { name: `Slow-mo ${name}` })).toHaveValue(value)
+    }
     expect(screen.getByRole('button', { name: 'Copy generated code' })).toBeDisabled()
     expect(screen.getByText('— / 10240')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -104,6 +110,56 @@ describe('SlowMoLab', () => {
     rerender(<SlowMoLab {...props({ arrayWords: 20000 })} />)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByText('20000 / 10240')).toBeInTheDocument()
+  })
+
+  it.each(['clock', 'hold', 'blend', 'eased'] as const)('supports persistence and resets each re-enable under %s', async (inBetween) => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const initial = { ...active, inBetween, persistence: null }
+    const before = structuredClone(initial)
+    const { rerender } = render(<SlowMoLab {...props({ settings: initial, onChange })} />)
+    expect(screen.getByRole('group', { name: 'After-effect' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Slow-mo persistence' })).toBeEnabled()
+    for (const name of ['attack', 'decay']) expect(screen.getByRole('slider', { name: `Slow-mo ${name}` })).toBeDisabled()
+    await select(user, 'persistence', 'On')
+    const enabled = { ...initial, persistence: { attackMs: 0, decayMs: 2000 } }
+    expect(onChange).toHaveBeenLastCalledWith(enabled)
+    rerender(<SlowMoLab {...props({ settings: enabled, onChange })} />)
+    for (const name of ['attack', 'decay']) expect(screen.getByRole('slider', { name: `Slow-mo ${name}` })).toBeEnabled()
+    rerender(<SlowMoLab {...props({ settings: { ...enabled, persistence: { attackMs: 5000, decayMs: 10000 } }, onChange })} />)
+    await select(user, 'persistence', 'Off')
+    expect(onChange).toHaveBeenLastCalledWith(initial)
+    rerender(<SlowMoLab {...props({ settings: initial, onChange })} />)
+    await select(user, 'persistence', 'On')
+    expect(onChange).toHaveBeenLastCalledWith(enabled)
+    expect(initial).toEqual(before)
+  })
+
+  it('updates complete immutable persistence settings at dial boundaries with integer readouts', () => {
+    const onChange = vi.fn()
+    const before = structuredClone(active)
+    let settings = active
+    const { rerender } = render(<SlowMoLab {...props({ settings, onChange })} />)
+    for (const [name, field, max, values] of [
+      ['attack', 'attackMs', 5000, [0, 1500, 5000]],
+      ['decay', 'decayMs', 10000, [0, 2000, 10000]],
+    ] as const) {
+      const range = screen.getByRole('slider', { name: `Slow-mo ${name}` })
+      expect(range).toHaveAttribute('min', '0')
+      expect(range).toHaveAttribute('max', String(max))
+      expect(range).toHaveAttribute('step', '1')
+      expect(screen.getByText(`${name} ms`)).toBeInTheDocument()
+      for (const value of values) {
+        fireEvent.change(range, { target: { value } })
+        settings = { ...settings, persistence: { ...settings.persistence!, [field]: value } }
+        expect(onChange).toHaveBeenLastCalledWith(settings)
+        rerender(<SlowMoLab {...props({ settings, onChange })} />)
+        expect(range).toHaveValue(String(value))
+        expect(range).toHaveAttribute('aria-valuetext', String(value))
+        expect(within(range.closest('[data-deck="slider"]')!).getByText(String(value), { exact: true })).toBeInTheDocument()
+      }
+    }
+    expect(active).toEqual(before)
   })
 
   it.each(['clock', 'hold', 'blend', 'eased'] as const)('enables stagger only in the blend family: %s', (inBetween) => {

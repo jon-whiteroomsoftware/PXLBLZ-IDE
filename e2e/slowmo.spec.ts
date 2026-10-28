@@ -154,6 +154,48 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     await zeroClocks(page)
   })
 
+  test(`persistence dials preserve elapsed and Pattern clocks in Blend and Clock (${fidelity})`, async ({ page }) => {
+    test.setTimeout(90_000)
+    const capture = await captures(page)
+    const a = await seed(page, 'slowmo-persistence-live', 'Slowmo persistence live', originalSource)
+    await setup(page, a.id, a.src, fidelity)
+    for (const method of ['Blend', 'Clock']) {
+      await choose(page, 'Slow-mo method', method)
+      await choose(page, 'Slow-mo persistence', 'On')
+      const attack = page.getByRole('slider', { name: 'Slow-mo attack', exact: true })
+      const decay = page.getByRole('slider', { name: 'Slow-mo decay', exact: true })
+      await expect(attack).toBeEnabled()
+      await expect(decay).toBeEnabled()
+      if (method === 'Clock') await expect(page.getByRole('slider', { name: 'Slow-mo stagger width', exact: true })).toBeDisabled()
+      await capture(`persistence-${method}-prime`)
+      await zeroClocks(page)
+      await capture(`persistence-${method}-positive`, 1024)
+      await expect.poll(async () => Object.values(await clocks(page)).every(value => parseFloat(value) > 0)).toBe(true)
+      const before = await clocks(page)
+      for (const [slider, max, down, name] of [[attack, '5000', '4500', 'attack'], [decay, '10000', '9000', 'decay']] as const) {
+        await slider.focus()
+        await expect(slider).toBeFocused()
+        for (const [key, value] of [['Home', '0'], ['End', max], ['PageDown', down]]) {
+          await expect(slider).toBeFocused()
+          await slider.press(key)
+          await expect(slider).toHaveValue(value)
+          await capture(`persistence-${method}-${name}-${value}`)
+          await expect.poll(() => clocks(page)).toEqual(before)
+        }
+      }
+      await capture(`persistence-${method}-continues`, 512)
+      await expect.poll(async () => parseFloat((await clocks(page)).elapsed)).toBeGreaterThan(parseFloat(before.elapsed))
+      await expect.poll(async () => Number((await clocks(page)).patternMs)).toBeGreaterThan(Number(before.patternMs))
+      await expect.poll(async () => Number((await clocks(page)).patternClock)).toBeGreaterThan(Number(before.patternClock))
+      for (const value of ['Off', 'On']) {
+        await choose(page, 'Slow-mo persistence', value)
+        await capture(`persistence-${method}-reset-${value}`)
+        await zeroClocks(page)
+      }
+      await choose(page, 'Slow-mo persistence', 'Off')
+    }
+  })
+
   test(`live tunables preserve elapsed and Pattern clock (${fidelity})`, async ({ page }) => {
     test.setTimeout(90_000)
     const capture = await captures(page)
@@ -253,6 +295,81 @@ test('stagger controls fit desktop and narrow layouts and support keyboard round
   await choose(page, 'Slow-mo method', 'Off')
   await expect(shape).toBeDisabled()
   await expect(width).toBeDisabled()
+})
+
+test('persistence controls fit desktop and narrow layouts and support keyboard round trips', async ({ page }) => {
+  const a = await seed(page, 'slowmo-persistence-controls', 'Slowmo persistence controls', originalSource)
+  await setup(page, a.id, a.src, 'fast')
+  await choose(page, 'Slow-mo persistence', 'On')
+  const lab = page.getByTestId('slowmo-lab')
+  const persistence = lab.getByRole('button', { name: 'Slow-mo persistence', exact: true })
+  const listbox = page.getByRole('listbox', { name: 'Slow-mo persistence', exact: true })
+  const attack = lab.getByRole('slider', { name: 'Slow-mo attack', exact: true })
+  const decay = lab.getByRole('slider', { name: 'Slow-mo decay', exact: true })
+  const copy = lab.getByRole('button', { name: 'Copy generated code', exact: true })
+  for (const [name, viewport] of [
+    ['1238-k10-desktop', { width: 1440, height: 1000 }],
+    ['1238-k10-narrow', { width: 768, height: 1000 }],
+  ] as const) {
+    await page.setViewportSize(viewport)
+    for (const slider of [attack, decay]) {
+      await slider.focus()
+      await expect(slider).toBeFocused()
+      await slider.press('End')
+    }
+    await expect(attack).toHaveValue('5000')
+    await expect(decay).toHaveValue('10000')
+    await lab.scrollIntoViewIfNeeded()
+    const panel = await lab.boundingBox()
+    expect(panel).not.toBeNull()
+    for (const control of [persistence, attack, decay, copy]) {
+      await expect(control).toBeVisible()
+      await expect(control).toBeEnabled()
+      const bounds = await control.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds!.x).toBeGreaterThanOrEqual(Math.max(0, panel!.x))
+      expect(bounds!.y).toBeGreaterThanOrEqual(Math.max(0, panel!.y))
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(Math.min(viewport.width, panel!.x + panel!.width))
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(Math.min(viewport.height, panel!.y + panel!.height))
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(await lab.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await test.info().attach(name, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' })
+  }
+  await persistence.focus()
+  await expect(persistence).toBeFocused()
+  await persistence.press('ArrowDown')
+  await expect(listbox.getByRole('option', { name: 'On', exact: true })).toBeFocused()
+  await page.keyboard.press('Home')
+  await expect(listbox.getByRole('option', { name: 'Off', exact: true })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(listbox.getByRole('option', { name: 'On', exact: true })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(persistence).toBeFocused()
+  await persistence.press('ArrowDown')
+  await expect(listbox.getByRole('option', { name: 'On', exact: true })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(persistence).toBeFocused()
+  for (const [slider, max] of [[attack, '5000'], [decay, '10000']] as const) {
+    await slider.focus()
+    await expect(slider).toBeFocused()
+    for (const [key, value] of [['Home', '0'], ['ArrowRight', '1'], ['End', max]]) {
+      await expect(slider).toBeFocused()
+      await slider.press(key)
+      await expect(slider).toHaveValue(value)
+    }
+    await expect(slider).toBeFocused()
+    await slider.press('Tab')
+    await expect(slider).not.toBeFocused()
+  }
+  await choose(page, 'Slow-mo persistence', 'Off')
+  await expect(persistence).toBeEnabled()
+  await expect(attack).toBeDisabled()
+  await expect(decay).toBeDisabled()
+  await choose(page, 'Slow-mo method', 'Off')
+  await expect(persistence).toBeDisabled()
+  await expect(attack).toBeDisabled()
+  await expect(decay).toBeDisabled()
 })
 
 test('absent flag hides the lab on a loaded Pattern editor', async ({ page }) => {

@@ -399,15 +399,18 @@ replay depends on it because render functions may mutate state.
 
 The flagged slow-mo lab (`?slowmo=1`) applies `bundleWithPasses` to Pattern
 preview after resolving the pixel count. The recipe is empty with the flag
-absent, Off, or Clock, preserving complete `code`/`fxCode` identity with
-`bundle()`. Clock composes preview Speed × rate; the blend family uses the
-wrapper's fixed-step rate with ordinary preview Speed.
+absent, Off, or Clock with persistence Off, preserving complete `code`/`fxCode`
+identity with `bundle()`. Clock with persistence On uses a persistence-only
+wrapper over the live Pattern. Clock composes preview Speed × rate; the blend
+family uses the wrapper's fixed-step rate with ordinary preview Speed.
 
-Live rate, step, curve, and stagger shape/width values update encoded runtime
-globals without resetting time. In-between exposes Sweep, Radial, and Scatter
-with width 0–0.9 (0 off); stagger is inactive under Off or Clock, and Clock
-remembers its values. Source, Pattern, layout, fidelity, or baseline-versus-wrapper
-changes re-prime the preview. Refusals keep the unwrapped preview running;
+Live rate, step, curve, stagger shape/width, and persistence attack/decay dials
+update encoded runtime globals without resetting time. In-between exposes
+Sweep, Radial, and Scatter with width 0–0.9 (0 off); stagger is inactive under
+Off or Clock, and Clock remembers its values. After-effect enables persistence
+under every active method; each re-enable starts at attack 0 ms and decay
+2000 ms. Source, Pattern, layout, fidelity, Clock/blend structure, or persistence
+On/Off changes re-prime the preview. Refusals keep the unwrapped preview running;
 Copy generated code projects current values into code initializers. Lab state
 stays session-only.
 

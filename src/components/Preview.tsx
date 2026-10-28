@@ -48,7 +48,7 @@ function cube3DCanvasPx(containerWidth: number, containerHeight?: number): numbe
 }
 
 function slowMoPreviewRecipe(settings: SlowMoSettings | null, pixelCount: number): PassRecipe {
-  return slowMoEnabled() && settings && settings.inBetween !== 'clock'
+  return slowMoEnabled() && settings && (settings.inBetween !== 'clock' || settings.persistence !== null)
     ? [{ kind: 'slowmo', settings, pixelCount }] : []
 }
 
@@ -84,8 +84,8 @@ export function Preview({
   const fidelity = usePreviewStore((s) => s.fidelity)
   const slowMo = usePreviewStore((s) => s.slowMo)
   const labEnabled = slowMoEnabled()
-  const slowMoStructure = !labEnabled || !slowMo || slowMo.inBetween === 'clock'
-    ? 'baseline' : `blend:${slowMo.persistence !== null}`
+  const slowMoStructure = !labEnabled || !slowMo || (slowMo.inBetween === 'clock' && slowMo.persistence === null)
+    ? 'baseline' : `${slowMo.inBetween === 'clock' ? 'clock' : 'blend'}:${slowMo.persistence !== null}`
   const editorSource = useEditorStore((s) => s.source)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
   const compileStatus = useEditorStore((s) => s.compileStatus)

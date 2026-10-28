@@ -98,6 +98,50 @@ export function SlowMoLab({ settings, onChange, declined, arrayWords, onCopy }: 
           </DeckGrid>
         </fieldset>
       </fieldset>
+      <fieldset disabled={settings === null} className="min-w-0">
+        <legend className="text-xs text-zinc-500 mb-1">After-effect</legend>
+        <DeckGrid>
+          <DeckCell label="persistence">
+            <DeckSelect
+              ariaLabel="Slow-mo persistence"
+              value={settings?.persistence != null ? 'on' : 'off'}
+              options={[{ value: 'off', label: 'Off' }, { value: 'on', label: 'On' }]}
+              onChange={(enabled) => {
+                if (settings) onChange({ ...settings, persistence: enabled === 'on' ? { attackMs: 0, decayMs: 2000 } : null })
+              }}
+              portaled
+            />
+          </DeckCell>
+        </DeckGrid>
+        <fieldset disabled={settings?.persistence == null} className="min-w-0 mt-2">
+          <DeckGrid>
+            <DeckSlider
+              label="attack ms"
+              ariaLabel="Slow-mo attack"
+              min={0}
+              max={5000}
+              step={1}
+              value={settings?.persistence?.attackMs ?? 0}
+              format={(value) => value.toFixed(0)}
+              onChange={(attackMs) => {
+                if (settings?.persistence) onChange({ ...settings, persistence: { ...settings.persistence, attackMs } })
+              }}
+            />
+            <DeckSlider
+              label="decay ms"
+              ariaLabel="Slow-mo decay"
+              min={0}
+              max={10000}
+              step={1}
+              value={settings?.persistence?.decayMs ?? 2000}
+              format={(value) => value.toFixed(0)}
+              onChange={(decayMs) => {
+                if (settings?.persistence) onChange({ ...settings, persistence: { ...settings.persistence, decayMs } })
+              }}
+            />
+          </DeckGrid>
+        </fieldset>
+      </fieldset>
       <DeckGrid>
         <DeckTelemetry label="array words" value={`${arrayWords ?? '—'} / ${PIXELBLAZE_VM_ARRAY_WORDS}`} />
       </DeckGrid>
