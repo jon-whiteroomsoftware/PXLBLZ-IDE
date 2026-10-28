@@ -11,7 +11,7 @@ const settings: SlowMoSettings = {
   stagger: { shape: 'sweep', width: 0 }, persistence: null,
 }
 const paletteIds = new Set(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
-const stockFor = (persistence: SlowMoSettings['persistence']) => Object.entries(DEMOS).sort(([a], [b]) => a.localeCompare(b)).map(([id, source]) => {
+const stockFor = (persistence: SlowMoSettings['persistence'], inBetween: SlowMoSettings['inBetween'] = 'blend') => Object.entries(DEMOS).sort(([a], [b]) => a.localeCompare(b)).map(([id, source]) => {
   const base = bundle(source, LIBRARIES)
   const dimension = nativeDimension(base.metadata.renderFns)
   const points = Array.from({ length: 16 }, (_, i) => ({
@@ -19,7 +19,7 @@ const stockFor = (persistence: SlowMoSettings['persistence']) => Object.entries(
       : dimension === 2 ? [(i % 4 + 0.5) / 4, (Math.floor(i / 4) + 0.5) / 4]
         : [(i % 4 + 0.5) / 4, (Math.floor(i / 4) % 2 + 0.5) / 2, (Math.floor(i / 8) + 0.5) / 2],
   }))
-  const wrapped = bundleWithPasses(source, LIBRARIES, [{ kind: 'slowmo', settings: { ...settings, persistence }, pixelCount: points.length }])
+  const wrapped = bundleWithPasses(source, LIBRARIES, [{ kind: 'slowmo', settings: { ...settings, persistence, inBetween }, pixelCount: points.length }])
   return { id, base, wrapped, dimension, points }
 })
 
@@ -35,8 +35,12 @@ function assertPixels(result: FastReplayResult, length: number, context: string)
   })
 }
 
-describe.each([null, { attackMs: 1500, decayMs: 1500 }])('I16 full stock sweep persistence %j', persistence => {
-  const stock = stockFor(persistence)
+describe.each([
+  { persistence: null, inBetween: 'blend' },
+  { persistence: { attackMs: 1500, decayMs: 1500 }, inBetween: 'blend' },
+  { persistence: { attackMs: 1500, decayMs: 1500 }, inBetween: 'clock' },
+] satisfies Array<Pick<SlowMoSettings, 'persistence' | 'inBetween'>>)('I16 full stock sweep %j', ({ persistence, inBetween }) => {
+  const stock = stockFor(persistence, inBetween)
   it('declines exactly the three palette callers and wraps AuroraSphere despite its paint comment', () => {
     expect(stock.length).toBeGreaterThan(0)
     const declined = stock.filter(({ wrapped }) => wrapped.summary.passes[0].declined).map(({ id }) => id)
@@ -66,7 +70,7 @@ describe.each([null, { attackMs: 1500, decayMs: 1500 }])('I16 full stock sweep p
         })
         assertPixels(runtime.advanceLive(0), points.length, `${id}/${fidelity}/prime`)
         for (let frame = 1; frame <= 120; frame++) {
-          assertPixels(runtime.advanceLive(16), points.length, `${id}/${fidelity}/frame ${frame}`)
+          assertPixels(runtime.advanceLive(16 * (inBetween === 'clock' ? settings.rate : 1)), points.length, `${id}/${fidelity}/frame ${frame}`)
         }
       })
     }

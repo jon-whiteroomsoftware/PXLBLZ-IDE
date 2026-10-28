@@ -100,7 +100,7 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   if (plan.declined) return { code, plan, tunables: {} }
   const tunables = slowMoTunables(settings)
   if (plan.structure === 'persistence-only') {
-    throw new RangeError('Slow-mo persistence is not implemented until slice C.')
+    return emitClockPersistenceWrapper(code, plan, tunables)
   }
   if (plan.structure === 'clock') return { code, plan, tunables: {} }
   const p = `${reservedStem('slowmo')}_`
@@ -120,19 +120,7 @@ function ${p}persist(current,target) {
   return current
 }
 ` : ''}function ${p}time(interval) { return (${p}T % interval) / interval }
-function ${p}rgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
-function ${p}hsv(h,s,v) {
-  if (s == 0) { ${p}rgb(v,v,v); return }
-  var ${p}h6 = ((h % 1) + 1) % 1 * 6
-  var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
-  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
-  if (${p}i % 6 == 0) ${p}rgb(v,${p}ht,${p}hp)
-  else if (${p}i % 6 == 1) ${p}rgb(${p}hq,v,${p}hp)
-  else if (${p}i % 6 == 2) ${p}rgb(${p}hp,v,${p}ht)
-  else if (${p}i % 6 == 3) ${p}rgb(${p}hp,${p}hq,v)
-  else if (${p}i % 6 == 4) ${p}rgb(${p}ht,${p}hp,v)
-  else ${p}rgb(v,${p}hp,${p}hq)
-}`
+${emitColorCapture(p)}`
   const beforeRender = `export function beforeRender(delta) {
   ${p}cap = 0
   if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
@@ -195,6 +183,58 @@ ${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index],
   return { code: `${prelude}\n${offsets}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
 }
 
+function emitColorCapture(p: string): string {
+  return `function ${p}rgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
+function ${p}hsv(h,s,v) {
+  if (s == 0) { ${p}rgb(v,v,v); return }
+  var ${p}h6 = ((h % 1) + 1) % 1 * 6
+  var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
+  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
+  if (${p}i % 6 == 0) ${p}rgb(v,${p}ht,${p}hp)
+  else if (${p}i % 6 == 1) ${p}rgb(${p}hq,v,${p}hp)
+  else if (${p}i % 6 == 2) ${p}rgb(${p}hp,v,${p}ht)
+  else if (${p}i % 6 == 3) ${p}rgb(${p}hp,${p}hq,v)
+  else if (${p}i % 6 == 4) ${p}rgb(${p}ht,${p}hp,v)
+  else ${p}rgb(v,${p}hp,${p}hq)
+}`
+}
+
+function emitClockPersistenceWrapper(code: string, plan: SlowMoPlan, tunables: Record<string, number>): SlowMoWrapResult {
+  const p = `${reservedStem('slowmo')}_`
+  const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
+  const prelude = `${initializers}
+var ${p}phase = 0, ${p}r = 0, ${p}g = 0, ${p}b = 0
+var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
+var ${p}kUp = 1, ${p}kDn = 1, ${p}displayDelta = 0
+function ${p}persist(current,target) {
+  current += (target-current) * (target>current ? ${p}kUp : ${p}kDn)
+  if (abs(target-current) < 0.015625) current = target
+  return current
+}
+${emitColorCapture(p)}`
+  const beforeRender = `export function beforeRender(delta) {
+  ${p}displayDelta = delta / ${p}rate
+  ${p}kUp = ${p}attack > 0 ? 1-exp(-${p}displayDelta/${p}attack) : 1
+  ${p}kDn = ${p}decay > 0 ? 1-exp(-${p}displayDelta/${p}decay) : 1
+  ${p}in_beforeRender(delta)
+}`
+  const out = `function ${p}out(index) {
+  if (${p}displayDelta > 0 || ${p}phase == 0) {
+${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], ${p}${c} * 255)`).join('\n')}
+  }
+  rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)
+  if (index == pixelCount-1) ${p}phase = 1
+}`
+  const wrappers = plan.renderFns.map(name => {
+    const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
+    return `export function ${name}(${args}) {
+  ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args})
+  ${p}out(index)
+}`
+  }).join('\n')
+  return { code: `${prelude}\n${rewriteSlowMoSource(code, p, false)}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
+}
+
 export function slowMoTunables(settings: SlowMoSettings): Record<string, number> {
   if (!Number.isFinite(settings.rate) || settings.rate <= 0 || settings.rate > 1) {
     throw new RangeError('Slow-mo rate must be finite and greater than 0 and at most 1.')
@@ -217,8 +257,12 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
       throw new RangeError('Slow-mo decay must be finite and between 0 and 10000 ms.')
     }
   }
-  if (settings.inBetween === 'clock') return {}
   const p = `${reservedStem('slowmo')}_`
+  if (settings.inBetween === 'clock') return settings.persistence === null ? {} : {
+    [`${p}rate`]: settings.rate,
+    [`${p}attack`]: settings.persistence.attackMs,
+    [`${p}decay`]: settings.persistence.decayMs,
+  }
   return {
     [`${p}rate`]: settings.rate,
     [`${p}step`]: settings.stepMs,
@@ -236,7 +280,7 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Node = Record<string, any>
 
-function rewriteSlowMoSource(code: string, prefix: string): string {
+function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true): string {
   const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
   const parents = new Map<Node, Node>()
   function visitParents(node: Node): void {
@@ -269,7 +313,7 @@ function rewriteSlowMoSource(code: string, prefix: string): string {
     if (node.type === 'Program') root = scope
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !isNameBound(scope, node.callee.name)) {
       const name = node.callee.name
-      if (['time', 'rgb', 'hsv', 'hsv24'].includes(name)) {
+      if ((redirectTime && name === 'time') || ['rgb', 'hsv', 'hsv24'].includes(name)) {
         edit(node.callee, `${prefix}${name === 'hsv24' ? 'hsv' : name}`)
       }
     }

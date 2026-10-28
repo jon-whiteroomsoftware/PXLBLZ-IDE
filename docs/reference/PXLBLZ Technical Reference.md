@@ -304,10 +304,11 @@ inspectable. The interception boundary is deliberately honest: aliases, object
 methods, and dynamically selected sinks are not guessed.
 
 **Slow-mo lab (unlanded flagged prototype, `?slowmo=1`).** The preview-only
-`slowmo` recipe gives a Pattern a fixed-step clock and captures RGB into A/B
-frames for hold, linear blend, or smoothstep interpolation. Scope-aware
-rewriting captures `time`/`rgb`/`hsv`/`hsv24` after bundling, including inlined
-libraries. The pass appends rate, step, curve, stagger shape, and width globals to `runtimeVars`,
+`slowmo` recipe's blend family gives a Pattern a fixed-step clock and captures
+RGB into A/B frames for hold, linear blend, or smoothstep interpolation.
+Scope-aware rewriting redirects `time` and captures `rgb`/`hsv`/`hsv24` after
+bundling, including inlined libraries. The blend pass appends rate, step, curve,
+stagger shape, and width globals to `runtimeVars`,
 preserving authored controls and watched variables. A declined pass preserves
 exact `code`/`fxCode` and exposes its reason in the summary.
 
@@ -321,7 +322,7 @@ quantization. Each pixel blends inside `[o, o + 1 - width]`, with `o <= width`
 boundary. Hold gives a wipe; width zero preserves slice-A pixels bit-exactly.
 
 Optional persistence applies per-channel attack/decay after the in-between
-output. Once per display frame, each coefficient is `1 - exp(-delta/tau)`
+output. Once per display frame, each coefficient is `1 - exp(-displayDelta/tau)`
 (or 1 for zero tau), so attack and decay follow display time. Three arrays
 hold shown RGB in LED levels (0–255), snapping to the target below 1/64 of
 a level to close the Precise-mode tail. After priming, zero display delta
@@ -331,8 +332,15 @@ and decay (0–10,000 ms) are live `runtimeVars`; persistence on/off rebuilds.
 The six blend arrays cost `6N + 24` words (1,560 at 256 pixels). Persistence
 adds three arrays, for `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133),
 excluding authored arrays. Clock mode without persistence uses an empty
-recipe; persistence-only over clock remains pending increment C2. The
-current wrapper runs at most four inner `beforeRender` steps per display
+recipe. Clock with persistence runs the inner Pattern live every display frame,
+including zero-delta frames, preserving authored `time()` calls and the host's
+already-scaled delta. Its coefficients recover display time with `delta / rate`;
+only rate, attack, and decay are tunable globals on this path. The wrapper
+allocates three arrays for `3N + 12` words (N ≤ 3,409), excluding authored arrays.
+It applies persistence directly to captured RGB, without A/B frames or a
+generated clock.
+
+The blend wrapper runs at most four inner `beforeRender` steps per display
 frame, once each in order, advancing the clock for each, followed by one
 resulting capture. The display blends the latest two captures and skips
 intermediate real frames on screen, with no extra render pass, as accepted in

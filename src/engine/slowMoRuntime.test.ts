@@ -352,7 +352,9 @@ describe('slow-mo pass integration and scope diagnostics', () => {
       declined:{ reason:'array-budget',message:'Slow-mo needs 10242 array words; the VM budget is 10240.' },
     }] } })
     expect(bundleWithPasses(source, {}, [{ kind:'slowmo',settings:persistence,pixelCount:1133 }]).summary.passes[0].slowMo?.arrayWords).toBe(10233)
-    expect(() => artifact(source, { ...persistence, inBetween:'clock' })).toThrow(/not implemented/i)
+    expect(bundleWithPasses(source, {}, [{ kind:'slowmo', settings:{ ...persistence, inBetween:'clock' }, pixelCount:3409 }]).summary.passes[0].slowMo).toEqual({
+      arrayWords:10239, tunables:['__pxlblz_slowmo_rate', '__pxlblz_slowmo_attack', '__pxlblz_slowmo_decay'],
+    })
   })
 
   it.each([
