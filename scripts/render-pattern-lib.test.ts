@@ -97,8 +97,16 @@ describe('parseRenderArgs', () => {
       }
     })
     it.each(['sweep', 'radial', 'scatter'])('copies only known fields for %s', shape => {
-      const expected = { ...settings, stagger: { shape, width: 0 } }
-      expect(parse({ ...expected, extra: true, stagger: { ...expected.stagger, extra: true } })).toEqual(expected)
+      for (const width of [0, 0.5, 0.9]) {
+        const expected = { ...settings, stagger: { shape, width } }
+        expect(parse({ ...expected, extra: true, stagger: { ...expected.stagger, extra: true } })).toEqual(expected)
+      }
+    })
+    it.each([null, { attackMs: 0, decayMs: 0 }, { attackMs: 1500, decayMs: 1500 },
+      { attackMs: 0, decayMs: 2000 }, { attackMs: 5000, decayMs: 10000 }])('accepts persistence %j and strips unknown fields', persistence => {
+      const expected = { ...settings, stagger: { shape: 'scatter', width: 0.5 }, persistence }
+      expect(parse({ ...expected, extra: true, persistence: persistence === null ? null : { ...persistence, extra: true } }))
+        .toEqual(expected)
     })
     it('accepts the runtime numeric bounds beyond the lab stops', () => {
       expect(parse({ ...settings, rate: Number.MIN_VALUE, stepMs: 32767 })).toEqual({ ...settings, rate: Number.MIN_VALUE, stepMs: 32767 })
@@ -117,10 +125,35 @@ describe('parseRenderArgs', () => {
       ['rate', [undefined, 0, -1, 1.1, '0.25', 1e308], '--slowmo rate must be finite and in (0, 1].'],
       ['stepMs', [undefined, 0, -1, 32768, '16', 1e308], '--slowmo stepMs must be finite and in (0, 32767].'],
       ['inBetween', [undefined, 'future'], '--slowmo inBetween must be clock, hold, blend, or eased.'],
-      ['stagger', [undefined, null, [], { width: 0 }, { shape: 'future', width: 0 }, { shape: 'sweep', width: 0.1 }, { shape: 'sweep' }], '--slowmo stagger must have shape sweep, radial, or scatter and width 0 in slice A.'],
-      ['persistence', [undefined, {}, { attackMs: 0, decayMs: 0 }], '--slowmo persistence must be null in slice A.'],
     ] as const)('rejects invalid or missing %s', (field, values, message) => {
       for (const value of values) expect(() => parse({ ...settings, [field]: value })).toThrow(message)
+    })
+    it.each([
+      undefined, null, [], 1, 'sweep', {}, { width: 0 }, { shape: 'future', width: 0 },
+      { shape: 'sweep' }, { shape: 'sweep', width: '0.5' }, { shape: 'sweep', width: -0.001 },
+      { shape: 'sweep', width: 0.9001 },
+    ])('rejects invalid or missing stagger %j', stagger => {
+      expect(() => parse({ ...settings, stagger })).toThrow(new Error(
+        '--slowmo stagger must have shape sweep, radial, or scatter and finite width in [0, 0.9].',
+      ))
+    })
+    it.each([
+      undefined, [], 1, 'persistence', {}, { attackMs: 0 }, { decayMs: 0 },
+      { attackMs: '0', decayMs: 0 }, { attackMs: 0, decayMs: '0' },
+      { attackMs: -0.001, decayMs: 0 }, { attackMs: 0, decayMs: -0.001 },
+      { attackMs: 5000.001, decayMs: 0 }, { attackMs: 0, decayMs: 10000.001 },
+    ])('rejects invalid or missing persistence %j', persistence => {
+      expect(() => parse({ ...settings, persistence })).toThrow(new Error(
+        '--slowmo persistence must be null or have finite attackMs in [0, 5000] and decayMs in [0, 10000].',
+      ))
+    })
+    it.each([
+      ['"width":0', '"width":1e309', '--slowmo stagger must have shape sweep, radial, or scatter and finite width in [0, 0.9].'],
+      ['"attackMs":0', '"attackMs":1e309', '--slowmo persistence must be null or have finite attackMs in [0, 5000] and decayMs in [0, 10000].'],
+      ['"decayMs":0', '"decayMs":1e309', '--slowmo persistence must be null or have finite attackMs in [0, 5000] and decayMs in [0, 10000].'],
+    ])('rejects nonfinite JSON literal in %s', (field, overflow, message) => {
+      const raw = JSON.stringify({ ...settings, persistence: { attackMs: 0, decayMs: 0 } }).replace(field, overflow)
+      expect(() => parseRenderArgs(['--demo', 'A', '--slowmo', raw])).toThrow(new Error(message))
     })
     it.each([false, true])('rejects Show settings in either argument order (first=%s)', first => {
       const slowMo = ['--slowmo', JSON.stringify(settings)]
@@ -131,6 +164,18 @@ describe('parseRenderArgs', () => {
     it('rejects Show slow-mo independently of explicit fidelity', () => {
       expect(() => parseRenderArgs(['--show', 'stock-show-x', '--fidelity', 'precise', '--slowmo', JSON.stringify(settings)]))
         .toThrow('--slowmo is supported for Pattern renders only.')
+    })
+    it.each([false, true])('rejects Show B/C settings in either argument order (first=%s)', first => {
+      for (const advanced of [
+        { ...settings, stagger: { shape: 'sweep', width: 0.5 } },
+        { ...settings, persistence: { attackMs: 1500, decayMs: 1500 } },
+        { ...settings, stagger: { shape: 'scatter', width: 0.5 }, persistence: { attackMs: 0, decayMs: 2000 } },
+      ]) {
+        const slowMo = ['--slowmo', JSON.stringify(advanced)]
+        const show = ['--show', 'stock-show-x']
+        expect(() => parseRenderArgs(first ? [...slowMo, ...show] : [...show, ...slowMo]))
+          .toThrow(new Error('--slowmo is supported for Pattern renders only.'))
+      }
     })
   })
 
