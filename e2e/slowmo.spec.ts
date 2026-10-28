@@ -293,8 +293,10 @@ test('stagger controls fit desktop and narrow layouts and support keyboard round
   await expect(shape).toHaveText('Scatter')
   await expect(width).toHaveValue('0.5')
   await choose(page, 'Slow-mo method', 'Off')
-  await expect(shape).toBeDisabled()
-  await expect(width).toBeDisabled()
+  await expect(shape).toBeEnabled()
+  await expect(width).toBeEnabled()
+  await expect(shape).toHaveText('Scatter')
+  await expect(width).toHaveValue('0.5')
 })
 
 test('persistence controls fit desktop and narrow layouts and support keyboard round trips', async ({ page }) => {
@@ -364,12 +366,14 @@ test('persistence controls fit desktop and narrow layouts and support keyboard r
   }
   await choose(page, 'Slow-mo persistence', 'Off')
   await expect(persistence).toBeEnabled()
-  await expect(attack).toBeDisabled()
-  await expect(decay).toBeDisabled()
+  await expect(attack).toBeEnabled()
+  await expect(decay).toBeEnabled()
   await choose(page, 'Slow-mo method', 'Off')
-  await expect(persistence).toBeDisabled()
-  await expect(attack).toBeDisabled()
-  await expect(decay).toBeDisabled()
+  await expect(persistence).toBeEnabled()
+  await expect(attack).toBeEnabled()
+  await expect(decay).toBeEnabled()
+  await expect(attack).toHaveValue('5000')
+  await expect(decay).toHaveValue('10000')
 })
 
 test('absent flag hides the lab on a loaded Pattern editor', async ({ page }) => {

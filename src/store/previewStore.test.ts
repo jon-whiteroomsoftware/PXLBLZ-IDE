@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { usePreviewStore, previewInitialState, mergePersistedPreview } from './previewStore'
 import type { SlowMoSettings } from '../engine/slowMo'
+import { createSlowMoDraft } from '../engine/slowMoDraft'
 import { controllerProfilePassRecipe } from '../engine/controllerProfilePassRecipe'
 import { bundleWithPasses } from '../engine/passEngine'
 import { defaultControllerProfile } from './controllerProfileStore'
@@ -16,6 +17,38 @@ const slowMoSample: SlowMoSettings = {
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
+})
+
+describe('complete session draft', () => {
+  it('atomically projects edits and retains all fields through Off and legacy setters', () => {
+    const draft = { ...createSlowMoDraft(), rate: 0.25, stepMs: 32, persistence: { enabled: false, attackMs: 500, decayMs: 9000 } }
+    const snapshots: unknown[] = []
+    const unsubscribe = usePreviewStore.subscribe(s => snapshots.push([s.slowMoDraft, s.slowMo]))
+    usePreviewStore.getState().setSlowMoDraft(draft)
+    expect(snapshots).toEqual([[draft, null]])
+    const active = { ...draft, inBetween: 'blend' as const }
+    usePreviewStore.getState().setSlowMoDraft(active)
+    const effective = { rate: 0.25, stepMs: 32, inBetween: 'blend', stagger: { shape: 'sweep', width: 0 }, persistence: null }
+    expect(snapshots).toEqual([[draft, null], [active, effective]])
+    usePreviewStore.getState().setSlowMo(null)
+    expect(usePreviewStore.getState().slowMoDraft).toEqual(draft)
+    expect(usePreviewStore.getState().slowMo).toBeNull()
+    usePreviewStore.getState().setSlowMo(slowMoSample)
+    expect(usePreviewStore.getState().slowMoDraft).toEqual({ ...slowMoSample, persistence: draft.persistence })
+    expect(usePreviewStore.getState().slowMo).toEqual(slowMoSample)
+    unsubscribe()
+  })
+
+  it('drops stale draft and effective hydration while preserving live state and persisted preferences', async () => {
+    const draft = { ...createSlowMoDraft(), rate: 0.125 }
+    usePreviewStore.getState().setSlowMoDraft(draft)
+    const saved = JSON.parse(localStorage.getItem('pixelblaze-preview')!)
+    expect(saved.state).toEqual({ fidelity: 'fast', lightSizeSticky: 0.5, diffusionSticky: 0.5 })
+    localStorage.setItem('pixelblaze-preview', JSON.stringify({ ...saved, state: { ...saved.state, slowMo: slowMoSample, slowMoDraft: { inBetween: 'eased' } } }))
+    await usePreviewStore.persist.rehydrate()
+    expect(usePreviewStore.getState().slowMoDraft).toEqual(draft)
+    expect(usePreviewStore.getState().slowMo).toBeNull()
+  })
 })
 
 describe('session-only generated slow-mo artifact', () => {

@@ -52,11 +52,16 @@ afterEach(() => { cleanup(); history.replaceState(null, '', originalUrl) })
 
 describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity => {
   beforeEach(() => usePreviewStore.setState({ fidelity }))
-  it.each(['absent', 'off'])('loads the complete stock baseline artifact with slow-mo %s', mode => {
+  it.each(['absent', 'off', 'off-draft'])('loads the complete stock baseline artifact with slow-mo %s', mode => {
     for (const [name, stockSource] of Object.entries(DEMOS)) {
       vi.clearAllMocks()
       history.replaceState(null, '', mode === 'absent' ? location.pathname : `${location.pathname}?slowmo=1`)
       usePreviewStore.setState({ ...previewInitialState, fidelity, isRunning: false, slowMo: mode === 'off' ? null : settings })
+      if (mode === 'off-draft') usePreviewStore.getState().setSlowMoDraft({
+        rate: 1 / 32, stepMs: 32, inBetween: 'off',
+        stagger: { shape: 'scatter', width: 0.9 },
+        persistence: { enabled: true, attackMs: 5000, decayMs: 10000 },
+      })
       useMapStore.setState(mapInitialState)
       useEditorStore.setState({ ...editorInitialState, previewSource: stockSource })
       usePatternStore.setState(patternInitialState)

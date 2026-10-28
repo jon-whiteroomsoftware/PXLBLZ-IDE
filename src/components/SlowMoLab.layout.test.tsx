@@ -24,12 +24,12 @@ beforeEach(() => {
   history.replaceState(null, '', `${location.pathname}?slowmo=1`)
   usePreviewStore.setState({
     isRunning: false,
-    slowMo: {
-      rate: 0.25, stepMs: 16, inBetween: 'blend',
-      stagger: { shape: 'sweep', width: 0 }, persistence: { attackMs: 5000, decayMs: 10000 },
-    },
     slowMoArtifact: { code: 'fixture', arrayWords: 2340 },
     elapsed: 1000,
+  })
+  usePreviewStore.getState().setSlowMo({
+    rate: 0.25, stepMs: 16, inBetween: 'blend',
+    stagger: { shape: 'sweep', width: 0 }, persistence: { attackMs: 5000, decayMs: 10000 },
   })
   useEditorStore.setState({ layoutLabel: '16×16' })
   usePanelPreferencesStore.setState({ expanded: { 'pattern:preview': true } })
@@ -71,6 +71,12 @@ describe('Slow-mo lab in the production preview grid', () => {
     )
 
     const lab = screen.getByRole('region', { name: 'Slow-mo lab' }).getBoundingClientRect()
+    const inBetween = screen.getByRole('group', { name: 'In-between' }).getBoundingClientRect()
+    const afterEffect = screen.getByRole('group', { name: 'After-effect' }).getBoundingClientRect()
+    if (width === 460) {
+      expect(Math.abs(inBetween.top - afterEffect.top)).toBeLessThanOrEqual(1)
+      expect(lab.height).toBeLessThanOrEqual(190)
+    } else expect(afterEffect.top).toBeGreaterThanOrEqual(inBetween.bottom)
     const body = host.querySelector<HTMLElement>('.panel-section-body')!
     const panel = body.getBoundingClientRect()
     const renderer = screen.getByRole('button', { name: 'Renderer' }).getBoundingClientRect()

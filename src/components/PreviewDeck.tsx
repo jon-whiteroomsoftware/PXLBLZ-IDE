@@ -372,8 +372,8 @@ export function PreviewViewportSection({
   const pattern = profile === 'pattern'
   const togglePlayback = usePreviewStore((s) => s.toggle)
   const speed = usePreviewStore(s => s.speed)
-  const slowMo = usePreviewStore(s => s.slowMo)
-  const setSlowMo = usePreviewStore(s => s.setSlowMo)
+  const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
+  const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
   const slowMoArtifact = usePreviewStore(s => s.slowMoArtifact)
   const [copyFailure, setCopyFailure] = useState<{
     artifact: NonNullable<typeof slowMoArtifact>
@@ -494,7 +494,7 @@ export function PreviewViewportSection({
       </DeckGrid>
       {pattern && slowMoEnabled() && (
         <>
-          <SlowMoLab settings={slowMo} onChange={setSlowMo} declined={slowMoArtifact?.declined ?? null} arrayWords={slowMoArtifact?.arrayWords ?? null} onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
+          <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={slowMoArtifact?.declined ?? null} arrayWords={slowMoArtifact?.arrayWords ?? null} onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
           {copyError && <p role="status">{copyError}</p>}
         </>
       )}

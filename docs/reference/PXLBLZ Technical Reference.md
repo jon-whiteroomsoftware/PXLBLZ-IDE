@@ -406,13 +406,16 @@ family uses the wrapper's fixed-step rate with ordinary preview Speed.
 
 Live rate, step, curve, stagger shape/width, and persistence attack/decay dials
 update encoded runtime globals without resetting time. In-between exposes
-Sweep, Radial, and Scatter with width 0–0.9 (0 off); stagger is inactive under
-Off or Clock, and Clock remembers its values. After-effect enables persistence
-under every active method; each re-enable starts at attack 0 ms and decay
-2000 ms. Source, Pattern, layout, fidelity, Clock/blend structure, or persistence
-On/Off changes re-prime the preview. Refusals keep the unwrapped preview running;
+Sweep, Radial, and Scatter with width 0–0.9 (0 off). A full session draft stays
+editable with Method Off; effective settings remain null, preserving baseline
+`code`/`fxCode` and Copy output. Only Clock disables stagger, retaining its values.
+After-effect controls whether the retained draft attack/decay dials project to
+persistence; those dials remain editable while After-effect is Off. Method Off
+retains every draft field. Source, Pattern, layout, fidelity, Clock/blend structure,
+or persistence On/Off changes re-prime the preview. Refusals keep the unwrapped preview running;
 Copy generated code projects current values into code initializers. Lab state
-stays session-only.
+stays session-only: both draft and effective settings are omitted from persisted
+snapshots and dropped from stale hydration blobs.
 
 The Show Stage has two advancement contracts: live playback advances once per
 presented frame (`advanceLive`), deterministic seek advances at fixed 60 Hz
