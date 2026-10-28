@@ -184,11 +184,14 @@ export async function installFakeControllerHelper(
       if (message.type !== 'send') return
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (payload?.binary && typeof message.connId === 'string') {
+        // Multiple fixtures listen on the page; only the owning connection may acknowledge.
+        if (fixture.address && !connections.has(message.connId)) return
         // Type 1 is putSourceCode: the saved PBP carrying the source.
         const frame = Uint8Array.from(atob(payload.binary), (character) => character.charCodeAt(0))
         if (frame[0] === 1) {
-          if (!fixture.sharedProgramBinding) writes.push({ save: true })
-          else {
+          if (!fixture.sharedProgramBinding) {
+            if (frame[1] & 4) writes.push({ save: true })
+          } else {
             const connId = message.connId
             if (frame[1] & 1) chunks.set(connId, [])
             const parts = chunks.get(connId)
@@ -204,7 +207,13 @@ export async function installFakeControllerHelper(
               sharedWrites = sharedWrites.then(() => shared({ operation: 'save', id, pbpBase64: bytesToBase64(bytes.slice(17)) }))
             }
           }
+          if (frame[1] & 4) {
+            // Completion confirms persistence, not merely receipt of the final frame.
+            if (fixture.sharedProgramBinding) await sharedWrites
+            reply(message.connId, { saveProgramSourceFile: 1 })
+          }
         }
+        reply(message.connId, { ack: 1 })
         return
       }
       if (!payload?.text || typeof message.connId !== 'string') return
@@ -229,7 +238,6 @@ export async function installFakeControllerHelper(
           runSequencer: fixture.runSequencer,
         })
       }
-      if (command.ping) reply(message.connId, { ack: 1 })
       if (typeof command.name === 'string') {
         deviceName = command.name
         try {
@@ -257,7 +265,9 @@ export async function installFakeControllerHelper(
         activeProgramId = pendingProgramId
         pendingProgramId = null
       }
-      if ('pause' in command && !('setCode' in command)) reply(message.connId, { ack: 1 })
+      if (['ping', 'pause', 'setCode', 'setControls'].some((key) => key in command)) {
+        reply(message.connId, { ack: 1 })
+      }
     })
   }, { ...options, sharedProgramBinding })
 }
