@@ -228,7 +228,7 @@ export function render(i){rgb(count/16,0,0)}`, mode, { ...settings, rate: 1 })
       close(r.frame(16), points.map(() => [6/16,0,0]), tolerance)
     })
 
-    it('I15 partial: normalized hue parity and clipped-output diagnostic for out-of-range s/v', () => {
+    it('I15 matches clamped shim HSV across normalized hue and out-of-range s/v', () => {
       for (const h of [-1.25, -0.125, 0, 0.25, 0.5, 0.75, 1.25]) {
         for (const s of [-0.25, 0, 0.5, 1, 1.25]) {
           for (const v of [-0.25, 0, 0.5, 1, 1.25]) {
