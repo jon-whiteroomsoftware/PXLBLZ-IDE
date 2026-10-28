@@ -168,6 +168,7 @@ export async function importControllerPattern(
       let previous: RunningSnapshot | undefined
       let verifiedTarget: RunningSnapshot | undefined
       let drainDispatched = false
+      let targetActivationConfirmed = false
       const activationDeps = {
         provider: {
           compile: (source: string) => call(() => deps.provider.compile(source)),
@@ -364,6 +365,7 @@ export async function importControllerPattern(
           verifiedTarget = { programId: input.programId, name: verified.decoded.name, bytecode: verified.decoded.byteCode.slice() }
           if (!drainedForWrite) await drainForImport(verified.decoded.byteCode.length)
           await activateTarget(activationDeps, verified.decoded.byteCode.slice(), { id: input.programId, name: verified.decoded.name })
+          targetActivationConfirmed = true
           await progress('activated')
         }
         stage = 'metadata-pending'
@@ -399,13 +401,17 @@ export async function importControllerPattern(
         if (!drainDispatched) throw original
         const target = verifiedTarget ?? previous
         let recovery: ControllerPatternImportRecovery
-        try {
-          guard()
-          if (!target) throw new Error('No running Pattern recovery snapshot', { cause })
-          await drainBeforeUnsafeActivation(activationDeps, target.bytecode.length)
-          await activateTarget(activationDeps, target.bytecode.slice(), { id: target.programId, name: target.name })
-          recovery = { status: verifiedTarget ? 'imported' : 'previous', programId: target.programId, name: target.name }
-        } catch (cause) { recovery = { status: 'unconfirmed', cause } }
+        if (targetActivationConfirmed) {
+          recovery = { status: 'imported', programId: verifiedTarget!.programId, name: verifiedTarget!.name }
+        } else {
+          try {
+            guard()
+            if (!target) throw new Error('No running Pattern recovery snapshot', { cause })
+            await drainBeforeUnsafeActivation(activationDeps, target.bytecode.length)
+            await activateTarget(activationDeps, target.bytecode.slice(), { id: target.programId, name: target.name })
+            recovery = { status: verifiedTarget ? 'imported' : 'previous', programId: target.programId, name: target.name }
+          } catch (cause) { recovery = { status: 'unconfirmed', cause } }
+        }
         const suffix = recovery.status === 'imported' ? 'Imported Pattern is running.'
           : recovery.status === 'previous' ? 'Previous Pattern restored from its saved copy.'
             : 'Recovery is unconfirmed; the Controller may still show the drain.'

@@ -16,6 +16,7 @@ import { loadPattern } from './loadPattern'
 import { createShim } from './shim'
 import { createPlaneMap } from './maps'
 import { queueControllerDeviceWrite } from './controllerDeviceWriteQueue'
+import { CONTROLLER_DRAIN_PATTERN_SOURCE } from './pushPattern'
 
 const source = '// Author: Ada\nexport function render(i) { rgb(0.8, 0.4, 0.2) }'
 const slot = makeProgramId(() => 0)
@@ -71,7 +72,7 @@ function makeDeps() {
   let allocated = 0
   const provider = {
     getConfig: vi.fn(async (): Promise<{ activeProgramId?: string }> => ({ activeProgramId: 'unrelated' })),
-    compile: vi.fn(async () => { fail('compile'); return goodBytecode(12) }),
+    compile: vi.fn(async (_source: string) => { fail('compile'); return goodBytecode(12) }),
     getActiveProgramBytecodeSize: vi.fn(async (): Promise<number | null> => 8),
     pushBytecode: vi.fn(async (_bytes: Uint8Array, _opts: { id: string; name: string }) => { fail('activate') }),
     saveProgram: vi.fn(async (bytes: Uint8Array, opts: { id: string }) => {
@@ -230,6 +231,68 @@ describe('running Pattern recovery', () => {
     expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
     expect(f.ledger().byPatternId['personal-1'].stage).toBe('saved-verified')
     expect(f.bindings()['address-A']).toBeUndefined()
+  })
+  it.each([
+    ['ledger-activated-before', 'saved-verified', 'saved-verified'],
+    ['ledger-activated-after', 'saved-verified', 'activated'],
+    ['ledger-metadata-pending-before', 'activated', 'activated'],
+    ['ledger-metadata-pending-after', 'activated', 'metadata-pending'],
+    ['binding-before', 'metadata-pending', 'metadata-pending'],
+    ['record-before', 'metadata-pending', 'metadata-pending'],
+    ['ledger-complete-before', 'metadata-pending', 'metadata-pending'],
+  ])('preserves confirmed imported activation after %s', async (fault, errorStage, durableStage) => {
+    const f = runningFixture(); f.faults.add(fault)
+    f.deps.provider.compile.mockImplementation(async (compiledSource: string) =>
+      goodBytecode(compiledSource === CONTROLLER_DRAIN_PATTERN_SOURCE ? 12 : 36_000))
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    const target = decodePbp(f.programs.get(slot)!)!
+    expect(failure).toBeInstanceOf(ControllerPatternImportExecutionError)
+    expect(failure).toMatchObject({ stage: errorStage, patternId: 'personal-1', programId: slot,
+      cause: { stage: errorStage, patternId: 'personal-1', programId: slot, cause: { message: fault } },
+      recovery: { status: 'imported', programId: slot, name: target.name } })
+    expect((failure as Error).message).toContain(fault)
+    expect((failure as Error).message).toMatch(/Imported Pattern is running\.$/)
+    expect(target.byteCode).toHaveLength(36_000)
+    expect(f.running()).toEqual({ programId: slot, name: target.name, bytecode: target.byteCode })
+    expect(f.order).toEqual(['drain', slot])
+    expect(f.deps.provider.pushBytecode).toHaveBeenCalledTimes(2)
+    expect(f.deps.provider.compile).toHaveBeenCalledTimes(2)
+    expect(f.deps.provider.getActiveProgramBytecodeSize).toHaveBeenCalledTimes(1)
+    expect(f.deps.provider.getConfig).toHaveBeenCalledTimes(2)
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+    const reopened = await f.storage().getPatternImports!()
+    expect(reopened.byPatternId['personal-1']).toMatchObject({ stage: durableStage,
+      patternId: 'personal-1', programId: slot, controllerDeviceId: 'physical-A' })
+    expect(f.bindings()['address-A']?.['personal-1']).toBe(
+      fault === 'record-before' || fault === 'ledger-complete-before' ? slot : undefined)
+    expect(f.records()['address-A']?.['personal-1']).toEqual(fault === 'ledger-complete-before'
+      ? expect.objectContaining({ name: target.name }) : undefined)
+    expect(f.deps.allocatePatternId).toHaveBeenCalledTimes(1)
+  })
+  it('preserves confirmed imported activation against hostile follow-up writes', async () => {
+    const f = runningFixture(); f.faults.add('binding-before')
+    f.deps.provider.compile.mockImplementation(async (compiledSource: string) =>
+      goodBytecode(compiledSource === CONTROLLER_DRAIN_PATTERN_SOURCE ? 12 : 36_000))
+    const push = f.deps.provider.pushBytecode.getMockImplementation()!
+    let targetActivated = false
+    f.deps.provider.pushBytecode.mockImplementation(async (bytes, opts) => {
+      if (opts.id === slot && targetActivated) throw new Error('follow-up target rejected')
+      await push(bytes, opts)
+      if (opts.id === slot) targetActivated = true
+    })
+    const failure = await importControllerPattern(input, f.deps).catch((e: unknown) => e)
+    const target = decodePbp(f.programs.get(slot)!)!
+    expect(f.running()).toEqual({ programId: slot, name: target.name, bytecode: target.byteCode })
+    expect(target.byteCode).toHaveLength(36_000)
+    expect(failure).toMatchObject({ stage: 'metadata-pending', patternId: 'personal-1', programId: slot,
+      recovery: { status: 'imported', programId: slot, name: target.name },
+      cause: { cause: { message: 'binding-before' } },
+      message: expect.stringContaining('Imported Pattern is running.') })
+    expect(f.order).toEqual(['drain', slot])
+    expect(f.deps.provider.pushBytecode).toHaveBeenCalledTimes(2)
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+    expect((await f.storage().getPatternImports!()).byPatternId['personal-1']).toMatchObject({
+      stage: 'metadata-pending', patternId: 'personal-1', programId: slot })
   })
   it.each(['session', 'transport'])('reports unconfirmed recovery after dispatched drain loses %s', async (kind) => {
     const f = runningFixture()

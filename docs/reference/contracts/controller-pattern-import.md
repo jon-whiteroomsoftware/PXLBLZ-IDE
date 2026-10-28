@@ -199,8 +199,15 @@ its saved copy cannot be read or validated, or the active ID changes during
 capture. The visible reason ends `No drain was sent.` An account copy and write
 intent may already exist. A replacement that needs no drain needs no capture.
 
-After drain dispatch, including an ambiguous rejected activation, a failed
-command retains the Controller queue for one bounded recovery attempt. It
+Once imported target activation confirms, a later progress or metadata failure
+reports `Imported Pattern is running.` without further Controller reads, drain
+compilation, drain or target pushes, or Save during error handling. Confirmation
+is terminal for Controller writes in that invocation; the command still fails
+with its original durable stage, identities and cause, leaving progress intact.
+
+After drain dispatch and before imported activation confirms, including an
+ambiguous rejected activation, a failed command retains the Controller queue for
+one bounded recovery attempt. It
 prefers the imported copy once selected-slot readback equals delivery and its
 bytecode header validates, even if the saved-verification ledger mutation
 rejects; otherwise it restores the captured previous saved copy. Recovery uses
@@ -300,7 +307,13 @@ Stateful running-Pattern regressions cover every pre-drain capture refusal,
 exact previous-byte restoration after Save/readback failure, equality-verified
 authored delivery recovery after ledger failure, verified retry preference,
 ambiguous drain dispatch with session/transport loss, and queue ownership until
-recovery settles. The fakes change running identity and bytes before activation
+recovery settles. Post-activation partitions cover activated and metadata-pending
+ledger failures before and after persistence, binding and record failures, and
+completion failure. A large imported target makes repeat activation require
+another drain; a hostile follow-up-write fake would leave that drain running.
+Assertions preserve exact saved-PBP running bytes, incomplete progress, original
+error identity and cause, and one drain, target activation and Save only.
+The fakes change running identity and bytes before activation
 settles; assertions check that state and the visible error. These are software
 proofs; physical Controller recovery remains hardware evidence.
 
