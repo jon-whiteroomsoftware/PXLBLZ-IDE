@@ -25,27 +25,29 @@ export function installBenchSocketWitness(target: string): void {
   let armed = false
   let stopped: string | undefined
   let owned: { socket: WebSocket; row: BenchSocketEvent; closed: Promise<void>; witnessed: boolean } | undefined
-  const fail = (why: string): never => { stopped ??= why; throw new Error(stopped) }
-  const healthy = () => { if (stopped) throw new Error(stopped) }
-  const safe = () => {
-    healthy()
-    if (armed || (owned && (!owned.witnessed || !owned.row.actualCloseUtc || owned.row.code !== 1000))) throw new Error('Completed actual clean-close gate is required')
+  const guard = {
+    fail(why: string): never { stopped ??= why; throw new Error(stopped) },
+    healthy() { if (stopped) throw new Error(stopped) },
+    safe() {
+      guard.healthy()
+      if (armed || (owned && (!owned.witnessed || !owned.row.actualCloseUtc || owned.row.code !== 1000))) throw new Error('Completed actual clean-close gate is required')
+    },
+    requestClose() {
+      if (!owned || owned.row.actualCloseUtc) return
+      if (!owned.row.requestedCloseUtc) {
+        owned.row.requestedCloseUtc = new Date().toISOString()
+        Native.prototype.close.call(owned.socket, 1000)
+      }
+    },
   }
-  const requestClose = () => {
-    if (!owned || owned.row.actualCloseUtc) return
-    if (!owned.row.requestedCloseUtc) {
-      owned.row.requestedCloseUtc = new Date().toISOString()
-      Native.prototype.close.call(owned.socket, 1000)
-    }
-  }
-  const Wrapped = class extends Native {
+  g.WebSocket = class extends Native {
     constructor(url: string | URL, protocols?: string | string[]) {
       let isOwned = false
       try { isOwned = new URL(String(url)).href === `ws://${target}:81/` } catch { /* Let the native constructor handle other URL forms. */ }
       if (isOwned) {
-        healthy()
-        if (!armed) fail('unarmed or replacement Controller socket construction refused')
-        if (owned && !owned.row.actualCloseUtc) fail('Concurrent Controller socket construction refused')
+        guard.healthy()
+        if (!armed) guard.fail('unarmed or replacement Controller socket construction refused')
+        if (owned && !owned.row.actualCloseUtc) guard.fail('Concurrent Controller socket construction refused')
         armed = false
       }
       // Preserve native overload behavior, including omitted protocols.
@@ -72,24 +74,23 @@ export function installBenchSocketWitness(target: string): void {
       }
     }
   }
-  g.WebSocket = Wrapped
   g.__benchSockets = {
-    arm() { healthy(); if (armed) fail('Concurrent socket arm refused'); if (owned && !owned.witnessed) fail('Completed clean-close witness gate required before socket arm'); armed = true },
-    assertSafe: safe,
-    assertHealthy: healthy,
-    events: () => rows.map(row => ({ ...row })),
+    arm() { guard.healthy(); if (armed) guard.fail('Concurrent socket arm refused'); if (owned && !owned.witnessed) guard.fail('Completed clean-close witness gate required before socket arm'); armed = true },
+    assertSafe: guard.safe,
+    assertHealthy: guard.healthy,
+    events() { return rows.map(row => ({ ...row })) },
     async closeAndWait() {
-      if (!owned) { safe(); return }
-      requestClose()
+      if (!owned) { guard.safe(); return }
+      guard.requestClose()
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         await Promise.race([owned.closed, new Promise<never>((_, reject) => {
           timer = setTimeout(() => { stopped ??= 'Missing actual Controller close event within 5s'; reject(new Error(stopped)) }, 5000)
         })])
-        healthy()
-        if (!owned.row.actualCloseUtc || owned.row.code !== 1000) fail('Actual clean-close event required')
+        guard.healthy()
+        if (!owned.row.actualCloseUtc || owned.row.code !== 1000) guard.fail('Actual clean-close event required')
         owned.witnessed = true
-        safe()
+        guard.safe()
       } finally { if (timer !== undefined) clearTimeout(timer) }
     },
   }

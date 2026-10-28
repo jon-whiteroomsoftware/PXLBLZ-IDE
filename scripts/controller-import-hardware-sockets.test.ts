@@ -1,5 +1,12 @@
+import { execFileSync } from 'node:child_process'
+import { runInThisContext } from 'node:vm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { installBenchSocketWitness, type BenchSocketGlobal } from './controller-import-hardware-sockets'
+import type { BenchSocketGlobal } from './controller-import-hardware-sockets'
+
+const installerSource = execFileSync(process.execPath, [
+  '--import', 'tsx', '--input-type=module', '--eval',
+  `import { installBenchSocketWitness } from ${JSON.stringify(new URL('./controller-import-hardware-sockets.ts', import.meta.url).href)}; process.stdout.write(installBenchSocketWitness.toString())`,
+], { encoding: 'utf8' })
 
 class NativeSocket extends EventTarget {
   static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3
@@ -16,8 +23,8 @@ function fixture() {
   NativeSocket.instances = []
   vi.stubGlobal('WebSocket', NativeSocket)
   delete (globalThis as unknown as BenchSocketGlobal).__benchSockets
-  // This is the same self-contained function passed to worker.evaluate.
-  installBenchSocketWitness(target)
+  // Receive the actual CLI-transformed function without its module's lexical scope.
+  runInThisContext(`(${installerSource})`)(target)
   return (globalThis as unknown as BenchSocketGlobal).__benchSockets!
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); delete (globalThis as unknown as BenchSocketGlobal).__benchSockets })
