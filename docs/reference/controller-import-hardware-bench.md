@@ -75,9 +75,12 @@ saved LineDancer2D and confirms its active id and unknown resident cache. It own
 fresh in-memory accounts, receipts, connections and HTTP resources. Cleanup
 finishes before the next batch starts. Between batches, the probe awaits the
 prior socket's actual close event, then settles for at least 1000ms before
-constructing the next socket. This matches the product's default reconnect
-settle; it adds no connect retry. The first batch proceeds without a settle
-timer, and defaults remain overlap/repeat=1. The first HTTP stop, lost connection,
+constructing the next socket. Earlier connect failures came from a socket pool
+exhausted by abrupt probe closes; clean close and awaiting actual close address
+that failure. The 1000ms settle matches the product default and remained unchanged
+for clean-close qualification so the rerun changed one variable. Removing it is
+proposed for S4 cleanup. It adds no connect retry. The first batch proceeds without
+a settle timer, and defaults remain overlap/repeat=1. The first HTTP stop, lost connection,
 failed/unqualified result or thrown setup failure ends the sequence without a
 batch retry. Reports include requested/completed counts, each outcome and the
 first stop's batch, phase, operation and last attempted save ordinal/slot where
@@ -289,6 +292,31 @@ adapter/recorder boundaries, not hardware liveness:
 ```sh
 wrsp-log npx vitest run scripts/controller-import-hardware-probe-support.test.ts --maxWorkers 2
 ```
+
+### Clean-close serial qualification (2026-10-28)
+
+One serial drain run at `78e5c255`, after Jon power-cycled Cark, qualified all six
+requested batches and the separate post-run connection check. Twelve import rows
+completed with readback, twenty-four Saves received positive completion, and no
+receipt remained write-pending. Every batch activated the drain. No HTTP stop or
+cleanup error occurred. All six batch sockets and the post-run socket actually
+closed through the clean path with code 1000; none used termination fallback.
+
+| Batch | Confirmed Saves | Maximum Save completion (ms) |
+| --- | ---: | ---: |
+| 1 | 4 | 2355.819 |
+| 2 | 4 | 2047.768 |
+| 3 | 4 | 2046.383 |
+| 4 | 4 | 2395.168 |
+| 5 | 4 | 2615.987 |
+| 6 | 4 | 2179.678 |
+
+The post-run socket was created 1004ms after the last batch's actual close and
+opened in 24ms. The 1000ms settle was retained; no retry occurred. This qualifies
+the direct engine/protocol run, while extension, UI and full-ticket proof remain
+separate. The provisional Save deadline still needs its planned follow-up. The
+sanitized result is recorded on [#1221](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221);
+private device artifacts remain unpublished.
 
 ## Invocation
 
