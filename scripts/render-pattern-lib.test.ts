@@ -16,6 +16,7 @@ describe('parseRenderArgs', () => {
       name: 'plasmanebula',
       diffusion: null,
       lightSize: null,
+      fidelity: null,
       show: null,
       startSeconds: 0,
     })
@@ -58,6 +59,30 @@ describe('parseRenderArgs', () => {
     expect(() => parseRenderArgs(['--demo', 'A', '--light-size', '0.149'])).toThrow(/--light-size/)
     expect(() => parseRenderArgs(['--demo', 'A', '--light-size', '0.951'])).toThrow(/--light-size/)
     expect(() => parseRenderArgs(['--demo', 'A', '--light-size', 'large'])).toThrow(/--light-size/)
+  })
+
+  it('preserves stored fidelity when omitted for Patterns and Shows', () => {
+    expect(parseRenderArgs(['--demo', 'A']).fidelity).toBeNull()
+    expect(parseRenderArgs(['--show', 'stock-show-x']).fidelity).toBeNull()
+  })
+
+  it.each(['fast', 'precise'])('accepts Pattern fidelity %s', (fidelity) => {
+    expect(parseRenderArgs(['--file', '/tmp/a.js', '--fidelity', fidelity]).fidelity).toBe(fidelity)
+  })
+
+  it.each(['', 'fidelity', 'PRECISE', 'slow'])('rejects invalid fidelity %s', (fidelity) => {
+    expect(() => parseRenderArgs(['--demo', 'A', '--fidelity', fidelity]))
+      .toThrow('--fidelity requires fast or precise.')
+  })
+
+  it('requires a fidelity value', () => {
+    expect(() => parseRenderArgs(['--demo', 'A', '--fidelity']))
+      .toThrow('--fidelity requires a value.')
+  })
+
+  it.each(['fast', 'precise'])('rejects explicit Show fidelity %s', (fidelity) => {
+    expect(() => parseRenderArgs(['--show', 'stock-show-x', '--fidelity', fidelity]))
+      .toThrow('--fidelity is supported for Pattern renders only.')
   })
 
   it('accepts --file with --demo naming the mount point, keeping the file name', () => {

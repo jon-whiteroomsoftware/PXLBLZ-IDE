@@ -6,6 +6,7 @@
 //   npm run render -- --demo PlasmaNebula --seconds 10
 //   npm run render -- --file path/to/pattern.js --seconds 5 --fps 30
 //   npm run render -- --file aurora-calm.js --demo AuroraSphere
+//   npm run render -- --demo KaleidoBloom --fidelity precise --seconds 5
 //   npm run render -- --show stock-show-showcase-distortion-effects --start 7 --seconds 2.5
 //
 // With --file, --demo names the mount point whose map/preview config is used
@@ -132,6 +133,7 @@ async function renderFrames(config: RenderConfig): Promise<number> {
       source: config.file ? fs.readFileSync(config.file, 'utf8') : undefined,
       diffusion: config.diffusion,
       lightSize: config.lightSize,
+      fidelity: config.fidelity === 'precise' ? 'fidelity' : config.fidelity ?? undefined,
     }, `"${demo}"`).catch((error) => fail(error instanceof Error ? error.message : String(error)))
 
     await exposeProgress(page)
@@ -251,7 +253,7 @@ async function main(): Promise<void> {
   } catch (error) {
     fail(String(error instanceof Error ? error.message : error) +
       '\nUsage: npm run render -- (--demo <DemoName> | --file <pattern.js> [--demo <MountDemo>] | --show <ShowId>) ' +
-      '[--start SECONDS] [--seconds N] [--fps N] [--width PX] [--diffusion 0..1] [--light-size 0.15..0.95] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
+      '[--start SECONDS] [--seconds N] [--fps N] [--width PX] [--fidelity fast|precise] [--diffusion 0..1] [--light-size 0.15..0.95] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
   }
   if (config.file && !fs.existsSync(config.file)) fail(`no such file: ${config.file}`)
   await assertServerReachable(config.baseUrl)

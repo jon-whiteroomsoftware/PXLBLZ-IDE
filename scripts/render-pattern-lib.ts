@@ -19,6 +19,8 @@ export interface RenderConfig {
   diffusion: number | null
   /** Preview light-size override (0.15..0.95); null keeps the pattern's own setting. */
   lightSize: number | null
+  /** Pattern arithmetic override; null keeps the stored preview mode. */
+  fidelity: 'fast' | 'precise' | null
   /** Show id to record from its stage preview (#879); exclusive with demo/file. */
   show: string | null
   /** Virtual time of the first frame, in seconds; reached by a headless pre-roll. */
@@ -71,6 +73,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let name: string | null = null
   let diffusion: number | null = null
   let lightSize: number | null = null
+  let fidelity: RenderConfig['fidelity'] = null
   let show: string | null = null
   let startSeconds = 0
 
@@ -93,6 +96,14 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
       case '--out': out = value(); break
       case '--name': name = value(); break
       case '--base-url': baseUrl = value(); break
+      case '--fidelity': {
+        const v = value()
+        if (v !== 'fast' && v !== 'precise') {
+          throw new Error('--fidelity requires fast or precise.')
+        }
+        fidelity = v
+        break
+      }
       case '--diffusion': {
         const v = Number(value())
         if (!Number.isFinite(v) || v < 0 || v > 1) {
@@ -117,6 +128,9 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   if (show !== null && (demo !== null || file !== null)) {
     throw new Error('--show records a Show from its stage preview and cannot be combined with --demo or --file.')
   }
+  if (show !== null && fidelity !== null) {
+    throw new Error('--fidelity is supported for Pattern renders only.')
+  }
   if (show === null && demo === null && file === null) {
     throw new Error('Pass --show <ShowId>, --demo <DemoName>, --file <pattern.js>, or --file with --demo (--demo names the mount point for the file).')
   }
@@ -126,7 +140,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   const baseName = name ?? (show ? showBasename(show) : file ? fileBasename(file) : demo!)
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
-  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, lightSize, show, startSeconds }
+  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion, lightSize, fidelity, show, startSeconds }
 }
 
 function showBasename(showId: string): string {
