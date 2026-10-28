@@ -62,7 +62,9 @@ export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: n
   })
 
   let paletteOutput = false
+  let programBindings = new Set<string>()
   walkWithScope(ast, null, (node, scope) => {
+    if (node.type === 'Program') programBindings = scope.names
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
       const name = node.callee.name
       if ((name === 'paint' || name === 'setPalette') && !isNameBound(scope, name)) {
@@ -77,7 +79,7 @@ export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: n
     return decline('no-renderer', 'Slow-mo requires render, render2D, or render3D.')
   }
   for (const name of ['time', 'rgb', 'hsv', 'hsv24']) {
-    if (bindings.functions.has(name) || bindings.variables.has(name)) {
+    if (programBindings.has(name)) {
       return decline('shadowed-builtin', `Slow-mo cannot wrap a top-level binding named ${name}.`)
     }
   }

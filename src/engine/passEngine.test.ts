@@ -350,6 +350,37 @@ describe('pass engine - intercept passes', () => {
     expect(result.warnings).toEqual([])
   })
 
+  it.each([
+    ['if', 'if(1){var rgb=customSink}'],
+    ['for', 'for(var rgb=customSink;0;){}'],
+    ['while', 'while(0){var rgb=customSink}'],
+    ['switch', 'switch(1){case 1: var rgb=customSink; break}'],
+    ['try', 'try{var rgb=customSink}catch(error){}'],
+    ['destructuring', 'if(1){var {rgb}=sinks}'],
+  ])('respects hoisted %s var output bindings without leaking to siblings', (_kind, declaration) => {
+    const source = `function callSink(){${declaration};rgb(0.8,0.4,0.2)}
+export function render(index){rgb(0.6,0.3,0.1)}`
+    const result = bundleWithPasses(source, {}, [{ id: 'dim-rgb', kind: 'intercept', target: 'rgb' }])
+    expect(result.code).toContain('rgb(0.8,0.4,0.2)')
+    expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.6,0.3,0.1)')
+    expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
+    expect(result.warnings).toEqual([])
+  })
+
+  it.each([
+    'function nested(){if(1){var rgb=customSink}rgb(0.8,0.4,0.2)}',
+    'var nested=function(){if(1){var rgb=customSink}rgb(0.8,0.4,0.2)}',
+    'var nested=()=>{if(1){var rgb=customSink}rgb(0.8,0.4,0.2)}',
+  ])('does not leak nested function var bindings into their parent: %s', nested => {
+    const result = bundleWithPasses(`export function render(index){${nested};rgb(0.6,0.3,0.1)}`, {}, [
+      { id: 'dim-rgb', kind: 'intercept', target: 'rgb' },
+    ])
+    expect(result.code).toContain('rgb(0.8,0.4,0.2)')
+    expect(result.code).toContain('__pxlblz_dim_rgb_rgb(0.6,0.3,0.1)')
+    expect(result.summary.callSitesWrapped).toEqual({ rgb: 1 })
+    expect(result.warnings).toEqual([])
+  })
+
   it('can wire the stock power-measure source as a measurement-only hsv intercept', () => {
     const powerMeasure = stockMixinSpec('power-measure')
     expect(powerMeasure).toBeDefined()

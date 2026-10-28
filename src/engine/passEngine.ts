@@ -698,6 +698,7 @@ export function walkWithScope(node: Node, scope: Scope | null, visitor: (n: Node
     for (const statement of (node.body?.body as Node[]) ?? []) {
       collectDeclarationNames(statement, fnScope.names)
     }
+    collectFunctionScopedVars(node.body, fnScope.names)
     walkWithScope(node.body, fnScope, visitor)
     return
   }
@@ -739,9 +740,27 @@ function collectBindingNames(node: Node | null | undefined, names: Set<string>):
   }
 }
 
+function collectFunctionScopedVars(node: Node, names: Set<string>): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return
+  if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+    for (const declaration of node.declarations as Node[]) collectBindingNames(declaration.id, names)
+  }
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) {
+      for (const child of value) collectFunctionScopedVars(child as Node, names)
+    } else if (value && typeof value === 'object') {
+      collectFunctionScopedVars(value as Node, names)
+    }
+  }
+}
+
 function makeScope(parent: Scope | null, statements: Node[]): Scope {
   const scope: Scope = { names: new Set(), parent }
-  for (const statement of statements) collectDeclarationNames(statement, scope.names)
+  for (const statement of statements) {
+    collectDeclarationNames(statement, scope.names)
+    collectFunctionScopedVars(statement, scope.names)
+  }
   return scope
 }
 

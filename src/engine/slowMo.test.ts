@@ -105,6 +105,37 @@ describe('slow-mo planner', () => {
     }
   })
 
+  it.each([
+    ['time', 'if(1){var time=0}'],
+    ['rgb', 'for(var rgb=0;0;){}'],
+    ['hsv', 'while(0){var hsv=0}'],
+    ['hsv24', 'switch(1){case 1: var hsv24=0}'],
+  ])('declines hoisted top-level %s bindings', (name, declaration) => {
+    expect(planSlowMo(`${declaration}\n${renderer}`, settings, 256)).toEqual({
+      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+      declined: { reason: 'shadowed-builtin', message: `Slow-mo cannot wrap a top-level binding named ${name}.` },
+    })
+  })
+
+  it.each(['paint', 'setPalette'])('accepts a hoisted top-level local %s call', name => {
+    expect(planSlowMo(`if(1){var ${name}=custom} ${name}(); export function render(i){}`, settings, 256)).toEqual({
+      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+    })
+  })
+
+  it('does not hoist nested lexical bindings into the Program scope', () => {
+    expect(planSlowMo(`if(1){let time=0;const hsv=0}\n${renderer}`, settings, 256)).toEqual({
+      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+    })
+  })
+
+  it('preserves calls before a later hoisted var declaration', () => {
+    const local = 'function local(){if(0){time(1)} if(1){var time=custom}}'
+    const result = emitSlowMoWrapper(`${local}\n${renderer}`, settings, 256)
+    expect(result.code).toContain(local)
+    expect(result.code).toContain('__pxlblz_slowmo_rgb(1, 0, 0)')
+  })
+
   it('declines reserved identifiers', () => {
     expect(planSlowMo(`var __pxlblz_slowmo_value = 0\n${renderer}`, settings, 256)).toEqual({
       structure: 'blend', arrayWords: 1560, renderFns: ['render'],

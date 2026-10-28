@@ -146,6 +146,45 @@ export function render(i){var v=sample(identity,quarter);rgb(v,0,0);hsv(time(1),
       close(r.advanceLive(64).pixels, points.map(() => [0.25,0.25,0.25]), 0)
     })
 
+    it.each([
+      'function custom(i){return 0.25}\nfunction local(){if(1){var time=custom} return time(1)}\nexport function render(i){rgb(local(),0,0)}',
+      'function custom(v){return v}\nfunction local(){for(var j=0;j<1;j++){if(1){var hsv=custom}} return hsv(0.25)}\nexport function render(i){rgb(local(),0,0)}',
+    ])('I13 preserves block-nested local var calls in complete pixels: %s', source => {
+      const r = runtime(source, mode)
+      const unwrapped = runtime(source, mode, 1, false)
+      const expected = points.map(() => [0.25,0,0])
+      close(unwrapped.advanceLive(0).pixels, expected, 0)
+      for (const delta of [0,16,16,32,16,48]) close(r.advanceLive(delta).pixels, expected, 0)
+    })
+
+    it('I13 keeps nested function vars local while advancing the parent builtin clock', () => {
+      const source = `function custom(v){return 0.25}
+function parent(){function nested(){if(1){var time=custom;var hsv=custom}return hsv(time(1))}return nested()+time(0.0009765625)}
+export function render(i){rgb(parent(),0,0)}`
+      const code = artifact(source).code
+      expect(code).toContain('return hsv(time(1))')
+      expect(code).toContain('return nested()+__pxlblz_slowmo_time(0.0009765625)')
+      const r = runtime(source, mode)
+      close(r.advanceLive(0).pixels, points.map(() => [0.25,0,0]), 0)
+      close(r.advanceLive(64).pixels, points.map(() => [0.25,0,0]), 0)
+      close(r.advanceLive(64).pixels, points.map(() => [0.5,0,0]), tolerance)
+    })
+
+    it('I13 isolates block-nested local entry vars from top-level entry references', () => {
+      const source = `var calls=0;
+function helper(){if(1){var render2D=identity}return render2D(0.5)}
+function identity(v){return v}
+export function render2D(i,x,y){calls+=1;rgb(calls/16,helper(),0)}
+export function render3D(i,x,y,z){render2D(i,x,y)}`
+      const code = artifact(source).code
+      expect(code).toContain('var render2D=identity}return render2D(0.5)')
+      expect(code).toContain('in_render3D(i,x,y,z){__pxlblz_slowmo_in_render2D(i,x,y)}')
+      const r = runtime(source, mode, 3)
+      close(r.advanceLive(0).pixels, [[1/16,0.5,0],[2/16,0.5,0],[3/16,0.5,0]], 0)
+      r.advanceLive(64)
+      close(r.advanceLive(64).pixels, [[4/16,0.5,0],[5/16,0.5,0],[6/16,0.5,0]], 0)
+    })
+
     if (mode === 'fast') {
       it('I13 executes captured calls in default initializers (Fast)', () => {
         const r = runtime(`function sample(v=hsv(time(1),1,0.5)){return v}
