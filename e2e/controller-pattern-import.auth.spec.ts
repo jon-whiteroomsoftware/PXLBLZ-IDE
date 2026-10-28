@@ -398,7 +398,10 @@ test('group-local cross-account bulk import retains named durable failures and r
       }
       if (group === 'Other Patterns') {
         await expect(table.getByRole('checkbox', { name: 'Select Other control', exact: true })).toBeChecked()
-        await expect(table.getByRole('checkbox', { name: 'Select Running control', exact: true })).toBeDisabled()
+        const running = table.getByRole('checkbox', { name: 'Select Running control', exact: true })
+        await expect(running).toBeEnabled()
+        await expect(running).toBeChecked()
+        await expect(table.getByRole('row').filter({ has: b.getByRole('checkbox', { name: 'Select Running control', exact: true }) }).getByText('Cannot delete: Running now — switch to another Pattern first', { exact: true })).toBeVisible()
       }
     }
     const select = b.getByRole('button', { name: 'Select Unimported PXLBLZ Patterns', exact: true })
