@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1221",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-account-b-profile",
+  "operation": "Developer-shell authenticated Playwright flow imported Alpha/Beta/Gamma through the real command with a synthetic Controller and two synthetic accounts. Desktop1440 and narrow760 captures show named completion for Alpha/Gamma, Beta's exact incomplete bookkeeping outcome with confirmed activation, and failed-only retry; after retry all three completed names appeared once. In-app Browser bootstrap listed no backends and get(iab) returned Browser is not available: iab, so repo Chromium supplied this proof. Both images were opened and inspected; the result dialog is readable and known narrow header clipping remains outside S2(d). No unexpected console or page errors; no hardware was contacted.",
+  "captures": [
+    ".wrsp/ui-proof/1221-s2d-desktop.png",
+    ".wrsp/ui-proof/1221-s2d-narrow.png"
+  ],
+  "capturedAtCommit": "ee74191046d8e89073f9d47188c4ac33c83d5e4a"
+}
