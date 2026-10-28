@@ -431,8 +431,8 @@ actual dispatcher awaits B2, A1, B3, B4, B5, A6, A7 and stops at the first failu
    `PROOF <run-id> S2 S3 POT LIT`. Record this attestation with UTC, run ID,
    diagnostic revision and both served revisions. Only then admit cleanup.
 
-Before every connected full navigation or context destruction the real provider
-disconnects to suppress reconnect intent. A worker-installed native WebSocket
+Before full navigation or context destruction during a connected handoff, the
+real provider disconnects to suppress reconnect intent. A worker-installed native WebSocket
 witness then requests close(1000) and awaits the retained actual close event,
 bounded to five seconds. A close request or context-close promise grants nothing.
 Each explicit Connect arms one construction; concurrent, unarmed or replacement
@@ -441,6 +441,10 @@ Worker disappearance also stops. UTC construction/open/request/actual-close time
 and actual codes are flushed before destruction. Unconnected API contexts require
 no fictional socket witness. Finalization can close existing sockets and collect
 retained evidence; it never reconnects, and cannot erase an earlier gate failure.
+After the run stops, failure finalization attempts every context's destruction
+and every temporary profile's removal even when a disconnect gate rejects.
+Disposal grants no clean-close proof or authority for a replacement connection;
+the original failure remains recorded and the run stays failed.
 
 Cleanup input is a private JSON object with `startup`, `controller`, `a` and `b`.
 The startup is `{id,name,source:"operator-confirmed-startup"}`; deletion arrays

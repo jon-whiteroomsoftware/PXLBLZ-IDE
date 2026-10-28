@@ -41,6 +41,28 @@ export async function closeBenchConnection(ports: { disconnect(): Promise<void>;
   try { await ports.closeAndWait() } finally { await ports.flush() }
   await ports.destroy?.()
 }
+export interface BenchFinalizationContext {
+  disconnectGate(): Promise<void>
+  destroy(): Promise<void>
+}
+export interface BenchFinalizationFailure {
+  stage: 'disconnect-gate' | 'context-close' | 'profile-remove'
+  error: unknown
+}
+export async function finalizeBenchResources(
+  contexts: readonly BenchFinalizationContext[],
+  removeProfiles: readonly (() => void)[],
+): Promise<BenchFinalizationFailure[]> {
+  const failures: BenchFinalizationFailure[] = []
+  for (const context of contexts) {
+    try { await context.disconnectGate() } catch (error) { failures.push({ stage: 'disconnect-gate', error }) }
+    try { await context.destroy() } catch (error) { failures.push({ stage: 'context-close', error }) }
+  }
+  for (const remove of removeProfiles) {
+    try { remove() } catch (error) { failures.push({ stage: 'profile-remove', error }) }
+  }
+  return failures
+}
 export interface BenchPair { id: string; name: string }
 export interface BenchCleanupInventory {
   startup: BenchPair & { source: 'operator-confirmed-startup' }

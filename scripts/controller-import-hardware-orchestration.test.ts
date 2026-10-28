@@ -1,5 +1,80 @@
 import { describe, expect, it, vi } from 'vitest'
-import { awaitBenchOperator, closeBenchConnection, selectBenchDismiss, runSelectedBenchSteps, pinBenchRevision, benchRoleUrl, validateBenchCleanupInventory, runBenchCleanup, type BenchCleanupInventory, type BenchCleanupPorts } from './controller-import-hardware-orchestration'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { awaitBenchOperator, closeBenchConnection, finalizeBenchResources, selectBenchDismiss, runSelectedBenchSteps, pinBenchRevision, benchRoleUrl, validateBenchCleanupInventory, runBenchCleanup, type BenchCleanupInventory, type BenchCleanupPorts } from './controller-import-hardware-orchestration'
+
+describe('stopped-run resource finalization', () => {
+  it('awaits every gate and destruction before removing every profile', async () => {
+    const trace: string[] = []
+    const failures = await finalizeBenchResources([1, 2].map(n => ({
+      disconnectGate: async () => { trace.push(`gate${n}`) },
+      destroy: async () => { trace.push(`destroy${n}`) },
+    })), [1, 2].map(n => () => { trace.push(`remove${n}`) }))
+    expect(trace).toEqual(['gate1', 'destroy1', 'gate2', 'destroy2', 'remove1', 'remove2'])
+    expect(failures).toEqual([])
+  })
+  it.each(['Unproved context ownership; destruction held', 'no actual close'])('disposes contexts and cookie profiles after %s', async message => {
+    const directory = mkdtempSync(join(tmpdir(), 'bench-finalization-'))
+    const cookie = join(directory, 'Cookies')
+    writeFileSync(cookie, 'fake local test cookie')
+    const trace: string[] = []; const error = new Error(message)
+    let finishDestroy!: () => void
+    const pending = finalizeBenchResources([{
+      disconnectGate: async () => { trace.push('gate1'); throw error },
+      destroy: () => { trace.push('destroy1'); return new Promise<void>(resolve => { finishDestroy = resolve }) },
+    }, {
+      disconnectGate: async () => { trace.push('gate2') },
+      destroy: async () => { trace.push('destroy2') },
+    }], [() => { trace.push('remove1'); rmSync(directory, { recursive: true }) }, () => { trace.push('remove2') }])
+    try {
+      await Promise.resolve()
+      expect(trace).toEqual(['gate1', 'destroy1'])
+      expect(existsSync(cookie)).toBe(true)
+      finishDestroy()
+      const failures = await pending
+      expect(trace).toEqual(['gate1', 'destroy1', 'gate2', 'destroy2', 'remove1', 'remove2'])
+      expect(failures).toEqual([{ stage: 'disconnect-gate', error }])
+      expect(failures[0].error).toBe(error)
+      expect(existsSync(directory)).toBe(false)
+    } finally {
+      finishDestroy?.()
+      await pending
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+  it('retains gate, destruction and profile errors in order while attempting remaining resources', async () => {
+    const trace: string[] = []
+    const gateError = new Error('no actual close'); const destroyError = new Error('context close failed'); const profileError = new Error('profile removal failed')
+    const failures = await finalizeBenchResources([{
+      disconnectGate: async () => { trace.push('gate1'); throw gateError },
+      destroy: async () => { trace.push('destroy1'); throw destroyError },
+    }, {
+      disconnectGate: async () => { trace.push('gate2') },
+      destroy: async () => { trace.push('destroy2') },
+    }], [() => { trace.push('remove1'); throw profileError }, () => { trace.push('remove2') }])
+    expect(trace).toEqual(['gate1', 'destroy1', 'gate2', 'destroy2', 'remove1', 'remove2'])
+    expect(failures).toEqual([{ stage: 'disconnect-gate', error: gateError }, { stage: 'context-close', error: destroyError }, { stage: 'profile-remove', error: profileError }])
+    expect(failures[0].error).toBe(gateError); expect(failures[1].error).toBe(destroyError); expect(failures[2].error).toBe(profileError)
+  })
+  it('waits for a deferred gate rejection before disposal without manufacturing a close witness', async () => {
+    const trace: string[] = []; const error = new Error('no actual close')
+    let rejectGate!: (error: Error) => void
+    const destroy = vi.fn(async () => { trace.push('destroy') })
+    const pending = finalizeBenchResources([{
+      disconnectGate: () => { trace.push('gate'); return new Promise<void>((_resolve, reject) => { rejectGate = reject }) },
+      destroy,
+    }], [() => { trace.push('remove') }])
+    await Promise.resolve(); expect(trace).toEqual(['gate'])
+    expect(destroy).not.toHaveBeenCalled()
+    rejectGate(error)
+    const failures = await pending
+    expect(trace).toEqual(['gate', 'destroy', 'remove'])
+    expect(failures).toEqual([{ stage: 'disconnect-gate', error }])
+    expect(failures[0].error).toBe(error)
+    expect(destroy).toHaveBeenCalledOnce()
+  })
+})
 
 const order = [2, 1, 3, 4, 5, 6, 7] as const
 describe('real prefix dispatcher and operator boundaries', () => {

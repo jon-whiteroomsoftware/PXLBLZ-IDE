@@ -9,7 +9,7 @@ import { performance } from 'node:perf_hooks'
 import { createInterface } from 'node:readline/promises'
 import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchArtifact, assertBenchImportedPattern, assertBenchMutation, assertBenchProfile, observeBenchImportRead, requireBenchSavedSlot, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
 import { installBenchSocketWitness, type BenchSocketGlobal } from './controller-import-hardware-sockets'
-import { awaitBenchOperator, benchRoleUrl, benchSnapshot, closeBenchConnection, pinBenchRevision, runBenchCleanup, runSelectedBenchSteps, selectBenchDismiss, type BenchCleanupMetadata, type BenchCleanupProof, type BenchRole } from './controller-import-hardware-orchestration'
+import { awaitBenchOperator, benchRoleUrl, benchSnapshot, closeBenchConnection, finalizeBenchResources, pinBenchRevision, runBenchCleanup, runSelectedBenchSteps, selectBenchDismiss, type BenchCleanupMetadata, type BenchCleanupProof, type BenchRole } from './controller-import-hardware-orchestration'
 import { readControllerPatternImportLedger } from '../src/engine/controllerPatternImport'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
 import { decodePbp } from '../src/engine/pbpEncode'
@@ -354,8 +354,7 @@ async function run() {
     await installPage(page)
     return { context, page, worker }
   }
-  const close = async (context: BrowserContext) => {
-    await disconnectGate(context)
+  const destroyContext = async (context: BrowserContext): Promise<void> => {
     const closingWorkers = context.serviceWorkers()
     workerObservations.beginClose(closingWorkers)
     await context.close()
@@ -363,6 +362,10 @@ async function run() {
     readOnly ||= workerObservations.readOnly
     contexts.delete(context)
     connections.delete(context)
+  }
+  const close = async (context: BrowserContext) => {
+    await disconnectGate(context)
+    await destroyContext(context)
   }
   const disconnectGate = async (context: BrowserContext) => {
     const connection = connections.get(context)
@@ -798,8 +801,13 @@ async function run() {
   } finally {
     state.scope = 'idle'; readOnly = true
     try { await flushWorkers() } catch (error) { report.failure ??= clean(error); report.outcome = 'failed' }
-    for (const context of contexts) { try { await close(context) } catch (error) { event('context-close-error', { error: clean(error) }); report.failure ??= clean(error); report.outcome = 'failed' } }
-    if (!contexts.size) for (const directory of profiles) rmSync(directory, { recursive: true, force: true })
+    const failures = await finalizeBenchResources(
+      [...contexts].map(context => ({ disconnectGate: () => disconnectGate(context), destroy: () => destroyContext(context) })),
+      profiles.map(directory => () => rmSync(directory, { recursive: true, force: true })),
+    )
+    for (const { stage, error } of failures) {
+      event('context-close-error', { stage, error: clean(error) }); report.failure ??= clean(error); report.outcome = 'failed'
+    }
     report.completedSteps = completed
     report.fixtureSlots = Object.fromEntries(slots); report.admissionRefused = refused; report.events = events
     writeFileSync(join(out, 'report.json'), `${clean(JSON.stringify(report, null, 2))}\n`, { mode: 0o600 })
