@@ -173,7 +173,8 @@ as the negative evidence), and `ClockworkIris.memoized.js` (the surviving
 exact class — an op-chain site whose value is legitimately 0 in the inter-ring gaps, so
 the sentinel recomputes there: the honest economics of the mechanical
 sentinel rule). `IridescentFibers.preopt.js` preserves Rule A's old source;
-the transformed partner now ships as the stock Pattern (#916).
+`fixtures/issue1242/IridescentFibers.preedit.js` freezes the transformed #916
+partner after #1242 replaced the shipped Pattern with angle-addition tables.
 
 **Exactness: proven.** `benchDemo` checksums are bit-identical for all
 four pairs in Fast float64 AND Precise 16.16 (`issue914.test.ts`; the
@@ -225,8 +226,10 @@ against `SHOW_ARTIFACT_BUDGET_BYTES` like `selectShowFrameInvariantHoists`.
   measured (+5.3%, bit-exact), but the hand sweep left exactly one
   eligible site in 101 Patterns. A compiler pass for one site is pure
   liability; #916 shipped the win as a direct Pattern edit instead. The
-  checksum pair now preserves `IridescentFibers.preopt.js` as the baseline
-  and treats the stock Pattern as the transformed artifact.
+  checksum pair preserves `IridescentFibers.preopt.js` as the baseline
+  and `fixtures/issue1242/IridescentFibers.preedit.js` as the transformed
+  artifact. The stock Pattern's later #1242 rewrite has a separate RGB
+  equivalence oracle and does not change this historical checksum proof.
 - **Rule B (lazy memoization):** among the 83 Patterns inside the
   modeled subset, the profitable class — position-stable,
   exp/pow-dominated, sentinel-provable, `index` in scope — has **zero**
