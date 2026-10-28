@@ -43,6 +43,53 @@ describe('awaited Save and socket-owned HTTP admission', () => {
   function socket(): WebSocketLike {
     return { readyState: 1, send: vi.fn(), close: vi.fn(), onopen: null, onclose: null, onerror: null, onmessage: null }
   }
+  describe.each(['serial', 'overlap'] as const)('default Save deadline (%s)', (mode) => {
+    it.each(['success', 'timeout'] as const)('observes the provider default 20s Save deadline (%s)', async (outcome) => {
+      vi.useFakeTimers(); vi.setSystemTime(0)
+      const h = harness(); const queue = new ProbeHttpQueue(mode, h.recorder); const raw = socket()
+      const conn = new PixelblazeConnection({ host: 'fixture', connectTimeoutMs: 5000, requestTimeoutMs: 5000,
+        pingIntervalMs: 0, webSocketFactory: () => gateProbeSaveSocket(raw, queue) })
+      const provider = new NodeControllerImportProvider({ connection: conn, fetcher: vi.fn(), compiler: () => new Uint8Array(12), recorder: h.recorder })
+      const connecting = conn.connect(); raw.onopen?.({}); await connecting
+      let status: { state: 'pending' | 'resolved' } | { state: 'rejected'; error: Error } = { state: 'pending' }
+      const save = provider.saveProgram(new Uint8Array(), { id: 'slot' }).then(
+        () => { status = { state: 'resolved' } },
+        (error: Error) => { status = { state: 'rejected', error } },
+      )
+      const action = vi.fn(async () => {})
+      const queued = queue.run('read', {}, action)
+      try {
+        await vi.advanceTimersByTimeAsync(19999)
+        expect(status).toEqual({ state: 'pending' })
+        expect(action).not.toHaveBeenCalled(); expect(queue.saveHeld).toBe(true)
+        if (outcome === 'success') {
+          raw.onmessage?.({ data: '{"saveProgramSourceFile":1}' })
+          await save; await queued
+          await vi.advanceTimersByTimeAsync(20001)
+          expect(status).toEqual({ state: 'resolved' })
+          expect(successfulProbeSaves(h.recorder.events)).toEqual({ completions: [{ saveOrdinal: 1, phase: 'setup', slot: 'slot', durationMs: 19999 }], count: 1, maxDurationMs: 19999 })
+        } else {
+          await vi.advanceTimersByTimeAsync(1)
+          expect(status).toEqual({ state: 'rejected', error: new Error('Controller Save unconfirmed: completion timed out') })
+          expect(successfulProbeSaves(h.recorder.events)).toEqual({ completions: [], count: 0, maxDurationMs: 0 })
+          expect(h.recorder.events.filter((event) => event.operation === 'saveProgram' && event.event === 'error')).toEqual([
+            expect.objectContaining({ durationMs: 20000 }),
+          ])
+          expect(action).not.toHaveBeenCalled(); expect(queue.saveHeld).toBe(true)
+          conn.close()
+          expect(action).not.toHaveBeenCalled(); expect(queue.saveHeld).toBe(true)
+          raw.onclose?.({})
+          await queued
+        }
+        expect(action).toHaveBeenCalledTimes(1); expect(queue.saveHeld).toBe(false)
+      } finally {
+        conn.close(); raw.onclose?.({})
+        await save; await queued
+        expect(vi.getTimerCount()).toBe(0)
+        vi.useRealTimers()
+      }
+    })
+  })
   it.each(['serial', 'overlap'] as const)('admits HTTP only after real positive multi-chunk completion (%s)', async (mode) => {
     vi.useFakeTimers()
     const h = harness(); const queue = new ProbeHttpQueue(mode, h.recorder); const raw = socket()
@@ -533,7 +580,7 @@ describe('recorder output artifact', () => {
 })
 
 describe('resident footprint', () => {
-  it('returns from save after one synchronous frame send without an acknowledgement', async () => {
+  it('delegates Save to the connection without config or activation reads', async () => {
     const h = harness()
     const bytes = encodePbp({ id: 's', name: 'Fixture', sourceCode: '', byteCode: new Uint8Array(12) })
     await h.provider.saveProgram(bytes, { id: 's' })

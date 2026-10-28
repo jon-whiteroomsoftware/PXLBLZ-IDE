@@ -598,7 +598,7 @@ export class PixelblazeConnection {
       }
       this.saveOperation.timer = this._setTimeout(() => {
         this.failSave('completion timed out')
-      }, this.opts.saveTimeoutMs ?? 60000)
+      }, this.opts.saveTimeoutMs ?? 20000)
       this.advanceSave()
     })
   }

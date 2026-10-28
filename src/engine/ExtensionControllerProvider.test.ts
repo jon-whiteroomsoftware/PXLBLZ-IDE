@@ -278,6 +278,42 @@ function makeDeviceTransport(
 const TARGET = { address: '192.168.8.224' }
 
 describe('ExtensionControllerProvider', () => {
+  it.each(['success', 'timeout'] as const)('enforces the relay default 20s Save deadline (%s)', async (outcome) => {
+    vi.useFakeTimers()
+    const d = makeDeviceTransport()
+    const p = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0, maxReconnectAttempts: 0 })
+    let status: { state: 'pending' | 'resolved' } | { state: 'rejected'; error: Error } = { state: 'pending' }
+    await p.connect(TARGET)
+    const save = p.saveProgram(new Uint8Array(), { id: 'id' }).then(
+      () => { status = { state: 'resolved' } },
+      (error: Error) => { status = { state: 'rejected', error } },
+    )
+    try {
+      await vi.advanceTimersByTimeAsync(19999)
+      expect(status).toEqual({ state: 'pending' })
+      if (outcome === 'success') {
+        d.pushFrame({ saveProgramSourceFile: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+        await save
+        await vi.advanceTimersByTimeAsync(20001)
+        expect(status).toEqual({ state: 'resolved' })
+      } else {
+        await vi.advanceTimersByTimeAsync(1)
+        expect(status).toEqual({ state: 'rejected', error: new Error('Controller Save unconfirmed: completion timed out') })
+        d.pushFrame({ saveProgramSourceFile: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+        await expect(p.saveProgram(new Uint8Array(), { id: 'id' })).rejects.toThrow('Controller Save unavailable on this socket; reconnect before saving again')
+        await vi.advanceTimersByTimeAsync(60000)
+      }
+      expect(d.binaryWrites).toHaveLength(1)
+    } finally {
+      await p.disconnect()
+      await save
+      expect(vi.getTimerCount()).toBe(0)
+      vi.useRealTimers()
+    }
+  })
+
   it.each(['negative', 'deadline', 'close'] as const)('propagates %s Save failure', async (failure) => {
     vi.useFakeTimers()
     try {

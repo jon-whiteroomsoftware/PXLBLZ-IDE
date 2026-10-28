@@ -164,7 +164,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
     this.detectTimeoutMs = options.detectTimeoutMs ?? 500
     this.pingIntervalMs = options.pingIntervalMs ?? 1000
     this.requestTimeoutMs = options.requestTimeoutMs ?? 5000
-    this.saveTimeoutMs = options.saveTimeoutMs ?? 60000
+    this.saveTimeoutMs = options.saveTimeoutMs ?? 20000
     this.connectTimeoutMs = options.connectTimeoutMs ?? 3000
     this.livenessTimeoutMs = options.livenessTimeoutMs ?? 4000
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? Infinity

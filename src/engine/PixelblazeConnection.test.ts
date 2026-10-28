@@ -982,6 +982,38 @@ describe('PixelblazeConnection', () => {
   })
 
   describe('saveProgram', () => {
+    it.each(['success', 'timeout'] as const)('enforces the default 20s Save deadline (%s)', async (outcome) => {
+      vi.useFakeTimers()
+      const { conn, socket } = await connected({ pingIntervalMs: 0 })
+      let status: { state: 'pending' | 'resolved' } | { state: 'rejected'; error: Error } = { state: 'pending' }
+      const save = conn.saveProgram('id', new Uint8Array()).then(
+        () => { status = { state: 'resolved' } },
+        (error: Error) => { status = { state: 'rejected', error } },
+      )
+      try {
+        await vi.advanceTimersByTimeAsync(19999)
+        expect(status).toEqual({ state: 'pending' })
+        if (outcome === 'success') {
+          socket.simulateMessage({ saveProgramSourceFile: 1 })
+          await save
+          await vi.advanceTimersByTimeAsync(20001)
+          expect(status).toEqual({ state: 'resolved' })
+        } else {
+          await vi.advanceTimersByTimeAsync(1)
+          expect(status).toEqual({ state: 'rejected', error: new Error('Controller Save unconfirmed: completion timed out') })
+          socket.simulateMessage({ saveProgramSourceFile: 1 })
+          await expect(conn.saveProgram('id', new Uint8Array())).rejects.toThrow('Controller Save unavailable on this socket; reconnect before saving again')
+          await vi.advanceTimersByTimeAsync(60000)
+        }
+        expect(socket.sentBinary).toHaveLength(1)
+      } finally {
+        conn.close()
+        await save
+        expect(vi.getTimerCount()).toBe(0)
+        vi.useRealTimers()
+      }
+    })
+
     it.each([false, true])('releases successful Save while retaining FIFO ack debt (combined: %s)', async (combined) => {
       vi.useFakeTimers()
       try {

@@ -761,11 +761,12 @@ reject; failed Save or experimental type-1 source transmission prevents another
 Save on that socket until replacement. Wire debt survives request timeouts.
 During reservation, keepalive is suppressed and new ack-bearing commands and
 binary mutations reject; unrelated reads remain available. `saveTimeoutMs` is
-separate from request deadlines and defaults to a provisional 60-second
-measurement cap. Hardware latency will set the final deadline (at least 20
-seconds). The helper owns a full-body HTTP FIFO per normalized host across page
-ports, holding new HTTP starts during socket-owned Save until defined completion
-or actual owner close. Provider deadlines never release HTTP ownership. Cloud
+separate from request deadlines and defaults to a final 20-second operation-wide
+deadline, including prior FIFO acknowledgement debt and awaited completion.
+Explicit overrides remain available. The helper owns a full-body HTTP FIFO per
+normalized host across page ports, holding new HTTP starts during socket-owned
+Save until defined completion or actual owner close. Provider deadlines never
+release HTTP ownership. Cloud
 discovery is independent. Ownership is in memory: helper restart or reconnect
 after close may overlap a firmware write. Adoption requires separately reloading
 the unpacked helper; publication remains held. Direct-probe fidelity and physical
@@ -773,7 +774,9 @@ latency/overlap proof remain pending. The direct probe now awaits Save completio
 holds new HTTP starts on socket-owned Save in both modes, and pauses its liveness
 verdict budget while held. Its default diagnostic mode still overlaps HTTP
 outside Save, unlike the helper's full-body FIFO. Reports expose successful Save
-completion latencies; the provisional cap is not a measured final deadline. See the
+completion latencies. The final deadline was selected from 24 clean-close Saves
+with a measured maximum of 2615.987ms; the physical run used the provisional cap,
+and the final 20-second setting has not been physically rerun. See the
 [Controller Save transport agreement](contracts/controller-pattern-import.md#controller-save-transport).
 
 **Transient replacement fit.** Steady-state fit and replacement fit are

@@ -194,8 +194,9 @@ switch/disconnect, and return a known size only while config reports that id.
 Save awaits the protocol's actual positive completion; its span includes that
 complete latency and rejects on unconfirmed Save. Reports list successful Save
 latencies by ordinal, phase and slot, with count and maximum, excluding pending
-and rejected Saves. The 60-second protocol cap remains provisional; measured
-hardware latency must set the final deadline at no less than 20 seconds.
+and rejected Saves. The final protocol deadline is 20 seconds, including prior
+FIFO acknowledgement debt and awaited completion; explicit `saveTimeoutMs`
+overrides remain available. This deadline never releases HTTP ownership.
 The liveness verdict clock pauses during socket-owned Save and resumes its
 remaining 20-second ungated budget on release. Gating creates no failed poll or
 fabricated success. Shutdown cancels queued polling without releasing Save.
@@ -314,7 +315,10 @@ closed through the clean path with code 1000; none used termination fallback.
 The post-run socket was created 1004ms after the last batch's actual close and
 opened in 24ms. The 1000ms settle was retained; no retry occurred. This qualifies
 the direct engine/protocol run, while extension, UI and full-ticket proof remain
-separate. The provisional Save deadline still needs its planned follow-up. The
+separate. The final 20-second Save deadline was selected above the measured
+2615.987ms maximum (about 7.6 times that maximum). This historical six-batch run
+used the provisional 60-second cap; the final setting has not been physically
+rerun and does not complete full-ticket proof. The
 sanitized result is recorded on [#1221](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221);
 private device artifacts remain unpublished.
 

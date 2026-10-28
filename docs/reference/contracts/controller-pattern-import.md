@@ -65,11 +65,12 @@ A failed or timed-out Save makes production Save unavailable on that socket:
 Experimental `putSourceCode` also makes the socket unavailable, because it uses
 the same uncorrelated completion field. Late completion cannot clear this state.
 Replacement clears socket-scoped state and ignores old callbacks; no automatic
-Save retry occurs. The separate `saveTimeoutMs` defaults to a provisional
-60,000ms measurement cap. The final deadline follows hardware latency evidence
-and must be at least 20 seconds. Probe reports include only successfully awaited
-Save completion latencies by ordinal, phase and slot; this transport
-agreement supplies no timer-based HTTP release signal.
+Save retry occurs. The separate `saveTimeoutMs` defaults to a final 20,000ms
+operation-wide deadline, including prior FIFO acknowledgement debt and awaited
+completion; explicit overrides remain available. The deadline was selected from
+24 clean-close Saves with a measured maximum of 2615.987ms. Probe reports include
+only successfully awaited Save completion latencies by ordinal, phase and slot;
+this transport agreement supplies no timer-based HTTP release signal.
 
 ## Source fidelity and identity
 
