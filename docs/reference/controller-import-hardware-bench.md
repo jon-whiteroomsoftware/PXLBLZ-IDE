@@ -7,6 +7,133 @@ production Studio Save and Import controls. It belongs to no test suite, CI job,
 runner plan or push gate.
 Offline verification does not qualify native permission handling or hardware.
 
+The UI diagnostic below remains parked. S1 also provides the separate direct-engine
+probe described next; its results cannot qualify extension, UI or store behavior.
+
+## S1 direct-engine diagnostic
+
+`controller-import-hardware-probe.ts` connects Node directly to **#2 Cark at
+192.168.8.196** and runs the production import command in T2/T3 order. It requires
+no browser, session, D1 database or real account. It is explicit operator tooling,
+never imported by CI, hooks or a push gate. Help performs no network or writes.
+Run from the probe's worktree with a fresh ASCII run id:
+
+```sh
+npx tsx scripts/controller-import-hardware-probe.ts --help
+npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain --run-id i24-drain-001 --run
+npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case control --run-id i24-control-001 --run
+```
+
+Each invocation requires the exact address, one supported case and `--run`.
+Unknown/repeated arguments, reused run directories, symlink output roots and
+invalid run ids refuse. Outputs stay private under ignored `.wrsp/<run-id>/`:
+streaming `events.jsonl`, exact fixture `.pbp` bytes, `batch.json` and full
+`report.json`. Stdout contains a sanitized JSON summary with row stages/outcomes,
+operation timings, HTTP poll aggregates, saved slot/name and transient-id ledger,
+outgoing measured size and resident knownness, active-id observations and fidelity
+cost. Source, PBP/config/account bodies and raw errors stay off stdout. Do not
+publish the private run directory.
+
+The probe creates two in-memory A Patterns named `Test pat I24 <run-id> T2/T3`,
+green and blue with 1D/2D render functions, original A identity stamps and real
+device-compiler bytecode. It checks compiler readiness with an initial tiny compile
+before polling or writes, refuses name collisions, allocates fresh slots absent
+from the initial inventory and verifies
+each fixture's exact saved bytes with setup-only readiness polling bounded to
+five seconds total. Only setup retries missing/different saved bytes and the known
+`Saved program ... is not a readable PBP blob.` recovery error, waiting at most
+100ms between reads within that fixed deadline. Read timeouts, HTTP/network errors,
+failed guards and deadline expiry stop setup immediately. Each run has fresh
+in-memory B Patterns, receipts, bindings, push records and labels; A source is never a canonical B
+candidate. These are current stored-artifact imports. S3 source policy is outside
+this probe's scope.
+
+Both cases call [`importControllerPattern`, lines 280–340](../../src/engine/controllerPatternImportExecution.ts#L280-L340)
+through [`runControllerPatternBatch`, lines 28–38](../../src/engine/controllerPatternBatch.ts#L28-L38),
+concurrency one, T2 then T3. Ordinary row errors continue to the next captured row.
+The product write queue, drain/save/immediate-read/verify/activate sequence,
+timeouts and batch implementation remain unchanged. No sleeps or read retries
+are added around import. The UI preserves selected-id order and uses this same
+serial helper in [`ControllerSavedProgramsPane`, lines 1426–1441](../../src/components/ControllerSavedProgramsPane.tsx#L1426-L1441)
+and [lines 1469–1474](../../src/components/ControllerSavedProgramsPane.tsx#L1469-L1474).
+
+The **drain** case requires exactly one existing saved name containing
+`LineDancer2D` (case-insensitive), reads its bytecode size, switches to it with
+`save:false` after setup and confirms its active id. That switch invalidates the
+provider's resident cache. The measured outgoing size is separate from the
+product-reported unknown resident size, which forces the production drain policy.
+At least one confirmed import drain activation is required to qualify the case.
+The **control** case instead compiles and confirms a tiny luminous 2D run-only
+Pattern, seeding a known small resident footprint. It imports the same fixtures;
+any confirmed drain activation fails the no-drain precondition. Neither case
+creates a saved control slot.
+
+Independent raw `GET /list` polling begins before setup writes, attempts every
+250ms with a 1000ms fetch/body deadline and at most four overlapping requests,
+and continues through the batch and 60 seconds after it ends, including ordinary
+row failure. Config/active-id observations are timestamped during that window.
+Three consecutive poll timeout/transport failures latch `stopped-http-unavailable`
+and forbid further mutations, including restoration; subsequent rows report
+stopped. An HTTP error response is recorded but is not a transport-hang verdict.
+The probe retains a 60-second observation window for a latched setup hang too,
+then closes the socket and requires eng-lead/power-cycle discussion. It never
+reboots, reconnects or automatically retries the whole run.
+
+After the observation window, responsive HTTP permits one separately labelled
+`restore` push of the tiny luminous Pattern, with active ids observed before and
+after. This is bench restoration, outside the measured import and outside S2's
+product fix. An unavailable Controller receives no recovery write. S1 deletes
+nothing (`deletedSlots: []`); every fixture slot and transient id remains in the
+summary. Jon's disposable-Pattern authority for #2 Cark is recorded in #1221
+comments [c6455390270](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221#issuecomment-6455390270)
+and [c6455395795](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221#issuecomment-6455395795); this probe still writes only its fresh
+fixture slots and run-only ids. It changes no settings, brightness, map, pixel
+count, network, sequencer, firmware or reboot state.
+
+The Node provider uses [`PixelblazeConnection`, lines 134–135](../../src/engine/PixelblazeConnection.ts#L134-L135)
+with the documented Node `ws` factory and reuses
+[`fetchControllerCompiler` / `nodeWebSocketFactory`](../../test/perf-harness/controllerHardware.ts).
+Connection and correlated request deadlines are 5000ms; activation defaults are
+unchanged. Compiler acquisition is per compile, matching
+[`background.js`, lines 435–442](../../extension/background.js#L435-L442): every
+compile, including the product's drain compile, fetches the Controller compiler
+and completes fetch/decompression/compilation before returning bytecode. Each
+acquisition has a 5000ms overall deadline and its own abort guard; the helper's
+existing download attempts cannot issue another request after that deadline.
+The recorded pinned GET wrapper stays installed until the helper settles, then
+global fetch is restored in `finally`. No compiler closure is cached across calls.
+No alternate connection follows a compiler timeout. Resident-size
+bookkeeping and fire-and-forget Save mirror
+[`ExtensionControllerProvider`, lines 758–786](../../src/engine/ExtensionControllerProvider.ts#L758-L786):
+clear before attempted push, cache only confirmed activation, invalidate on saved
+switch/disconnect, and return a known size only while config reports that id.
+Save resolves after synchronous frame send without an invented acknowledgement.
+
+Saved reads mirror [`background.js`, lines 472–480](../../extension/background.js#L472-L480)
+(GET path, status and body) and
+[`ExtensionControllerProvider`, lines 509–550](../../src/engine/ExtensionControllerProvider.ts#L509-L550)
+(recovery), with the [5000ms timeout at line 170](../../src/engine/ExtensionControllerProvider.ts#L170): trimmed
+encoded id, 404 as missing, other non-OK status as `GET /p/<encoded-id> -> <status>`,
+and successful bytes recovered even when empty/corrupt. The 5000ms deadline covers
+fetch, body and recovery, aborts unfinished fetch and reports
+`Saved program <id> read timed out.` without an internal retry. Readiness retries
+belong only to fixture setup; import and provider reads retain zero retries.
+Recorder spans pair start with end/error, record UTC/monotonic duration and body size/hash, and
+distinguish setup, import, observation and restore.
+
+Every result states: **No extension relay, UI or store guards; the Controller sees
+the same request sequence.** The drain qualification begins with unknown resident
+cache after an observed saved-program switch; control begins with a known small
+resident established by confirmed push. These observations isolate the direct
+engine/protocol sequence and cannot prove UI guards, relay behavior or native
+permissions. Reproduced row failures, unproved case preconditions and stopped runs
+exit nonzero; a successful qualified control exits zero. Offline tests prove the
+adapter/recorder boundaries, not hardware liveness:
+
+```sh
+wrsp-log npx vitest run scripts/controller-import-hardware-probe-support.test.ts --maxWorkers 2
+```
+
 ## Invocation
 
 An operator must provision the managed main runtime on port 5174 and the #1221
