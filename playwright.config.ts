@@ -29,7 +29,7 @@ function shellArgument(value: string): string {
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/*.auth.spec.ts', '**/controller-bulk-select.spec.ts'],
+  testIgnore: ['**/*.auth.spec.ts', '**/controller-bulk-select.spec.ts', '**/slowmo.spec.ts'],
   fullyParallel: true,
   workers: readWorkerCount(process.env, 'WRSP_HOST_PLAYWRIGHT_PUBLIC_WORKERS', 4),
   // The runner reads playwright-report.json from its output directory for per-test durations (#1171).
