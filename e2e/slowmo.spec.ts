@@ -29,6 +29,15 @@ async function choose(page: Page, name: string, value: string) {
   await expect(button).toHaveText(value)
 }
 
+async function setStaggerWidth(page: Page, value: number): Promise<void> {
+  const slider = page.getByRole('slider', { name: 'Slow-mo stagger width', exact: true })
+  await slider.focus()
+  await slider.press('Home')
+  if (value === 0.9) await slider.press('End')
+  else for (let step = 0; step < Math.round(value * 100); step++) await slider.press('ArrowRight')
+  await expect(slider).toHaveValue(String(value))
+}
+
 async function published(page: Page, src: string) {
   await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
   await expect.poll(() => page.evaluate(() => window.__pxlblz?.getPreviewSource())).toBe(src)
@@ -160,10 +169,17 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     for (const [control, value] of [
       ['Slow-mo rate', '1/16'], ['Slow-mo step', '32 ms'],
       ['Slow-mo method', 'Hold'], ['Slow-mo method', 'Eased'], ['Slow-mo method', 'Blend'],
+      ['Slow-mo stagger', 'Sweep'], ['Slow-mo stagger', 'Radial'], ['Slow-mo stagger', 'Scatter'],
     ]) {
       await choose(page, control, value)
       await capture(`preserved-${value.replaceAll('/', '-')}`)
       await expect.poll(() => clocks(page), { message: `${control} ${value} preserves elapsed/patternMs/patternClock` }).toEqual(before)
+    }
+    for (const width of [0, 0.5, 0.9]) {
+      await setStaggerWidth(page, width)
+      await capture(`preserved-width-${width}`)
+      await expect.poll(() => clocks(page), { message: `width ${width} preserves elapsed/patternMs/patternClock` }).toEqual(before)
+      await expect(page.getByRole('button', { name: 'Slow-mo stagger', exact: true })).toHaveText('Scatter')
     }
     await capture('live-still-executes', 512)
     await expect.poll(async () => Number((await clocks(page)).patternMs)).toBe(Number(before.patternMs) + 32)
@@ -171,6 +187,69 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     await expect.poll(async () => parseFloat((await clocks(page)).elapsed)).toBeGreaterThan(parseFloat(before.elapsed))
   })
 }
+
+test('stagger controls fit desktop and narrow layouts and support keyboard round trips', async ({ page }) => {
+  const a = await seed(page, 'slowmo-stagger-controls', 'Slowmo stagger controls', originalSource)
+  await setup(page, a.id, a.src, 'fast')
+  await choose(page, 'Slow-mo stagger', 'Sweep')
+  await setStaggerWidth(page, 0.5)
+  const lab = page.getByTestId('slowmo-lab')
+  const shape = lab.getByRole('button', { name: 'Slow-mo stagger', exact: true })
+  const width = lab.getByRole('slider', { name: 'Slow-mo stagger width', exact: true })
+  const copy = lab.getByRole('button', { name: 'Copy generated code', exact: true })
+  for (const [name, viewport] of [
+    ['1237-k8-desktop', { width: 1440, height: 1000 }],
+    ['1237-k8-narrow', { width: 768, height: 1000 }],
+  ] as const) {
+    await page.setViewportSize(viewport)
+    await lab.scrollIntoViewIfNeeded()
+    for (const control of [shape, width, copy]) {
+      await expect(control).toBeVisible()
+      await expect(control).toBeEnabled()
+      const bounds = await control.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds!.x).toBeGreaterThanOrEqual(0)
+      expect(bounds!.y).toBeGreaterThanOrEqual(0)
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width)
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height)
+    }
+    await expect(shape).toHaveText('Sweep')
+    await expect(width).toHaveValue('0.5')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    expect(await lab.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await test.info().attach(name, { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' })
+  }
+  await shape.focus()
+  await shape.press('ArrowDown')
+  await page.keyboard.press('End')
+  await page.keyboard.press('Enter')
+  await expect(shape).toHaveText('Scatter')
+  await shape.focus()
+  await shape.press('ArrowDown')
+  await page.keyboard.press('Escape')
+  await expect(shape).toBeFocused()
+  await width.focus()
+  for (const [key, value] of [['Home', '0'], ['ArrowRight', '0.01'], ['End', '0.9'], ['Home', '0']]) {
+    await width.press(key)
+    await expect(width).toHaveValue(value)
+  }
+  await width.press('Tab')
+  await expect(width).not.toBeFocused()
+  await setStaggerWidth(page, 0.5)
+  await choose(page, 'Slow-mo method', 'Clock')
+  await expect(shape).toBeDisabled()
+  await expect(width).toBeDisabled()
+  await expect(shape).toHaveText('Scatter')
+  await expect(width).toHaveValue('0.5')
+  await choose(page, 'Slow-mo method', 'Blend')
+  await expect(shape).toBeEnabled()
+  await expect(width).toBeEnabled()
+  await expect(shape).toHaveText('Scatter')
+  await expect(width).toHaveValue('0.5')
+  await choose(page, 'Slow-mo method', 'Off')
+  await expect(shape).toBeDisabled()
+  await expect(width).toBeDisabled()
+})
 
 test('absent flag hides the lab on a loaded Pattern editor', async ({ page }) => {
   const a = await seed(page, 'slowmo-absent', 'Slowmo absent flag', originalSource)

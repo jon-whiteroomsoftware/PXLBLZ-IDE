@@ -103,10 +103,19 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     const setter = vi.spyOn(handle, 'setRuntimeVar')
     const elapsed = config().clock.getTime()
     let current = settings
-    for (const change of [{ rate: 1 / 16 }, { stepMs: 32 }, { inBetween: 'blend' as const }, { inBetween: 'eased' as const }]) {
+    const changes: Partial<SlowMoSettings>[] = [
+      { rate: 1 / 16 }, { stepMs: 32 }, { inBetween: 'blend' }, { inBetween: 'eased' },
+      ...(['sweep', 'radial', 'scatter'] as const).map(shape => ({ stagger: { shape, width: 0.5 } })),
+      ...[0, 0.5, 0.9].map(width => ({ stagger: { shape: 'scatter' as const, width } })),
+    ]
+    for (const change of changes) {
       current = { ...current, ...change }
+      const before = config().clock.getTime()
+      setter.mockClear()
       act(() => usePreviewStore.getState().setSlowMo(current))
       expect(loop()).toBe(running)
+      expect(config().handle).toBe(handle)
+      expect(config().clock.getTime()).toBe(before)
       expect(config().clock.getTime()).toBeGreaterThanOrEqual(elapsed)
       for (const [name, value] of Object.entries(slowMoTunables(current))) expect(setter).toHaveBeenCalledWith(name, config().shim.encodeScalar(value))
       expect(usePreviewStore.getState().slowMoArtifact?.code).toBe(bundleWithPasses(source, {}, [{ kind: 'slowmo', settings: current, pixelCount: 16 }]).code)
@@ -133,6 +142,33 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     act(() => usePreviewStore.getState().setSlowMo({ ...settings, inBetween: 'eased' }))
     expect(pixels()[0]).toEqual([0.84375, 0, 0.15625])
     expect(loop()).toBe(running)
+  })
+  it('paints live stagger windows at the current fraction without reloading', () => {
+    useEditorStore.setState({ previewSource: 'var frame = -1; export function beforeRender(delta) { frame += 1 } export function render(i) { rgb(frame % 2 == 0, 0, frame % 2 != 0) }' })
+    render(<Preview showDeck={false} pixelCountCap={16} />)
+    tick(64)
+    tick(32)
+    const running = loop()
+    const handle = config().handle
+    const clock = config().clock.getTime()
+    const tolerance = fidelity === 'fast' ? 2 ** -10 : 2 ** -8
+    const pixel = (index: number, expected: number[]) => {
+      pixels()[index].forEach((value, channel) => expect(Math.abs(value - expected[channel])).toBeLessThanOrEqual(tolerance))
+    }
+    const change = (shape: SlowMoSettings['stagger']['shape'], width: number) => {
+      act(() => usePreviewStore.getState().setSlowMo({ ...settings, inBetween: 'blend', stagger: { shape, width } }))
+      expect(loop()).toBe(running)
+      expect(config().handle).toBe(handle)
+      expect(config().clock.getTime()).toBe(clock)
+    }
+    change('sweep', 0.5)
+    pixel(0, [0, 0, 1]); pixel(15, [0.9375, 0, 0.0625])
+    change('radial', 0.5)
+    pixel(0, [1, 0, 0]); pixel(8, [0, 0, 1])
+    change('scatter', 0.5)
+    pixel(0, [0, 0, 1]); pixel(1, [0.6180267333984375, 0, 0.3819732666015625])
+    change('scatter', 0)
+    for (let i = 0; i < 16; i++) pixel(i, [0.5, 0, 0.5])
   })
   it('clears Copy when parsing or execution fails and on unmount', () => {
     const view = render(<Preview showDeck={false} pixelCountCap={16} />)

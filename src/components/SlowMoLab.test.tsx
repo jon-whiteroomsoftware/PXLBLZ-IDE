@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import type { SlowMoPlan, SlowMoSettings } from '@/engine/slowMo'
@@ -33,6 +33,11 @@ describe('SlowMoLab', () => {
     expect(screen.getByRole('button', { name: 'Slow-mo step' })).toHaveTextContent('16 ms')
     expect(screen.getByRole('button', { name: 'Slow-mo method' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Slow-mo method' })).toHaveTextContent('Off')
+    expect(screen.getByRole('group', { name: 'Stagger' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Slow-mo stagger' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Slow-mo stagger' })).toHaveTextContent('Sweep')
+    expect(screen.getByRole('slider', { name: 'Slow-mo stagger width' })).toBeDisabled()
+    expect(screen.getByRole('slider', { name: 'Slow-mo stagger width' })).toHaveAttribute('aria-valuetext', 'Off')
     expect(screen.getByRole('button', { name: 'Copy generated code' })).toBeDisabled()
     expect(screen.getByText('— / 10240')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -99,6 +104,81 @@ describe('SlowMoLab', () => {
     rerender(<SlowMoLab {...props({ arrayWords: 20000 })} />)
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(screen.getByText('20000 / 10240')).toBeInTheDocument()
+  })
+
+  it.each(['clock', 'hold', 'blend', 'eased'] as const)('enables stagger only in the blend family: %s', (inBetween) => {
+    render(<SlowMoLab {...props({ settings: { ...defaults, inBetween } })} />)
+    for (const control of [screen.getByRole('button', { name: 'Slow-mo stagger' }), screen.getByRole('slider', { name: 'Slow-mo stagger width' })]) {
+      if (inBetween === 'clock') expect(control).toBeDisabled()
+      else expect(control).toBeEnabled()
+    }
+  })
+
+  it('changes shapes and width boundaries without mutating or losing other settings', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const before = structuredClone(active)
+    let settings = active
+    const { rerender } = render(<SlowMoLab {...props({ settings, onChange })} />)
+    const range = screen.getByRole('slider', { name: 'Slow-mo stagger width' })
+    expect(range).toHaveAttribute('min', '0')
+    expect(range).toHaveAttribute('max', '0.9')
+    expect(range).toHaveAttribute('step', '0.01')
+    for (const shape of ['sweep', 'radial', 'scatter'] as const) {
+      const label = shape[0].toUpperCase() + shape.slice(1)
+      await select(user, 'stagger', label)
+      settings = { ...settings, stagger: { ...settings.stagger, shape } }
+      expect(onChange).toHaveBeenLastCalledWith(settings)
+      rerender(<SlowMoLab {...props({ settings, onChange })} />)
+      expect(screen.getByRole('button', { name: 'Slow-mo stagger' })).toHaveTextContent(label)
+    }
+    for (const width of [0, 0.5, 0.9]) {
+      fireEvent.change(range, { target: { value: width } })
+      settings = { ...settings, stagger: { ...settings.stagger, width } }
+      expect(onChange).toHaveBeenLastCalledWith(settings)
+      rerender(<SlowMoLab {...props({ settings, onChange })} />)
+      expect(range).toHaveValue(String(width))
+      expect(range).toHaveAttribute('aria-valuetext', width === 0 ? 'Off' : width.toFixed(2))
+    }
+    expect(onChange).toHaveBeenCalledTimes(6)
+    expect(active).toEqual(before)
+  })
+
+  it('remembers stagger through Clock and resets to complete defaults after Off', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    let settings: SlowMoSettings | null = active
+    const { rerender } = render(<SlowMoLab {...props({ settings, onChange })} />)
+    for (const inBetween of ['clock', 'blend'] as const) {
+      await select(user, 'method', inBetween === 'clock' ? 'Clock' : 'Blend')
+      settings = { ...active, inBetween }
+      expect(onChange).toHaveBeenLastCalledWith(settings)
+      rerender(<SlowMoLab {...props({ settings, onChange })} />)
+      expect(screen.getByRole('button', { name: 'Slow-mo stagger' })).toHaveTextContent('Scatter')
+      expect(screen.getByRole('slider', { name: 'Slow-mo stagger width' })).toHaveValue('0.7')
+    }
+    await select(user, 'method', 'Off')
+    expect(onChange).toHaveBeenLastCalledWith(null)
+    rerender(<SlowMoLab {...props({ onChange })} />)
+    await select(user, 'method', 'Blend')
+    expect(onChange).toHaveBeenLastCalledWith({ ...defaults, inBetween: 'blend' })
+  })
+
+  it('portals stagger selection and returns focus on Escape', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<SlowMoLab {...props({ settings: defaults, onChange })} />)
+    const trigger = screen.getByRole('button', { name: 'Slow-mo stagger' })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('listbox', { name: 'Slow-mo stagger' }).parentElement).toBe(document.body)
+    expect(screen.getByRole('option', { name: 'Sweep' })).toHaveFocus()
+    await user.keyboard('{End}{Enter}')
+    expect(onChange).toHaveBeenCalledExactlyOnceWith({ ...defaults, stagger: { ...defaults.stagger, shape: 'scatter' } })
+    trigger.focus()
+    await user.keyboard('{ArrowDown}{Escape}')
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
   it('enables Copy only while a callback is supplied and calls it once', async () => {

@@ -2,6 +2,7 @@ import type { SlowMoPlan, SlowMoSettings } from '@/engine/slowMo'
 import { PIXELBLAZE_VM_ARRAY_WORDS } from '@/engine/showVmResourceLedger'
 import { DeckCell, DeckGrid, DeckTelemetry } from './Deck'
 import { DeckSelect, type DeckOption } from './DeckSelect'
+import { DeckSlider } from './DeckSlider'
 
 export interface SlowMoLabProps {
   settings: SlowMoSettings | null
@@ -15,6 +16,11 @@ const rates: DeckOption<number>[] = [1, 2, 4, 8, 16, 32].map((divisor) => ({
   value: 1 / divisor, label: divisor === 1 ? '1' : `1/${divisor}`,
 }))
 const steps: DeckOption<number>[] = [16, 32].map((value) => ({ value, label: `${value} ms` }))
+const shapes: DeckOption<SlowMoSettings['stagger']['shape']>[] = [
+  { value: 'sweep', label: 'Sweep' },
+  { value: 'radial', label: 'Radial' },
+  { value: 'scatter', label: 'Scatter' },
+]
 const methods: DeckOption<SlowMoSettings['inBetween'] | 'off'>[] = [
   { value: 'off', label: 'Off' },
   { value: 'clock', label: 'Clock' },
@@ -64,6 +70,33 @@ export function SlowMoLab({ settings, onChange, declined, arrayWords, onCopy }: 
             />
           </DeckCell>
         </DeckGrid>
+        <fieldset aria-label="Stagger" className="min-w-0 mt-2" disabled={settings === null || settings.inBetween === 'clock'}>
+          <DeckGrid>
+            <DeckCell label="stagger">
+              <DeckSelect
+                ariaLabel="Slow-mo stagger"
+                value={settings?.stagger.shape ?? 'sweep'}
+                options={shapes}
+                onChange={(shape) => {
+                  if (settings && settings.inBetween !== 'clock') onChange({ ...settings, stagger: { ...settings.stagger, shape } })
+                }}
+                portaled
+              />
+            </DeckCell>
+            <DeckSlider
+              label="width"
+              ariaLabel="Slow-mo stagger width"
+              min={0}
+              max={0.9}
+              step={0.01}
+              value={settings?.stagger.width ?? 0}
+              format={(width) => width === 0 ? 'Off' : width.toFixed(2)}
+              onChange={(width) => {
+                if (settings && settings.inBetween !== 'clock') onChange({ ...settings, stagger: { ...settings.stagger, width } })
+              }}
+            />
+          </DeckGrid>
+        </fieldset>
       </fieldset>
       <DeckGrid>
         <DeckTelemetry label="array words" value={`${arrayWords ?? '—'} / ${PIXELBLAZE_VM_ARRAY_WORDS}`} />

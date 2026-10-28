@@ -98,14 +98,14 @@ describe('Slow-mo lab in the production preview grid', () => {
       }
     }
 
-    for (const name of ['Renderer', 'Speed', 'Slow-mo rate', 'Slow-mo step', 'Slow-mo method']) {
+    for (const name of ['Renderer', 'Speed', 'Slow-mo rate', 'Slow-mo step', 'Slow-mo method', 'Slow-mo stagger']) {
       const control = screen.getByRole('button', { name })
       expect(control).toBeEnabled()
       expect(control.getBoundingClientRect().bottom).toBeLessThanOrEqual(host.getBoundingClientRect().bottom)
       control.focus()
       expect(document.activeElement).toBe(control)
     }
-    for (const name of ['Light size', 'Diffusion']) {
+    for (const name of ['Light size', 'Diffusion', 'Slow-mo stagger width']) {
       const control = screen.getByRole('slider', { name })
       expect(control).toBeEnabled()
       control.focus()
