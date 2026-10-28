@@ -1,4 +1,4 @@
-import { artifactHash, parsePxlblzBanner, stampArtifact } from './artifactStamp'
+import { artifactHash, parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from './artifactStamp'
 import { makeProgramId } from './bytecodePush'
 import { bundleWithPasses } from './passEngine'
 import { encodePbp } from './pbpEncode'
@@ -19,7 +19,7 @@ function blob(sourceCode = stamped(), byteCode = new Uint8Array(8)) {
     previewImage: Uint8Array.of(255, 216, 255, 217) })
 }
 async function plan(patternId = 'personal-new', controllerDeviceId = 'A') {
-  const assessment = await assessControllerPatternImport({ programId, pbp: blob() })
+  const assessment = await assessControllerPatternImport({ programId, pbp: blob(stamped(source, { transforms: ['stored-artifact'] })) })
   if (!assessment.ok) throw new Error(assessment.message)
   return createControllerPatternImportPlan({ assessment, patternId, controllerDeviceId,
     programId, now: 123, existingNames: ['Original'] })
@@ -40,12 +40,13 @@ describe('Controller Pattern import assessment', () => {
   })
 
   it.each([
-    ['valid', stamped(), 'valid'],
     ['missing', source, 'missing'],
     ['malformed', '// Built with PXLBLZ-IDE broken\n// pxlblz:1 kind=pattern\n' + source, 'malformed'],
     ['leading metadata', '// pxlblz:1 kind=pattern\n' + source, 'malformed'],
     ['drift', stamped() + '\n// drift', 'hash-mismatch'],
-    ['optional damage', stamped().replace('\n' + source, '\n// pxlblz:map broken\n// pxlblz:show-output broken\n' + source), 'valid'],
+    ['known transform', stamped(source, { transforms: ['power-cap'] }), 'valid'],
+    ['unknown transform', stamped(source, { transforms: ['future-transform'] }), 'valid'],
+    ['stored-artifact token', stamped(source, { transforms: ['stored-artifact'] }), 'valid'],
   ])('retains exact stored source for %s provenance', async (_name, storedSource, bannerState) => {
     const pbp = blob(storedSource)
     const before = pbp.slice()
@@ -53,6 +54,20 @@ describe('Controller Pattern import assessment', () => {
       ok: true, sourceMode: 'stored-artifact', source: storedSource, deviceName: 'Device name',
       bytecode: new Uint8Array(8), origin: { pbpDigest: await sha256ControllerProgram(pbp), bannerState,
         banner: bannerState === 'valid' ? parsePxlblzBanner(storedSource) : null },
+    })
+    expect(pbp).toEqual(before)
+  })
+
+  it.each([
+    ['valid', stamped()],
+    ['optional damage', stamped().replace('\n' + source, '\n// pxlblz:map broken\n// pxlblz:show-output broken\n' + source)],
+  ])('recovers the exact stripped body for %s empty-transform provenance', async (_name, storedSource) => {
+    const pbp = blob(storedSource)
+    const before = pbp.slice()
+    expect(await assessControllerPatternImport({ programId, pbp })).toEqual({
+      ok: true, sourceMode: 'authored-verified', source: stripPxlblzBanner(storedSource), deviceName: 'Device name',
+      bytecode: new Uint8Array(8), origin: { pbpDigest: await sha256ControllerProgram(pbp), bannerState: 'valid',
+        banner: parsePxlblzBanner(storedSource) },
     })
     expect(pbp).toEqual(before)
   })
@@ -81,7 +96,7 @@ describe('Controller Pattern import assessment', () => {
     expect(await assessControllerPatternImport({ programId, pbp: corrupt })).toMatchObject({ ok: false, code: 'no-source' })
   })
 
-  it('independently proves canonical equivalence before recovering authored source', async () => {
+  it('prefers independently equivalent canonical source and otherwise recovers the stripped body', async () => {
     const compiled = bundleWithPasses(source, {}, []).code
     const pbp = blob(stamped(compiled))
     const knownSource = { originId: 'demo:origin', source }
@@ -91,7 +106,7 @@ describe('Controller Pattern import assessment', () => {
       { ...knownSource, originId: 'other' }, { ...knownSource, source: 'export function {' },
       { ...knownSource, sourceMode: 'stored-artifact' as const }]) {
       expect(await assessControllerPatternImport({ programId, pbp, knownSource: candidate }))
-        .toMatchObject({ ok: true, sourceMode: 'stored-artifact', source: stamped(compiled) })
+        .toMatchObject({ ok: true, sourceMode: 'authored-verified', source: compiled })
     }
     expect(await assessControllerPatternImport({ programId, pbp: blob(stamped(compiled, { transforms: ['power-cap'] })), knownSource }))
       .toMatchObject({ ok: true, sourceMode: 'stored-artifact' })
@@ -105,6 +120,9 @@ describe('Controller Pattern import assessment', () => {
     expect(await assessControllerPatternImport({ programId, pbp: blob(stamped(compiled)),
       knownSource: { originId: 'demo:origin', source: authored, libraries } }))
       .toMatchObject({ ok: true, sourceMode: 'authored-verified', source: authored })
+    expect(await assessControllerPatternImport({ programId, pbp: blob(stamped(compiled)),
+      knownSource: { originId: 'demo:origin', source: authored, libraries, sourceMode: 'stored-artifact' } }))
+      .toMatchObject({ ok: true, sourceMode: 'authored-verified', source: compiled })
   })
 })
 
@@ -112,10 +130,11 @@ describe('Controller import plans, ledger, immutable policy and retries', () => 
   it('creates deterministic fresh personal destinations, names and full initial record witnesses', async () => {
     const first = await plan()
     expect(first).toEqual(await plan())
-    expect(first.record).toEqual({ id: 'personal-new', name: 'Original 1', src: stamped(), controls: {}, authors: ['Ada'], updatedAt: 123 })
+    const wrapped = stamped(source, { transforms: ['stored-artifact'] })
+    expect(first.record).toEqual({ id: 'personal-new', name: 'Original 1', src: wrapped, controls: {}, authors: ['Ada'], updatedAt: 123 })
     expect(first.receipt).toEqual({ version: 1, patternId: 'personal-new', controllerDeviceId: 'A', programId,
-      createdAt: 123, sourceMode: 'stored-artifact', origin: { pbpDigest: await sha256ControllerProgram(blob()),
-        bannerState: 'valid', banner: parsePxlblzBanner(stamped()) }, stage: 'planned',
+      createdAt: 123, sourceMode: 'stored-artifact', origin: { pbpDigest: await sha256ControllerProgram(blob(wrapped)),
+        bannerState: 'valid', banner: parsePxlblzBanner(wrapped) }, stage: 'planned',
       accountRecordDigest: await sha256ControllerProgram(new TextEncoder().encode(JSON.stringify(first.record))) })
     expect((await plan('personal-second', 'B')).record.id).toBe('personal-second')
     expect(first.receipt.origin.banner?.hash).toBe(artifactHash(source))
@@ -176,7 +195,8 @@ describe('Controller import plans, ledger, immutable policy and retries', () => 
     expect(controllerPatternImportPolicy(reloaded, edited.id)).toEqual({ applyProfile: false, allowReconciliation: false,
       notice: 'Imported wrapped source. Its old Controller profile behavior remains; this Controller profile is not applied.' })
     expect(controllerPatternImportPolicy(reloaded, 'ordinary')).toEqual({ applyProfile: true, allowReconciliation: true, notice: null })
-    const authored = withControllerPatternImport(readControllerPatternImportLedger(undefined), { ...receipt, sourceMode: 'authored-verified' })
+    const authored = withControllerPatternImport(readControllerPatternImportLedger(undefined), { ...receipt, sourceMode: 'authored-verified',
+      origin: { ...receipt.origin, banner: parsePxlblzBanner(stamped()) } })
     expect(controllerPatternImportPolicy(authored, receipt.patternId)).toEqual({ applyProfile: true, allowReconciliation: true, notice: null })
     expect(controllerPatternImportRetry({ receipt: complete, accountRecordDigest: 'changed', observedPbpDigest: null })).toBe('complete')
     expect(controllerPatternImportRetry({ receipt, accountRecordDigest: 'changed', observedPbpDigest: receipt.origin.pbpDigest })).toBe('conflict')

@@ -90,14 +90,18 @@ body-integrity comparison. Missing, malformed and hash-mismatched provenance is
 recorded without granting trustworthy origin identity. Only an integrity-valid
 Pattern banner is retained in the receipt.
 
-Authored recovery requires an integrity-valid Pattern banner, no declared
-transforms, and an independently supplied stock/current-account canonical source
-with the same origin ID that is not itself stored-artifact source. Its no-pass
-bundle must equal the downloaded banner-stripped body exactly. A failed candidate
-bundle makes authored recovery unavailable. The caller must never supply the
-downloaded text relabelled as a canonical candidate or query another account.
+Authored recovery requires an integrity-valid Pattern banner with no declared
+transforms. It recovers the exact banner-stripped downloaded body even without a
+stock/current-account canonical candidate. An independently supplied canonical
+source with the same origin ID is preferred when its no-pass bundle equals that
+body exactly. A stored-artifact candidate is excluded from canonical matching;
+an absent, mismatched, excluded or unbuildable candidate leaves valid-stamp body
+recovery intact. The caller must never supply downloaded text relabelled as a
+canonical candidate or query another account. Authored imports apply the
+destination account's current Controller profile.
 
-Every other accepted assessment retains the exact stored source and PBP. It does
+Every other accepted assessment, including any nonempty transform list or
+`stored-artifact` token, retains the exact stored source and initial PBP. It does
 not unwrap generated code, infer an inverse, or layer a profile or adapter pass.
 The settled fallback is “Write unchanged; warn old behavior remains”. Its policy
 notice is:
@@ -311,6 +315,13 @@ profile reads/waits, retain firmware checks, and omit profile freshness from Sav
 metadata. Authored preparation requires a successful profile load and guards
 profile/session state through device mutations. Adapter replacement invalidates
 the captured operation. Show delivery keeps its existing source semantics.
+
+Later wrapped Pattern sends include exactly one `stored-artifact` transform in
+their stamp, preserving caller and delivery IDs. Save embeds that token so a
+subsequent cross-account assessment retains wrapped policy; Run sends bytecode
+without a source banner. Initial wrapped import still preserves the original
+PBP byte for byte.
+
 Successful push-record persistence invalidates Saved Patterns freshness even when
 program IDs and the list are unchanged; this publication retains the captured
 storage destination.
@@ -319,6 +330,16 @@ Successful stored-artifact sends memoize local cleanliness independently of
 unused profile and map settings. Exact source, separate Run/Save records and
 Run active-program identity still gate cleanliness. The local marker is never
 written as durable profile freshness; stored-artifact push metadata omits it.
+
+Every code-changing profile pass contributes its logical transform ID. Terminal
+`-sample` and `-drive` helper suffixes both normalize to their parent ID, with
+first-seen ordering and pair deduplication. Software evidence compares successive
+real recipe prefix bundles for both global transform types, RGB/HSV brightness,
+and all binding target kinds, including synthesized `beforeRender`. Import
+execution and host-action checks prove no-candidate stripped-body recovery and
+current-profile application; active/generated Run/Save checks reopen wrapped
+Saves through assessment and preserve their policy. These checks do not establish
+S4 native-firmware or hardware qualification.
 
 Reconciliation reads policy with its other planning metadata and fails closed
 on read errors. Bound stored-artifact Patterns are unmanaged with reason

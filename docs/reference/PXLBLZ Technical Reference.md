@@ -316,6 +316,9 @@ Save-mode PBP embed the stamp; Run-only bytecode has no source and no banner.
 `parsePxlblzBanner` is the read-back seam. New program ids are 17 firmware
 characters with a `pxb` prefix; overwrites preserve pre-existing ids, so the
 banner is the durable provenance signal.
+Code-changing profile passes retain logical transform IDs, including sample-only
+helpers; sample/drive pairs deduplicate under their parent ID. Later wrapped
+Pattern Saves include `stored-artifact` to preserve their import policy.
 
 ## 7. Validation, loading, and runtime shim
 
@@ -907,9 +910,13 @@ recovery is impossible; this recovery does not mutate the Controller.
 
 Single-item and bulk Import in Unimported PXLBLZ Patterns confirm before downloading,
 create a fresh personal Pattern, and write only the selected Controller slot.
-Exact canonical source receives the current profile; wrapped source preserves
-its exact PBP and old behavior. The durable account ledger governs that policy
-and the editor's persistent amber notice. An incomplete bound receipt offers
+An integrity-valid Pattern stamp with no transforms recovers the banner-stripped
+body and receives the current profile, preferring independently matched exact
+stock/current-account canonical source when available. Nonempty transforms,
+including `stored-artifact`, or missing/damaged provenance keep source wrapped:
+initial import preserves its exact PBP and old behavior, and later wrapped Saves
+stamp the token to retain policy across accounts. The durable account ledger
+governs that policy and the editor's persistent amber notice. An incomplete bound receipt offers
 Resume import after reload; retries retain the same Pattern and slot identities
 and report prior durable write progress truthfully. Reporting distinguishes
 response-read failures, named command completion, and confirmed running status;

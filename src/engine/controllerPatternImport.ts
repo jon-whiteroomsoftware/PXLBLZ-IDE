@@ -71,14 +71,16 @@ export async function assessControllerPatternImport(input: {
   let sourceMode: ControllerImportSourceMode = 'stored-artifact'
   let source = storedSource
   const candidate = input.knownSource
-  if (valid && stamp.transforms.length === 0 && candidate?.originId === stamp.id
-    && candidate.sourceMode !== 'stored-artifact') {
-    try {
-      if (bundleWithPasses(candidate.source, candidate.libraries ?? {}, []).code === stripPxlblzBanner(storedSource)) {
-        sourceMode = 'authored-verified'
-        source = candidate.source
-      }
-    } catch { /* An unavailable canonical candidate does not invalidate the stored artifact. */ }
+  if (valid && stamp.transforms.length === 0) {
+    sourceMode = 'authored-verified'
+    source = stripPxlblzBanner(storedSource)
+    if (candidate?.originId === stamp.id && candidate.sourceMode !== 'stored-artifact') {
+      try {
+        if (bundleWithPasses(candidate.source, candidate.libraries ?? {}, []).code === source) {
+          source = candidate.source
+        }
+      } catch { /* An unavailable canonical candidate leaves valid-stamp body recovery intact. */ }
+    }
   }
   return { ok: true, sourceMode, source, deviceName: decoded.name, bytecode: decoded.byteCode,
     origin: { pbpDigest: await sha256ControllerProgram(input.pbp), bannerState, banner: valid ? stamp : null } }

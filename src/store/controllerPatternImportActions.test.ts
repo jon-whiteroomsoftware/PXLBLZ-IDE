@@ -118,6 +118,24 @@ it('recovers exact canonical personal source and applies the current profile', a
   expect(f.provider.compile.mock.calls[0][0]).toContain('analogRead(35)')
 })
 
+it('recovers no-candidate empty-stamp source through the host action and retries the same destination', async () => {
+  const f = fixture(true)
+  f.accounts.clear()
+  usePatternStore.setState({ userPatterns: [] })
+  const result = await importSavedControllerPattern(f.input)
+  expect(f.accounts.get(result.patternId)?.src).toBe(bundleWithPasses(source, {}, []).code)
+  expect(f.ledger().byPatternId[result.patternId]).toMatchObject({ sourceMode: 'authored-verified', stage: 'complete' })
+  expect(f.provider.compile.mock.calls[0][0]).toContain('analogRead(35)')
+  expect(f.bindings()[ip][result.patternId]).toBe(slot)
+  expect(f.accounts.size).toBe(1)
+  expect(f.programs.size).toBe(2)
+  usePatternStore.setState({ userPatterns: [] })
+  expect(await importSavedControllerPattern(f.input)).toEqual(result)
+  expect(f.personal.createPattern).toHaveBeenCalledTimes(1)
+  expect(f.provider.saveProgram).toHaveBeenCalledTimes(1)
+  expect(usePatternStore.getState().userPatterns.map((p) => p.id)).toEqual([result.patternId])
+})
+
 it.each([false, true])('imports a fresh destination for demo provenance (canonical=%s)', async (canonical) => {
   const f = fixture()
   const body = canonical ? bundleWithPasses(DEMOS.TestPattern1D, {}, []).code : source
@@ -137,17 +155,19 @@ it.each([false, true])('imports a fresh destination for demo provenance (canonic
   if (!canonical) expect(f.programs.get(slot)).toEqual(bytes)
 })
 
-it('never treats a stored-artifact personal origin as authored recovery', async () => {
+it('excludes a stored-artifact personal origin while independently recovering the valid body', async () => {
   const f = fixture(true)
+  const origin = structuredClone(f.accounts.get('origin'))
   const assessment = await assessControllerPatternImport({ programId: slot, pbp: f.bytes })
   if (!assessment.ok) throw new Error(assessment.message)
   const plan = await createControllerPatternImportPlan({ assessment, patternId: 'origin',
     controllerDeviceId: 'another-device', programId: slot, now: 1, existingNames: [] })
-  f.setLedger({ version: 1, byPatternId: { origin: plan.receipt } })
+  f.setLedger({ version: 1, byPatternId: { origin: { ...plan.receipt, sourceMode: 'stored-artifact' } } })
   const result = await importSavedControllerPattern(f.input)
-  expect(f.ledger().byPatternId[result.patternId].sourceMode).toBe('stored-artifact')
-  expect(f.provider.compile).not.toHaveBeenCalled()
-  expect(f.programs.get(slot)).toEqual(f.bytes)
+  expect(f.ledger().byPatternId[result.patternId].sourceMode).toBe('authored-verified')
+  expect(f.accounts.get(result.patternId)?.src).toBe(bundleWithPasses(source, {}, []).code)
+  expect(f.provider.compile.mock.calls[0][0]).toContain('analogRead(35)')
+  expect(f.accounts.get('origin')).toEqual(origin)
 })
 
 it.each(['provider', 'epoch', 'map', 'personal', 'metadata', 'auth', 'view'] as const)(

@@ -13,7 +13,7 @@ const notice = 'Imported wrapped source. Its old Controller profile behavior rem
 async function wrappedLedger(patternId: string) {
   const programId = makeProgramId(() => 0)
   const pbp = encodePbp({ id: programId, name: 'Wrapped', byteCode: new Uint8Array(8),
-    sourceCode: stampArtifact('export function render(i) { rgb(1,0,0) }', { kind: 'pattern', id: 'origin' }) })
+    sourceCode: stampArtifact('export function render(i) { rgb(1,0,0) }', { kind: 'pattern', id: 'origin', transforms: ['stored-artifact'] }) })
   const assessment = await assessControllerPatternImport({ programId, pbp })
   if (!assessment.ok) throw new Error(assessment.message)
   const { receipt } = await createControllerPatternImportPlan({ assessment, patternId,
@@ -67,7 +67,10 @@ it('reopens durable wrapped policy after editing and remounting', async () => {
 it.each(['ordinary', 'authored'] as const)('hides the notice for %s policy', async (mode) => {
   useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
   const ledger = mode === 'ordinary' ? readControllerPatternImportLedger(undefined) : await wrappedLedger('personal')
-  if (mode === 'authored') ledger.byPatternId.personal.sourceMode = 'authored-verified'
+  if (mode === 'authored') {
+    ledger.byPatternId.personal.sourceMode = 'authored-verified'
+    ledger.byPatternId.personal.origin.banner!.transforms = []
+  }
   const read = vi.fn(async () => ledger)
   setControllerMetadataStorage({ ...demoControllerMetadataStorage, id: 'account', getPatternImports: read })
   await act(async () => { render(<ControllerPatternImportNotice patternId="personal" />) })

@@ -8,7 +8,7 @@ import { decodePbp, encodePbp } from './pbpEncode'
 import { recoverSavedProgram } from './controllerSavedProgramRead'
 import type { PatternRecord } from './personalContentRecords'
 import { getControllerPushRecordsRevision, subscribeControllerPushRecordsRevision, type ControllerMetadataStorage } from './controllerMetadataStorage'
-import { readControllerPatternImportLedger, type ControllerPatternImportLedger } from './controllerPatternImport'
+import { readControllerPatternImportLedger, sha256ControllerProgram, type ControllerPatternImportLedger } from './controllerPatternImport'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecords } from './controllerPushRecord'
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
@@ -27,9 +27,9 @@ function goodBytecode(byteLength = 8) {
   new DataView(bytes.buffer).setUint32(0, byteLength - 8, true)
   return bytes
 }
-function blob(body = source, id = slot) {
+function blob(body = source, id = slot, transforms: string[] = ['stored-artifact']) {
   return encodePbp({ id, name: 'Device name', byteCode: goodBytecode(),
-    sourceCode: stampArtifact(body, { kind: 'pattern', id: 'demo:origin', name: 'Original', stampedAt: '2026-01-01' }),
+    sourceCode: stampArtifact(body, { kind: 'pattern', id: 'demo:origin', name: 'Original', stampedAt: '2026-01-01', transforms }),
     previewImage: Uint8Array.of(255, 216, 255, 217) })
 }
 function hardwareBrightnessProfile(pin = 36) {
@@ -115,7 +115,7 @@ function deferred<T>() {
 }
 function authoredFixture() {
   const f = makeDeps()
-  f.programs.set(slot, blob(bundleWithPasses(source, {}, []).code))
+  f.programs.set(slot, blob(bundleWithPasses(source, {}, []).code, slot, []))
   f.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source })
   return f
 }
@@ -552,13 +552,13 @@ describe('selected-slot Controller Pattern import execution', () => {
     const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
     try {
       const old = prepareControllerArtifactDelivery({ source, artifactId: 'demo:origin', profile: hardwareBrightnessProfile() })
-      wrapped.programs.set(slot, blob(old.source))
+      wrapped.programs.set(slot, blob(old.source, slot, old.transformIds))
       await importControllerPattern(input, wrapped.deps)
       expect(render(decodePbp(wrapped.programs.get(slot)!)!.sourceCode)).toEqual({ rgb: [0.4, 0.2, 0.1], pins: [36] })
       expect(getControllerPushRecordsRevision()).toBe(before)
       expect(onRevision).not.toHaveBeenCalled()
       const authored = makeDeps()
-      authored.programs.set(slot, blob(bundleWithPasses(source, {}, []).code))
+      authored.programs.set(slot, blob(bundleWithPasses(source, {}, []).code, slot, []))
       authored.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source })
       await importControllerPattern(input, authored.deps)
       const decoded = decodePbp(authored.programs.get(slot)!)!
@@ -811,9 +811,39 @@ describe('selected-slot Controller Pattern import execution', () => {
     expect(f.deps.allocatePatternId).toHaveBeenCalledTimes(3)
   })
 
-  it.each(['invalid-canonical', 'transformed', 'damaged'])('keeps %s source in stored-artifact mode', async (kind) => {
-    const f = authoredFixture()
+  it.each(['no-candidate', 'invalid-canonical'])('recovers valid empty-stamp source with B current profile (%s)', async (kind) => {
+    const f = makeDeps()
+    const body = bundleWithPasses(source, {}, []).code
+    const origin = blob(body, slot, [])
+    f.programs.set(slot, origin)
     if (kind === 'invalid-canonical') f.deps.resolveKnownSource.mockResolvedValue({ originId: 'demo:origin', source: 'export function {' })
+    const seed = f.programs.get('unrelated')!.slice()
+    const result = { patternId: 'personal-1', programId: slot, complete: true }
+    expect(await importControllerPattern(input, f.deps)).toEqual(result)
+    expect([...f.accounts.values()]).toEqual([{ id: 'personal-1', name: 'Original', src: body,
+      controls: {}, authors: ['Ada'], updatedAt: 123 }])
+    expect(f.ledger().byPatternId['personal-1']).toMatchObject({ sourceMode: 'authored-verified',
+      controllerDeviceId: input.controllerDeviceId, programId: slot, stage: 'complete',
+      origin: { pbpDigest: await sha256ControllerProgram(origin), bannerState: 'valid',
+        banner: parsePxlblzBanner(decodePbp(origin)!.sourceCode) } })
+    expect(f.bindings()).toEqual({ sibling: { seed: 'keep' }, 'address-A': { 'personal-1': slot } })
+    const saved = decodePbp(f.programs.get(slot)!)!
+    expect(f.deps.provider.saveProgram.mock.calls[0][1].id).toBe(slot)
+    expect(parsePxlblzBanner(saved.sourceCode)).toMatchObject({ id: 'personal-1', transforms: ['hardware-brightness'] })
+    expect(render(saved.sourceCode)).toEqual({ rgb: [0.2, 0.1, 0.05], pins: [35] })
+    expect(f.deps.provider.pushBytecode).toHaveBeenLastCalledWith(saved.byteCode, { id: slot, name: 'Original' })
+    expect([...f.programs.keys()]).toEqual([slot, 'unrelated'])
+    expect(f.programs.get('unrelated')).toEqual(seed)
+    f.deps.metadataStorage = f.storage()
+    expect(await importControllerPattern(input, f.deps)).toEqual(result)
+    expect(f.accounts.size).toBe(1)
+    expect(f.deps.allocatePatternId).toHaveBeenCalledTimes(1)
+    expect(f.deps.personalContent.createPattern).toHaveBeenCalledTimes(1)
+    expect(f.deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['transformed', 'damaged'])('keeps %s source in stored-artifact mode', async (kind) => {
+    const f = authoredFixture()
     if (kind === 'transformed') f.programs.set(slot, encodePbp({ id: slot, name: 'Old', byteCode: goodBytecode(),
       sourceCode: stampArtifact(bundleWithPasses(source, {}, []).code, { kind: 'pattern', id: 'demo:origin', name: 'Old', transforms: ['power-cap'] }) }))
     if (kind === 'damaged') {

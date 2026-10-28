@@ -1,5 +1,8 @@
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
-import { prepareControllerArtifactDelivery } from './controllerArtifactDelivery'
+import { artifactTransformIds, prepareControllerArtifactDelivery } from './controllerArtifactDelivery'
+import type { ControllerBindingTarget, ControllerProfile, GlobalTransform } from './controllerProfile'
+import { controllerProfilePassRecipe } from './controllerProfilePassRecipe'
+import { bundleWithPasses } from './passEngine'
 import { loadPattern } from './loadPattern'
 import { createPlaneMap } from './maps'
 import { createShim } from './shim'
@@ -51,6 +54,61 @@ function loadBrightnessDelivery(
 
 describe('Controller artifact delivery derivatives (#849)', () => {
   const source = 'export function render(index) { hsv(index, 1, 1) }'
+
+  it.each([
+    [['binding-sample'], ['binding']],
+    [['binding-drive'], ['binding']],
+    [['binding-sample', 'binding-drive', 'other', 'binding-sample'], ['binding', 'other']],
+  ])('normalizes helper provenance %j in first-seen order', (ids, expected) => {
+    expect(artifactTransformIds(ids.map((id) => ({ id, kind: 'bind' })))).toEqual(expected)
+  })
+
+  type RecipeCase = { source: string; logicalId: string; profile: () => ControllerProfile }
+  const bindingCase = (target: ControllerBindingTarget, signal: 'analog' | 'digital'): RecipeCase => ({
+    source: 'export var level = 1; export function sliderLevel(v) { level = v }\n'
+      + 'export function setLevel(v) { level = v }\nexport function render(i) { rgb(level, 0, 0) }',
+    logicalId: 'level-binding',
+    profile: () => ({ ...defaultControllerProfile({ id: 'bench', now: 1 }),
+      inputs: [{ id: 'input', name: 'Input', pin: 36, signal, smoothing: 1, fallback: 0.5, invert: false }],
+      patternBindings: [{ id: 'level-binding', patternId: 'pat-1', inputId: 'input', target }],
+    }),
+  })
+  const globalCases: Record<GlobalTransform['type'], RecipeCase[]> = {
+    'hardware-brightness': ['rgb(0.8, 0.4, 0.2)', 'hsv(0.1, 1, 0.8)'].map((output) => ({
+      source: `export function render(i) { ${output} }`, logicalId: 'hardware-brightness', profile: hardwareBrightnessProfile,
+    })),
+    'power-cap': [{ source, logicalId: 'power-cap', profile: () => {
+      const profile = defaultControllerProfile({ id: 'bench', now: 1 })
+      profile.globalTransforms = profile.globalTransforms.map((t) => t.type === 'power-cap'
+        ? { ...t, enabled: true, maxDuty: 0.25 } : t)
+      return profile
+    } }],
+  }
+  const bindingCases: Record<ControllerBindingTarget['kind'], RecipeCase> = {
+    'call-exported-slider': bindingCase({ kind: 'call-exported-slider', name: 'sliderLevel' }, 'analog'),
+    'call-function': bindingCase({ kind: 'call-function', name: 'setLevel' }, 'digital'),
+    'assign-variable': bindingCase({ kind: 'assign-variable', name: 'level', min: 0.2, max: 0.8, quantize: 0.1 }, 'analog'),
+  }
+
+  it.each([
+    ...Object.entries(globalCases).flatMap(([family, cases]) => cases.map((test, index) => ({ family: `${family}-${index}`, ...test }))),
+    ...Object.entries(bindingCases).map(([family, test]) => ({ family, ...test })),
+  ])('records every code-changing $family recipe pass, including injected beforeRender', ({ source: input, profile, logicalId }) => {
+    const recipe = controllerProfilePassRecipe(profile(), input, 'pat-1')
+    const baseline = bundleWithPasses(input, {}, []).code
+    let previous = baseline
+    for (let index = 0; index < recipe.length; index++) {
+      const bundled = bundleWithPasses(input, {}, recipe.slice(0, index + 1))
+      if (bundled.code !== previous) {
+        const entry = bundled.summary.passes.filter((pass) => pass.id === recipe[index].id)
+        expect(entry).toHaveLength(1)
+        expect(artifactTransformIds(entry)).toEqual([logicalId])
+      }
+      previous = bundled.code
+    }
+    expect(previous).not.toBe(baseline)
+    expect(artifactTransformIds(bundleWithPasses(input, {}, recipe).summary.passes)).toEqual([logicalId])
+  })
 
   it('adds only active Controller profile transforms', () => {
     const profile = defaultControllerProfile({ id: 'bench', now: 1 })

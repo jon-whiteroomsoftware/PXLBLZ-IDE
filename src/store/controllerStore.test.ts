@@ -36,7 +36,7 @@ import {
   getControllerPushRecordsRevision,
   subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
-import { assessControllerPatternImport, createControllerPatternImportPlan, readControllerPatternImportLedger,
+import { assessControllerPatternImport, controllerPatternImportPolicy, createControllerPatternImportPlan, readControllerPatternImportLedger,
   type ControllerPatternImportLedger } from '@/engine/controllerPatternImport'
 import { importControllerPattern } from '@/engine/controllerPatternImportExecution'
 import { recoverSavedProgram } from '@/engine/controllerSavedProgramRead'
@@ -72,7 +72,7 @@ import {
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { isAlreadyPushed } from '@/engine/sendToController'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
-import { stampArtifact } from '@/engine/artifactStamp'
+import { parsePxlblzBanner, stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import {
@@ -573,7 +573,10 @@ describe('controllerStore (keyed)', () => {
     expect(store().controllerReconciliations[profile.id]).toMatchObject({ phase: 'attention', completedCount: 0 })
   })
 
-  it.each([false, true].flatMap((generated) => [false, true].map((persist) => ({ generated, persist }))))('keeps wrapped behavior through import and edited later send ($generated/$persist)', async ({ generated, persist }) => {
+  it.each([
+    ...[false, true].flatMap((generated) => [false, true].map((persist) => ({ generated, persist, callerToken: false }))),
+    { generated: true, persist: true, callerToken: true },
+  ])('keeps wrapped behavior through import and edited later send ($generated/$persist/$callerToken)', async ({ generated, persist, callerToken }) => {
     const provider = await connectManagedController()
     const slot = makeProgramId(() => 0)
     const originalSource = 'export function render(i) { rgb(0.8, 0.4, 0.2) }'
@@ -611,7 +614,8 @@ describe('controllerStore (keyed)', () => {
     const unusedProfileLoad = vi.spyOn(personal, 'listControllerProfiles').mockRejectedValue(new Error('unused importing profile'))
     if (generated) await store().pushGeneratedArtifact({ artifactId: edited.id, source: edited.src, name: edited.name,
       persist, compilePressure: { budgetBytes: 1_000_000, worstInstantRenderersPerPixel: 1 },
-      artifactStamp: { kind: 'pattern', id: edited.id, name: edited.name } })
+      artifactStamp: { kind: 'pattern', id: edited.id, name: edited.name,
+        transforms: callerToken ? ['caller-transform', 'stored-artifact'] : ['caller-transform'] } })
     else { store().setSaveArmed(persist); await store().pushActivePattern() }
     expect(store().artifactPushResult).toMatchObject({ ok: true })
     const state = store()
@@ -630,6 +634,20 @@ describe('controllerStore (keyed)', () => {
     if (persist) expect(provider.saved[provider.saved.length - 1].opts.id).toBe(slot)
     const deliveredSource = persist ? decodePbp(provider.rawPrograms.get(slot)!)!.sourceCode
       : provider.compiledSources[provider.compiledSources.length - 1]
+    if (persist) {
+      const saved = provider.rawPrograms.get(slot)!
+      const before = saved.slice()
+      expect(parsePxlblzBanner(deliveredSource)?.transforms).toEqual(generated
+        ? ['caller-transform', 'stored-artifact'] : ['stored-artifact'])
+      const assessment = await assessControllerPatternImport({ programId: slot, pbp: saved })
+      expect(assessment).toMatchObject({ ok: true, sourceMode: 'stored-artifact', source: deliveredSource })
+      if (!assessment.ok) throw new Error(assessment.message)
+      const { receipt } = await createControllerPatternImportPlan({ assessment, patternId: 'cross-account',
+        controllerDeviceId: 'another-controller', programId: slot, now: 100, existingNames: [] })
+      expect(controllerPatternImportPolicy({ version: 1, byPatternId: { 'cross-account': receipt } }, 'cross-account'))
+        .toMatchObject({ applyProfile: false })
+      expect(saved).toEqual(before)
+    }
     const bundled = bundleWithPasses(deliveredSource, {}, [])
     const shim = createShim({ mapPoints: createPlaneMap({ rows: 1, cols: 1 }).resolve(1), pixelCount: 1,
       dimensions: 1, getVirtualTime: () => 0 })

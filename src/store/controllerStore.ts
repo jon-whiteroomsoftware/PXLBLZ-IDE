@@ -1597,6 +1597,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               transforms: [...new Set([
                 ...(artifact.artifactStamp.transforms ?? []),
                 ...transforms,
+                ...(isPattern && !policy.applyProfile ? ['stored-artifact'] : []),
               ])],
             }
             const { created, programId } = await queueControllerDeviceWrite(
@@ -2125,7 +2126,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   name: previewPatternName,
                   persist,
                   previewImage,
-                  transforms: artifactTransformIds(bundled.summary.passes),
+                  transforms: policy.applyProfile ? artifactTransformIds(bundled.summary.passes) : ['stored-artifact'],
                   profileSignature,
                   ...deliveryMetadata(metadataStorage, assertDeviceSession),
                   assertDeviceSession,
