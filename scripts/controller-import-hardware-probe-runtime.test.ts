@@ -45,9 +45,9 @@ async function waitForChildOracle(child: ReturnType<typeof spawn>, exit: ChildEx
   child.stderr!.on('data', (bytes) => { stderr += bytes })
   let timer: ReturnType<typeof setTimeout> | undefined
   let deadlineExceeded = false
-  // The real resource oracle retains its 2s safety cap; the failure witness triggers on its report.
+  // Allow the intentional 5s close fallback; the failure witness triggers on its report.
   const deadline = (deadlineOnReport ? report : new Promise<void>((done) => {
-    timer = setTimeout(done, 2000)
+    timer = setTimeout(done, 8000)
   })).then(() => { deadlineExceeded = true })
   try {
     await Promise.race([Promise.all([exit, ...closures]), deadline])
@@ -140,7 +140,7 @@ it('closes pending HTTP bodies and uncooperative sockets, reports and exits natu
   })
   expect(verdict).toEqual({ deadlineExceeded: false, code: 0, signal: null, stderr: '' })
   expect(stdout).toContain(REPORT_MARKER)
-}, 5000)
+}, 10000)
 
 it('fails the natural-exit verdict and cleans up an owned child that retains an interval', async () => {
   const child = spawn(process.execPath, ['--eval', `console.log('${REPORT_MARKER}'); setInterval(() => {}, 1000)`],

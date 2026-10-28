@@ -16,7 +16,7 @@ import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
   boundedAction, byteSummary, gateProbeSaveSocket, parseProbeArgs, runProbeBatches, sanitizedTimingTable, successfulProbeSaves, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
-import { closeProbeResources, createProbeRuntime, createProbeSocketSequence, writePrivateProbeReport,
+import { closeProbeResources, createProbeRuntime, createProbeSocketSequence, runProbePostRunConnectCheck, writePrivateProbeReport,
   type ProbeSocketSequence, type ProbeSocketSettle } from './controller-import-hardware-probe-runtime'
 
 const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run [--http overlap|serial] [--repeat N]\nDefaults: --http overlap --repeat 1. Repeat must be a positive safe integer; control permits only 1.'
@@ -39,8 +39,13 @@ async function run(args: ProbeArgs) {
     const reconnectSettle = await socketSequence.beforeBatch()
     return runBatch(args, batchRoot, batchIndex, socketSequence, reconnectSettle)
   })
+  const postRunConnectCheck = result.success
+    ? await runProbePostRunConnectCheck({ host: PROBE_HOST, socketSequence,
+      socketEventLogPath: resolve(root, 'post-run-socket-events.jsonl'), reportPath: resolve(root, 'post-run-connect-report.json') })
+    : undefined
   const summary = { case: args.case, runId: args.runId, http: args.http, requested: result.requested,
-    completed: result.completed, success: result.success, outcomes: result.outcomes, firstStop: result.firstStop,
+    completed: result.completed, success: result.success && postRunConnectCheck?.success === true, outcomes: result.outcomes, firstStop: result.firstStop,
+    ...(postRunConnectCheck ? { postRunConnectCheck } : {}),
     batches: args.repeat === 1 ? result.batches : result.batches.map((batch) => {
       const requests = batch.timing.filter((event) => event.operation === 'http.read' || event.operation === 'compiler.http')
       const durations = requests.map((event) => event.durationMs ?? 0)
@@ -55,7 +60,7 @@ async function run(args: ProbeArgs) {
     }) }
   if (args.repeat > 1) writeFileSync(resolve(root, 'report.json'), JSON.stringify(summary, null, 2), { mode: 0o600 })
   console.log(JSON.stringify(summary, null, 2))
-  if (!result.success) process.exitCode = 1
+  if (!summary.success) process.exitCode = 1
 }
 
 async function runBatch(args: ProbeArgs, root: string, batchIndex: number,

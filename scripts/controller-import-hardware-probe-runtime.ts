@@ -1,7 +1,7 @@
 import WebSocket from 'ws'
 import { Agent } from 'undici'
 import { appendFileSync, writeFileSync } from 'node:fs'
-import type { WebSocketLike } from '../src/engine/PixelblazeConnection'
+import { PixelblazeConnection, type WebSocketLike } from '../src/engine/PixelblazeConnection'
 
 export interface ProbeErrorFields {
   code?: string | number
@@ -27,6 +27,9 @@ export interface ProbeSocketRecord {
   errors: ProbeSocketError[]
   closeCode?: number
   closeReason?: string
+  closeRequestedAt?: string
+  closePath?: 'clean' | 'terminate-fallback'
+  terminateRequestedAt?: string
 }
 
 export interface ProbeSocketSettle {
@@ -94,7 +97,7 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
   socketSequence?: ProbeSocketSequence; reconnectSettle?: ProbeSocketSettle } = {}) {
   const agent = new Agent()
   const rawFetch = globalThis.fetch
-  const sockets = new Set<WebSocket>()
+  const sockets = new Map<WebSocket, () => void>()
   const webSockets: ProbeSocketRecord[] = []
   const now = () => (options.now?.() ?? new Date()).toISOString()
   const observe = (record: ProbeSocketRecord, event: string, utc: string, fields: object = {}) => {
@@ -118,8 +121,26 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
       webSockets.push(record)
       observe(record, 'created', record.createdAt, record.reconnectSettle ? { reconnectSettle: record.reconnectSettle } : {})
       const socket = new WebSocket(url)
+      const nativeClose = socket.close.bind(socket)
+      let closeTimer: ReturnType<typeof setTimeout> | undefined
+      const closeFields = () => ({ closeRequestedAt: record.closeRequestedAt, closePath: record.closePath,
+        ...(record.terminateRequestedAt ? { terminateRequestedAt: record.terminateRequestedAt } : {}) })
+      const requestClose = () => {
+        if (record.closeRequestedAt || record.closedAt || socket.readyState === WebSocket.CLOSED) return
+        record.closeRequestedAt = now()
+        record.closePath = 'clean'
+        observe(record, 'close-request', record.closeRequestedAt, closeFields())
+        closeTimer = setTimeout(() => {
+          if (record.closedAt || socket.readyState === WebSocket.CLOSED) return
+          record.closePath = 'terminate-fallback'
+          record.terminateRequestedAt = now()
+          observe(record, 'terminate-fallback', record.terminateRequestedAt, closeFields())
+          socket.terminate()
+        }, 5000)
+        nativeClose(1000)
+      }
       const recordClose = options.socketSequence?.trackSocket()
-      sockets.add(socket)
+      sockets.set(socket, requestClose)
       // A connecting socket emits error before close when terminated.
       socket.on('error', (error: unknown) => {
         const fields = primitiveErrorFields(error)
@@ -138,23 +159,37 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
         observe(record, 'open', record.openedAt)
       })
       socket.on('close', (code, reason) => {
+        clearTimeout(closeTimer)
         record.closedAt = now()
         record.closeCode = code
         if (reason !== undefined) record.closeReason = reason.toString('utf8')
-        observe(record, 'close', record.closedAt, { closeCode: record.closeCode, closeReason: record.closeReason })
+        observe(record, 'close', record.closedAt, { closeCode: record.closeCode, closeReason: record.closeReason,
+          ...(record.closeRequestedAt ? closeFields() : {}) })
         recordClose?.(record.closedAt)
       })
       socket.once('close', () => sockets.delete(socket))
-      return socket as unknown as WebSocketLike
+      return {
+        send: (data) => socket.send(data),
+        close: requestClose,
+        get readyState() { return socket.readyState },
+        get onopen() { return socket.onopen as WebSocketLike['onopen'] },
+        set onopen(handler) { socket.onopen = handler },
+        get onclose() { return socket.onclose as WebSocketLike['onclose'] },
+        set onclose(handler) { socket.onclose = handler },
+        get onerror() { return socket.onerror as WebSocketLike['onerror'] },
+        set onerror(handler) { socket.onerror = handler },
+        get onmessage() { return socket.onmessage as WebSocketLike['onmessage'] },
+        set onmessage(handler) { socket.onmessage = handler },
+      }
     },
     close: (): Promise<void> => {
       if (closing) return closing
       closed = true
       closing = (async () => {
-        const shutdowns: Promise<unknown>[] = [...sockets].map((socket) => new Promise<void>((resolve) => {
+        const shutdowns: Promise<unknown>[] = [...sockets].map(([socket, requestClose]) => new Promise<void>((resolve) => {
           if (socket.readyState === WebSocket.CLOSED) { resolve(); return }
           socket.once('close', () => resolve())
-          socket.terminate()
+          requestClose()
         }))
         shutdowns.push(agent.destroy())
         const results = await Promise.allSettled(shutdowns)
@@ -164,4 +199,38 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
       return closing
     },
   }
+}
+
+export interface ProbePostRunConnectSummary {
+  success: boolean
+  connected: boolean
+  closePath?: 'clean' | 'terminate-fallback'
+  closeCode?: number
+  failure?: 'connection.connect' | 'connection.close'
+}
+
+/** One separately reported connection, admitted only after the prior actual close and settle. */
+export async function runProbePostRunConnectCheck(options: { host: string; socketSequence: ProbeSocketSequence;
+  socketEventLogPath: string; reportPath: string }): Promise<ProbePostRunConnectSummary> {
+  const reconnectSettle = await options.socketSequence.beforeBatch()
+  const runtime = createProbeRuntime({ socketSequence: options.socketSequence, reconnectSettle,
+    socketEventLogPath: options.socketEventLogPath })
+  const connection = new PixelblazeConnection({ host: options.host, webSocketFactory: runtime.webSocketFactory,
+    connectTimeoutMs: 5000, requestTimeoutMs: 5000, pingIntervalMs: 0 })
+  const summary: ProbePostRunConnectSummary = { success: false, connected: false }
+  try {
+    await connection.connect()
+    summary.connected = true
+  } catch {
+    summary.failure = 'connection.connect'
+  } finally {
+    try { await runtime.close() } catch { summary.failure ??= 'connection.close' }
+  }
+  const record = runtime.webSockets[0]
+  if (record?.closePath) summary.closePath = record.closePath
+  if (record?.closeCode !== undefined) summary.closeCode = record.closeCode
+  if (!summary.failure && (summary.closePath !== 'clean' || summary.closeCode !== 1000)) summary.failure = 'connection.close'
+  summary.success = summary.connected && !summary.failure
+  writePrivateProbeReport(options.reportPath, { summary }, runtime.webSockets)
+  return summary
 }

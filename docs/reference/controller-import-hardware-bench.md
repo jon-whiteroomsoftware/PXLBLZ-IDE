@@ -85,7 +85,19 @@ known. Save phase remains distinct from failure phase; an uncorrelated liveness
 stop explicitly records no save correlation. Full per-batch timing, rows and slot
 ledgers remain private; stdout exposes sanitized summaries. Failed or incomplete
 sequences exit nonzero. Every drain batch still needs an observed import drain
-activation to qualify.
+activation to qualify. Only after every requested batch qualifies, the probe
+waits for the last socket's actual close and the same 1000ms settle, then makes
+one fresh connection with no HTTP, protocol commands or Save. This separate
+post-run check connects once, awaits actual open and cleanup, and requires a
+clean path with actual close code 1000. It has no retry. Any batch, setup or HTTP
+failure skips the check entirely. Its sanitized `postRunConnectCheck` result
+appears separately in stdout and the repeat>1 aggregate report, without changing
+requested/completed counts, outcomes, batches or first-stop semantics. Overall
+success and exit status require both batch qualification and post-run success;
+post-run failures use `connection.connect` or `connection.close` in that separate
+summary. Repeat 1 keeps its existing batch report. Both repeat modes gain private
+run-root `post-run-connect-report.json` and `post-run-socket-events.jsonl` files
+when the check runs. Defaults and help flags remain unchanged.
 
 The probe creates two in-memory A Patterns named `Test pat I24 <run-id> T2/T3`,
 green and blue with 1D/2D render functions, original A identity stamps and real
@@ -191,11 +203,18 @@ Each batch's [runtime](../../scripts/controller-import-hardware-probe-runtime.ts
 keeps Node's global fetch implementation with one owned undici 7.29.0 Agent,
 without imposing a connection limit in overlap mode or altering headers. The CLI
 retains its pinned-origin, GET and redirect guard. All exit paths stop the monitor,
-disconnect the provider, destroy the owned HTTP dispatcher, terminate and await
+disconnect the provider, destroy the owned HTTP dispatcher, and close and await
 owned WebSockets (including connecting sockets), then restore global fetch before
-writing the final report. Cleanup is idempotent and creates no timer; the
-between-batch settle starts only after actual close, never a local close request
-or readyState guess. Failures
+writing the final report. Each socket's first local close request sends native
+`close(1000)` and arms one 5000ms terminate fallback. Provider-shaped no-code
+close calls use the same owner as runtime cleanup. Repeated close or shutdown
+calls send no additional close frame and never restart the bound. Actual close
+clears the timer, including a synchronous callback. If no actual close occurs
+and the socket is not CLOSED at the bound, the owner requests termination once;
+cleanup still awaits actual close, never the request or timer expiry. A connecting
+socket may actually close with 1006; this remains failed-handshake evidence.
+Cleanup is idempotent; the between-batch and post-run settle starts only after
+actual close, never a local close request or readyState guess. Failures
 are explicit failed results and do not skip remaining owners or the report.
 The offline child-process oracle uses parent-owned loopback HTTP and WebSocket
 fixtures to prove natural exit with an unfinished body and a peer that does not
@@ -205,19 +224,27 @@ No process-wide dispatcher or unrelated handle is destroyed.
 
 Each private per-batch `report.json` also retains `webSockets`: runtime-local
 `socketId`, URL, UTC ISO `createdAt`, optional `openedAt`/`closedAt`, `errors`,
-and optional `closeCode`/UTF-8 `closeReason`. Construction attempts are recorded
+and optional `closeCode`/UTF-8 `closeReason`. Local close requests add UTC ISO
+`closeRequestedAt` and `closePath` (`clean` or `terminate-fallback`); fallback
+also adds UTC ISO `terminateRequestedAt`. A peer close without a local request
+omits these request fields. `clean` describes the attempted path; only actual
+code 1000 proves a normal handshake. Construction attempts are recorded
 before construction; only actual `open` and `close` events set their timestamps.
 Count opened physical connections from `openedAt`, not factory calls. Closed
 records survive cleanup. The mode-0600 `socket-events.jsonl` streams the same
-captured values as `created`, `open`, `error`, and `close` observations with
-`socketId`, URL and `utc`.
+captured values as `created`, `open`, `error`, `close-request`,
+`terminate-fallback`, and `close` observations with `socketId`, URL and `utc`.
+Actual close observations include the locally requested path when present.
+The separate mode-0600 post-run report and event log retain the same private
+socket lifecycle, raw error and settle fields.
 
 After the first batch, each socket's private record and `created` observation
 also include `reconnectSettle`: UTC ISO `previousClosedAt`, `settleStartedAt`,
 `settleEndedAt`, and configured `settleMs` (1000). First-batch records and callers
 without sequencing omit this field. `openedAt` still requires an actual open
 event; failed connects retain settle, raw error and actual close evidence without
-a fabricated open time. Runtime behavior without these options is unchanged.
+a fabricated open time. Callers without sequencing still use the same clean
+close owner and fallback.
 
 Raw underlying `ws` errors retain available string/number `code`, `name`,
 `errno`, `syscall`, and `message`, plus those fields from a one-level cause.
@@ -227,9 +254,9 @@ installed because it would change handshake failure behavior. The protocol's
 Event-style error callback can still yield a generic connection rejection;
 that wrapper is not evidence of an underlying error class. These diagnostics
 add no retry, delay or scheduling change within a batch's protocol, HTTP or Save
-operations. Only admission of a subsequent batch waits for actual close plus
-the settle above; failure-stop behavior is unchanged and no connect retry is
-added. Socket records, settle metadata and raw error fields
+operations. Admission of a subsequent batch or the separate post-run check waits
+for actual close plus the settle above; failure-stop behavior is unchanged and
+no connect retry is added. Socket records, settle metadata and raw error fields
 stay out of stdout, aggregate root summaries and sanitized timing tables. They
 contain no headers, source, config, sessions or response bodies. Offline mocked
 socket artifacts verify retention and lifecycle semantics, not physical proof.
