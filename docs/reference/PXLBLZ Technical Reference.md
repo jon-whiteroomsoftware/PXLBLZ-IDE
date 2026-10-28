@@ -822,11 +822,17 @@ freshness column.
 All three sections share one active selection owner. `controllerPatternBatch.ts`
 provides immutable ID selection, eligibility reconciliation, an ordered sequential
 runner and failed-only retry that preserves completed outcomes. Selecting a section starts empty;
-running and pending-running IDs are excluded before the confirmation snapshot.
+selection follows current group membership, including running and pending IDs.
+Missing members are pruned without resurrection. Delete alone excludes active,
+pending and unknown-active evidence, explains exclusions below selected-group
+row names, and filters confirmation to eligible selected names.
 Batch Delete reuses queued delete safety checks. Other bulk Import retains its
 account-only recovery path. Unimported bulk Import confirms snapshot names before
 any source read, then calls the same durable command as single-item Import for
-each selected slot without navigation. Its results retain named errors and allow
+each selected slot without navigation. Import permits active/pending targets;
+its own activation preserves checks and cannot suppress later targets. Initial
+dispatch checks the captured view, current slot/name and source ownership.
+Its results retain named errors and allow
 failed-only retry after incomplete bound rows move to Saved.
 Each delete retains its captured Controller session and raw device name, and
 revalidates live running state before writing. A failed item does not cancel later

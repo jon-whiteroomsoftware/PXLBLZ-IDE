@@ -1,4 +1,6 @@
 import type { Locator } from '@playwright/test'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { test, expect } from './fixtures/authenticated'
 import { bulkProfileId, bulkPrograms, fakeControllerMutations, seedBulkSelectFixture } from './fixtures/controllerBulkSelect'
 
@@ -22,9 +24,32 @@ test('Controller bulk selection cancels, imports, switches sections, deletes and
 
   await pane.getByRole('button', { name: 'Select Saved PXLBLZ Patterns' }).click()
   await expect(pane.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0)
-  await expect(pane.getByRole('checkbox', { name: 'Select Running Pattern', exact: true })).toBeDisabled()
+  const runningCheckbox = pane.getByRole('checkbox', { name: 'Select Running Pattern', exact: true })
+  await expect(runningCheckbox).toBeEnabled()
   await pane.getByRole('checkbox', { name: 'Select all Saved PXLBLZ Patterns', exact: true }).check()
-  await expect(pane.getByRole('status')).toHaveText('2 of 3 selected')
+  await expect(pane.getByRole('status')).toHaveText('3 of 3 selected')
+  const assertSavedSelection = async () => {
+    await expect(runningCheckbox).toBeChecked()
+    await expect(pane.getByText('Cannot delete: Running now — switch to another Pattern first', { exact: true })).toBeVisible()
+    for (const name of ['Delete', 'Done']) {
+      await pane.getByRole('button', { name, exact: true }).click({ trial: true })
+    }
+    await expect(pane.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0)
+  }
+  await assertSavedSelection()
+  const captureDir = process.env.PXLBLZ_BULK_SELECT_CAPTURE_DIR
+  if (captureDir) {
+    await mkdir(captureDir, { recursive: true })
+    await page.screenshot({ path: join(captureDir, 'i39-s2c-desktop.png') })
+    await page.setViewportSize({ width: 760, height: 1000 })
+    await assertSavedSelection()
+    await page.screenshot({ path: join(captureDir, 'i39-s2c-narrow.png') })
+    await page.setViewportSize({ width: 1440, height: 1000 })
+  }
+  await pane.getByRole('button', { name: 'Delete', exact: true }).click()
+  await expect(page.getByRole('alertdialog').getByRole('listitem')).toHaveText(['Owned Aurora', 'Owned Embers'])
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+  expect(await fakeControllerMutations(page)).toEqual(before)
   await pane.getByRole('button', { name: 'Select Other Patterns' }).click()
   await expect(pane.getByRole('status')).toHaveText('0 of 3 selected')
   await pane.getByRole('checkbox', { name: 'Select Alpha', exact: true }).check()

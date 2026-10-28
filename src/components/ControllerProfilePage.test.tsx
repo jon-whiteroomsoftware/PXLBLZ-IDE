@@ -232,8 +232,8 @@ describe('single-item PXLBLZ Controller import', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
   }
 
-  it('selects only one group at a time and permanently removes running and pending Unimported rows', async () => {
-    const { slots } = batchImportFixture()
+  it('selects one group, preserves checks through telemetry, and permanently prunes missing members', async () => {
+    const { slots, provider } = batchImportFixture()
     for (const [label, names] of [
       ['Saved PXLBLZ Patterns', ['Owned']], ['Unimported PXLBLZ Patterns', ['Alpha', 'Beta', 'Gamma']],
       ['Other Patterns', ['Other']], ['Unimported PXLBLZ Patterns', ['Alpha', 'Beta', 'Gamma']],
@@ -249,16 +249,24 @@ describe('single-item PXLBLZ Controller import', () => {
     }
     expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
     act(() => useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] }))
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent('Cannot delete: Running now — switch to another Pattern first')
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' }).closest('tr')).toHaveTextContent('Cannot delete: Waiting to confirm the running Pattern')
     expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
     act(() => useControllerPanelStore.setState({ activeProgramId: slots[2], activatingProgramId: null }))
-    expect(screen.getByText('0 of 3 selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).not.toBeChecked()
+    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
+    act(() => useControllerPanelStore.setState({ programsByController: {
+      '192.168.8.224': provider.programs.filter((entry) => entry.id !== slots[0]),
+    } }))
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Select Alpha' })).not.toBeInTheDocument())
+    act(() => useControllerPanelStore.setState({ programsByController: { '192.168.8.224': provider.programs } }))
+    expect(await screen.findByRole('checkbox', { name: 'Select Alpha' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeChecked()
   })
 
-  it.each(['running', 'pending', 'missing', 'renamed'] as const)('refuses an initially selected %s slot before dispatch and continues later slots', async (change) => {
+  it.each(['running', 'pending', 'missing', 'renamed'] as const)('checks slot membership rather than %s telemetry before import dispatch', async (change) => {
     const { slots, provider, read, createPattern, save } = batchImportFixture()
     await openBatchImport()
     act(() => {
@@ -271,11 +279,42 @@ describe('single-item PXLBLZ Controller import', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
     expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Alpha: Controller session or running Pattern changed')
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('2 imported')
-    expect(read.mock.calls.some(([id]) => id === slots[0])).toBe(false)
-    expect(createPattern).toHaveBeenCalledTimes(2)
-    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(slots.slice(1))
+    const refused = change === 'missing' || change === 'renamed'
+    if (refused) expect(screen.getByRole('alertdialog')).toHaveTextContent('Alpha: Controller session or selected Pattern changed')
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(`${refused ? 2 : 3} imported`)
+    // The durable command reads each target at its five verification boundaries.
+    expect(read.mock.calls.map(([id]) => id)).toEqual((refused ? slots.slice(1) : slots).flatMap((id) => Array(5).fill(id)))
+    expect(createPattern).toHaveBeenCalledTimes(refused ? 2 : 3)
+    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(refused ? slots.slice(1) : slots)
+  })
+
+  it('retains every checked target while the real import command activates its first slot', async () => {
+    const { slots, account, read, save, push } = batchImportFixture()
+    const route = useRouterStore.getState().route
+    const subject = usePatternStore.getState().activePatternId
+    const hold = deferred<void>()
+    push.mockImplementationOnce(async () => {
+      useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] })
+      await hold.promise
+    })
+    await openBatchImport()
+    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
+    await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      expect(screen.getByRole('checkbox', { name: `Select ${name}`, hidden: true })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: `Select ${name}`, hidden: true })).toBeDisabled()
+    }
+    await act(async () => { useControllerPanelStore.setState({ activatingProgramId: null }); hold.resolve() })
+    expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('3 imported')
+    expect(read.mock.calls.map(([id]) => id)).toEqual(slots.flatMap((id) => Array(5).fill(id)))
+    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(slots)
+    expect(account.size).toBe(3)
+    expect(push).toHaveBeenCalledTimes(3)
+    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+    expect(useRouterStore.getState().route).toEqual(route)
+    expect(usePatternStore.getState().activePatternId).toEqual(subject)
   })
 
   it('uses queued bulk Delete for only selected Unimported slots', async () => {
@@ -291,6 +330,37 @@ describe('single-item PXLBLZ Controller import', () => {
     expect(read).not.toHaveBeenCalled()
     expect(account.size).toBe(0)
     expect(provider.bindings['192.168.8.224'].control).toBe('owned')
+  })
+
+  it('filters only Delete targets while active and pending rows remain checked', async () => {
+    const { slots, provider } = batchImportFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
+    provider.activeProgramId = slots[0]
+    act(() => useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Select all/ }))
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    act(() => useControllerPanelStore.setState({ activatingProgramId: null }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(within(screen.getByRole('alertdialog')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Beta', 'Gamma'])
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha', hidden: true })).toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 2 from Controller' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(provider.deletedProgramIds).toEqual(slots.slice(1))
+  })
+
+  it.each(['active', 'unknown'] as const)('permits selection but blocks Delete with %s evidence', async (evidence) => {
+    const { slots, provider } = batchImportFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
+    act(() => useControllerPanelStore.setState({ activeProgramId: evidence === 'active' ? slots[0] : undefined }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent(
+      `Cannot delete: ${evidence === 'active' ? 'Running now — switch to another Pattern first' : 'Waiting to confirm the running Pattern'}`,
+    )
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(provider.deletedProgramIds).toEqual([])
   })
 
   it('confirms once, retains durable mixed results across regrouping, and retries only the same failed destination', async () => {
@@ -610,8 +680,9 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(all)
     expect(screen.getByText('0 of 4 selected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
-    expect(screen.getByText('3 of 4 selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeDisabled()
+    expect(screen.getByText('4 of 4 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     const dialog = screen.getByRole('alertdialog')
     expect(within(dialog).getByRole('heading')).toHaveTextContent('Delete 3 Patterns from Burner bag?')
@@ -636,9 +707,19 @@ describe('ControllerProfilePage', () => {
     })
     const route = useRouterStore.getState().route
     fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    act(() => useControllerPanelStore.setState({ activeProgramId: 'A', activatingProgramId: 'B' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }))
+    act(() => useControllerPanelStore.setState({ activatingProgramId: null }))
+    const hold = deferred<void>()
+    const read = vi.spyOn(provider, 'readSavedProgram').mockImplementationOnce(async (id) => {
+      await hold.promise
+      return ProgramListProvider.prototype.readSavedProgram.call(provider, id)
+    })
+    const push = vi.spyOn(provider, 'pushBytecode')
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
+    await act(async () => { useControllerPanelStore.setState({ activeProgramId: 'B', activatingProgramId: 'A' }); hold.resolve() })
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument())
     expect(createPattern.mock.calls.map(([record]) => record.name)).toEqual(['Alpha', 'Beta'])
     expect(usePatternStore.getState().userPatterns.map((record) => record.name)).toEqual(['Beta', 'Alpha'])
@@ -646,6 +727,8 @@ describe('ControllerProfilePage', () => {
     expect(provider.activationCalls).toEqual([])
     expect(provider.bindingWrites).toBe(0)
     expect(provider.pushRecordWrites).toBe(0)
+    expect(push).not.toHaveBeenCalled()
+    expect(read.mock.calls.map(([id]) => id)).toEqual(['A', 'B'])
     expect(useRouterStore.getState().route).toEqual(route)
   })
 
@@ -694,7 +777,7 @@ describe('ControllerProfilePage', () => {
     expect(provider.programs).toHaveLength(5)
   })
 
-  it.each(['saved', 'other'] as const)('skips running and pending checkboxes in %s and reconciles selected IDs on telemetry changes', async (section) => {
+  it.each(['saved', 'other'] as const)('keeps running and pending checkboxes in %s selected through telemetry changes', async (section) => {
     const profile = seedProfile()
     renderLiveProgramInventory(profile, {
       storageId: `eligibility-${section}`, activeProgramId: 'A', configSourceIp: '192.168.8.224',
@@ -703,16 +786,18 @@ describe('ControllerProfilePage', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: `Select ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}` }))
     act(() => useControllerPanelStore.setState({ activatingProgramId: 'B' }))
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('title', 'Running now — switch to another Pattern first')
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeDisabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('title', 'Waiting to confirm the running Pattern')
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('title', 'Cannot delete: Running now — switch to another Pattern first')
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('title', 'Cannot delete: Waiting to confirm the running Pattern')
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent('Cannot delete: Running now')
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' }).closest('tr')).toHaveTextContent('Cannot delete: Waiting')
     fireEvent.click(screen.getByRole('checkbox', { name: /Select all/ }))
-    expect(screen.getByText('1 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
     act(() => useControllerPanelStore.setState({ activeProgramId: 'C', activatingProgramId: null }))
-    expect(screen.getByText('0 of 3 selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).not.toBeChecked()
+    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
   })
 
   it('prevents duplicate batch confirms while a delete is pending', async () => {

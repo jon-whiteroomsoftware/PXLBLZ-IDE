@@ -237,16 +237,26 @@ without appending its text to the message.
 ## Bulk import agreement
 
 Saved, Unimported and Other share one active selection section; entering a
-section starts empty and select-all receives only that group's eligible stable
-IDs. Running and pending-running slots are excluded and stale checks never
-resurrect. Bulk Delete retains the existing queued safety path. Other Import
-remains account-only.
+section starts empty and select-all receives every stable ID in that group's
+current membership. Running and pending activation do not uncheck selected rows.
+Missing members are pruned permanently; returning IDs do not resurrect checks.
+Section, session and account changes retain their selection resets, and completed
+imports exit selection.
+
+Delete alone excludes running and pending slots, and blocks all targets while
+Controller-scoped active evidence is unknown or blank. Selection mode shows
+`Cannot delete: {reason}` below each excluded row's name and on its selectable
+checkbox. Confirmation lists only currently eligible selected names; no eligible
+selection opens no dialog and sends no mutation. Bulk Delete retains the existing
+queued safety path and fresh-config checks. Other Import remains account-only
+and permits active/pending targets while preserving session checks around reads.
 
 Unimported bulk Import snapshots names and selected slots, confirms once before
 source reads or mutations, and calls the unchanged durable single-item command
-sequentially. Initial dispatch rechecks captured view, current slot/name and
-running/pending status; one failure does not cancel later items. The command's
-own activation is permitted. Results preserve exact named errors and count only
+sequentially, including selected active/pending slots. Initial dispatch rechecks
+captured view, current slot/name and config-source ownership; one failure does
+not cancel later items. The command's own activation cannot prune selection or
+suppress a later target. Results preserve exact named errors and count only
 command completion; refresh failure cannot relabel a verified write. Failed-only
 retry retains the captured destinations even after binding moves an incomplete
 row to Saved, merges prior successes, and never resubmits them. Recovery uses the
@@ -331,9 +341,12 @@ reopen account records and PBP bytes, verify merge without a second POST, and
 retire deferred work when its session changes. Component tests cover three-group
 inventory, confirmation before source reads, busy/retry controls, durable Resume
 and the wrapped-source notice. Pure batch tests cover immutable three-section
-selection and ordered cumulative failed-only retry. Real-command component tests
+membership selection, Delete-only reasons and ordered cumulative failed-only retry. Real-command component tests
 exercise confirmation/cancellation without reads, busy locking, mixed durable
-outcomes, regrouping, failed-only recovery and retirement of held stale work.
+outcomes, activation while all targets remain checked, regrouping, failed-only
+recovery and retirement of held stale work. Other-import tests hold source reads
+across active/pending changes and assert account-only writes. These synthetic
+checks do not establish S4 hardware fidelity, which remains pending.
 Retry tests preserve account/device state while
 account, binding, source and profile preparation fail at each durable write stage.
 

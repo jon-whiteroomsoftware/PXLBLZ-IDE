@@ -39,6 +39,7 @@ import {
 import { removeManagedControllerSavedProgramMetadata } from '@/engine/controllerSavedProgramDeletion'
 import {
   controllerPatternBatchNames,
+  controllerPatternDeleteDisabledReason,
   enterControllerPatternSelection,
   reconcileControllerPatternSelection,
   runControllerPatternBatch,
@@ -223,10 +224,12 @@ function SavedProgramNameCell({
   program,
   running,
   onOpen,
+  selectionDeleteReason,
 }: {
   program: ControllerSavedProgramRow
   running: boolean
   onOpen: (routeId: string) => void
+  selectionDeleteReason?: string | null
 }) {
   const title = [
     program.name,
@@ -268,6 +271,7 @@ function SavedProgramNameCell({
             <span title={title} className={nameClass}>{program.name}</span>
           )}
           <SavedProgramSourceNote program={program} />
+          {selectionDeleteReason && <span className="block text-[11px] leading-snug text-zinc-500 break-words">Cannot delete: {selectionDeleteReason}</span>}
         </span>
       </span>
     </td>
@@ -611,6 +615,7 @@ function SavedProgramsInventory({
   activatingProgramId,
   selection,
   eligibleIds,
+  deleteEligibleIds,
   batchBusy,
   onEnterSelection,
   onDone,
@@ -638,6 +643,7 @@ function SavedProgramsInventory({
   activatingProgramId: string | null
   selection: ControllerPatternSelection
   eligibleIds: readonly string[]
+  deleteEligibleIds: readonly string[]
   batchBusy: boolean
   onEnterSelection: (section: ControllerPatternSection) => void
   onDone: () => void
@@ -688,7 +694,7 @@ function SavedProgramsInventory({
         {section !== 'saved' && <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
           disabled={actionsBusy || selection.selectedIds.length === 0 || (section === 'unimported' && !canImport)} onClick={onBatchImport}>{importingProgramId !== null ? 'Importing…' : 'Import'}</Button>}
         <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
-          disabled={actionsBusy || selection.selectedIds.length === 0} onClick={onBatchDelete}>Delete</Button>
+          disabled={actionsBusy || !selection.selectedIds.some((id) => deleteEligibleIds.includes(id))} onClick={onBatchDelete}>Delete</Button>
         <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
           disabled={batchBusy} onClick={onDone}>Done</Button>
         </div>
@@ -697,7 +703,7 @@ function SavedProgramsInventory({
   )
   const selectionCheckbox = (program: ControllerSavedProgramRow, reason: string | null) => (
     <td className={`${tableCellClass} w-7`}>
-      <input type="checkbox" className="accent-live" aria-label={`Select ${program.name}`} title={reason ?? undefined}
+      <input type="checkbox" className="accent-live" aria-label={`Select ${program.name}`} title={reason ? `Cannot delete: ${reason}` : undefined}
         checked={selection.selectedIds.includes(program.programId)}
         disabled={writesBusy || !eligibleIds.includes(program.programId)}
         onChange={() => onToggle(program.programId)} />
@@ -774,11 +780,9 @@ function SavedProgramsInventory({
           <tbody>
             {presentedPrograms.owned.map((program) => {
               const running = program.programId === activeProgramId
-              const deleteDisabledReason = !activeProgramKnown || program.programId === activatingProgramId
-                ? 'Waiting to confirm the running Pattern'
-                : running
-                  ? 'Running now — switch to another Pattern first'
-                  : null
+              const deleteDisabledReason = controllerPatternDeleteDisabledReason(program.programId, {
+                sessionKnown: activeProgramKnown, activeProgramId, activatingProgramId,
+              })
               return (
                 <tr
                   key={program.programId}
@@ -789,6 +793,7 @@ function SavedProgramsInventory({
                     program={program}
                     running={running}
                     onOpen={onOpen}
+                    selectionDeleteReason={selection.section === 'saved' ? deleteDisabledReason : null}
                   />
                   <td className={tableCellClass}>
                     <ProfileFeatureIcons features={program.profileFeatures} />
@@ -833,11 +838,13 @@ function SavedProgramsInventory({
                 <th className={`${tableHeadClass} text-right`}><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>{presentedPrograms.unimported.map((program) => {
                 const running = program.programId === activeProgramId
-                const deleteDisabledReason = !activeProgramKnown || program.programId === activatingProgramId
-                  ? 'Waiting to confirm the running Pattern' : running ? 'Running now — switch to another Pattern first' : null
+                const deleteDisabledReason = controllerPatternDeleteDisabledReason(program.programId, {
+                  sessionKnown: activeProgramKnown, activeProgramId, activatingProgramId,
+                })
                 return <tr key={program.programId} className={`group ${selection.selectedIds.includes(program.programId) ? 'bg-live/[0.05]' : running ? 'bg-emerald-500/[0.04]' : ''}`}>
                   {selection.section === 'unimported' && selectionCheckbox(program, deleteDisabledReason)}
-                  <SavedProgramNameCell program={program} running={running} onOpen={onOpen} />
+                  <SavedProgramNameCell program={program} running={running} onOpen={onOpen}
+                    selectionDeleteReason={selection.section === 'unimported' ? deleteDisabledReason : null} />
                   <td className={`${tableCellClass} text-right`}><SavedProgramRowActions program={program} running={running}
                     disabled={actionsBusy} activating={activatingProgramId === program.programId}
                     importing={importingProgramId === program.programId} importDisabled={!canImport}
@@ -872,11 +879,9 @@ function SavedProgramsInventory({
               <tbody>
                 {presentedPrograms.foreign.map((program) => {
                   const running = program.programId === activeProgramId
-                  const deleteDisabledReason = !activeProgramKnown || program.programId === activatingProgramId
-                    ? 'Waiting to confirm the running Pattern'
-                    : running
-                      ? 'Running now — switch to another Pattern first'
-                      : null
+                  const deleteDisabledReason = controllerPatternDeleteDisabledReason(program.programId, {
+                    sessionKnown: activeProgramKnown, activeProgramId, activatingProgramId,
+                  })
                   return (
                     <tr
                       key={program.programId}
@@ -887,6 +892,7 @@ function SavedProgramsInventory({
                         program={program}
                         running={running}
                         onOpen={onOpen}
+                        selectionDeleteReason={selection.section === 'other' ? deleteDisabledReason : null}
                       />
                       <td className={`${tableCellClass} text-right`}>
                         <SavedProgramRowActions
@@ -1176,11 +1182,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const sectionPrograms = selection.section === 'saved' ? programs.owned
     : selection.section === 'unimported' ? programs.unimported
       : selection.section === 'other' ? programs.foreign : []
-  const eligibleIds = deleteSessionKnown
-    ? sectionPrograms.filter((program) => program.programId !== activeProgramId && program.programId !== activatingProgramId).map((program) => program.programId)
-    : []
+  const eligibleIds = sectionPrograms.map((program) => program.programId)
+  const deleteEligibleIds = eligibleIds.filter((id) => controllerPatternDeleteDisabledReason(id, {
+    sessionKnown: deleteSessionKnown, activeProgramId, activatingProgramId,
+  }) === null)
   const currentSelection = reconcileControllerPatternSelection(selection, eligibleIds)
-  // Persist removals during the guarded render so a later status reversal cannot
+  // Persist membership removals during the guarded render so a later return cannot
   // resurrect a checked ID. React discards this render before publishing it.
   if (currentSelection.selectedIds.length !== selection.selectedIds.length) setSelection(currentSelection)
 
@@ -1423,9 +1430,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     }
   }
 
-  function selectedPrograms() {
-    // Reconcile again at the action boundary: stale blocked IDs cannot enter a confirmation.
-    const selected = reconcileControllerPatternSelection(selection, eligibleIds)
+  function selectedPrograms(operation: 'delete' | 'import') {
+    // Delete filters its snapshot without changing the membership-based checks.
+    const selected = reconcileControllerPatternSelection(selection, operation === 'delete' ? deleteEligibleIds : eligibleIds)
     return selected.selectedIds.flatMap((id) => {
       const program = sectionPrograms.find((row) => row.programId === id)
       return program ? [program] : []
@@ -1436,7 +1443,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     if (batchLock.current || importingProgramId !== null || deletingProgramId !== null
       || !importMetadataReady || currentImportView.current !== importView || !liveIp || !importView.deviceId
       || selection.section !== 'unimported') return
-    const targets = selectedPrograms().filter((program) => program.kind === 'unimported')
+    const targets = selectedPrograms('import').filter((program) => program.kind === 'unimported')
       .map((program) => Object.freeze({ id: program.programId, name: program.name }))
     if (targets.length) setPendingPxlblzBatchImport({ view: importView, targets: Object.freeze(targets), result: null })
   }
@@ -1460,9 +1467,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         if (!retryFailed) {
           const panel = useControllerPanelStore.getState()
           const entry = panel.programsByController[controllerId]?.find((row) => row.id === pattern.id)
-          if (currentImportView.current !== capturedView || panel.configSourceIp !== controllerId || !panel.activeProgramId
-            || panel.activeProgramId === pattern.id || panel.activatingProgramId === pattern.id
-            || !entry || entry.name !== pattern.name) throw new Error('Controller session or running Pattern changed')
+          if (currentImportView.current !== capturedView || panel.configSourceIp !== controllerId
+            || !entry || entry.name !== pattern.name) throw new Error('Controller session or selected Pattern changed')
         }
         assertViewCurrent()
         setImportingProgramId(pattern.id)
@@ -1489,7 +1495,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
 
   async function performBatch(operation: 'delete' | 'import') {
     if (batchLock.current) return
-    const targets = operation === 'delete' ? pendingBatchDelete : selectedPrograms().flatMap((program) => {
+    const targets = operation === 'delete' ? pendingBatchDelete : selectedPrograms('import').flatMap((program) => {
       const target = snapshotDelete(program)
       return target ? [target] : []
     })
@@ -1511,12 +1517,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
             const panel = useControllerPanelStore.getState()
             return current.profileId === target.profileId && current.controllerId === target.controllerId
               && current.liveEpoch === target.liveEpoch && getControllerProvider() === target.provider
-              && panel.configSourceIp === target.controllerId && panel.activeProgramId !== id
-              && panel.activatingProgramId !== id
+              && panel.configSourceIp === target.controllerId
           }
-          if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
+          if (!sessionIsCurrent()) throw new Error('Controller session changed')
           const pending = await readProgramImport(target.program)
-          if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
+          if (!sessionIsCurrent()) throw new Error('Controller session changed')
           await applyProgramImport(pending, false)
         }
       })
@@ -1623,6 +1628,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         activatingProgramId={activatingProgramId}
         selection={currentSelection}
         eligibleIds={eligibleIds}
+        deleteEligibleIds={deleteEligibleIds}
         batchBusy={batchBusy}
         onEnterSelection={(section) => setSelection(enterControllerPatternSelection(section))}
         onDone={() => setSelection({ section: null, selectedIds: [] })}
@@ -1630,7 +1636,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onToggleAll={() => setSelection((current) => toggleAllControllerPatternSelection(current, eligibleIds))}
         onBatchImport={() => { if (selection.section === 'unimported') beginBatchPxlblzImport(); else void performBatch('import') }}
         onBatchDelete={() => {
-          const targets = selectedPrograms().flatMap((program) => {
+          const targets = selectedPrograms('delete').flatMap((program) => {
             const target = snapshotDelete(program)
             return target ? [target] : []
           })

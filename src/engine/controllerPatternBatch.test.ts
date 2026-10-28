@@ -5,6 +5,7 @@ import {
   runControllerPatternBatch,
   retryControllerPatternBatch,
   controllerPatternBatchNames,
+  controllerPatternDeleteDisabledReason,
 } from './controllerPatternBatch'
 
 describe('Controller Pattern selection', () => {
@@ -20,7 +21,7 @@ describe('Controller Pattern selection', () => {
     expect(eligible).toEqual([section])
   })
   it('switches sections empty and selects only eligible stable IDs without mutating inputs', () => {
-    const eligible = Object.freeze(['a', 'b']) // running and pending IDs are excluded by the caller
+    const eligible = Object.freeze(['a', 'b']) // only current group membership limits selection
     const empty = Object.freeze({ ...enterControllerPatternSelection('other'), selectedIds: Object.freeze([]) })
     expect(toggleControllerPatternSelection(empty, 'running', eligible)).toEqual(empty)
     expect(toggleControllerPatternSelection(empty, 'pending', eligible)).toEqual(empty)
@@ -34,13 +35,36 @@ describe('Controller Pattern selection', () => {
     expect(eligible).toEqual(['a', 'b'])
   })
 
-  it('reconciles inventory/status changes in selection order and handles empty eligibility', () => {
+  it('treats running and pending IDs as ordinary current members', () => {
+    const eligible = Object.freeze(['running', 'pending'])
+    expect(toggleAllControllerPatternSelection(enterControllerPatternSelection('saved'), eligible))
+      .toEqual({ section: 'saved', selectedIds: ['running', 'pending'] })
+  })
+
+  it('reconciles inventory membership in selection order and handles empty eligibility', () => {
     const state = Object.freeze({ section: 'saved' as const, selectedIds: Object.freeze(['c', 'a', 'b']) })
     expect(reconcileControllerPatternSelection(state, ['b', 'c'])).toEqual({ section: 'saved', selectedIds: ['c', 'b'] })
     expect(reconcileControllerPatternSelection(state, [])).toEqual({ section: 'saved', selectedIds: [] })
     expect(toggleAllControllerPatternSelection(enterControllerPatternSelection('other'), [])).toEqual({ section: 'other', selectedIds: [] })
     expect(toggleControllerPatternSelection({ section: null, selectedIds: [] }, 'a', ['a'])).toEqual({ section: null, selectedIds: [] })
     expect(state.selectedIds).toEqual(['c', 'a', 'b'])
+  })
+})
+
+describe('Controller Pattern Delete eligibility', () => {
+  it.each([
+    [false, 'active', null, 'safe', 'Waiting to confirm the running Pattern'],
+    [true, undefined, null, 'safe', 'Waiting to confirm the running Pattern'],
+    [true, '', null, 'safe', 'Waiting to confirm the running Pattern'],
+    [true, '   ', null, 'safe', 'Waiting to confirm the running Pattern'],
+    [true, 'active', 'pending', 'pending', 'Waiting to confirm the running Pattern'],
+    [true, 'active', 'active', 'active', 'Waiting to confirm the running Pattern'],
+    [true, 'active', null, 'active', 'Running now — switch to another Pattern first'],
+    [true, 'active', 'pending', 'safe', null],
+  ] as const)('returns the Delete reason for session %s, active %s, pending %s, id %s', (sessionKnown, activeProgramId, activatingProgramId, id, reason) => {
+    const state = Object.freeze({ sessionKnown, activeProgramId, activatingProgramId })
+    expect(controllerPatternDeleteDisabledReason(id, state)).toBe(reason)
+    expect(state).toEqual({ sessionKnown, activeProgramId, activatingProgramId })
   })
 })
 

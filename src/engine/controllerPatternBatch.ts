@@ -49,3 +49,13 @@ export async function retryControllerPatternBatch(
 export function controllerPatternBatchNames(patterns: readonly ControllerBatchPattern[]): string[] {
   return [...patterns.slice(0, 8).map((pattern) => pattern.name), ...(patterns.length > 8 ? [`…${patterns.length - 8} more`] : [])]
 }
+
+export function controllerPatternDeleteDisabledReason(
+  programId: string,
+  state: { sessionKnown: boolean; activeProgramId?: string; activatingProgramId: string | null },
+): string | null {
+  if (!state.sessionKnown || !state.activeProgramId?.trim() || programId === state.activatingProgramId) {
+    return 'Waiting to confirm the running Pattern'
+  }
+  return programId === state.activeProgramId ? 'Running now — switch to another Pattern first' : null
+}
