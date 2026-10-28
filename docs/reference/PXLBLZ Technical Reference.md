@@ -303,6 +303,21 @@ call shapes become transform warnings, and generated source is always
 inspectable. The interception boundary is deliberately honest: aliases, object
 methods, and dynamically selected sinks are not guessed.
 
+**Slow-mo lab (unlanded flagged prototype, `?slowmo=1`).** The preview-only
+`slowmo` recipe gives a Pattern a fixed-step clock and captures RGB into A/B
+frames for hold, linear blend, or smoothstep interpolation. Scope-aware
+rewriting captures `time`/`rgb`/`hsv`/`hsv24` after bundling, including inlined
+libraries. The pass appends rate, step, and curve globals to `runtimeVars`,
+preserving authored controls and watched variables. A declined pass preserves
+exact `code`/`fxCode` and exposes its reason in the summary.
+
+The six wrapper arrays cost `6N + 24` words (1,560 at 256 pixels), excluding
+authored arrays. Clock mode without persistence uses an empty recipe. The
+current wrapper calls inner `beforeRender` at most four times per display
+frame, followed by one capture; multi-step fidelity remains unresolved in
+[#1236](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1236).
+Push and Show compilation are unchanged.
+
 **Source manifests.** Every stock Pattern opens with a compact human-readable
 manifest (name, provenance, description, controls). `parsePatternManifest`
 owns the format; `extractPatternAuthors` also reads `Credit:` lines and the
@@ -1645,6 +1660,15 @@ The agent diagnostic harness and its baseline suites are described in §28.
   change a Layout definition's routing; those remain editor-only.
 - Show seeking reconstructs Pattern state exactly, but Trails restarts its
   history at the seek destination.
+
+The flagged slow-mo lab prototype (§6) sets nominal per-frame pace to
+`1000 / stepMs * rate` updates/sec: the default 16 ms gives `62.5 * rate`.
+The display trails by one captured frame. Its Pattern clock T wraps at 2^14
+units of 65,536 ms, about 12.4 Pattern days. `time(interval)` stays
+phase-continuous across that wrap for power-of-two 16.16 raw intervals and
+may jump otherwise. Clock-of-day builtins are unchanged. Preview tests do
+not establish firmware conversion parity, total memory use, LED appearance,
+or device FPS; those still require hardware proof.
 
 ## 32. Evidence and further reading
 
