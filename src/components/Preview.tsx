@@ -738,7 +738,7 @@ export function Preview({
         </div>
       </div>
       {showDeck && (
-        <div data-testid="preview-controls-region" className={constrainCanvasHeight ? 'pattern-panel-container shrink-0 max-h-[calc(100%-100px)] overflow-y-auto rail-list-scroll' : 'pattern-panel-container shrink-0 overflow-y-auto rail-list-scroll'}>
+        <div data-testid="preview-controls-region" className={constrainCanvasHeight ? 'pattern-panel-container shrink-0 max-h-[calc(100%-100px)] overflow-y-auto rail-list-scroll' : 'pattern-panel-container min-h-0 overflow-y-auto rail-list-scroll'}>
           <PreviewDeck />
         </div>
       )}
