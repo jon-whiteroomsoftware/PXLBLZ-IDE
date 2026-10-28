@@ -2,7 +2,8 @@
 //
 // 1. Checksum parity: the four proven transforms are bit-identical to their
 //    pre-transform sources in Fast float64 AND Precise 16.16, via the
-//    emulator bench over committed fixtures and the shipped IridescentFibers.
+//    emulator bench over committed fixtures, including the frozen #916
+//    IridescentFibers table before the #1242 rewrite.
 //    (The emulator is the checksum guard, not the stopwatch — guide §9: it
 //    reads table/memo wins
 //    backwards. The FPS verdicts live in issue914-transform-pairs.json,
@@ -63,7 +64,7 @@ describe('issue914 proven transforms: checksum parity', () => {
     {
       name: 'IridescentFibers',
       base: () => readFixture('IridescentFibers.preopt.js'),
-      transformed: () => readStock('IridescentFibers'),
+      transformed: () => readFileSync(join(HERE, 'fixtures/issue1242/IridescentFibers.preedit.js'), 'utf8'),
     },
     {
       name: 'ClockworkIris',
@@ -80,9 +81,9 @@ describe('issue914 proven transforms: checksum parity', () => {
   })
 })
 
-describe('issue916 shipped IridescentFibers table', () => {
+describe('issue916 frozen IridescentFibers table', () => {
   it('moves the layer amplitude from the per-pixel loop into beforeRender', () => {
-    const source = readStock('IridescentFibers')
+    const source = readFileSync(join(HERE, 'fixtures/issue1242/IridescentFibers.preedit.js'), 'utf8')
     expect(source).toContain('var fiberAmp = array(10)')
     expect(source).toContain('fiberAmp[i] = 0.25 + 0.25 * sin(t + layer) * (1 - layer)')
     expect(source).toContain('var amp = fiberAmp[i]')
