@@ -8,6 +8,9 @@ import {
 } from './passEngine'
 import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from './showVmResourceLedger'
 
+export const DEFAULT_SLOW_MO_STEP_MS = 16
+export const SLOW_MO_STEP_STOPS = [16, 32] as const
+
 export interface SlowMoSettings {
   rate: number
   stepMs: number
@@ -91,13 +94,148 @@ export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: n
 }
 
 export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelCount: number): SlowMoWrapResult {
-  void code
-  void settings
-  void pixelCount
-  throw new Error('This increment has not implemented slow-mo emission.')
+  const plan = planSlowMo(code, settings, pixelCount)
+  if (plan.declined) return { code, plan, tunables: {} }
+  const tunables = slowMoTunables(settings)
+  if (settings.persistence !== null || settings.stagger.width !== 0) {
+    throw new RangeError('Slow-mo persistence and nonzero stagger width are not implemented in slice A.')
+  }
+  if (plan.structure === 'clock') return { code, plan, tunables: {} }
+  const p = `${reservedStem('slowmo')}_`
+  const rewritten = rewriteSlowMoSource(code, p)
+  const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
+  const prelude = `${initializers}
+var ${p}shape = 0, ${p}width = 0
+var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
+var ${p}r = 0, ${p}g = 0, ${p}b = 0
+var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
+var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
+function ${p}time(interval) { return (${p}T % interval) / interval }
+function ${p}rgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
+function ${p}hsv(h,s,v) {
+  if (s == 0) { ${p}rgb(v,v,v); return }
+  var ${p}h6 = ((h % 1) + 1) % 1 * 6
+  var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
+  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
+  if (${p}i % 6 == 0) ${p}rgb(v,${p}ht,${p}hp)
+  else if (${p}i % 6 == 1) ${p}rgb(${p}hq,v,${p}hp)
+  else if (${p}i % 6 == 2) ${p}rgb(${p}hp,v,${p}ht)
+  else if (${p}i % 6 == 3) ${p}rgb(${p}hp,${p}hq,v)
+  else if (${p}i % 6 == 4) ${p}rgb(${p}ht,${p}hp,v)
+  else ${p}rgb(v,${p}hp,${p}hq)
+}`
+  const beforeRender = `export function beforeRender(delta) {
+  ${p}cap = 0
+  if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
+  else {
+    ${p}acc += delta * ${p}rate
+    var ${p}n = 0
+    while (${p}acc >= ${p}step && ${p}n < 4) {
+      ${p}acc -= ${p}step
+      ${p}T += ${p}step * 0.0000152587890625
+      if (${p}T >= 16384) ${p}T -= 16384
+      ${p}in_beforeRender(${p}step); ${p}n += 1
+    }
+    if (${p}acc >= ${p}step) ${p}acc = ${p}acc % ${p}step
+    ${p}cap = ${p}n > 0
+  }
+  ${p}f = ${p}acc / ${p}step
+}`
+  const update = ['r', 'g', 'b'].map(c => `
+    if (${p}phase == 0) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
+    else { ${p}a${c}[index] = ${p}b${c}[index]; ${p}b${c}[index] = ${p}${c} }`).join('')
+  const channels = ['r', 'g', 'b'].map(c => `${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c`).join(', ')
+  const out = `function ${p}out(index,o) {
+  if (${p}cap) {${update}
+  }
+  var ${p}u = clamp((${p}f-o)/(1-${p}width),0,1)
+  var ${p}c = ${p}curve == 0 ? (${p}u >= 1) : ${p}curve == 1 ? ${p}u : ${p}u*${p}u*(3-2*${p}u)
+  rgb(${channels})
+  if (index == pixelCount-1) ${p}phase = 1
+}`
+  const wrappers = plan.renderFns.map(name => {
+    const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
+    return `export function ${name}(${args}) {
+  if (${p}cap) { ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args}) }
+  ${p}out(index,0)
+}`
+  }).join('\n')
+  return { code: `${prelude}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
 }
 
 export function slowMoTunables(settings: SlowMoSettings): Record<string, number> {
-  void settings
-  throw new Error('This increment has not implemented slow-mo tunables.')
+  if (!Number.isFinite(settings.rate) || settings.rate <= 0 || settings.rate > 1) {
+    throw new RangeError('Slow-mo rate must be finite and greater than 0 and at most 1.')
+  }
+  if (!Number.isFinite(settings.stepMs) || settings.stepMs <= 0 || settings.stepMs > 32767) {
+    throw new RangeError('Slow-mo step must be finite and greater than 0 and at most 32767 ms.')
+  }
+  if (settings.inBetween === 'clock') return {}
+  const p = `${reservedStem('slowmo')}_`
+  return {
+    [`${p}rate`]: settings.rate,
+    [`${p}step`]: settings.stepMs,
+    [`${p}curve`]: settings.inBetween === 'hold' ? 0 : settings.inBetween === 'blend' ? 1 : 2,
+  }
+}
+
+// Acorn's position-rich ESTree nodes match the pass engine's scope walker.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Node = Record<string, any>
+
+function rewriteSlowMoSource(code: string, prefix: string): string {
+  const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
+  const parents = new Map<Node, Node>()
+  function visitParents(node: Node): void {
+    for (const value of Object.values(node)) {
+      const children = Array.isArray(value) ? value : [value]
+      for (const child of children) {
+        if (child && typeof child === 'object' && typeof child.type === 'string') {
+          parents.set(child, node)
+          visitParents(child)
+        }
+      }
+    }
+  }
+  visitParents(ast)
+  const entries = new Set<string>()
+  const edits = new Map<string, { start: number; end: number; text: string }>()
+  function edit(node: Node, text: string): void {
+    edits.set(`${node.start}:${node.end}`, { start: node.start, end: node.end, text })
+  }
+  for (const statement of ast.body as Node[]) {
+    const node = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+    if (node?.type === 'FunctionDeclaration' && ['beforeRender', 'render', 'render2D', 'render3D'].includes(node.id.name)) {
+      entries.add(node.id.name)
+      edit(node.id, `${prefix}in_${node.id.name}`)
+      if (node !== statement) edit({ start: statement.start, end: statement.start + 'export'.length }, '')
+    }
+  }
+  let root: Parameters<Parameters<typeof walkWithScope>[2]>[1]
+  walkWithScope(ast, null, (node, scope) => {
+    if (node.type === 'Program') root = scope
+    if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !isNameBound(scope, node.callee.name)) {
+      const name = node.callee.name
+      if (['time', 'rgb', 'hsv', 'hsv24'].includes(name)) {
+        edit(node.callee, `${prefix}${name === 'hsv24' ? 'hsv' : name}`)
+      }
+    }
+    if (node.type !== 'Identifier' || !entries.has(node.name)) return
+    const parent = parents.get(node)
+    if ((parent?.type === 'MemberExpression' && parent.property === node && !parent.computed)
+      || (parent?.type === 'Property' && parent.key === node && !parent.computed)
+      || (['LabeledStatement', 'BreakStatement', 'ContinueStatement'].includes(parent?.type) && parent?.label === node)) return
+    // The nearest binding must be the Program entry, not a parameter or local.
+    let binding = scope
+    while (!binding.names.has(node.name) && binding.parent) binding = binding.parent
+    if (binding !== root) return
+    const text = `${prefix}in_${node.name}`
+    // A shorthand value is also its authored property key; retain that key.
+    edit(node, parent?.type === 'Property' && parent.shorthand ? `${node.name}: ${text}` : text)
+  })
+  for (const { start, end, text } of [...edits.values()].sort((a,b) => b.start-a.start)) {
+    code = code.slice(0,start) + text + code.slice(end)
+  }
+  if (!entries.has('beforeRender')) code += `\nfunction ${prefix}in_beforeRender(delta) {}`
+  return code
 }

@@ -1,6 +1,7 @@
 import * as acorn from 'acorn'
 import { bundle, type BundleMetadata } from './bundle'
 import { emitFixedPoint } from './fxEmit'
+import { emitSlowMoWrapper, type SlowMoSettings, type SlowMoDeclineReason } from './slowMo'
 import {
   selectRenderCompatibility,
   type MapDimension,
@@ -14,6 +15,13 @@ export type PassRecipeItem =
   | InterceptPassRecipe
   | BindPassRecipe
   | RendererAdapterPassRecipe
+  | SlowMoPassRecipe
+
+export interface SlowMoPassRecipe extends BasePassRecipe {
+  kind: 'slowmo'
+  settings: SlowMoSettings
+  pixelCount: number
+}
 
 export interface BasePassRecipe {
   id?: string
@@ -62,6 +70,8 @@ export interface PassSummary {
   exportsAdded?: string[]
   bindingsApplied?: BindingSummary[]
   rendererAdaptation?: RendererAdaptationSummary
+  declined?: { reason: SlowMoDeclineReason; message: string }
+  slowMo?: { arrayWords: number; tunables: string[] }
   estimatedPixelCost: number
 }
 
@@ -179,15 +189,16 @@ function applyPass(ctx: PassContext, pass: PassRecipeItem, index: number): void 
   const beforeCode = ctx.code
   let passSummary: PassSummary
 
-  warnReservedPrefixCollisions(ctx, passId)
+  if (pass.kind !== 'slowmo') warnReservedPrefixCollisions(ctx, passId)
 
   if (pass.kind === 'inject') passSummary = applyInjectPass(ctx, pass, passId)
   else if (pass.kind === 'intercept') passSummary = applyInterceptPass(ctx, pass, passId)
   else if (pass.kind === 'bind') passSummary = applyBindPass(ctx, pass, passId)
+  else if (pass.kind === 'slowmo') passSummary = applySlowMoPass(ctx, pass, passId)
   else passSummary = applyRendererAdapterPass(ctx, pass, passId)
 
-  passSummary.estimatedPixelCost = pass.cost ?? passSummary.estimatedPixelCost
-  if (ctx.code === beforeCode && ctx.warnings.length === beforeWarnings) return
+  if (pass.kind !== 'slowmo') passSummary.estimatedPixelCost = pass.cost ?? passSummary.estimatedPixelCost
+  if (ctx.code === beforeCode && ctx.warnings.length === beforeWarnings && !passSummary.declined) return
 
   ctx.summary.passes.push(passSummary)
   mergeCallSiteCounts(ctx.summary.callSitesWrapped, passSummary.callSitesWrapped ?? {})
@@ -201,6 +212,28 @@ function applyPass(ctx: PassContext, pass: PassRecipeItem, index: number): void 
   if (passSummary.beforeRender && passSummary.beforeRender !== 'unchanged') {
     ctx.summary.beforeRender = passSummary.beforeRender
   }
+}
+
+function applySlowMoPass(ctx: PassContext, pass: SlowMoPassRecipe, passId: string): PassSummary {
+  const result = emitSlowMoWrapper(ctx.code, pass.settings, pass.pixelCount)
+  const summary: PassSummary = {
+    id: passId, kind: pass.kind, estimatedPixelCost: 0,
+    slowMo: { arrayWords: result.plan.arrayWords, tunables: Object.keys(result.tunables) },
+  }
+  if (result.plan.declined) return { ...summary, declined: result.plan.declined }
+  if (result.code === ctx.code) return summary
+  const before = collectTopLevelBindings(ctx.code)
+  const after = collectTopLevelBindings(result.code)
+  const beforeNames = new Set([...before.functions, ...before.variables])
+  summary.globalsAdded = [...after.functions, ...after.variables].filter(name => !beforeNames.has(name))
+  summary.beforeRender = before.functions.has('beforeRender') ? 'wrapped' : 'synthesized'
+  summary.exportsAdded = before.functions.has('beforeRender') ? [] : ['beforeRender']
+  ctx.code = result.code
+  ctx.metadata.runtimeVars = [...new Set([
+    ...(ctx.metadata.runtimeVars ?? ctx.metadata.patternVars), ...Object.keys(result.tunables),
+  ])]
+  for (const name of collectIdentifiers(result.code)) ctx.usedNames.add(name)
+  return summary
 }
 
 function applyRendererAdapterPass(

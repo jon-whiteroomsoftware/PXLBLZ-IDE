@@ -1,4 +1,6 @@
 import {
+  DEFAULT_SLOW_MO_STEP_MS,
+  SLOW_MO_STEP_STOPS,
   emitSlowMoWrapper,
   planSlowMo,
   slowMoArrayWords,
@@ -144,8 +146,47 @@ describe('slow-mo planner', () => {
     expect(() => planSlowMo('export function render(', settings, 256)).toThrow(SyntaxError)
   })
 
-  it('exposes incomplete emitter and tunables functions without claiming an artifact', () => {
-    expect(() => emitSlowMoWrapper(renderer, settings, 256)).toThrow('This increment has not implemented slow-mo emission.')
-    expect(() => slowMoTunables(settings)).toThrow('This increment has not implemented slow-mo tunables.')
+  it('pins the settled default and only lab stops', () => {
+    expect(DEFAULT_SLOW_MO_STEP_MS).toBe(16)
+    expect(SLOW_MO_STEP_STOPS).toEqual([16, 32])
+  })
+
+  it.each(['hold', 'blend', 'eased'] as const)('emits current %s tunable initializers', (inBetween) => {
+    const input = { ...settings, inBetween }
+    const tunables = slowMoTunables(input)
+    expect(tunables).toEqual({
+      __pxlblz_slowmo_rate: 0.25,
+      __pxlblz_slowmo_step: 20,
+      __pxlblz_slowmo_curve: ['hold', 'blend', 'eased'].indexOf(inBetween),
+    })
+    const result = emitSlowMoWrapper(renderer, input, 3)
+    expect(result.tunables).toEqual(tunables)
+    for (const [name, value] of Object.entries(tunables)) expect(result.code).toContain(`var ${name} = ${value}`)
+    expect(result.code).toContain('__pxlblz_slowmo_step * 0.0000152587890625')
+    expect(result.code).not.toMatch(/\/\s*65536/)
+    expect(result.code.match(/array\(pixelCount\)/g)).toHaveLength(6)
+    expect(result.code).not.toMatch(/__pxlblz_slowmo_(attack|decay|pr|pg|pb|kUp|kDn)/)
+  })
+
+  it.each([0, -1, 1.01, NaN, Infinity, -Infinity])('rejects rate %s', rate => {
+    expect(() => slowMoTunables({ ...settings, rate })).toThrow(RangeError)
+    expect(() => emitSlowMoWrapper(renderer, { ...settings, rate }, 3)).toThrow(RangeError)
+  })
+  it.each([0, -1, 32768, NaN, Infinity, -Infinity])('rejects step %s', stepMs => {
+    expect(() => slowMoTunables({ ...settings, stepMs })).toThrow(RangeError)
+    expect(() => emitSlowMoWrapper(renderer, { ...settings, stepMs }, 3)).toThrow(RangeError)
+  })
+  it('keeps clock baseline and named declines byte-identical', () => {
+    const clock = { ...settings, inBetween: 'clock' as const }
+    expect(slowMoTunables(clock)).toEqual({})
+    expect(emitSlowMoWrapper(renderer, clock, 3)).toEqual({ code: renderer, plan: planSlowMo(renderer, clock, 3), tunables: {} })
+    const code = `paint(0); ${renderer}`
+    expect(emitSlowMoWrapper(code, settings, 3)).toEqual({ code, plan: planSlowMo(code, settings, 3), tunables: {} })
+  })
+  it('guards accepted later-slice features after named budget declines', () => {
+    const persistence = { ...settings, persistence: { attackMs: 0, decayMs: 100 } }
+    expect(() => emitSlowMoWrapper(renderer, persistence, 1133)).toThrow(/not implemented/i)
+    expect(emitSlowMoWrapper(renderer, persistence, 1134).plan.declined?.reason).toBe('array-budget')
+    expect(() => emitSlowMoWrapper(renderer, { ...settings, stagger: { shape: 'scatter', width: 0.5 } }, 3)).toThrow(RangeError)
   })
 })
