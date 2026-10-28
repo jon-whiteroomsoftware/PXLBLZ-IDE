@@ -1,6 +1,46 @@
 import WebSocket from 'ws'
 import { Agent } from 'undici'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import type { WebSocketLike } from '../src/engine/PixelblazeConnection'
+
+export interface ProbeErrorFields {
+  code?: string | number
+  name?: string | number
+  errno?: string | number
+  syscall?: string | number
+  message?: string | number
+}
+
+export interface ProbeSocketError extends ProbeErrorFields {
+  utc: string
+  httpStatus?: number
+  cause?: ProbeErrorFields
+}
+
+export interface ProbeSocketRecord {
+  socketId: number
+  url: string
+  createdAt: string
+  openedAt?: string
+  closedAt?: string
+  errors: ProbeSocketError[]
+  closeCode?: number
+  closeReason?: string
+}
+
+function primitiveErrorFields(error: unknown): ProbeErrorFields {
+  const fields: ProbeErrorFields = {}
+  if (error === null || (typeof error !== 'object' && typeof error !== 'function')) return fields
+  for (const key of ['code', 'name', 'errno', 'syscall', 'message'] as const) {
+    const value = (error as Record<string, unknown>)[key]
+    if (typeof value === 'string' || typeof value === 'number') fields[key] = value
+  }
+  return fields
+}
+
+export function writePrivateProbeReport(path: string, report: Record<string, unknown>, webSockets: readonly ProbeSocketRecord[]): void {
+  writeFileSync(path, JSON.stringify({ ...report, webSockets }, null, 2), { mode: 0o600 })
+}
 
 /** All exits use this order. One cleanup failure cannot skip another owner. */
 export async function closeProbeResources(owners: {
@@ -17,14 +57,21 @@ export async function closeProbeResources(owners: {
   return failures
 }
 
-export function createProbeRuntime() {
+export function createProbeRuntime(options: { socketEventLogPath?: string; now?: () => Date } = {}) {
   const agent = new Agent()
   const rawFetch = globalThis.fetch
   const sockets = new Set<WebSocket>()
+  const webSockets: ProbeSocketRecord[] = []
+  const now = () => (options.now?.() ?? new Date()).toISOString()
+  const observe = (record: ProbeSocketRecord, event: string, utc: string, fields: object = {}) => {
+    if (options.socketEventLogPath) appendFileSync(options.socketEventLogPath,
+      `${JSON.stringify({ socketId: record.socketId, url: record.url, event, utc, ...fields })}\n`, { mode: 0o600 })
+  }
   let closing: Promise<void> | undefined
   let closed = false
   const assertOpen = () => { if (closed) throw new Error('Probe runtime is closed') }
   return {
+    webSockets,
     fetch: ((input, init) => {
       if (closed) return Promise.reject(new Error('Probe runtime is closed'))
       // Preserve Node's global implementation and headers. Only ownership changes.
@@ -32,10 +79,34 @@ export function createProbeRuntime() {
     }) as typeof fetch,
     webSocketFactory: (url: string): WebSocketLike => {
       assertOpen()
+      const record: ProbeSocketRecord = { socketId: webSockets.length + 1, url, createdAt: now(), errors: [] }
+      webSockets.push(record)
+      observe(record, 'created', record.createdAt)
       const socket = new WebSocket(url)
       sockets.add(socket)
       // A connecting socket emits error before close when terminated.
-      socket.on('error', () => {})
+      socket.on('error', (error: unknown) => {
+        const fields = primitiveErrorFields(error)
+        const observation: ProbeSocketError = { utc: now(), ...fields }
+        const status = typeof fields.message === 'string' ? /^Unexpected server response: (\d+)$/.exec(fields.message) : null
+        if (status) observation.httpStatus = Number(status[1])
+        if (error !== null && typeof error === 'object' && 'cause' in error) {
+          const cause = primitiveErrorFields(error.cause)
+          if (Object.keys(cause).length) observation.cause = cause
+        }
+        record.errors.push(observation)
+        observe(record, 'error', observation.utc, observation)
+      })
+      socket.on('open', () => {
+        record.openedAt = now()
+        observe(record, 'open', record.openedAt)
+      })
+      socket.on('close', (code, reason) => {
+        record.closedAt = now()
+        record.closeCode = code
+        if (reason !== undefined) record.closeReason = reason.toString('utf8')
+        observe(record, 'close', record.closedAt, { closeCode: record.closeCode, closeReason: record.closeReason })
+      })
       socket.once('close', () => sockets.delete(socket))
       return socket as unknown as WebSocketLike
     },

@@ -40,7 +40,7 @@ npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --cas
 Each invocation requires the exact address, one supported case and `--run`.
 Unknown/repeated arguments, reused run directories, symlink output roots and
 invalid run ids refuse. Outputs stay private under ignored `.wrsp/<run-id>/`:
-streaming `events.jsonl`, exact fixture `.pbp` bytes, `batch.json` and full
+streaming `events.jsonl` and `socket-events.jsonl`, exact fixture `.pbp` bytes, `batch.json` and full
 `report.json`. Stdout contains a sanitized JSON summary with row stages/outcomes,
 operation timings, HTTP poll aggregates, saved slot/name and transient-id ledger,
 outgoing measured size and resident knownness, active-id observations and fidelity
@@ -196,6 +196,27 @@ fixtures to prove natural exit with an unfinished body and a peer that does not
 complete graceful close. It does not identify which handle kept the observed I26
 process alive after reporting and disconnecting, or establish hardware behavior.
 No process-wide dispatcher or unrelated handle is destroyed.
+
+Each private per-batch `report.json` also retains `webSockets`: runtime-local
+`socketId`, URL, UTC ISO `createdAt`, optional `openedAt`/`closedAt`, `errors`,
+and optional `closeCode`/UTF-8 `closeReason`. Construction attempts are recorded
+before construction; only actual `open` and `close` events set their timestamps.
+Count opened physical connections from `openedAt`, not factory calls. Closed
+records survive cleanup. The mode-0600 `socket-events.jsonl` streams the same
+captured values as `created`, `open`, `error`, and `close` observations with
+`socketId`, URL and `utc`.
+
+Raw underlying `ws` errors retain available string/number `code`, `name`,
+`errno`, `syscall`, and `message`, plus those fields from a one-level cause.
+Missing fields remain absent. The exact raw message `Unexpected server response:
+<status>` supplies numeric `httpStatus`; no `unexpected-response` listener is
+installed because it would change handshake failure behavior. The protocol's
+Event-style error callback can still yield a generic connection rejection;
+that wrapper is not evidence of an underlying error class. These diagnostics
+add no retry, delay or scheduling change. Socket records and raw error fields
+stay out of stdout, aggregate root summaries and sanitized timing tables. They
+contain no headers, source, config, sessions or response bodies. Offline mocked
+socket artifacts verify retention and lifecycle semantics, not physical proof.
 
 Saved reads mirror [`background.js`, lines 472–480](../../extension/background.js#L472-L480)
 (GET path, status and body) and

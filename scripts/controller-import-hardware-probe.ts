@@ -16,7 +16,7 @@ import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
   boundedAction, byteSummary, gateProbeSaveSocket, parseProbeArgs, runProbeBatches, sanitizedTimingTable, successfulProbeSaves, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
-import { closeProbeResources, createProbeRuntime } from './controller-import-hardware-probe-runtime'
+import { closeProbeResources, createProbeRuntime, writePrivateProbeReport } from './controller-import-hardware-probe-runtime'
 
 const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run [--http overlap|serial] [--repeat N]\nDefaults: --http overlap --repeat 1. Repeat must be a positive safe integer; control permits only 1.'
 const luminousSource = 'export function render(i) { rgb(0.02,0.02,0) }\nexport function render2D(i,x,y) { rgb(0.02,0.02,0) }'
@@ -58,7 +58,7 @@ async function run(args: ProbeArgs) {
 async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
   const identity = args.repeat === 1 ? args.runId : `${args.runId}-batch-${String(batchIndex).padStart(3, '0')}`
   const recorder = new ProbeEventRecorder((line) => appendFileSync(resolve(root, 'events.jsonl'), `${line}\n`, { mode: 0o600 }))
-  const runtime = createProbeRuntime()
+  const runtime = createProbeRuntime({ socketEventLogPath: resolve(root, 'socket-events.jsonl') })
   const queue = new ProbeHttpQueue(args.http, recorder)
   const connection = new PixelblazeConnection({ host: PROBE_HOST, webSocketFactory: (url) => {
     if (url !== `ws://${PROBE_HOST}:81`) throw new Error('Unapproved Controller WebSocket')
@@ -273,8 +273,8 @@ async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
     accountBCount: accountsB.size, receiptCount: Object.keys(ledger.byPatternId).length,
     failure: monitor.httpUnavailable ? 'HTTP unavailable; discuss observed liveness with the eng lead.' : failure || !connected ? 'Run failed; inspect private report and events.' : undefined,
   }
-  writeFileSync(resolve(root, 'report.json'), JSON.stringify({ summary, failure: failure instanceof Error ? { message: failure.message, stack: failure.stack } : String(failure),
-    accountsA: [...accountsA.values()], accountsB: [...accountsB.values()], ledger, bindings, pushRecords, labels, observed }, null, 2), { mode: 0o600 })
+  writePrivateProbeReport(resolve(root, 'report.json'), { summary, failure: failure instanceof Error ? { message: failure.message, stack: failure.stack } : String(failure),
+    accountsA: [...accountsA.values()], accountsB: [...accountsB.values()], ledger, bindings, pushRecords, labels, observed }, runtime.webSockets)
   return summary
 }
 
