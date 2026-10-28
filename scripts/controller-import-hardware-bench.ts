@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks'
 import { createInterface } from 'node:readline/promises'
 import { BenchWorkerObservations, parseBenchArgs, validateBenchSessions, assertBenchArtifact, assertBenchImportedPattern, assertBenchMutation, assertBenchProfile, observeBenchImportRead, requireBenchSavedSlot, type BenchAdmissionState, type BenchMutation, type BenchSession } from './controller-import-hardware-policy'
 import { installBenchSocketWitness, type BenchSocketGlobal } from './controller-import-hardware-sockets'
+import { installBenchPageAccess } from './controller-import-hardware-page'
 import { awaitBenchOperator, benchRoleUrl, benchSnapshot, closeBenchConnection, finalizeBenchResources, pinBenchRevision, runBenchCleanup, runSelectedBenchSteps, selectBenchDismiss, type BenchCleanupMetadata, type BenchCleanupProof, type BenchRole } from './controller-import-hardware-orchestration'
 import { readControllerPatternImportLedger } from '../src/engine/controllerPatternImport'
 import { CONTROLLER_DRAIN_PATTERN_SOURCE } from '../src/engine/pushPattern'
@@ -270,35 +271,7 @@ async function run() {
     })
   }
   const wrapProvider = async (page: Page) => {
-    await page.evaluate(async (moduleUrl) => {
-      const { ExtensionControllerProvider } = await import(/* @vite-ignore */ moduleUrl)
-      const prototype = ExtensionControllerProvider.prototype
-      if (prototype.__i20Wrapped) return
-      prototype.__i20Wrapped = true
-      const w = window as unknown as { __i20Span: (message: unknown) => Promise<void> }
-      let span = 0
-      for (const method of ['compile', 'getActiveProgramBytecodeSize', 'saveProgram', 'pushBytecode', 'readSavedProgram', 'getConfig', 'listPrograms', 'setVars', 'setRendererPaused', 'setControls', 'setBrightness', 'setName', 'setPixelCount', 'setActiveProgram', 'deleteProgram', 'setPixelMap']) {
-        const original = prototype[method]
-        if (typeof original !== 'function') throw new Error(`Missing real provider method ${method}`)
-        prototype[method] = async function (...args: unknown[]) {
-          const id = ++span
-          const common = { method, span: id, args: ['saveProgram', 'pushBytecode'].includes(method) ? [null, args[1]]
-            : ['readSavedProgram', 'setActiveProgram', 'deleteProgram'].includes(method) ? [args[0], args[1]] : [], source: method === 'compile' ? args[0] : undefined }
-          const bytes = ['saveProgram', 'pushBytecode'].includes(method) ? Array.from(args[0] as Uint8Array) : undefined
-          await w.__i20Span({ ...common, phase: 'start', time: performance.now(), utc: new Date().toISOString(), bytes, status: this.getStatus() })
-          try {
-            void w.__i20Span({ ...common, phase: 'execute', time: performance.now(), utc: new Date().toISOString() })
-            const result = await original.apply(this, args)
-            await w.__i20Span({ ...common, phase: 'end', time: performance.now(), utc: new Date().toISOString(), bytes: method === 'compile' ? Array.from(result as Uint8Array) : undefined,
-              result: ['getActiveProgramBytecodeSize', 'getConfig', 'listPrograms'].includes(method) ? result : undefined })
-            return result
-          } catch (error) {
-            await w.__i20Span({ ...common, phase: 'error', time: performance.now(), utc: new Date().toISOString(), error: error instanceof Error ? error.message : 'Provider rejected' })
-            throw error
-          }
-        }
-      }
-    }, url(page, 'src/engine/ExtensionControllerProvider.ts'))
+    await page.evaluate(() => window.__benchPageAccess.assertReady())
   }
 
   const open = async (role: BenchRole, profile: string, session: BenchSession) => {
@@ -352,6 +325,7 @@ async function run() {
     pageRoles.set(page, role)
     connections.set(context, { page, worker, connected: false })
     await installPage(page)
+    await installBenchPageAccess(page, new URL(benchRoleUrl(role, '')).origin)
     return { context, page, worker }
   }
   const destroyContext = async (context: BrowserContext): Promise<void> => {
@@ -372,10 +346,9 @@ async function run() {
     if (!connection) throw new Error('Unproved context ownership; destruction held')
     await closeBenchConnection({
       disconnect: async () => {
-        if (connection.connected) await connection.page.evaluate(async moduleUrl => {
-          const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl)
-          await getControllerProvider().disconnect()
-        }, url(connection.page, 'src/engine/controllerProviderRegistry.ts'))
+        if (connection.connected) await connection.page.evaluate(async () => {
+          await window.__benchPageAccess.getProvider().disconnect()
+        })
       },
       closeAndWait: async () => { await connection.worker.evaluate(async () => {
         const gate = (globalThis as unknown as BenchSocketGlobal).__benchSockets
@@ -441,14 +414,10 @@ async function run() {
     event('pre-granted-controller-live', { origins, phase: 'live' })
   }
   const snapshotDevice = async (page: Page, label: string, map = false) => {
-    const snapshot = await page.evaluate(async ({ moduleUrl, map }) => {
-      const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl)
-      const providerUrl = moduleUrl.replace('controllerProviderRegistry.ts', 'ExtensionControllerProvider.ts')
-      const { ExtensionControllerProvider } = await import(/* @vite-ignore */ providerUrl)
-      const provider = getControllerProvider()
-      if (!(provider instanceof ExtensionControllerProvider)) throw new Error('Real ExtensionControllerProvider is required')
+    const snapshot = await page.evaluate(async (map) => {
+      const provider = window.__benchPageAccess.getProvider()
       return { status: provider.getStatus(), config: await provider.getConfig(), list: await provider.listPrograms(), ...(map ? { map: await provider.getPixelMap() } : {}) }
-    }, { moduleUrl: url(page, 'src/engine/controllerProviderRegistry.ts'), map }) as Device
+    }, map) as Device
     event('device-snapshot', { label, ...snapshot })
     const active = snapshot.config.activeProgramId
     if (active && !state.priorActiveIds.includes(active)) state.priorActiveIds.push(active)
@@ -456,21 +425,19 @@ async function run() {
   }
   const activeWitness = async (page: Page, label: string) => {
     try {
-      const config = await page.evaluate(async (moduleUrl) => {
-        const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl)
-        return getControllerProvider().getConfig()
-      }, url(page, 'src/engine/controllerProviderRegistry.ts')) as ControllerConfig
+      const config = await page.evaluate(async () => {
+        return window.__benchPageAccess.getProvider().getConfig()
+      }) as ControllerConfig
       event('active-witness', { label, activeProgramId: config.activeProgramId ?? null, config })
       if (config.activeProgramId && !state.priorActiveIds.includes(config.activeProgramId)) state.priorActiveIds.push(config.activeProgramId)
     } catch (error) { event('active-read-failed', { label, activeProgramId: null, error: clean(error) }) }
   }
   const readSlot = async (page: Page, slot: string, label: string) => {
     try {
-      const result = await page.evaluate(async ({ slot, moduleUrl }) => {
-        const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl)
-        const saved = await getControllerProvider().readSavedProgram(slot)
+      const result = await page.evaluate(async (slot) => {
+        const saved = await window.__benchPageAccess.getProvider().readSavedProgram(slot)
         return saved?.storedArtifact ? Array.from(saved.storedArtifact.pbp as Uint8Array) : null
-      }, { slot, moduleUrl: url(page, 'src/engine/controllerProviderRegistry.ts') })
+      }, slot)
       const bytes = result ? new Uint8Array(result) : null; const decoded = bytes ? decodePbp(bytes) : null
       if (bytes) writeFileSync(join(out, `${label}-${slot}.bin`), bytes, { mode: 0o600 })
       event('slot-readback', { label, slot, bytes: bytes?.length ?? null, sha256: bytes ? digest(bytes) : null,
@@ -522,18 +489,14 @@ async function run() {
       if (!await row.isVisible()) await page.getByTestId('controller-pill').click()
       const button = row.getByRole('button', { name: 'Save', exact: true })
       await expect(button).toBeEnabled(); await button.click(); await expect(button).toBeDisabled()
-      await expect.poll(async () => page.evaluate(async (moduleUrl) => {
-        const { useControllerStore } = await import(/* @vite-ignore */ moduleUrl)
-        const current = useControllerStore.getState()
+      await expect.poll(async () => page.evaluate(() => {
+        const current = window.__benchPageAccess.getSaveState()
         return current.pushing ? 'pending' : current.pushResult?.ok ? 'saved' : current.pushResult ? 'failed' : 'pending'
-      }, url(page, 'src/store/controllerStore.ts')), { timeout: 90_000 }).not.toBe('pending')
+      }), { timeout: 90_000 }).not.toBe('pending')
       if (refused) throw new Error('Admission refused during Save')
-      const saved = await page.evaluate(async (moduleUrl) => {
-        const { useControllerStore } = await import(/* @vite-ignore */ moduleUrl)
-        return useControllerStore.getState().pushResult
-      }, url(page, 'src/store/controllerStore.ts'))
+      const saved = await page.evaluate(() => window.__benchPageAccess.getSaveState().pushResult)
       const admittedSlot = Object.entries(state.admittedSlots).find(([, n]) => n === name)?.[0]
-      event('studio-save-result', { name, ok: saved?.ok ?? null, message: saved?.message ?? null, admittedSlot: admittedSlot ?? null })
+      event('studio-save-result', { name, ok: saved?.ok ?? null, message: saved && 'message' in saved ? saved.message : null, admittedSlot: admittedSlot ?? null })
       // This is an admitted pair, not a claim of persistence. Capture real list separately.
       const slot = requireBenchSavedSlot(saved, admittedSlot)
       slots.set(name, slot)
@@ -767,13 +730,13 @@ async function run() {
           },
           activate: async pair => {
             state.scope = 'pattern'; state.pendingPattern = pair; state.savedSlots[pair.id] = pair.name
-            try { await a!.page.evaluate(async ({ moduleUrl, id }) => { const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl); await getControllerProvider().setActiveProgram(id, { save: false }) }, { moduleUrl: url(a!.page, 'src/engine/controllerProviderRegistry.ts'), id: pair.id }) }
+            try { await a!.page.evaluate(async id => { await window.__benchPageAccess.getProvider().setActiveProgram(id, { save: false }) }, pair.id) }
             finally { state.scope = 'idle'; state.pendingPattern = null }
           },
           active: async () => (await snapshotDevice(a!.page, 'cleanup-active')).config.activeProgramId,
           deleteController: async pair => {
             state.scope = 'pattern'; state.pendingPattern = pair; state.savedSlots[pair.id] = pair.name
-            try { await a!.page.evaluate(async ({ moduleUrl, id }) => { const { getControllerProvider } = await import(/* @vite-ignore */ moduleUrl); await getControllerProvider().deleteProgram(id) }, { moduleUrl: url(a!.page, 'src/engine/controllerProviderRegistry.ts'), id: pair.id }) }
+            try { await a!.page.evaluate(async id => { await window.__benchPageAccess.getProvider().deleteProgram(id) }, pair.id) }
             finally { state.scope = 'idle'; state.pendingPattern = null }
           },
           deleteAccount: async (role, pair) => {

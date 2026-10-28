@@ -467,7 +467,19 @@ startup are reopened and asserted. Cleanup errors stop immediately; startup
 settings are never edited and no recovery connection is made.
 
 Fixture Save and Import retain their narrower constraints. Admission runs before
-the actual provider method delegates. Save admission checks readable PBP
+the actual provider method delegates. Before navigation, the harness installs a
+page bridge and registers the real provider class and Controller store by
+appending registration to successful JavaScript responses from the admitted page
+origin. The store supplies its own already-imported provider getter. Query strings,
+including Vite HMR timestamps, retain the page's module identity; the harness does
+not import a separate bare module graph. Each page-loaded real class is wrapped
+at evaluation, before callers can delegate. Provider access requires strict
+`instanceof` membership in those classes, independently of the connection pill.
+Missing registrations, ambiguous distinct stores, Null and fixture providers
+fail closed. The offline regression uses the actual provider class with memory
+delegates and a throwing transport; it proves module identity and admission
+ordering, not Controller connectivity, protocol behavior or S4 qualification.
+Save admission checks readable PBP
 name/source/header and the actual Controller slot ID, independently of the
 account Pattern banner ID. An existing unrelated slot cannot be admitted by
 renaming its payload. Imports require the exact captured selected slot/name.
