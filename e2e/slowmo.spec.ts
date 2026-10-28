@@ -195,6 +195,7 @@ test('stagger controls fit desktop and narrow layouts and support keyboard round
   await setStaggerWidth(page, 0.5)
   const lab = page.getByTestId('slowmo-lab')
   const shape = lab.getByRole('button', { name: 'Slow-mo stagger', exact: true })
+  const listbox = page.getByRole('listbox', { name: 'Slow-mo stagger', exact: true })
   const width = lab.getByRole('slider', { name: 'Slow-mo stagger width', exact: true })
   const copy = lab.getByRole('button', { name: 'Copy generated code', exact: true })
   for (const [name, viewport] of [
@@ -221,11 +222,14 @@ test('stagger controls fit desktop and narrow layouts and support keyboard round
   }
   await shape.focus()
   await shape.press('ArrowDown')
+  await expect(listbox.getByRole('option', { name: 'Sweep', exact: true })).toBeFocused()
   await page.keyboard.press('End')
+  await expect(listbox.getByRole('option', { name: 'Scatter', exact: true })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(shape).toHaveText('Scatter')
   await shape.focus()
   await shape.press('ArrowDown')
+  await expect(listbox.getByRole('option', { name: 'Scatter', exact: true })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(shape).toBeFocused()
   await width.focus()
