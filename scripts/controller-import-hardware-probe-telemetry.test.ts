@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PixelblazeConnection } from '../src/engine/PixelblazeConnection'
-import { createProbeRuntime, writePrivateProbeReport } from './controller-import-hardware-probe-runtime'
+import { createProbeRuntime, createProbeSocketSequence, writePrivateProbeReport } from './controller-import-hardware-probe-runtime'
+import { runProbeBatches } from './controller-import-hardware-probe-support'
 
 vi.mock('ws', () => ({ default: class extends EventEmitter {
   static CLOSED = 3
@@ -21,18 +22,19 @@ vi.mock('ws', () => ({ default: class extends EventEmitter {
 } }))
 
 type FakeSocket = EventEmitter & {
+  close(): void
   readyState: number; onopen: ((event: unknown) => void) | null
   onerror: ((event: unknown) => void) | null; onclose: ((event: unknown) => void) | null
 }
 const directories: string[] = []
-afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true }); vi.restoreAllMocks() })
+afterEach(() => { for (const path of directories.splice(0)) rmSync(path, { recursive: true, force: true }); vi.restoreAllMocks(); vi.useRealTimers() })
 
-function fixture() {
+function fixture(options: Parameters<typeof createProbeRuntime>[0] = {}) {
   const root = mkdtempSync(join(tmpdir(), 'probe-telemetry-')); directories.push(root)
   const eventPath = join(root, 'socket-events.jsonl'); const reportPath = join(root, 'report.json')
   let tick = 0
   const time = (value: number) => new Date(Date.UTC(2026, 9, 28, 0, 0, value)).toISOString()
-  const runtime = createProbeRuntime({ socketEventLogPath: eventPath, now: () => new Date(time(tick++)) })
+  const runtime = createProbeRuntime({ socketEventLogPath: eventPath, now: () => new Date(time(tick++)), ...options })
   const sockets: FakeSocket[] = []
   const connection = () => new PixelblazeConnection({ host: '127.0.0.1', webSocketFactory: (url) => {
     const socket = runtime.webSocketFactory(url); sockets.push(socket as unknown as FakeSocket); return socket
@@ -50,6 +52,110 @@ function fail(socket: FakeSocket, error: unknown) { socket.emit('error', error);
 function close(socket: FakeSocket, reason?: Buffer) {
   socket.readyState = 3; socket.emit('close', 1006, reason); socket.onclose?.({ code: 1006 })
 }
+
+async function cleanup(f: ReturnType<typeof fixture>) {
+  for (const socket of f.sockets) if (socket.readyState !== 3) close(socket)
+  await f.runtime.close()
+}
+
+it('admits the first batch immediately without a settle timer or private settle fields', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-28T03:00:00.000Z'))
+  const sequence = createProbeSocketSequence()
+  expect(await sequence.beforeBatch()).toBeUndefined()
+  expect(vi.getTimerCount()).toBe(0)
+  const f = fixture({ socketSequence: sequence, now: () => new Date() })
+  try {
+    const pending = f.connection().connect(); expect(f.sockets).toHaveLength(1)
+    open(f.sockets[0]); await pending; await cleanup(f)
+    const { report, events } = f.artifacts()
+    expect(report.webSockets[0]).not.toHaveProperty('reconnectSettle')
+    expect(events.every((event) => !('reconnectSettle' in event))).toBe(true)
+  } finally { await cleanup(f) }
+})
+
+it('waits for actual close and 999ms before constructing the next socket with reopened settle artifacts', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-28T03:00:00.000Z'))
+  const sequence = createProbeSocketSequence()
+  const first = fixture({ socketSequence: sequence, now: () => new Date() })
+  let next: ReturnType<typeof fixture> | undefined
+  try {
+    const pending = first.connection().connect(); open(first.sockets[0]); await pending
+    const timer = vi.spyOn(globalThis, 'setTimeout')
+    const admission = sequence.beforeBatch().then((reconnectSettle) => {
+      next = fixture({ socketSequence: sequence, reconnectSettle, now: () => new Date() })
+      const connecting = next.connection().connect(); open(next.sockets[0]); return connecting
+    })
+    first.sockets[0].close()
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(next).toBeUndefined(); expect(timer).not.toHaveBeenCalled()
+    const closedAt = new Date().toISOString()
+    close(first.sockets[0])
+    await vi.advanceTimersByTimeAsync(999)
+    expect(next).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1); await admission
+    const second = next!; expect(second.sockets).toHaveLength(1)
+    const createdAt = new Date().toISOString()
+    const reconnectSettle = { previousClosedAt: closedAt, settleStartedAt: closedAt, settleEndedAt: createdAt, settleMs: 1000 }
+    await cleanup(second)
+    const before = second.artifacts()
+    expect(before.report.webSockets[0]).toEqual({ socketId: 1, url: 'ws://127.0.0.1:81', createdAt,
+      openedAt: createdAt, closedAt: createdAt, closeCode: 1006, errors: [], reconnectSettle })
+    expect(before.events).toEqual([
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'created', utc: createdAt, reconnectSettle },
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'open', utc: createdAt },
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'close', utc: createdAt, closeCode: 1006 },
+    ])
+    expect(Date.parse(createdAt) - Date.parse(closedAt)).toBeGreaterThanOrEqual(1000)
+    await vi.advanceTimersByTimeAsync(50); close(first.sockets[0]); open(first.sockets[0])
+    expect(second.artifacts()).toEqual(before)
+  } finally { await cleanup(first); if (next) await cleanup(next) }
+})
+
+it('stops real batch sequencing after one settled failed connect without retry or fabricated open', async () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-28T03:00:00.000Z'))
+  const sequence = createProbeSocketSequence()
+  const fixtures: ReturnType<typeof fixture>[] = []
+  const stops = { phase: 'setup' as const, operation: 'connection.connect' }
+  const callback = vi.fn(async (batchIndex: number) => {
+    const reconnectSettle = await sequence.beforeBatch()
+    const f = fixture({ socketSequence: sequence, reconnectSettle, now: () => new Date() }); fixtures.push(f)
+    try {
+      const connecting = f.connection().connect()
+      if (batchIndex === 1) { open(f.sockets[0]); await connecting }
+      else {
+        fail(f.sockets[0], Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET', syscall: 'read' }))
+        await expect(connecting).rejects.toThrow('WebSocket error before open')
+        expect(f.artifacts().report.webSockets[0]).not.toHaveProperty('closedAt')
+      }
+      const closing = f.runtime.close(); close(f.sockets[0]); await closing
+      return { success: batchIndex === 1, connected: batchIndex === 1, qualified: batchIndex === 1,
+        httpStopped: false, ...(batchIndex === 1 ? {} : { firstStop: stops }) }
+    } finally { await cleanup(f) }
+  })
+  try {
+    const resultPromise = runProbeBatches(3, callback)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fixtures).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(999); expect(fixtures).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1)
+    const result = await resultPromise
+    expect(callback.mock.calls.map(([index]) => index)).toEqual([1, 2])
+    expect(fixtures[1].sockets).toHaveLength(1)
+    expect(result).toMatchObject({ success: false, completed: 2, firstStop: { batchIndex: 2, ...stops },
+      outcomes: [{ batchIndex: 1, status: 'qualified' }, { batchIndex: 2, status: 'lost-connection' }] })
+    const { report, events } = fixtures[1].artifacts()
+    const utc = '2026-10-28T03:00:01.000Z'
+    const reconnectSettle = { previousClosedAt: '2026-10-28T03:00:00.000Z', settleStartedAt: '2026-10-28T03:00:00.000Z', settleEndedAt: utc, settleMs: 1000 }
+    const error = { utc, name: 'Error', message: 'read ECONNRESET', code: 'ECONNRESET', syscall: 'read' }
+    expect(report.webSockets).toEqual([{ socketId: 1, url: 'ws://127.0.0.1:81', createdAt: utc,
+      reconnectSettle, errors: [error], closedAt: utc, closeCode: 1006 }])
+    expect(events).toEqual([
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'created', utc, reconnectSettle },
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'error', ...error },
+      { socketId: 1, url: 'ws://127.0.0.1:81', event: 'close', utc, closeCode: 1006 },
+    ])
+  } finally { for (const f of fixtures) await cleanup(f) }
+})
 
 it('preserves Event-style underlying error fields and actual lifecycle in reopened private artifacts', async () => {
   const f = fixture()

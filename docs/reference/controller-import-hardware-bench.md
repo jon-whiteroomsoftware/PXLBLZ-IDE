@@ -73,7 +73,11 @@ For larger drain runs, the exclusive run directory contains `batch-001/`,
 batch index. Each batch performs fresh inventory, mints new slots, selects the
 saved LineDancer2D and confirms its active id and unknown resident cache. It owns
 fresh in-memory accounts, receipts, connections and HTTP resources. Cleanup
-finishes before the next batch starts. The first HTTP stop, lost connection,
+finishes before the next batch starts. Between batches, the probe awaits the
+prior socket's actual close event, then settles for at least 1000ms before
+constructing the next socket. This matches the product's default reconnect
+settle; it adds no connect retry. The first batch proceeds without a settle
+timer, and defaults remain overlap/repeat=1. The first HTTP stop, lost connection,
 failed/unqualified result or thrown setup failure ends the sequence without a
 batch retry. Reports include requested/completed counts, each outcome and the
 first stop's batch, phase, operation and last attempted save ordinal/slot where
@@ -189,7 +193,9 @@ without imposing a connection limit in overlap mode or altering headers. The CLI
 retains its pinned-origin, GET and redirect guard. All exit paths stop the monitor,
 disconnect the provider, destroy the owned HTTP dispatcher, terminate and await
 owned WebSockets (including connecting sockets), then restore global fetch before
-writing the final report. Cleanup is idempotent and creates no timer; failures
+writing the final report. Cleanup is idempotent and creates no timer; the
+between-batch settle starts only after actual close, never a local close request
+or readyState guess. Failures
 are explicit failed results and do not skip remaining owners or the report.
 The offline child-process oracle uses parent-owned loopback HTTP and WebSocket
 fixtures to prove natural exit with an unfinished body and a peer that does not
@@ -206,6 +212,13 @@ records survive cleanup. The mode-0600 `socket-events.jsonl` streams the same
 captured values as `created`, `open`, `error`, and `close` observations with
 `socketId`, URL and `utc`.
 
+After the first batch, each socket's private record and `created` observation
+also include `reconnectSettle`: UTC ISO `previousClosedAt`, `settleStartedAt`,
+`settleEndedAt`, and configured `settleMs` (1000). First-batch records and callers
+without sequencing omit this field. `openedAt` still requires an actual open
+event; failed connects retain settle, raw error and actual close evidence without
+a fabricated open time. Runtime behavior without these options is unchanged.
+
 Raw underlying `ws` errors retain available string/number `code`, `name`,
 `errno`, `syscall`, and `message`, plus those fields from a one-level cause.
 Missing fields remain absent. The exact raw message `Unexpected server response:
@@ -213,7 +226,10 @@ Missing fields remain absent. The exact raw message `Unexpected server response:
 installed because it would change handshake failure behavior. The protocol's
 Event-style error callback can still yield a generic connection rejection;
 that wrapper is not evidence of an underlying error class. These diagnostics
-add no retry, delay or scheduling change. Socket records and raw error fields
+add no retry, delay or scheduling change within a batch's protocol, HTTP or Save
+operations. Only admission of a subsequent batch waits for actual close plus
+the settle above; failure-stop behavior is unchanged and no connect retry is
+added. Socket records, settle metadata and raw error fields
 stay out of stdout, aggregate root summaries and sanitized timing tables. They
 contain no headers, source, config, sessions or response bodies. Offline mocked
 socket artifacts verify retention and lifecycle semantics, not physical proof.

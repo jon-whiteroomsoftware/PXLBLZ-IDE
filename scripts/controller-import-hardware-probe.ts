@@ -16,7 +16,8 @@ import { stampArtifact } from '../src/engine/artifactStamp'
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { NodeControllerImportProvider, ProbeEventRecorder, ProbeHttpQueue, ProbeLivenessMonitor, PROBE_FIDELITY, PROBE_HOST,
   boundedAction, byteSummary, gateProbeSaveSocket, parseProbeArgs, runProbeBatches, sanitizedTimingTable, successfulProbeSaves, waitForFixtureReadback, type ProbeArgs, type ProbeStop } from './controller-import-hardware-probe-support'
-import { closeProbeResources, createProbeRuntime, writePrivateProbeReport } from './controller-import-hardware-probe-runtime'
+import { closeProbeResources, createProbeRuntime, createProbeSocketSequence, writePrivateProbeReport,
+  type ProbeSocketSequence, type ProbeSocketSettle } from './controller-import-hardware-probe-runtime'
 
 const HELP = 'npx tsx scripts/controller-import-hardware-probe.ts --device 192.168.8.196 --case drain|control --run-id <ASCII-token> --run [--http overlap|serial] [--repeat N]\nDefaults: --http overlap --repeat 1. Repeat must be a positive safe integer; control permits only 1.'
 const luminousSource = 'export function render(i) { rgb(0.02,0.02,0) }\nexport function render2D(i,x,y) { rgb(0.02,0.02,0) }'
@@ -31,10 +32,12 @@ async function run(args: ProbeArgs) {
   mkdirSync(privateRoot, { recursive: true, mode: 0o700 })
   const root = resolve(privateRoot, args.runId)
   mkdirSync(root, { mode: 0o700 })
+  const socketSequence = createProbeSocketSequence()
   const result = await runProbeBatches(args.repeat, async (batchIndex) => {
     const batchRoot = args.repeat === 1 ? root : resolve(root, `batch-${String(batchIndex).padStart(3, '0')}`)
     if (args.repeat > 1) mkdirSync(batchRoot, { mode: 0o700 })
-    return runBatch(args, batchRoot, batchIndex)
+    const reconnectSettle = await socketSequence.beforeBatch()
+    return runBatch(args, batchRoot, batchIndex, socketSequence, reconnectSettle)
   })
   const summary = { case: args.case, runId: args.runId, http: args.http, requested: result.requested,
     completed: result.completed, success: result.success, outcomes: result.outcomes, firstStop: result.firstStop,
@@ -55,10 +58,11 @@ async function run(args: ProbeArgs) {
   if (!result.success) process.exitCode = 1
 }
 
-async function runBatch(args: ProbeArgs, root: string, batchIndex: number) {
+async function runBatch(args: ProbeArgs, root: string, batchIndex: number,
+  socketSequence: ProbeSocketSequence, reconnectSettle?: ProbeSocketSettle) {
   const identity = args.repeat === 1 ? args.runId : `${args.runId}-batch-${String(batchIndex).padStart(3, '0')}`
   const recorder = new ProbeEventRecorder((line) => appendFileSync(resolve(root, 'events.jsonl'), `${line}\n`, { mode: 0o600 }))
-  const runtime = createProbeRuntime({ socketEventLogPath: resolve(root, 'socket-events.jsonl') })
+  const runtime = createProbeRuntime({ socketEventLogPath: resolve(root, 'socket-events.jsonl'), socketSequence, reconnectSettle })
   const queue = new ProbeHttpQueue(args.http, recorder)
   const connection = new PixelblazeConnection({ host: PROBE_HOST, webSocketFactory: (url) => {
     if (url !== `ws://${PROBE_HOST}:81`) throw new Error('Unapproved Controller WebSocket')

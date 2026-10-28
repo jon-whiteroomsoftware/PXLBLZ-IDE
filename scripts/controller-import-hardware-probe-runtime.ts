@@ -21,11 +21,44 @@ export interface ProbeSocketRecord {
   socketId: number
   url: string
   createdAt: string
+  reconnectSettle?: ProbeSocketSettle
   openedAt?: string
   closedAt?: string
   errors: ProbeSocketError[]
   closeCode?: number
   closeReason?: string
+}
+
+export interface ProbeSocketSettle {
+  previousClosedAt: string
+  settleStartedAt: string
+  settleEndedAt: string
+  settleMs: number
+}
+
+export interface ProbeSocketSequence {
+  beforeBatch(): Promise<ProbeSocketSettle | undefined>
+  trackSocket(): (closedAt: string) => void
+}
+
+export function createProbeSocketSequence(options: { now?: () => Date } = {}): ProbeSocketSequence {
+  const now = () => (options.now?.() ?? new Date()).toISOString()
+  let previousClose: Promise<string> | undefined
+  return {
+    async beforeBatch() {
+      const priorClose = previousClose
+      if (!priorClose) return undefined
+      const previousClosedAt = await priorClose
+      const settleStartedAt = now()
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000))
+      return { previousClosedAt, settleStartedAt, settleEndedAt: now(), settleMs: 1000 }
+    },
+    trackSocket() {
+      let closed!: (closedAt: string) => void
+      previousClose = new Promise<string>((resolve) => { closed = resolve })
+      return closed
+    },
+  }
 }
 
 function primitiveErrorFields(error: unknown): ProbeErrorFields {
@@ -57,7 +90,8 @@ export async function closeProbeResources(owners: {
   return failures
 }
 
-export function createProbeRuntime(options: { socketEventLogPath?: string; now?: () => Date } = {}) {
+export function createProbeRuntime(options: { socketEventLogPath?: string; now?: () => Date;
+  socketSequence?: ProbeSocketSequence; reconnectSettle?: ProbeSocketSettle } = {}) {
   const agent = new Agent()
   const rawFetch = globalThis.fetch
   const sockets = new Set<WebSocket>()
@@ -80,9 +114,11 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
     webSocketFactory: (url: string): WebSocketLike => {
       assertOpen()
       const record: ProbeSocketRecord = { socketId: webSockets.length + 1, url, createdAt: now(), errors: [] }
+      if (options.reconnectSettle) record.reconnectSettle = options.reconnectSettle
       webSockets.push(record)
-      observe(record, 'created', record.createdAt)
+      observe(record, 'created', record.createdAt, record.reconnectSettle ? { reconnectSettle: record.reconnectSettle } : {})
       const socket = new WebSocket(url)
+      const recordClose = options.socketSequence?.trackSocket()
       sockets.add(socket)
       // A connecting socket emits error before close when terminated.
       socket.on('error', (error: unknown) => {
@@ -106,6 +142,7 @@ export function createProbeRuntime(options: { socketEventLogPath?: string; now?:
         record.closeCode = code
         if (reason !== undefined) record.closeReason = reason.toString('utf8')
         observe(record, 'close', record.closedAt, { closeCode: record.closeCode, closeReason: record.closeReason })
+        recordClose?.(record.closedAt)
       })
       socket.once('close', () => sockets.delete(socket))
       return socket as unknown as WebSocketLike
