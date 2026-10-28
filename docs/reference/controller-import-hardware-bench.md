@@ -10,6 +10,17 @@ Offline verification does not qualify native permission handling or hardware.
 The UI diagnostic below remains parked. S1 also provides the separate direct-engine
 probe described next; its results cannot qualify extension, UI or store behavior.
 
+The production helper now serializes full-body Controller HTTP per normalized
+host across page ports and holds new HTTP starts while any socket owns a Save.
+Only defined owner completion or actual owner close releases that hold; provider
+timeouts and local close requests do not. Cloud discovery remains independent.
+The unpacked helper must be reloaded separately for adoption; helper publication
+remains held. VM provider/relay tests prove this software agreement, not physical
+behavior. Helper restart clears ownership, and reconnect after close can overlap
+an ongoing firmware write. Direct-probe alignment with these ownership boundaries
+and physical Save latency/overlap measurements remain pending; the probe's
+optional HTTP serial mode below does not establish that fidelity.
+
 ## S1 direct-engine diagnostic
 
 `controller-import-hardware-probe.ts` connects Node directly to **#2 Cark at

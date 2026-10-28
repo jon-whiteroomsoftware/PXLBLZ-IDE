@@ -93,6 +93,37 @@ function hostOf(addressOrUrl) {
   }
 }
 
+// Shared by every page port and socket. A reply timeout never releases actual
+// HTTP work; only settlement of the complete action advances this host's FIFO.
+const controllerHttp = new Map()
+function controllerHttpState(address) {
+  const host = hostOf(address)
+  if (!host) throw new Error('Invalid Controller address')
+  if (!controllerHttp.has(host)) controllerHttp.set(host, { tail: Promise.resolve(), saving: new Set(), wake: new Set() })
+  return controllerHttp.get(host)
+}
+
+async function runControllerHttp(address, action) {
+  const state = controllerHttpState(address)
+  const turn = state.tail.catch(() => {}).then(async () => {
+    while (state.saving.size) await new Promise((resolve) => state.wake.add(resolve))
+    return await action()
+  })
+  state.tail = turn.catch(() => {})
+  return turn
+}
+
+function releaseControllerSave(ws) {
+  const state = controllerHttpState(ws.url)
+  if (!state.saving.delete(ws)) return
+  for (const wake of state.wake) wake()
+  state.wake.clear()
+}
+
+async function cancelControllerBody(resp) {
+  if (resp.body) await resp.body.cancel()
+}
+
 // Open the popup (best-effort — openPopup can no-op on some Chrome versions, in
 // which case the page-side "permission-needed" hint tells the user to click the
 // toolbar icon) and wait for the grant or a decline.
@@ -368,17 +399,30 @@ chrome.runtime.onConnect.addListener((port) => {
       ws.binaryType = 'arraybuffer'
       sockets.set(msg.connId, ws)
       ws.addEventListener('open', () => {
+        if (sockets.get(msg.connId) !== ws) return
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'open', connId: msg.connId })
       })
       ws.addEventListener('message', (ev) => {
+        if (sockets.get(msg.connId) !== ws) return
+        if (typeof ev.data === 'string') {
+          try {
+            const value = JSON.parse(ev.data)
+            if (value && typeof value === 'object' && value.saveProgramSourceFile !== undefined) releaseControllerSave(ws)
+          } catch {
+            // Observation must never alter or reject the relayed firmware bytes.
+          }
+        }
         const payload =
           typeof ev.data === 'string' ? { text: ev.data } : { binary: bytesToBase64(ev.data) }
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId: msg.connId, payload })
       })
       ws.addEventListener('error', () => {
+        if (sockets.get(msg.connId) !== ws) return
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'error', connId: msg.connId, message: 'websocket error' })
       })
       ws.addEventListener('close', (ev) => {
+        releaseControllerSave(ws)
+        if (sockets.get(msg.connId) !== ws) return
         sockets.delete(msg.connId)
         send({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: msg.connId, code: ev.code })
       })
@@ -392,7 +436,11 @@ chrome.runtime.onConnect.addListener((port) => {
     if (msg.type === 'send') {
       try {
         if ('text' in msg.payload) ws.send(msg.payload.text)
-        else ws.send(base64ToBytes(msg.payload.binary))
+        else {
+          const frame = base64ToBytes(msg.payload.binary)
+          if (frame[0] === 1 && (frame[1] & 1) !== 0) controllerHttpState(ws.url).saving.add(ws)
+          ws.send(frame)
+        }
       } catch {
         // Socket not open / already gone; the close path reports it.
       }
@@ -453,12 +501,17 @@ async function handleCompile(msg) {
 // firmware answers 404, or 200 with an empty body). The page decodes the blob; a
 // real network/HTTP failure rejects so the page can tell "no map" from "unread".
 async function handleGetMap(msg) {
-  const resp = await fetch(`http://${msg.address}/pixelmap.dat`)
-  if (resp.status === 404) return null
-  if (!resp.ok) throw new Error(`GET /pixelmap.dat -> ${resp.status}`)
-  const buf = await resp.arrayBuffer()
-  if (buf.byteLength === 0) return null
-  return new Uint8Array(buf)
+  return runControllerHttp(msg.address, async () => {
+    const resp = await fetch(`http://${msg.address}/pixelmap.dat`)
+    if (!resp.ok) {
+      await cancelControllerBody(resp)
+      if (resp.status === 404) return null
+      throw new Error(`GET /pixelmap.dat -> ${resp.status}`)
+    }
+    const buf = await resp.arrayBuffer()
+    if (buf.byteLength === 0) return null
+    return new Uint8Array(buf)
+  })
 }
 
 // ── saved-program read-back (#372) ──────────────────────────────────────────
@@ -473,10 +526,15 @@ async function handleGetProgram(msg) {
   const programId = typeof msg.programId === 'string' ? msg.programId.trim() : ''
   if (!programId) throw new Error('Saved program id is required')
   const path = `/p/${encodeURIComponent(programId)}`
-  const resp = await fetch(`http://${msg.address}${path}`)
-  if (resp.status === 404) return null
-  if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`)
-  return new Uint8Array(await resp.arrayBuffer())
+  return runControllerHttp(msg.address, async () => {
+    const resp = await fetch(`http://${msg.address}${path}`)
+    if (!resp.ok) {
+      await cancelControllerBody(resp)
+      if (resp.status === 404) return null
+      throw new Error(`GET ${path} -> ${resp.status}`)
+    }
+    return new Uint8Array(await resp.arrayBuffer())
+  })
 }
 
 // ── wifi status / identity read-back (#328) ──────────────────────────────────
@@ -485,9 +543,14 @@ async function handleGetProgram(msg) {
 // with `boardType` from the websocket settings packet, reconstructs the stable
 // cloud-discovery device id without requiring discovery to be reachable.
 async function handleWifiStatus(msg) {
-  const resp = await fetch(`http://${msg.address}/wifistatus`)
-  if (!resp.ok) throw new Error(`GET /wifistatus -> ${resp.status}`)
-  return await resp.json()
+  return runControllerHttp(msg.address, async () => {
+    const resp = await fetch(`http://${msg.address}/wifistatus`)
+    if (!resp.ok) {
+      await cancelControllerBody(resp)
+      throw new Error(`GET /wifistatus -> ${resp.status}`)
+    }
+    return await resp.json()
+  })
 }
 
 // ── cloud discovery (#206) ───────────────────────────────────────────────────
@@ -519,13 +582,18 @@ async function handleDiscover() {
 
 // Fetch + gunzip + decode the device web UI (utf-8-sig: strip BOM).
 async function fetchWebUI(ip) {
-  const resp = await fetch(`http://${ip}/index.html.gz`)
-  if (!resp.ok) throw new Error(`GET index.html.gz -> ${resp.status}`)
-  const gzBuf = await resp.arrayBuffer()
-  const stream = new Response(gzBuf).body.pipeThrough(new DecompressionStream('gzip'))
-  let text = await new Response(stream).text()
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1) // strip BOM
-  return text
+  return runControllerHttp(ip, async () => {
+    const resp = await fetch(`http://${ip}/index.html.gz`)
+    if (!resp.ok) {
+      await cancelControllerBody(resp)
+      throw new Error(`GET index.html.gz -> ${resp.status}`)
+    }
+    const gzBuf = await resp.arrayBuffer()
+    const stream = new Response(gzBuf).body.pipeThrough(new DecompressionStream('gzip'))
+    let text = await new Response(stream).text()
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1) // strip BOM
+    return text
+  })
 }
 
 function getSubstring(text, startValue, endValue) {

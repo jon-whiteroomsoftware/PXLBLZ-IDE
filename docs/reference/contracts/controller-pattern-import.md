@@ -13,6 +13,28 @@ completion of #1221.
 
 ## Controller Save transport
 
+The helper serializes Controller HTTP by normalized host across all page ports
+and connection ids. A FIFO turn owns fetch, the complete response body and its
+decode/decompression, or awaited error-body cancellation. Provider reply
+timeouts remove only the page waiter; the underlying action must settle before
+the next turn starts. Other Controllers and cloud discovery remain independent.
+
+Before forwarding a first type-1 binary frame, the helper records the actual
+WebSocket as an in-memory Save owner. Queued HTTP rechecks all owners at
+admission; no new Controller HTTP starts until every owner receives a defined
+`saveProgramSourceFile` completion (positive or negative) or actually closes.
+Generic ack, undefined completion, send failure, Save deadline, local close
+request and another socket's completion cannot release an owner. HTTP already
+admitted before Save may finish. No timer release or automatic retry occurs.
+
+Actual close and helper restart bound this in-memory agreement. Reconnecting
+after close or restarting the helper can admit HTTP while firmware still writes;
+this reconnect/write-overlap residual is accepted, not proof of firmware
+quiescence. Reload the unpacked helper in `chrome://extensions` to adopt these
+changes; updating the app alone does not update the helper. Helper publication
+remains held. Direct-probe fidelity and physical latency/overlap proof remain
+pending; VM tests establish only the software agreement.
+
 `saveProgram` resolves only after a truthy `saveProgramSourceFile` completion
 arrives on the owning current socket after submission of the final type-1 frame.
 Local transmission and generic `ack` do not confirm Save. A defined falsey
@@ -24,7 +46,10 @@ replacement, and send failure also reject with `Controller Save unconfirmed:`.
 
 Save reserves the socket before sending, drains prior wire acknowledgements,
 and sends each 1280-byte-body chunk only after the preceding chunk's truthy ack.
-The final ack may follow completion; reservation remains until it drains.
+Positive completion releases the Save reservation immediately, allowing ordinary
+activation and controls. The final ack may follow completion and remains FIFO
+wire debt; a new Save may reserve immediately but waits for all prior debt,
+including intervening activation/control frames, before submitting its first frame.
 Acknowledgement expectations stay in FIFO wire order even after a request's
 promise times out, so late replies cannot settle newer requests or advance Save.
 While reserved, automatic keepalive is suppressed and explicit ack-bearing
@@ -38,8 +63,8 @@ the same uncorrelated completion field. Late completion cannot clear this state.
 Replacement clears socket-scoped state and ignores old callbacks; no automatic
 Save retry occurs. The separate `saveTimeoutMs` defaults to a provisional
 60,000ms measurement cap. The final deadline follows hardware latency evidence
-and must be at least 20 seconds. Helper HTTP ownership and probe changes remain
-pending; this transport agreement supplies no timer-based HTTP release signal.
+and must be at least 20 seconds. Probe changes remain pending; this transport
+agreement supplies no timer-based HTTP release signal.
 
 ## Source fidelity and identity
 

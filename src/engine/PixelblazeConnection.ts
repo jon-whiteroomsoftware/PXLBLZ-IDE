@@ -338,7 +338,11 @@ export class PixelblazeConnection {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const ws = this.opts.webSocketFactory(this.url)
-      if (this.ws) this.handleClose('socket replaced', true)
+      const previous = this.ws
+      if (previous) {
+        this.handleClose('socket replaced', true)
+        previous.close()
+      }
       this.ws = ws
       this.saveUnavailable = false
       // Latches once the open race is decided (open, pre-open error, or timeout),
@@ -926,8 +930,8 @@ export class PixelblazeConnection {
         const operation = this.saveOperation
         operation.settled = true
         this._clearTimeout(operation.timer)
+        this.saveOperation = null
         operation.resolve()
-        this.advanceSave()
       }
     }
     if (msg.ack) {

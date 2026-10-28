@@ -101,6 +101,27 @@ Reload an unpacked helper in `chrome://extensions` after updating its files; Web
 Store installations need the separately published helper update. Updating the app
 alone does not replace an installed extension.
 
+## Controller HTTP and Save ownership (#1221)
+
+The helper shares a FIFO per normalized Controller host across all page ports
+and connection ids. Each HTTP turn includes the complete body and decoding, or
+awaited error-body cancellation. Page response timeouts leave that turn owned
+until the underlying action settles. Cloud discovery and other hosts proceed
+independently.
+
+A first type-1 Save frame holds new HTTP starts for that host before it is sent.
+The owning WebSocket releases its hold on a defined `saveProgramSourceFile`
+completion, including failure, or its actual close event. Every owner must
+release; generic ack, deadlines, failed sends and local close requests do not
+release ownership. Previously admitted HTTP may finish. State is in memory and
+clears on helper restart; reconnect after close can overlap an ongoing firmware
+write. There is no timer release or automatic retry.
+
+Reload the unpacked helper in `chrome://extensions` to adopt this agreement.
+App updates alone do not install it, and helper publication remains held.
+Offline VM tests establish the software boundary; direct-probe fidelity and
+physical Save latency/overlap measurements remain pending.
+
 ## Install
 
 Normal users should install the published helper from the Chrome Web Store:

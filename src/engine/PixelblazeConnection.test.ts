@@ -982,7 +982,7 @@ describe('PixelblazeConnection', () => {
   })
 
   describe('saveProgram', () => {
-    it('reserves before waiting for ping, suppresses keepalive, and allows unrelated reads', async () => {
+    it.each([false, true])('releases successful Save while retaining FIFO ack debt (combined: %s)', async (combined) => {
       vi.useFakeTimers()
       try {
         const { conn, socket } = await connected({ pingIntervalMs: 10 })
@@ -998,12 +998,18 @@ describe('PixelblazeConnection', () => {
         socket.simulateMessage({ ack: 1 })
         await ping
         expect(socket.sentBinary).toHaveLength(1)
-        socket.simulateMessage({ saveProgramSourceFile: 1 })
+        socket.simulateMessage({ saveProgramSourceFile: 1, ...(combined ? { ack: 1 } : {}) })
         await save
-        // Completion may precede the final wire ack. Reservation remains.
-        await expect(conn.saveProgram('second', new Uint8Array())).rejects.toThrow('Controller Save is pending')
-        socket.simulateMessage({ ack: 1 })
+        expect(() => conn.pushByteCode(new Uint8Array(8), { id: 'active' })).not.toThrow()
+        const priorFrames = socket.sentBinary.length
         const second = conn.saveProgram('second', new Uint8Array())
+        expect(socket.sentBinary).toHaveLength(priorFrames)
+        // Final Save ack and all four activation frame acks remain ordered.
+        const debt = combined ? 4 : 5
+        for (let i = 0; i < debt; i++) {
+          socket.simulateMessage({ ack: 1 })
+          expect(socket.sentBinary).toHaveLength(priorFrames + (i === debt - 1 ? 1 : 0))
+        }
         socket.simulateMessage({ saveProgramSourceFile: 1 })
         await second
         conn.close()
@@ -1021,6 +1027,7 @@ describe('PixelblazeConnection', () => {
         const old = getSocket()
         const first = expect(conn.saveProgram('old', new Uint8Array(3000))).rejects.toThrow('Controller Save unconfirmed: connection closed or replaced')
         const reopen = conn.connect()
+        expect(old.readyState).toBe(FakeWebSocket.CLOSED)
         const socket = getSocket()
         socket.simulateOpen()
         await reopen
