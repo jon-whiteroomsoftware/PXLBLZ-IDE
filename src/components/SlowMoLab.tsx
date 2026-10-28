@@ -25,7 +25,7 @@ const methods: DeckOption<SlowMoSettings['inBetween'] | 'off'>[] = [
 
 export function SlowMoLab({ settings, onChange, declined, arrayWords, onCopy }: SlowMoLabProps) {
   return (
-    <section aria-label="Slow-mo lab" data-testid="slowmo-lab" className="space-y-2 my-2">
+    <section aria-label="Slow-mo lab" data-testid="slowmo-lab" className="space-y-2 my-2 col-span-full min-w-0">
       <fieldset disabled={settings === null} className="min-w-0">
         <legend className="text-xs text-zinc-500 mb-1">Tempo</legend>
         <DeckGrid>
