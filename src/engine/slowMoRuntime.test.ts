@@ -295,14 +295,14 @@ export function render(i){rgb(count/16,0,0)}`, mode, { ...settings, rate: 1 })
 }
 
 describe('slow-mo pass integration and scope diagnostics', () => {
-  it('I11 preserves authored metadata and exposes exactly the three runtime tunables', () => {
+  it('I11 preserves authored metadata and exposes exactly the five runtime tunables', () => {
     const source = 'export var gain=0.5; export function sliderGain(v){gain=v} export function render(i){rgb(gain,0,0)}'
     const base = bundle(source, {})
     const result = artifact(source)
     for (const key of ['renderFns','controls','exportedVars','patternVars'] as const) expect(result.metadata[key]).toEqual(base.metadata[key])
-    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'rate', prefix+'step', prefix+'curve'])
+    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'rate', prefix+'step', prefix+'curve', prefix+'shape', prefix+'width'])
     expect(new Set(result.metadata.runtimeVars).size).toBe(result.metadata.runtimeVars!.length)
-    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender'], estimatedPixelCost: 0, slowMo: { arrayWords: 42, tunables: [prefix+'rate',prefix+'step',prefix+'curve'] } })
+    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender'], estimatedPixelCost: 0, slowMo: { arrayWords: 42, tunables: [prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'] } })
     expect(result.summary.globalsAdded).toContain(prefix+'ar')
   })
 
@@ -311,7 +311,7 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     const libraries = { Lamp: 'var count=0; function tick(){count+=1} function value(){return count/16}' }
     const base = bundle(source, libraries)
     const result = artifact(source, settings, libraries)
-    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'rate',prefix+'step',prefix+'curve'])
+    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'])
     expect(result.summary.passes[0]).toMatchObject({ beforeRender:'wrapped', exportsAdded:[] })
   })
 

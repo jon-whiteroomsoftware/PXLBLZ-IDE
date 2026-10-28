@@ -189,6 +189,8 @@ describe('slow-mo planner', () => {
       __pxlblz_slowmo_rate: 0.25,
       __pxlblz_slowmo_step: 20,
       __pxlblz_slowmo_curve: ['hold', 'blend', 'eased'].indexOf(inBetween),
+      __pxlblz_slowmo_shape: 0,
+      __pxlblz_slowmo_width: 0,
     })
     const result = emitSlowMoWrapper(renderer, input, 3)
     expect(result.tunables).toEqual(tunables)
@@ -218,6 +220,6 @@ describe('slow-mo planner', () => {
     const persistence = { ...settings, persistence: { attackMs: 0, decayMs: 100 } }
     expect(() => emitSlowMoWrapper(renderer, persistence, 1133)).toThrow(/not implemented/i)
     expect(emitSlowMoWrapper(renderer, persistence, 1134).plan.declined?.reason).toBe('array-budget')
-    expect(() => emitSlowMoWrapper(renderer, { ...settings, stagger: { shape: 'scatter', width: 0.5 } }, 3)).toThrow(RangeError)
+    expect(emitSlowMoWrapper(renderer, { ...settings, stagger: { shape: 'scatter', width: 0.5 } }, 3).tunables.__pxlblz_slowmo_width).toBe(0.5)
   })
 })

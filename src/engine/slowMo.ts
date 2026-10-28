@@ -99,15 +99,14 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   const plan = planSlowMo(code, settings, pixelCount)
   if (plan.declined) return { code, plan, tunables: {} }
   const tunables = slowMoTunables(settings)
-  if (settings.persistence !== null || settings.stagger.width !== 0) {
-    throw new RangeError('Slow-mo persistence and nonzero stagger width are not implemented in slice A.')
+  if (settings.persistence !== null) {
+    throw new RangeError('Slow-mo persistence is not implemented until slice C.')
   }
   if (plan.structure === 'clock') return { code, plan, tunables: {} }
   const p = `${reservedStem('slowmo')}_`
   const rewritten = rewriteSlowMoSource(code, p)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const prelude = `${initializers}
-var ${p}shape = 0, ${p}width = 0
 var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
 var ${p}r = 0, ${p}g = 0, ${p}b = 0
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
@@ -155,14 +154,30 @@ function ${p}hsv(h,s,v) {
   rgb(${channels})
   if (index == pixelCount-1) ${p}phase = 1
 }`
-  const wrappers = plan.renderFns.map(name => {
+  const offsets = plan.renderFns.map(name => {
+    const dimension = name === 'render' ? '1D' : name === 'render2D' ? '2D' : '3D'
     const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
-    return `export function ${name}(${args}) {
-  if (${p}cap) { ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args}) }
-  ${p}out(index,0)
+    const sweep = name === 'render' ? 'index/pixelCount' : 'clamp(x,0,1)'
+    const radial = name === 'render' ? 'abs(2*index/pixelCount-1)'
+      : name === 'render2D' ? 'clamp(sqrt(dx*dx+dy*dy)/0.7071067811865476,0,1)'
+        : 'clamp(sqrt(dx*dx+dy*dy+dz*dz)/0.8660254037844386,0,1)'
+    const deltas = name === 'render' ? '' : `var dx=x-0.5, dy=y-0.5${name === 'render3D' ? ', dz=z-0.5' : ''}`
+    return `function ${p}offset${dimension}(${args}) {
+  if (${p}shape == 2) return (index * 0.6180267333984375) % 1
+  if (${p}shape == 0) return ${sweep}
+  ${deltas}
+  return ${radial}
 }`
   }).join('\n')
-  return { code: `${prelude}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
+  const wrappers = plan.renderFns.map(name => {
+    const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
+    const dimension = name === 'render' ? '1D' : name === 'render2D' ? '2D' : '3D'
+    return `export function ${name}(${args}) {
+  if (${p}cap) { ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args}) }
+  ${p}out(index,${p}width == 0 ? 0 : ${p}width * ${p}offset${dimension}(${args}))
+}`
+  }).join('\n')
+  return { code: `${prelude}\n${offsets}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
 }
 
 export function slowMoTunables(settings: SlowMoSettings): Record<string, number> {
@@ -172,12 +187,20 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
   if (!Number.isFinite(settings.stepMs) || settings.stepMs <= 0 || settings.stepMs > 32767) {
     throw new RangeError('Slow-mo step must be finite and greater than 0 and at most 32767 ms.')
   }
+  if (!Number.isFinite(settings.stagger.width) || settings.stagger.width < 0 || settings.stagger.width > 0.9) {
+    throw new RangeError('Slow-mo stagger width must be finite and between 0 and 0.9.')
+  }
+  if (!['sweep', 'radial', 'scatter'].includes(settings.stagger.shape)) {
+    throw new RangeError('Slow-mo stagger shape must be sweep, radial, or scatter.')
+  }
   if (settings.inBetween === 'clock') return {}
   const p = `${reservedStem('slowmo')}_`
   return {
     [`${p}rate`]: settings.rate,
     [`${p}step`]: settings.stepMs,
     [`${p}curve`]: settings.inBetween === 'hold' ? 0 : settings.inBetween === 'blend' ? 1 : 2,
+    [`${p}shape`]: ['sweep', 'radial', 'scatter'].indexOf(settings.stagger.shape),
+    [`${p}width`]: settings.stagger.width,
   }
 }
 

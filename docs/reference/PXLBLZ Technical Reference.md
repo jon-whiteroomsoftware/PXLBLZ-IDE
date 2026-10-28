@@ -307,9 +307,18 @@ methods, and dynamically selected sinks are not guessed.
 `slowmo` recipe gives a Pattern a fixed-step clock and captures RGB into A/B
 frames for hold, linear blend, or smoothstep interpolation. Scope-aware
 rewriting captures `time`/`rgb`/`hsv`/`hsv24` after bundling, including inlined
-libraries. The pass appends rate, step, and curve globals to `runtimeVars`,
+libraries. The pass appends rate, step, curve, stagger shape, and width globals to `runtimeVars`,
 preserving authored controls and watched variables. A declined pass preserves
 exact `code`/`fxCode` and exposes its reason in the summary.
+
+Stagger assigns each pixel a normalized offset `q`: sweep uses `index/N` in
+1D or clamped `x`; radial uses normalized distance from the centre; scatter
+uses `(index * 0.6180267333984375) % 1`. That exact scatter literal keeps `q`
+identical in Fast and Precise; a literal `65536` denominator overflows 16.16.
+The scaled offset `o = width*q` uses normal input-encoding and multiply
+quantization. Each pixel blends inside `[o, o + 1 - width]`, with `o <= width`
+(strictly less for scatter), so its window ends at or before the interval
+boundary. Hold gives a wipe; width zero preserves slice-A pixels bit-exactly.
 
 The six wrapper arrays cost `6N + 24` words (1,560 at 256 pixels), excluding
 authored arrays. Clock mode without persistence uses an empty recipe. The
