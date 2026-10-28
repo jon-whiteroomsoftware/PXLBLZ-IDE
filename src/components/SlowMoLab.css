@@ -24,6 +24,8 @@
 .slowmo-lab .slowmo-lab-slider input { width: 100%; min-width: 24px; }
 .pattern-panel .panel-section-body .slowmo-lab .slowmo-lab-slider > div > span,
 .slowmo-lab .slowmo-lab-slider > div > span { width: 34px; }
+.pattern-panel .panel-section-body .slowmo-lab .slowmo-lab-speed > div > span,
+.slowmo-lab .slowmo-lab-speed > div > span { width: 6ch; }
 .slowmo-lab fieldset.slowmo-lab-stagger { margin-top: 3px; }
 .slowmo-lab-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 16px; }
 @container slowmo-lab (max-width: 300px) {

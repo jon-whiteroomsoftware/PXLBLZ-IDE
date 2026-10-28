@@ -1,4 +1,5 @@
 import type { SlowMoPlan, SlowMoSettings } from '@/engine/slowMo'
+import { slowMoPositionFromRate, slowMoRateFromPosition } from '@/engine/slowMo'
 import type { SlowMoDraft } from '@/engine/slowMoDraft'
 import './SlowMoLab.css'
 import { PIXELBLAZE_VM_ARRAY_WORDS } from '@/engine/showVmResourceLedger'
@@ -42,10 +43,25 @@ export function SlowMoLab({ draft, onChange, declined, arrayWords, onCopy }: Slo
               ariaLabel="Slow-mo rate"
               value={draft.rate}
               options={rates}
-              onChange={(rate) => onChange({ ...draft, rate })}
+              onChange={(rate) => {
+                const next = { ...draft, rate }
+                delete next.position
+                onChange(next)
+              }}
               portaled
             />
           </DeckCell>
+          <DeckSlider
+            className="slowmo-lab-slider slowmo-lab-speed"
+            label="speed"
+            ariaLabel="Slow-mo speed position"
+            min={0}
+            max={1}
+            step={0.001}
+            value={draft.position ?? slowMoPositionFromRate(draft.rate)}
+            format={(position) => `${Number(slowMoRateFromPosition(position).toFixed(3))}×`}
+            onChange={(position) => onChange({ ...draft, position, rate: slowMoRateFromPosition(position) })}
+          />
           <DeckCell label="step">
             <DeckSelect
               ariaLabel="Slow-mo step"

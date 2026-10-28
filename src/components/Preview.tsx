@@ -17,7 +17,7 @@ import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
-import { slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
 import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
@@ -300,7 +300,8 @@ export function Preview({
       }
       publishSlowMoArtifact(artifact)
       useEditorStore.getState().setPatternVars(metadata.patternVars)
-      useEditorStore.getState().setControls(withControlDescriptions(activeDemoName, metadata.controls))
+      useEditorStore.getState().setControls(withControlDescriptions(activeDemoName,
+        slowMoEnabled() ? metadata.controls.filter(control => control.exportName !== SLOW_MO_SPEED_SLIDER) : metadata.controls))
       // Seed control UI from the pattern's own initialised vars so swatches and
       // sliders show the real starting values on mount. The vars already ran via
       // the pattern's own initialiser, so we read them rather than invoking the
@@ -447,6 +448,9 @@ export function Preview({
     if (context.wrapped && labEnabled && slowMo) {
       for (const [name, value] of Object.entries(slowMoTunables(slowMo))) {
         handle.setRuntimeVar(name, shim.encodeScalar(value))
+      }
+      if (slowMo.inBetween !== 'clock') {
+        handle.setRuntimeVar('__pxlblz_slowmo_position', shim.encodeScalar(slowMo.position ?? -1))
       }
       if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
       if (executionRef.current !== context) return
