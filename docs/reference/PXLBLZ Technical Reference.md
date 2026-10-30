@@ -390,6 +390,9 @@ Pattern preview after resolving the pixel count. Without the flag, the recipe
 is empty and complete `code`/`fxCode` identity with `bundle()` is preserved.
 With the flag, the wrapper is always applied. The ordinary preview Speed
 selector scales display delta independently of the wrapper's speed position.
+The Preview row's `elapsed` reading measures time experienced by the Pattern:
+the wrapper's actual fixed-step clock under Slow-Mo, and the ordinary preview
+clock otherwise. Live speed changes preserve the accumulated time.
 
 The expanded section keeps speed and dreamy side by side; collapsing it shows
 their current values in the same single-line readout as the Preview section.

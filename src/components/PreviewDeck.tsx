@@ -67,7 +67,7 @@ const PREVIEW_HINT = (
       ['renderer', 'Fast (native float math) or Precise (hardware-accurate fixed-point)'],
       ['speed', 'playback rate of the preview'],
       ['fps', 'live preview frame rate'],
-      ['elapsed', 'elapsed preview run time'],
+      ['elapsed', 'Pattern time elapsed, following the playback speed'],
       ['layout', 'map grid dimensions, e.g. 16×16 — grid-shaped maps only (squares, rectangles, cubes)'],
     ]}
   />

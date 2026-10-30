@@ -84,6 +84,32 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? expected.code : expected.fxCode)
     tick(16); finite()
   })
+  it('reports the time the Pattern experienced through live speed, bypass and catch-up', () => {
+    useEditorStore.setState({ previewSource: 'export var patternMs=0; export function beforeRender(d){patternMs+=d} export function render(i){rgb(1,0,0)}' })
+    render(<Preview showDeck={false} pixelCountCap={3} />)
+    const running = loop(), handle = config().handle
+    let previous = 0
+    for (const [position, delta] of [[0.5,64], [0,256], [1,64], [0.95,64], [0.93,64], [0.5,4096], [0.5,0]]) {
+      act(() => usePreviewStore.getState().setSlowMo({ position, dreamy: 1 }))
+      tick(delta)
+      const experienced = config().shim.decodeScalar(handle.getExports().patternMs as number)
+      expect(usePreviewStore.getState().elapsed).toBeCloseTo(experienced, 6)
+      if (position === 0.5 && delta === 64) expect(experienced).toBe(16)
+      if (delta === 4096) expect(experienced - previous).toBe(64)
+      expect(loop()).toBe(running)
+      previous = experienced
+    }
+    act(() => useEditorStore.setState({ previewSource: 'export function render(i){rgb(0,1,0)}' }))
+    expect(usePreviewStore.getState().elapsed).toBe(0)
+  })
+  it('reports ordinary Pattern time with the flag off', () => {
+    history.replaceState(null, '', location.pathname)
+    render(<Preview showDeck={false} pixelCountCap={3} />)
+    tick(64)
+    expect(usePreviewStore.getState().elapsed).toBe(64)
+    tick(0)
+    expect(usePreviewStore.getState().elapsed).toBe(64)
+  })
   it('keeps execution and elapsed time through both live sliders and reopens current Copy initializers', () => {
     const fixture = 'export var patternMs=0; export function beforeRender(d){patternMs+=d} export function render(i){rgb(patternMs/4096,0,0)}'
     useEditorStore.setState({ previewSource: fixture })
@@ -194,6 +220,7 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     const elapsed = config().clock.getTime()
     tick(16); finite()
     expect(config().clock.getTime()).toBe(elapsed + 16)
+    expect(usePreviewStore.getState().elapsed).toBe(elapsed + 16)
     if (reason === 'no-renderer') expect(pixels()[0]).toEqual([0, 0, 0])
     if (reason === 'shadowed-builtin' || reason === 'reserved-prefix' || reason === 'array-budget') expect(pixels()[0]).toEqual([1, 0, 0])
   })

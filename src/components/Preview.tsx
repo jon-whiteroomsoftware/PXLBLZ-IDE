@@ -20,6 +20,7 @@ import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
 import { SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
 import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { createSlowMoDraft } from '@/engine/slowMoDraft'
+import { createSlowMoElapsed, SLOW_MO_CLOCK_VAR } from '@/engine/slowMoElapsed'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
@@ -259,6 +260,7 @@ export function Preview({
     const recipe = slowMoPreviewRecipe(settings, pixelCount)
     const artifact = recipe.length ? bundleWithPasses(previewSource, libraries, recipe) : bundled
     const { code, fxCode, metadata } = artifact
+    const wrapped = recipe.length > 0 && !artifact.summary.passes.some(pass => pass.declined)
     const renderCompatibility = selectRenderCompatibility(layout.mapDim, metadata.renderFns)
     // Split the draw channel back into the prior locals so the renderer wiring
     // below is unchanged: the 3D channel carries positions + (solid-eligible)
@@ -291,12 +293,17 @@ export function Preview({
 
     let handle: ReturnType<typeof loadPattern>
     try {
-      handle = loadPattern(fidelity === 'fast' ? code : fxCode, metadata, shim.builtins)
+      // Read the wrapper clock through the browser-only runtime seam. Keep
+      // authored watchers and the emitted artifact metadata unchanged.
+      const runtimeMetadata = wrapped ? {
+        ...metadata, runtimeVars: [...(metadata.runtimeVars ?? metadata.patternVars), SLOW_MO_CLOCK_VAR],
+      } : metadata
+      handle = loadPattern(fidelity === 'fast' ? code : fxCode, runtimeMetadata, shim.builtins)
       handleRef.current = handle
       executionRef.current = {
         source: previewSource, libraries, pixelCount, base: bundled, artifact,
         settingsKey: slowMoEnabled() ? JSON.stringify(settings) : '',
-        wrapped: recipe.length > 0 && !artifact.summary.passes.some(pass => pass.declined),
+        wrapped,
       }
       publishSlowMoArtifact(artifact)
       useEditorStore.getState().setPatternVars(metadata.patternVars)
@@ -384,6 +391,7 @@ export function Preview({
       captureRef.current.afterPaint(canvasRef.current)
     }
 
+    const slowMoElapsed = createSlowMoElapsed()
     const loop = createRenderLoop({
       handle, shim, clock,
       mapPoints, pixelCount,
@@ -407,7 +415,10 @@ export function Preview({
       onFrame: (_delta, _builtins, elapsedMs) => {
         // Telemetry is unconditional (#150): publish elapsed every frame so the
         // readout's elapsed cell always tracks, independent of variable watching.
-        usePreviewStore.getState().setElapsed(elapsedMs)
+        const patternElapsed = wrapped
+          ? slowMoElapsed(shim.decodeScalar(handle.getRuntimeState()[SLOW_MO_CLOCK_VAR] as number))
+          : elapsedMs
+        usePreviewStore.getState().setElapsed(patternElapsed)
         if (!usePreviewStore.getState().watchPatternVars) return
         // Watched values live in the pattern's numeric domain (raw int32 in
         // fidelity mode); decode scalars and array elements to the float UI

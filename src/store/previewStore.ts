@@ -45,8 +45,8 @@ interface PreviewState {
   watchPatternVars: boolean
   watchValues: Record<string, unknown>
   fps: number | null
-  // Pattern elapsed time (ms), updated every frame so the readout's `elapsed` cell
-  // is unconditional (#150). null while paused/not yet measured. Never persisted.
+  // Time experienced by the Pattern (ms), including the Slow-Mo clock when
+  // wrapped. Updated every frame, independent of watchers (#150). Never persisted.
   elapsed: number | null
   toggle: () => void
   setRunning: (isRunning: boolean) => void
@@ -88,7 +88,7 @@ export const previewInitialState = {
   // Smoothed frames-per-second readout; null while paused/not yet measured.
   // Transient session state — never persisted.
   fps: null as number | null,
-  // Pattern elapsed time (ms); null while paused/not yet measured. Never persisted.
+  // Pattern elapsed time (ms); null before the first frame. Never persisted.
   elapsed: null as number | null,
 }
 

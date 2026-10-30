@@ -256,6 +256,12 @@ describe('PreviewDeck (smoke)', () => {
     ).toBeInTheDocument()
   })
 
+  it('describes elapsed as Pattern time in the Preview hint', () => {
+    render(<PreviewDeck />)
+    fireEvent.focus(screen.getByRole('button', { name: 'About the Preview section' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('elapsed — Pattern time elapsed, following the playback speed')
+  })
+
   it('collapses Pixelblaze and Preview independently while their info buttons stay independent', () => {
     render(<PreviewDeck />)
 
