@@ -1,14 +1,9 @@
 import type { BindingStore, ProgramLabelStore } from './controllerBinding'
 import type { ControllerPushRecords } from './controllerPushRecord'
-import {
-  readControllerPatternImportLedger, withControllerPatternImport,
-  type ControllerPatternImportLedger, type ControllerPatternImportReceipt,
-} from './controllerPatternImport'
 
 export const CONTROLLER_BINDINGS_METADATA_KEY = 'controller-bindings'
 export const CONTROLLER_PROGRAM_LABELS_METADATA_KEY = 'controller-program-labels'
 export const CONTROLLER_PUSH_RECORDS_METADATA_KEY = 'controller-push-records'
-export const CONTROLLER_PATTERN_IMPORTS_METADATA_KEY = 'controller-pattern-imports'
 
 export type ControllerMetadataStorageMode = 'remote-api'
 
@@ -20,9 +15,6 @@ export interface ControllerMetadataStorage {
   setProgramLabels(labels: ProgramLabelStore): Promise<void>
   getPushRecords(): Promise<ControllerPushRecords>
   setPushRecords(records: ControllerPushRecords): Promise<void>
-  getPatternImports?(): Promise<ControllerPatternImportLedger>
-  /** Wire port; product mutations must use mutateControllerPatternImport. */
-  setPatternImports?(value: ControllerPatternImportLedger): Promise<void>
 }
 
 export const demoControllerMetadataStorage: ControllerMetadataStorage = {
@@ -33,8 +25,6 @@ export const demoControllerMetadataStorage: ControllerMetadataStorage = {
   setProgramLabels: async () => {},
   getPushRecords: async () => ({}),
   setPushRecords: async () => {},
-  getPatternImports: async () => { throw new Error('Sign in required for Controller import storage') },
-  setPatternImports: async () => { throw new Error('Sign in required for Controller import storage') },
 }
 
 export interface RemoteControllerMetadataStorageOptions {
@@ -77,16 +67,6 @@ export function createRemoteControllerMetadataStorage(
       CONTROLLER_PUSH_RECORDS_METADATA_KEY,
       records,
     ),
-    getPatternImports: async () => {
-      const body = await requestJson<{ value?: unknown }>(fetcher,
-        `/api/controller-metadata/${CONTROLLER_PATTERN_IMPORTS_METADATA_KEY}`)
-      return readControllerPatternImportLedger(body.value)
-    },
-    setPatternImports: async (value) => {
-      if (value === undefined) throw new Error('Controller import metadata is unreadable. No Pattern was sent.')
-      const ledger = readControllerPatternImportLedger(value)
-      await setControllerMetadata(fetcher, CONTROLLER_PATTERN_IMPORTS_METADATA_KEY, ledger)
-    },
   }
 }
 
@@ -150,52 +130,6 @@ export function getControllerBindings(): Promise<BindingStore> {
   return activeStorage.getControllerBindings()
 }
 
-function importPorts(storage: ControllerMetadataStorage) {
-  if (storage.id === 'demo') throw new Error('Sign in required for Controller import storage')
-  if (!storage.getPatternImports || !storage.setPatternImports) throw new Error('Controller import storage is unavailable')
-  return { get: () => storage.getPatternImports!(), set: (value: ControllerPatternImportLedger) => storage.setPatternImports!(value) }
-}
-
-export async function getControllerPatternImports(): Promise<ControllerPatternImportLedger> {
-  return readControllerPatternImportLedger(await importPorts(activeStorage).get())
-}
-
-// One client-wide owner, independent of physical Controller and adapter identity.
-let importMutationTail: Promise<void> = Promise.resolve()
-
-function orderedJson(value: unknown): string {
-  return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
-    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item)
-}
-
-export function mutateControllerPatternImport(
-  context: { storage: ControllerMetadataStorage; assertAccountSession: () => void },
-  patternId: string,
-  update: (current: ControllerPatternImportReceipt | null) => ControllerPatternImportReceipt,
-): Promise<ControllerPatternImportReceipt> {
-  const { storage, assertAccountSession } = context
-  const result = importMutationTail.then(async () => {
-    assertAccountSession()
-    const ports = importPorts(storage)
-    const latest = readControllerPatternImportLedger(await ports.get())
-    assertAccountSession()
-    // A separate copy prevents an updater from rewriting the immutable comparison witness.
-    const current = Object.prototype.hasOwnProperty.call(latest.byPatternId, patternId) ? latest.byPatternId[patternId] : null
-    const next = update(structuredClone(current))
-    if (!next || next.patternId !== patternId) throw new Error('Controller import metadata is unreadable. No Pattern was sent.')
-    const intended = withControllerPatternImport(latest, next)
-    assertAccountSession()
-    await ports.set(intended)
-    assertAccountSession()
-    const confirmed = readControllerPatternImportLedger(await ports.get())
-    assertAccountSession()
-    if (orderedJson(confirmed) !== orderedJson(intended)) throw new Error('Controller import metadata is unreadable. No Pattern was sent.')
-    return confirmed.byPatternId[patternId]
-  })
-  importMutationTail = result.then(() => undefined, () => undefined)
-  return result
-}
-
 export function setControllerBindings(bindings: BindingStore): Promise<void> {
   return activeStorage.setControllerBindings(bindings)
 }
@@ -221,11 +155,8 @@ export function subscribeControllerPushRecordsRevision(listener: () => void): ()
   return () => pushRecordsRevisionListeners.delete(listener)
 }
 
-export async function setPushRecords(
-  records: ControllerPushRecords,
-  storage: ControllerMetadataStorage = activeStorage,
-): Promise<void> {
-  await storage.setPushRecords(records)
+export async function setPushRecords(records: ControllerPushRecords): Promise<void> {
+  await activeStorage.setPushRecords(records)
   pushRecordsRevision += 1
   for (const listener of pushRecordsRevisionListeners) listener()
 }

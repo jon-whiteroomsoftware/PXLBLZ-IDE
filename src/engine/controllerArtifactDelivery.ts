@@ -12,7 +12,8 @@ export function artifactTransformIds(
 ): string[] {
   const ids = new Set<string>()
   for (const pass of passes) {
-    ids.add(pass.id.replace(/-(sample|drive)$/, ''))
+    if (pass.id.endsWith('-sample')) continue
+    ids.add(pass.id.endsWith('-drive') ? pass.id.slice(0, -'-drive'.length) : pass.id)
   }
   return [...ids]
 }

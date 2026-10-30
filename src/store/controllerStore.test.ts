@@ -32,22 +32,7 @@ import {
   resetControllerMetadataStorage,
   setControllerMetadataStorage,
   type ControllerMetadataStorage,
-  getControllerMetadataStorage,
-  getControllerPushRecordsRevision,
-  subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
-import { assessControllerPatternImport, controllerPatternImportPolicy, createControllerPatternImportPlan, readControllerPatternImportLedger,
-  type ControllerPatternImportLedger } from '@/engine/controllerPatternImport'
-import { importControllerPattern } from '@/engine/controllerPatternImportExecution'
-import { recoverSavedProgram } from '@/engine/controllerSavedProgramRead'
-import { encodePbp, decodePbp } from '@/engine/pbpEncode'
-import { makeProgramId } from '@/engine/bytecodePush'
-import { prepareControllerArtifactDelivery } from '@/engine/controllerArtifactDelivery'
-import { bundleWithPasses } from '@/engine/passEngine'
-import { loadPattern } from '@/engine/loadPattern'
-import { createShim } from '@/engine/shim'
-import { createPlaneMap } from '@/engine/maps'
-import type { PatternRecord } from '@/engine/personalContentRecords'
 import {
   demoPersonalContentProvider,
   resetPersonalContentProvider,
@@ -72,7 +57,7 @@ import {
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { isAlreadyPushed } from '@/engine/sendToController'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
-import { parsePxlblzBanner, stampArtifact } from '@/engine/artifactStamp'
+import { stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import {
@@ -219,15 +204,8 @@ class FakeProvider extends NullControllerProvider {
       : Promise.resolve()
   }
   saved: { blob: Uint8Array; opts: { id: string } }[] = []
-  rawPrograms = new Map<string, Uint8Array>()
-  readSavedProgram(id: string) {
-    const bytes = this.rawPrograms.get(id)
-    const recovered = bytes ? recoverSavedProgram(id, bytes) : null
-    return Promise.resolve(recovered?.ok ? recovered.value : null)
-  }
   saveProgram(blob: Uint8Array, opts: { id: string }): Promise<void> {
     this.saved.push({ blob, opts })
-    this.rawPrograms.set(opts.id, blob.slice())
     return Promise.resolve()
   }
 
@@ -256,11 +234,8 @@ function memoryControllerMetadataStorage(): ControllerMetadataStorage {
   let bindings = {}
   let labels = {}
   let pushRecords = {}
-  let imports: ControllerPatternImportLedger = readControllerPatternImportLedger(undefined)
   return {
     id: 'memory-test',
-    getPatternImports: async () => structuredClone(imports),
-    setPatternImports: async (next) => { imports = structuredClone(next) },
     getControllerBindings: async () => bindings,
     setControllerBindings: async (next) => {
       bindings = next
@@ -409,17 +384,6 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-async function storedArtifactPolicy(patternId: string) {
-  const programId = makeProgramId(() => 0)
-  const assessment = await assessControllerPatternImport({ programId, pbp: encodePbp({ id: programId,
-    name: 'Wrapped', sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: makeReconcilingBytecode() }) })
-  if (!assessment.ok) throw new Error(assessment.message)
-  const { receipt } = await createControllerPatternImportPlan({ assessment, programId, patternId,
-    controllerDeviceId: 'physical', now: 1, existingNames: [] })
-  return { version: 1 as const, byPatternId: { [patternId]: { ...receipt, stage: 'complete' as const,
-    deliveryDigest: receipt.origin.pbpDigest, writeBaselineDigest: receipt.origin.pbpDigest } } }
-}
-
 beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
@@ -454,217 +418,6 @@ afterEach(() => {
 const store = () => useControllerStore.getState()
 
 describe('controllerStore (keyed)', () => {
-  it.each([false, true])('publishes captured Pattern Save metadata after persistence, but not Run (generated=%s)', async (generated) => {
-    const provider = await connectManagedController()
-    const captured = getControllerMetadataStorage()
-    const entered = deferred<void>(); const release = deferred<void>()
-    setControllerMetadataStorage({ ...captured, setPushRecords: async (next) => {
-      entered.resolve()
-      await release.promise
-      await captured.setPushRecords(next)
-    } })
-    const source = 'export function render(i) { rgb(1,0,0) }'
-    usePatternStore.setState({ activePatternId: 'pat-1' })
-    useEditorStore.setState({ previewSource: source })
-    const send = (persist: boolean) => {
-      if (generated) return store().pushGeneratedArtifact({ artifactId: 'pat-1', source,
-        name: 'Pattern', persist, compilePressure: { budgetBytes: 1_000_000, worstInstantRenderersPerPixel: 1 },
-        artifactStamp: { kind: 'pattern', id: 'pat-1', name: 'Pattern' } })
-      store().setSaveArmed(persist)
-      return store().pushActivePattern()
-    }
-    const before = getControllerPushRecordsRevision()
-    const onRevision = vi.fn()
-    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
-    try {
-      await send(false)
-      expect(provider.pushed).toHaveLength(1)
-      expect(getControllerPushRecordsRevision()).toBe(before)
-      expect(onRevision).not.toHaveBeenCalled()
-      const saving = send(true)
-      await entered.promise
-      expect(getControllerPushRecordsRevision()).toBe(before)
-      expect(onRevision).not.toHaveBeenCalled()
-      release.resolve()
-      await saving
-      expect(provider.saved).toHaveLength(1)
-      expect((await captured.getPushRecords())['10.0.0.5']['pat-1']).toMatchObject({
-        profileSignature: expect.any(String), artifactHash: expect.any(String),
-      })
-      expect(getControllerPushRecordsRevision()).toBe(before + 1)
-      expect(onRevision).toHaveBeenCalledTimes(1)
-    } finally { unsubscribe() }
-  })
-
-  it.each([false, true])('rejects deferred Pattern policy changes (generated=%s)', async (generated) => {
-    const provider = await connectManagedController()
-    const metadata = getControllerMetadataStorage()
-    const replacement = await storedArtifactPolicy('pat-1')
-    const entered = deferred<void>(); const release = deferred<void>()
-    let reads = 0
-    setControllerMetadataStorage({ ...metadata, getPatternImports: async () => {
-      if (++reads === 2) { entered.resolve(); await release.promise; return replacement }
-      return metadata.getPatternImports!()
-    } })
-    usePatternStore.setState({ activePatternId: 'pat-1' })
-    useEditorStore.setState({ previewSource: 'export function render(i) { rgb(1,0,0) }' })
-    const sending = generated ? store().pushGeneratedArtifact({ artifactId: 'pat-1', source: 'export function render(i) { rgb(1,0,0) }',
-      name: 'Pattern', persist: true, compilePressure: { budgetBytes: 1_000_000, worstInstantRenderersPerPixel: 1 },
-      artifactStamp: { kind: 'pattern', id: 'pat-1', name: 'Pattern' } }) : store().pushActivePattern()
-    await entered.promise; release.resolve(); await sending
-    expect(store().artifactPushResult).toMatchObject({ ok: false, message: expect.stringContaining('policy changed') })
-    expect(provider.saved).toEqual([])
-    expect(provider.pushed).toEqual([])
-  })
-
-  it.each(['unsupported', 'rejected', 'profile-load'])('fails closed on %s policy/profile storage', async (kind) => {
-    const provider = await connectManagedController()
-    const metadata = getControllerMetadataStorage()
-    if (kind === 'unsupported') setControllerMetadataStorage({ ...metadata, getPatternImports: undefined })
-    if (kind === 'rejected') setControllerMetadataStorage({ ...metadata, getPatternImports: async () => { throw new Error('policy GET failed') } })
-    if (kind === 'profile-load') setPersonalContentProvider({ ...demoPersonalContentProvider,
-      listControllerProfiles: async () => { throw new Error('profile GET failed') } })
-    usePatternStore.setState({ activePatternId: 'pat-1' })
-    useEditorStore.setState({ previewSource: 'export function render(i) { rgb(1,0,0) }' })
-    await store().pushActivePattern()
-    expect(store().artifactPushResult).toMatchObject({ ok: false })
-    expect(provider.saved).toEqual([]); expect(provider.pushed).toEqual([])
-    if (kind !== 'profile-load') await expect(store().reconcileControllerProfile('missing')).resolves.toBeUndefined()
-  })
-
-  it.each(['adapters', 'profile'])('rejects a %s change while Pattern compilation is pending', async (kind) => {
-    const provider = await connectManagedController()
-    const profile = defaultControllerProfile({ id: 'profile-1', deviceId: 'pixelblaze_pb32_managed', now: 1 })
-    setControllerProfiles([profile]); useControllerProfileStore.setState({ profiles: [profile] })
-    const entered = deferred<void>(); const release = deferred<Uint8Array>()
-    provider.compile = async () => { entered.resolve(); return release.promise }
-    usePatternStore.setState({ activePatternId: 'pat-1' })
-    useEditorStore.setState({ previewSource: 'export function render(i) { rgb(1,0,0) }' })
-    const sending = store().pushActivePattern(); await entered.promise
-    if (kind === 'adapters') setControllerMetadataStorage({ ...getControllerMetadataStorage() })
-    else useControllerProfileStore.setState({ profiles: [{ ...profile, globalTransforms: profile.globalTransforms.map((t) =>
-      t.type === 'power-cap' ? { ...t, enabled: true, maxDuty: 0.25 } : t) }] })
-    release.resolve(makeReconcilingBytecode()); await sending
-    expect(store().artifactPushResult).toMatchObject({ ok: false })
-    expect(provider.saved).toEqual([]); expect(provider.pushed).toEqual([])
-  })
-
-  it.each([false, true])('rechecks policy in queued reconciliation (GET rejection=%s)', async (reject) => {
-    const profile = { ...defaultControllerProfile({ id: 'profile-1', deviceId: 'pixelblaze_pb32_managed', now: 1 }),
-      keepPatternsUpToDate: true }
-    setControllerProfiles([profile])
-    const provider = await connectManagedController()
-    provider.programs = [{ id: 'MANAGED', name: 'Peer' }]
-    usePatternStore.setState({ userPatterns: [{ id: 'pat-1', name: 'Peer', src: 'export function render(i) { rgb(1,0,0) }',
-      controls: {}, updatedAt: 1 }] })
-    await setControllerBindings({ '10.0.0.5': { 'pat-1': 'MANAGED' } })
-    await setPushRecords({ '10.0.0.5': { 'pat-1': { transforms: [], artifactHash: 'hash', stampedAt: 'time', name: 'Peer' } } })
-    const metadata = getControllerMetadataStorage(); const excluded = await storedArtifactPolicy('pat-1')
-    let reads = 0
-    setControllerMetadataStorage({ ...metadata, getPatternImports: async () => {
-      if (++reads === 2) {
-        if (reject) throw new Error('policy GET failed')
-        return excluded
-      }
-      return metadata.getPatternImports!()
-    } })
-    await store().reconcileControllerProfile(profile.id)
-    expect(provider.saved).toEqual([])
-    expect(store().controllerReconciliations[profile.id]).toMatchObject({ phase: 'attention', completedCount: 0 })
-  })
-
-  it.each([
-    ...[false, true].flatMap((generated) => [false, true].map((persist) => ({ generated, persist, callerToken: false }))),
-    { generated: true, persist: true, callerToken: true },
-  ])('keeps wrapped behavior through import and edited later send ($generated/$persist/$callerToken)', async ({ generated, persist, callerToken }) => {
-    const provider = await connectManagedController()
-    const slot = makeProgramId(() => 0)
-    const originalSource = 'export function render(i) { rgb(0.8, 0.4, 0.2) }'
-    const profile = defaultControllerProfile({ id: 'profile-1', deviceId: 'pixelblaze_pb32_managed', now: 1 })
-    profile.inputs = [{ id: 'pot', name: 'Pot', pin: 36, signal: 'analog', smoothing: 1, fallback: 0.5, invert: false }]
-    profile.globalTransforms = profile.globalTransforms.map((t) => t.type === 'hardware-brightness'
-      ? { ...t, enabled: true, inputId: 'pot' } : t)
-    const old = prepareControllerArtifactDelivery({ source: originalSource, profile, artifactId: 'sender' })
-    provider.rawPrograms.set(slot, encodePbp({ id: slot, name: 'Original', sourceCode: old.source, byteCode: makeReconcilingBytecode() }))
-    const durable = new Map<string, PatternRecord>()
-    const personal = { ...demoPersonalContentProvider, id: 'account', listPatterns: async () => structuredClone([...durable.values()]),
-      createPattern: async (record: PatternRecord) => { durable.set(record.id, structuredClone(record)) },
-      listControllerProfiles: async () => [profile] }
-    setPersonalContentProvider(personal)
-    const metadata = getControllerMetadataStorage()
-    await importControllerPattern({ programId: slot, controllerDeviceId: 'pixelblaze_pb32_managed' }, {
-      provider, controllerId: '10.0.0.5', metadataStorage: metadata, personalContent: personal,
-      assertCurrent: () => {}, resolveKnownSource: async () => undefined, waitForProfileWrites: async () => {},
-      loadProfile: async () => { throw new Error('wrapped import must not load a profile') }, assertProfileCurrent: () => {},
-      libraries: {}, mapDim: 2, allocatePatternId: () => 'imported', now: () => 1,
-    })
-    // Reopen policy via another adapter, edit every ordinary account field, and
-    // hydrate the real editor path. No initial-digest gate belongs on later Save.
-    setControllerMetadataStorage({ ...metadata })
-    const reopened = (await personal.listPatterns())[0]
-    const edited = { ...reopened, name: 'Edited', src: reopened.src.replace('0.8, 0.4, 0.2', '0.4, 0.2, 0.1'),
-      controls: { slider: 0.3 }, settings: { brightness: 0.8 }, updatedAt: 99 }
-    durable.set(edited.id, edited)
-    profile.inputs = profile.inputs.map((p) => ({ ...p, pin: 35 }))
-    profile.keepPatternsUpToDate = true
-    useControllerProfileStore.setState({ profiles: [profile] })
-    usePatternStore.setState({ activePatternId: edited.id, userPatterns: [edited] })
-    useEditorStore.setState({ previewSource: edited.src, previewPatternName: edited.name })
-    provider.programs = [{ id: slot, name: 'Original' }]
-    const unusedProfileLoad = vi.spyOn(personal, 'listControllerProfiles').mockRejectedValue(new Error('unused importing profile'))
-    if (generated) await store().pushGeneratedArtifact({ artifactId: edited.id, source: edited.src, name: edited.name,
-      persist, compilePressure: { budgetBytes: 1_000_000, worstInstantRenderersPerPixel: 1 },
-      artifactStamp: { kind: 'pattern', id: edited.id, name: edited.name,
-        transforms: callerToken ? ['caller-transform', 'stored-artifact'] : ['caller-transform'] } })
-    else { store().setSaveArmed(persist); await store().pushActivePattern() }
-    expect(store().artifactPushResult).toMatchObject({ ok: true })
-    const state = store()
-    const args = { mode: persist ? 'save' as const : 'run' as const, source: edited.src,
-      lastRunSource: state.lastPushedSource['10.0.0.5']?.[edited.id],
-      lastSavedSource: state.lastSavedSource['10.0.0.5']?.[edited.id],
-      lastRunProfileSignature: state.lastPushedProfileSignature['10.0.0.5']?.[edited.id],
-      lastSavedProfileSignature: state.lastSavedProfileSignature['10.0.0.5']?.[edited.id],
-      lastRunProgramId: state.lastRunProgramId['10.0.0.5']?.[edited.id],
-      profileSignature: controllerProfileArtifactSignature(profile, edited.id, { mapDim: 2 }) }
-    expect(isAlreadyPushed(args)).toBe(true)
-    expect(isAlreadyPushed({ ...args, profileSignature: controllerProfileArtifactSignature(profile, edited.id, { mapDim: 3 }) })).toBe(true)
-    expect(isAlreadyPushed({ ...args, source: `${edited.src}\n// edit` })).toBe(false)
-    expect(isAlreadyPushed({ ...args, mode: persist ? 'run' : 'save' })).toBe(false)
-    expect(isAlreadyPushed({ ...args, activeProgramId: 'other' })).toBe(persist)
-    if (persist) expect(provider.saved[provider.saved.length - 1].opts.id).toBe(slot)
-    const deliveredSource = persist ? decodePbp(provider.rawPrograms.get(slot)!)!.sourceCode
-      : provider.compiledSources[provider.compiledSources.length - 1]
-    if (persist) {
-      const saved = provider.rawPrograms.get(slot)!
-      const before = saved.slice()
-      expect(parsePxlblzBanner(deliveredSource)?.transforms).toEqual(generated
-        ? ['caller-transform', 'stored-artifact'] : ['stored-artifact'])
-      const assessment = await assessControllerPatternImport({ programId: slot, pbp: saved })
-      expect(assessment).toMatchObject({ ok: true, sourceMode: 'stored-artifact', source: deliveredSource })
-      if (!assessment.ok) throw new Error(assessment.message)
-      const { receipt } = await createControllerPatternImportPlan({ assessment, patternId: 'cross-account',
-        controllerDeviceId: 'another-controller', programId: slot, now: 100, existingNames: [] })
-      expect(controllerPatternImportPolicy({ version: 1, byPatternId: { 'cross-account': receipt } }, 'cross-account'))
-        .toMatchObject({ applyProfile: false })
-      expect(saved).toEqual(before)
-    }
-    const bundled = bundleWithPasses(deliveredSource, {}, [])
-    const shim = createShim({ mapPoints: createPlaneMap({ rows: 1, cols: 1 }).resolve(1), pixelCount: 1,
-      dimensions: 1, getVirtualTime: () => 0 })
-    const pins: number[] = []
-    const loaded = loadPattern(bundled.code, bundled.metadata, { ...shim.builtins,
-      analogRead: (pin: number) => { pins.push(pin); return pin === 36 ? 0.5 : 0.25 } })
-    loaded.beforeRender(16); loaded.render(0)
-    expect(shim.capturedPixel()).toEqual([0.2, 0.1, 0.05])
-    expect(pins).toEqual([36])
-    expect((await getPushRecords())['10.0.0.5']?.[edited.id]?.profileSignature).toBeUndefined()
-    expect(unusedProfileLoad).not.toHaveBeenCalled()
-    unusedProfileLoad.mockRestore()
-    const saves = provider.saved.length
-    await store().reconcileControllerProfile(profile.id)
-    expect(provider.saved).toHaveLength(saves)
-    expect(store().controllerReconciliations[profile.id].unmanagedCount).toBe(1)
-  })
   it('renames a matching live Controller device-first, confirms it, then persists device truth', async () => {
     const profile = defaultControllerProfile({
       id: 'profile-rename',
@@ -815,66 +568,6 @@ describe('controllerStore (keyed)', () => {
     expect(created.get('10.0.0.5')!.nameCommands).toEqual([])
   })
 
-  it.each(['disconnected', 'map', 'epoch', 'personal', 'metadata', 'profile', 'read-session', 'read-reject', 'initial-reject'])(
-    'finishes reconciliation after captured input invalidation (%s)', async (fault) => {
-      const profile = { ...defaultControllerProfile({ id: 'profile-1', deviceId: 'pixelblaze_pb32_managed', ip: '10.0.0.5' }), keepPatternsUpToDate: true }
-      const readEntered = deferred<void>(), readRelease = deferred<ControllerProfile[]>()
-      let reads = 0
-      const personal = { ...demoPersonalContentProvider, id: 'captured', listControllerProfiles: vi.fn(async () => {
-        reads++
-        if (fault === 'initial-reject' || (fault === 'read-reject' && reads === 2)) throw new Error('profile unavailable')
-        if (fault === 'read-session' && reads === 2) { readEntered.resolve(); return readRelease.promise }
-        return [profile]
-      }) }
-      setPersonalContentProvider(personal)
-      useControllerProfileStore.setState({ profiles: [profile] })
-      usePatternStore.setState({ patternsLoaded: true, userPatterns: ['a', 'b'].map((id) => ({ id, name: id,
-        src: 'export function render(i) { rgb(1,0,0) }', controls: {}, updatedAt: 1 })) })
-      await setControllerBindings({ '10.0.0.5': { a: 'SAVED_A', b: 'SAVED_B' } })
-      await setPushRecords({ '10.0.0.5': Object.fromEntries(['a', 'b'].map((id) => [id, {
-        transforms: [], profileSignature: 'old', artifactHash: 'old', stampedAt: 'old', name: id }])) })
-      const provider = await connectManagedController()
-      provider.programs = ['SAVED_A', 'SAVED_B', 'FOREIGN'].map((id) => ({ id, name: id }))
-      for (const { id, name } of provider.programs) provider.rawPrograms.set(id, encodePbp({ id, name,
-        sourceCode: 'export function render(i) { rgb(0,1,0) }', byteCode: makeReconcilingBytecode() }))
-      reads = 0
-      const beforePrograms = structuredClone(provider.programs)
-      const bytesSnapshot = () => [...provider.rawPrograms].map(([id, bytes]) => [id, Array.from(bytes)])
-      const beforeBytes = bytesSnapshot()
-      const beforeBindings = await getControllerBindings()
-      const beforeRecords = await getPushRecords()
-      const entered = deferred<void>(), release = deferred<Uint8Array>()
-      const compile = vi.spyOn(provider, 'compile').mockImplementation(async () => { entered.resolve(); return release.promise })
-      const replacementWrite = vi.fn()
-      const pending = store().reconcileControllerProfile(profile.id)
-      if (fault === 'read-session') {
-        await readEntered.promise
-        useControllerStore.setState((s) => ({ controllers: { ...s.controllers, '10.0.0.5': { ...s.controllers['10.0.0.5'], liveEpoch: 999 } } }))
-        readRelease.resolve([profile])
-        release.resolve(makeReconcilingBytecode())
-      } else if (!['read-reject', 'initial-reject'].includes(fault)) {
-        await entered.promise
-        if (fault === 'disconnected') provider.emit({ kind: 'extension-present' })
-        else if (fault === 'personal') setPersonalContentProvider({ ...personal, updatePattern: replacementWrite })
-        else if (fault === 'metadata') setControllerMetadataStorage({ ...getControllerMetadataStorage(), setPushRecords: replacementWrite })
-        else if (fault === 'profile') useControllerProfileStore.setState({ profiles: [{ ...profile, inputs: [{ id: 'new', name: 'New', pin: 35, signal: 'analog', smoothing: 1, fallback: 0.5, invert: false }] }] })
-        else useControllerStore.setState((s) => ({ controllers: { ...s.controllers, '10.0.0.5': {
-          ...s.controllers['10.0.0.5'], ...(fault === 'map' ? { mapDim: 3 as const } : { liveEpoch: 999 }) } } }))
-        release.resolve(makeReconcilingBytecode())
-      }
-      await expect(pending).resolves.toBeUndefined()
-      expect(store().controllerReconciliations[profile.id].phase).toBe(fault === 'initial-reject' ? 'idle' : 'pending')
-      if (fault !== 'initial-reject') expect(store().controllerReconciliations[profile.id].programs.find((p) => p.programId === 'SAVED_B')).toMatchObject({ state: 'queued' })
-      expect(compile.mock.calls.length).toBe(['read-session', 'read-reject', 'initial-reject'].includes(fault) ? 0 : 1)
-      expect(provider.saved).toEqual([])
-      expect(provider.pushed).toEqual([])
-      expect(provider.programs).toEqual(beforePrograms)
-      expect(bytesSnapshot()).toEqual(beforeBytes)
-      expect(await getControllerBindings()).toEqual(beforeBindings)
-      expect(await getPushRecords()).toEqual(beforeRecords)
-      expect(replacementWrite).not.toHaveBeenCalled()
-    })
-
   it('reconciles only managed saved Patterns and never writes foreign programs', async () => {
     const profile = {
       ...defaultControllerProfile({
@@ -919,18 +612,7 @@ describe('controllerStore (keyed)', () => {
       { id: 'FOREIGN1', name: 'Someone else\'s Pattern' },
     ]
 
-    const inventory = structuredClone(provider.programs)
-    const before = getControllerPushRecordsRevision()
-    const onRevision = vi.fn()
-    const unsubscribe = subscribeControllerPushRecordsRevision(onRevision)
-    try {
-      await store().reconcileControllerProfile('profile-1')
-      expect((await getPushRecords())['10.0.0.5']['pat-1'].profileSignature)
-        .toBe(controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: store().controllers['10.0.0.5'].mapDim ?? null }))
-      expect(provider.programs).toEqual(inventory)
-      expect(getControllerPushRecordsRevision()).toBe(before + 1)
-      expect(onRevision).toHaveBeenCalledTimes(1)
-    } finally { unsubscribe() }
+    await store().reconcileControllerProfile('profile-1')
 
     expect(provider.saved.map((write) => write.opts.id)).toEqual(['MANAGED1'])
     expect(provider.pushed).toEqual([])

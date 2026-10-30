@@ -278,10 +278,8 @@ export interface ControllerProvider {
    *  runs a pattern but persists nothing. `pbpBlob` is the encoded Pixelblaze Binary
    *  Pattern (header + name/jpeg/bytecode/source sections, see `encodePbp`); the
    *  backend frames it over `putSourceCode` (type 1) with the program `id`. Reuse the
-   *  bound id to overwrite a saved pattern in place, mint one to create. Resolves
-   *  only after the Controller reports successful Save completion on the same
-   *  socket after the final frame is submitted. Generic ack and local send do
-   *  not confirm Save. Failure, deadline, or connection loss rejects. */
+   *  bound id to overwrite a saved pattern in place, mint one to create. Resolves once
+   *  the frames are sent. */
   saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void>
 
   /** Switch to a program already saved on the Controller. Callers must explicitly

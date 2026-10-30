@@ -22,7 +22,6 @@ import type { BindingStore } from '@/engine/controllerBinding'
 import type { ControllerPushRecord, ControllerPushRecords } from '@/engine/controllerPushRecord'
 import {
   demoControllerMetadataStorage,
-  getControllerMetadataStorage,
   resetControllerMetadataStorage,
   setControllerMetadataStorage,
   setPushRecords,
@@ -61,11 +60,6 @@ import {
   queueControllerDeviceWrite,
 } from '@/engine/controllerDeviceWriteQueue'
 import { expectDisabledReason } from '@/components/ui/disabled-reason.testing'
-import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
-import { makeProgramId } from '@/engine/bytecodePush'
-import { assessControllerPatternImport, createControllerPatternImportPlan, type ControllerPatternImportLedger } from '@/engine/controllerPatternImport'
-import { encodePbp } from '@/engine/pbpEncode'
-import { recoverSavedProgram } from '@/engine/controllerSavedProgramRead'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -161,7 +155,6 @@ class ProgramListProvider extends MapReadbackProvider {
 }
 
 beforeEach(() => {
-  useWorkspaceStore.setState(workspaceInitialState)
   __resetControllerDeviceWriteQueue()
   window.history.replaceState(null, '', '/')
   useControllerProfileStore.setState(controllerProfileInitialState)
@@ -190,413 +183,6 @@ afterEach(() => {
   resetControllerProvider()
   resetControllerMetadataStorage()
   resetPersonalContentProvider()
-  useWorkspaceStore.setState(workspaceInitialState)
-})
-
-describe('single-item PXLBLZ Controller import', () => {
-  function batchImportFixture() {
-    const profile = seedProfile()
-    const slots = [0, 0.2, 0.4].map((random) => makeProgramId(() => random))
-    const names = ['Alpha', 'Beta', 'Gamma']
-    const account = new Map<string, PatternRecord>()
-    const createPattern = vi.fn(async (record: PatternRecord) => { account.set(record.id, structuredClone(record)) })
-    setPersonalContentProvider({ ...demoPersonalContentProvider, id: 'account', createPattern,
-      listPatterns: async () => [...account.values()], listControllerProfiles: async () => [profile] })
-    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
-    const fixture = { storageId: 'account', programs: [...slots.map((id, index) => ({ id, name: names[index] })),
-      { id: 'owned', name: 'Owned' }, { id: 'other', name: 'Other' }], bindings: { control: 'owned' }, pushRecords: {},
-    importLedger: { version: 1 as const, byPatternId: {} }, configSourceIp: '192.168.8.224', activeProgramId: 'other' }
-    const provider = renderLiveProgramInventory(profile, fixture)
-    const bytes = slots.map((id, index) => encodePbp({ id, name: names[index],
-      sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: new Uint8Array(8) }))
-    slots.forEach((id, index) => {
-      const recovered = recoverSavedProgram(id, bytes[index])
-      if (!recovered.ok) throw new Error(recovered.error.message)
-      provider.recoveredPrograms.set(id, recovered.value)
-    })
-    const read = vi.spyOn(provider, 'readSavedProgram')
-    const save = vi.spyOn(provider, 'saveProgram').mockImplementation(async (next, target) => {
-      expect(next).toEqual(bytes[slots.indexOf(target.id)])
-      const recovered = recoverSavedProgram(target.id, next)
-      if (recovered.ok) provider.recoveredPrograms.set(target.id, recovered.value)
-    })
-    vi.spyOn(provider, 'getActiveProgramBytecodeSize').mockResolvedValue(8)
-    const push = vi.spyOn(provider, 'pushBytecode').mockResolvedValue()
-    return { profile, slots, names, account, createPattern, fixture, provider, read, save, push }
-  }
-
-  async function openBatchImport() {
-    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Unimported PXLBLZ Patterns' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled())
-    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-  }
-
-  it('selects one group, preserves checks through telemetry, and permanently prunes missing members', async () => {
-    const { slots, provider } = batchImportFixture()
-    for (const [label, names] of [
-      ['Saved PXLBLZ Patterns', ['Owned']], ['Unimported PXLBLZ Patterns', ['Alpha', 'Beta', 'Gamma']],
-      ['Other Patterns', ['Other']], ['Unimported PXLBLZ Patterns', ['Alpha', 'Beta', 'Gamma']],
-    ] as const) {
-      fireEvent.click(await screen.findByRole('button', { name: `Select ${label}` }))
-      const checkboxes = screen.getAllByRole('checkbox', { name: /^Select / })
-      expect(checkboxes.every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true)
-      expect(checkboxes.map((checkbox) => checkbox.getAttribute('aria-label'))).toEqual([
-        `Select all ${label}`, ...names.map((name) => `Select ${name}`),
-      ])
-      if (label === 'Saved PXLBLZ Patterns') expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('checkbox', { name: `Select all ${label}` }))
-    }
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
-    act(() => useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] }))
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeEnabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent('Cannot delete: Running now — switch to another Pattern first')
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' }).closest('tr')).toHaveTextContent('Cannot delete: Waiting to confirm the running Pattern')
-    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
-    act(() => useControllerPanelStore.setState({ activeProgramId: slots[2], activatingProgramId: null }))
-    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
-    act(() => useControllerPanelStore.setState({ programsByController: {
-      '192.168.8.224': provider.programs.filter((entry) => entry.id !== slots[0]),
-    } }))
-    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Select Alpha' })).not.toBeInTheDocument())
-    act(() => useControllerPanelStore.setState({ programsByController: { '192.168.8.224': provider.programs } }))
-    expect(await screen.findByRole('checkbox', { name: 'Select Alpha' })).not.toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeChecked()
-  })
-
-  it.each(['running', 'pending', 'missing', 'renamed'] as const)('checks slot membership rather than %s telemetry before import dispatch', async (change) => {
-    const { slots, provider, read, createPattern, save } = batchImportFixture()
-    await openBatchImport()
-    act(() => {
-      if (change === 'running') useControllerPanelStore.setState({ activeProgramId: slots[0] })
-      if (change === 'pending') useControllerPanelStore.setState({ activatingProgramId: slots[0] })
-      if (change === 'missing' || change === 'renamed') useControllerPanelStore.setState({ programsByController: {
-        '192.168.8.224': provider.programs.flatMap((entry) => entry.id !== slots[0] ? [entry]
-          : change === 'missing' ? [] : [{ ...entry, name: 'Changed name' }]),
-      } })
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
-    expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
-    const refused = change === 'missing' || change === 'renamed'
-    if (refused) expect(screen.getByRole('alertdialog')).toHaveTextContent('Alpha: Controller session or selected Pattern changed')
-    expect(screen.getByRole('alertdialog')).toHaveTextContent(`${refused ? 2 : 3} imported`)
-    // The durable command reads each target at its five verification boundaries.
-    expect(read.mock.calls.map(([id]) => id)).toEqual((refused ? slots.slice(1) : slots).flatMap((id) => Array(5).fill(id)))
-    expect(createPattern).toHaveBeenCalledTimes(refused ? 2 : 3)
-    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(refused ? slots.slice(1) : slots)
-  })
-
-  it('retains every checked target while the real import command activates its first slot', async () => {
-    const { slots, account, read, save, push } = batchImportFixture()
-    const route = useRouterStore.getState().route
-    const subject = usePatternStore.getState().activePatternId
-    const hold = deferred<void>()
-    push.mockImplementationOnce(async () => {
-      useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] })
-      await hold.promise
-    })
-    await openBatchImport()
-    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
-    await waitFor(() => expect(push).toHaveBeenCalledTimes(1))
-    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
-    for (const name of ['Alpha', 'Beta', 'Gamma']) {
-      expect(screen.getByRole('checkbox', { name: `Select ${name}`, hidden: true })).toBeChecked()
-      expect(screen.getByRole('checkbox', { name: `Select ${name}`, hidden: true })).toBeDisabled()
-    }
-    await act(async () => { useControllerPanelStore.setState({ activatingProgramId: null }); hold.resolve() })
-    expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('3 imported')
-    expect(read.mock.calls.map(([id]) => id)).toEqual(slots.flatMap((id) => Array(5).fill(id)))
-    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(slots)
-    expect(account.size).toBe(3)
-    expect(push).toHaveBeenCalledTimes(3)
-    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
-    expect(useRouterStore.getState().route).toEqual(route)
-    expect(usePatternStore.getState().activePatternId).toEqual(subject)
-  })
-
-  it('uses queued bulk Delete for only selected Unimported slots', async () => {
-    const { slots, provider, read, account } = batchImportFixture()
-    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Unimported PXLBLZ Patterns' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(within(screen.getByRole('alertdialog')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Alpha', 'Beta', 'Gamma'])
-    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(provider.deletedProgramIds).toEqual(slots)
-    expect(provider.programs).toEqual([{ id: 'owned', name: 'Owned' }, { id: 'other', name: 'Other' }])
-    expect(read).not.toHaveBeenCalled()
-    expect(account.size).toBe(0)
-    expect(provider.bindings['192.168.8.224'].control).toBe('owned')
-  })
-
-  it('filters only Delete targets while active and pending rows remain checked', async () => {
-    const { slots, provider } = batchImportFixture()
-    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
-    provider.activeProgramId = slots[0]
-    act(() => useControllerPanelStore.setState({ activeProgramId: slots[0], activatingProgramId: slots[1] }))
-    fireEvent.click(screen.getByRole('checkbox', { name: /Select all/ }))
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
-    act(() => useControllerPanelStore.setState({ activatingProgramId: null }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(within(screen.getByRole('alertdialog')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Beta', 'Gamma'])
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha', hidden: true })).toBeChecked()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete 2 from Controller' }))
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(provider.deletedProgramIds).toEqual(slots.slice(1))
-  })
-
-  it.each(['active', 'unknown'] as const)('permits selection but blocks Delete with %s evidence', async (evidence) => {
-    const { slots, provider } = batchImportFixture()
-    fireEvent.click(await screen.findByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
-    act(() => useControllerPanelStore.setState({ activeProgramId: evidence === 'active' ? slots[0] : undefined }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent(
-      `Cannot delete: ${evidence === 'active' ? 'Running now — switch to another Pattern first' : 'Waiting to confirm the running Pattern'}`,
-    )
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(provider.deletedProgramIds).toEqual([])
-  })
-
-  it('confirms once, retains durable mixed results across regrouping, and retries only the same failed destination', async () => {
-    const { slots, account, createPattern, fixture, provider, read, save, push } = batchImportFixture()
-    const route = useRouterStore.getState().route
-    const subject = usePatternStore.getState().activePatternId
-    const storage = getControllerMetadataStorage()
-    const persist = storage.setPatternImports!
-    let failCompletion = true
-    vi.spyOn(storage, 'setPatternImports').mockImplementation(async (ledger) => {
-      if (failCompletion && Object.values(ledger.byPatternId).some((r) => r.programId === slots[1] && r.stage === 'complete')) throw new Error('Synthetic completion failure')
-      await persist(ledger)
-    })
-    await openBatchImport()
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('Import 3 PXLBLZ Patterns?')
-    expect(within(screen.getByRole('alertdialog')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Alpha', 'Beta', 'Gamma'])
-    expect(read).not.toHaveBeenCalled()
-    expect(createPattern).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(save).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    const hold = deferred<void>()
-    const originalRead = (id: string) => ProgramListProvider.prototype.readSavedProgram.call(provider, id)
-    read.mockImplementationOnce(async (id) => { await hold.promise; return originalRead(id) })
-    const confirm = screen.getByRole('button', { name: 'Import and save' })
-    fireEvent.click(confirm)
-    fireEvent.click(confirm)
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
-    expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    await act(async () => { hold.resolve() })
-    expect(await screen.findByRole('heading', { name: 'Import results' })).toBeInTheDocument()
-    expect(screen.getByRole('alertdialog')).toHaveTextContent('2 imported')
-    expect(screen.getByText('Alpha: Import completed.')).toBeInTheDocument()
-    expect(screen.getByText('Gamma: Import completed.')).toBeInTheDocument()
-    expect(screen.queryByText('Beta: Import completed.')).not.toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Beta: Controller binding saved; import bookkeeping is incomplete. Retry finishes this import. Synthetic completion failure Imported Pattern is running.')
-    expect(account.size).toBe(3)
-    expect(createPattern).toHaveBeenCalledTimes(3)
-    expect(save.mock.calls.map(([, target]) => target.id)).toEqual(slots)
-    expect(push).toHaveBeenCalledTimes(3)
-    const ledger = fixture.importLedger as ControllerPatternImportLedger
-    const beta = Object.values(ledger.byPatternId).find((r) => r.programId === slots[1])!
-    expect(beta.stage).toBe('metadata-pending')
-    expect(provider.bindings['192.168.8.224'][beta.patternId]).toBe(slots[1])
-    await waitFor(() => expect(document.querySelector('table[aria-label="Saved PXLBLZ Patterns"]')).toHaveTextContent('Beta'))
-    expect(provider.programs).toEqual(fixture.programs)
-    expect(provider.bindings['192.168.8.224'].control).toBe('owned')
-    failCompletion = false
-    const readCount = read.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Retry failed' }))
-    await waitFor(() => expect(screen.getByRole('alertdialog')).toHaveTextContent('3 imported'))
-    for (const name of ['Alpha', 'Beta', 'Gamma']) expect(screen.getAllByText(`${name}: Import completed.`)).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Retry failed' })).not.toBeInTheDocument()
-    expect(account.size).toBe(3)
-    expect(createPattern).toHaveBeenCalledTimes(3)
-    expect(save).toHaveBeenCalledTimes(3)
-    expect(push).toHaveBeenCalledTimes(3)
-    const retryReads = read.mock.calls.slice(readCount).map(([id]) => id)
-    expect(retryReads.length).toBeGreaterThan(0)
-    expect(new Set(retryReads)).toEqual(new Set([slots[1]]))
-    expect((fixture.importLedger as ControllerPatternImportLedger).byPatternId[beta.patternId]).toMatchObject({ stage: 'complete', programId: slots[1] })
-    expect(Object.values((fixture.importLedger as ControllerPatternImportLedger).byPatternId).every((r) => r.stage === 'complete')).toBe(true)
-    expect(useRouterStore.getState().route).toEqual(route)
-    expect(usePatternStore.getState().activePatternId).toBe(subject)
-  })
-
-  it.each(['refresh', 'sync'] as const)('opens a completed single import despite rejected %s observation', async (observation) => {
-    const { fixture, slots, account, createPattern, save, push } = batchImportFixture()
-    const refresh = useControllerPanelStore.getState().refreshPrograms
-    const sync = useControllerSavedProgramsLiveStore.getState().syncProfile
-    const button = await screen.findByRole('button', { name: 'Import Alpha' })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
-    const complete = () => Object.values((fixture.importLedger as ControllerPatternImportLedger).byPatternId)
-      .some((receipt) => receipt.stage === 'complete')
-    let rejected = false
-    const rejectObservation = () => {
-      if (complete() && !rejected) { rejected = true; throw new Error('Observation failed') }
-    }
-    act(() => {
-      if (observation === 'refresh') useControllerPanelStore.setState({ refreshPrograms: async (...args) => {
-        rejectObservation(); return refresh(...args)
-      } })
-      else useControllerSavedProgramsLiveStore.setState({ syncProfile: async (...args) => {
-        rejectObservation(); return sync(...args)
-      } })
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(rejected).toBe(true)
-    const [record] = account.values()
-    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
-    expect((fixture.importLedger as ControllerPatternImportLedger).byPatternId[record.id]).toMatchObject({ stage: 'complete', programId: slots[0] })
-    expect(account.size).toBe(1)
-    expect(createPattern).toHaveBeenCalledTimes(1)
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(push).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-  })
-
-  it('retires a held batch with its account view before later targets read or mutate', async () => {
-    const { provider, read, createPattern, save } = batchImportFixture()
-    const hold = deferred<void>()
-    const originalRead = (id: string) => ProgramListProvider.prototype.readSavedProgram.call(provider, id)
-    read.mockImplementationOnce(async (id) => { await hold.promise; return originalRead(id) })
-    await openBatchImport()
-    fireEvent.click(screen.getByRole('button', { name: 'Import and save' }))
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
-    act(() => useWorkspaceStore.setState({ personalWorkspaceAuthenticated: false }))
-    await act(async () => { hold.resolve() })
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Select Other Patterns' })).toBeEnabled())
-    expect(read).toHaveBeenCalledTimes(1)
-    expect(createPattern).not.toHaveBeenCalled()
-    expect(save).not.toHaveBeenCalled()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(screen.queryByText('Import results')).not.toBeInTheDocument()
-  })
-  it('runs the real command from confirmation, merges once and reopens the new owned row', async () => {
-    const profile = seedProfile()
-    const slot = makeProgramId(() => 0)
-    const bytes = encodePbp({ id: slot, name: 'Wrapped', sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: new Uint8Array(8) })
-    const account = new Map<string, PatternRecord>()
-    const createPattern = vi.fn(async (record: PatternRecord) => { account.set(record.id, structuredClone(record)) })
-    setPersonalContentProvider({ ...demoPersonalContentProvider, id: 'account', createPattern,
-      listPatterns: async () => [...account.values()], listControllerProfiles: async () => [profile] })
-    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
-    const provider = renderLiveProgramInventory(profile, { storageId: 'account',
-      programs: [{ id: slot, name: 'Wrapped' }], bindings: {}, pushRecords: {},
-      importLedger: { version: 1, byPatternId: {} }, configSourceIp: '192.168.8.224', activeProgramId: 'elsewhere',
-    })
-    const recovered = recoverSavedProgram(slot, bytes)
-    if (!recovered.ok) throw new Error(recovered.error.message)
-    provider.recoveredPrograms.set(slot, recovered.value)
-    const save = vi.spyOn(provider, 'saveProgram').mockImplementation(async (next, target) => {
-      expect(target.id).toBe(slot)
-      expect(next).toEqual(bytes)
-      const value = recoverSavedProgram(slot, next)
-      if (value.ok) provider.recoveredPrograms.set(slot, value.value)
-    })
-    vi.spyOn(provider, 'getActiveProgramBytecodeSize').mockResolvedValue(8)
-    vi.spyOn(provider, 'pushBytecode').mockResolvedValue()
-    const button = await screen.findByRole('button', { name: 'Import Wrapped' })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
-    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Import and save' }))
-    await waitFor(() => expect(createPattern).toHaveBeenCalledTimes(1))
-    const record = createPattern.mock.calls[0][0]
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(usePatternStore.getState().userPatterns).toEqual([record])
-    expect(useRouterStore.getState().route).toEqual({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
-    expect(await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })).toHaveTextContent('Wrapped')
-    expect(screen.queryByRole('button', { name: 'Resume import Wrapped' })).not.toBeInTheDocument()
-  })
-  it('fails closed on optional import metadata without disabling inventory or ordinary Run', async () => {
-    const profile = seedProfile()
-    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
-    renderLiveProgramInventory(profile, { storageId: 'account',
-      programs: [{ id: makeProgramId(() => 0), name: 'Unimported' }, { id: 'owned', name: 'Owned' }, { id: 'foreign', name: 'Other' }],
-      bindings: { personal: 'owned' }, pushRecords: {}, configSourceIp: '192.168.8.224', activeProgramId: 'elsewhere',
-    })
-    expect(await screen.findByText('Controller import metadata could not be read. Refresh before importing.')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Import Unimported' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Run Owned on the Controller' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Run Other on the Controller' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Import Other' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Select Unimported PXLBLZ Patterns' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Unimported PXLBLZ Patterns' }))
-    expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Run Unimported on the Controller' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Import Other' })).toBeEnabled()
-  })
-  it('lists a third group without reading source, confirms before reading, and retries the same target', async () => {
-    const profile = seedProfile()
-    const slot = makeProgramId(() => 0)
-    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
-    setPersonalContentProvider({ ...demoPersonalContentProvider, id: 'account', listControllerProfiles: async () => [profile] })
-    const provider = renderLiveProgramInventory(profile, {
-      storageId: 'account', programs: [{ id: slot, name: 'Wrapped' }, { id: 'other', name: 'Other' }],
-      bindings: {}, pushRecords: {}, importLedger: { version: 1, byPatternId: {} },
-      configSourceIp: '192.168.8.224', activeProgramId: 'other',
-    })
-    const read = vi.spyOn(provider, 'readSavedProgram')
-    const table = await screen.findByRole('table', { name: 'Unimported PXLBLZ Patterns' })
-    expect(screen.getByRole('table', { name: 'Other Patterns' })).toHaveTextContent('Other')
-    expect(within(table).queryByRole('checkbox')).not.toBeInTheDocument()
-    expect(within(table).queryByText('Source Pattern unavailable')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Select Unimported PXLBLZ Patterns' })).toBeEnabled()
-    const button = within(table).getByRole('button', { name: 'Import Wrapped' })
-    await waitFor(() => expect(button).toBeEnabled())
-    fireEvent.click(button)
-    const dialog = screen.getByRole('alertdialog')
-    expect(within(dialog).getByRole('heading')).toHaveTextContent('Import PXLBLZ Pattern?')
-    expect(read).not.toHaveBeenCalled()
-    const held = deferred<RecoveredSavedProgram | null>()
-    read.mockReturnValueOnce(held.promise)
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Import and save' }))
-    await waitFor(() => expect(read).toHaveBeenCalledWith(slot))
-    expect(within(dialog).getByRole('button', { name: 'Importing…' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    await act(async () => { held.resolve(null) })
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Wrapped: Saved program could not be read. No Pattern was imported.')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Retry' }))
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(2))
-    expect(read.mock.calls.map(([id]) => id)).toEqual([slot, slot])
-    expect(await within(dialog).findByRole('button', { name: 'Retry' })).toBeEnabled()
-  })
-
-  it.each(['metadata-pending', 'complete'] as const)('reopens durable %s receipts with the correct Resume availability', async (stage) => {
-    const profile = seedProfile()
-    const slot = makeProgramId(() => 0)
-    const assessment = await assessControllerPatternImport({ programId: slot,
-      pbp: encodePbp({ id: slot, name: 'Imported', sourceCode: 'export function render(i) { rgb(1,0,0) }', byteCode: new Uint8Array(8) }) })
-    if (!assessment.ok) throw new Error(assessment.message)
-    const plan = await createControllerPatternImportPlan({ assessment, patternId: 'imported',
-      controllerDeviceId: 'pixelblaze_pb32_000000000abc', programId: slot, now: 1, existingNames: [] })
-    useWorkspaceStore.setState({ personalWorkspaceAuthenticated: true })
-    usePatternStore.setState({ userPatterns: [plan.record] })
-    const fixture = {
-      storageId: 'account', programs: [{ id: slot, name: 'Imported' }], bindings: { imported: slot }, pushRecords: {},
-      importLedger: { version: 1 as const, byPatternId: { imported: { ...plan.receipt, stage, deliveryDigest: plan.receipt.origin.pbpDigest } } },
-    }
-    renderLiveProgramInventory(profile, fixture)
-    await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
-    cleanup()
-    renderLiveProgramInventory(profile, fixture)
-    await screen.findByRole('table', { name: 'Saved PXLBLZ Patterns' })
-    await act(async () => {})
-    if (stage === 'complete') expect(screen.queryByRole('button', { name: 'Resume import Imported' })).not.toBeInTheDocument()
-    else {
-      const resume = await screen.findByRole('button', { name: 'Resume import Imported' })
-      fireEvent.click(resume)
-      expect(screen.getByRole('alertdialog')).toHaveTextContent('Import PXLBLZ Pattern?')
-    }
-  })
 })
 
 
@@ -635,7 +221,6 @@ function renderLiveProgramInventory(
     panelActiveProgramId?: string
     configSourceIp?: string | null
     configPromise?: Promise<ControllerConfig>
-    importLedger?: ControllerPatternImportLedger
   },
 ) {
   const provider = new ProgramListProvider()
@@ -647,10 +232,6 @@ function renderLiveProgramInventory(
   setControllerMetadataStorage({
     ...demoControllerMetadataStorage,
     id: fixture.storageId,
-    ...(fixture.importLedger ? {
-      getPatternImports: async () => structuredClone(fixture.importLedger!),
-      setPatternImports: async (next: ControllerPatternImportLedger) => { fixture.importLedger = structuredClone(next) },
-    } : {}),
     getControllerBindings: async () => provider.bindings,
     setControllerBindings: async (next) => {
       provider.bindingWrites += 1
@@ -718,9 +299,8 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(all)
     expect(screen.getByText('0 of 4 selected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
-    expect(screen.getByText('4 of 4 selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeChecked()
-    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeEnabled()
+    expect(screen.getByText('3 of 4 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Running Pattern' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     const dialog = screen.getByRole('alertdialog')
     expect(within(dialog).getByRole('heading')).toHaveTextContent('Delete 3 Patterns from Burner bag?')
@@ -745,19 +325,9 @@ describe('ControllerProfilePage', () => {
     })
     const route = useRouterStore.getState().route
     fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
-    act(() => useControllerPanelStore.setState({ activeProgramId: 'A', activatingProgramId: 'B' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Alpha' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Beta' }))
-    act(() => useControllerPanelStore.setState({ activatingProgramId: null }))
-    const hold = deferred<void>()
-    const read = vi.spyOn(provider, 'readSavedProgram').mockImplementationOnce(async (id) => {
-      await hold.promise
-      return ProgramListProvider.prototype.readSavedProgram.call(provider, id)
-    })
-    const push = vi.spyOn(provider, 'pushBytecode')
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(1))
-    await act(async () => { useControllerPanelStore.setState({ activeProgramId: 'B', activatingProgramId: 'A' }); hold.resolve() })
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument())
     expect(createPattern.mock.calls.map(([record]) => record.name)).toEqual(['Alpha', 'Beta'])
     expect(usePatternStore.getState().userPatterns.map((record) => record.name)).toEqual(['Beta', 'Alpha'])
@@ -765,8 +335,6 @@ describe('ControllerProfilePage', () => {
     expect(provider.activationCalls).toEqual([])
     expect(provider.bindingWrites).toBe(0)
     expect(provider.pushRecordWrites).toBe(0)
-    expect(push).not.toHaveBeenCalled()
-    expect(read.mock.calls.map(([id]) => id)).toEqual(['A', 'B'])
     expect(useRouterStore.getState().route).toEqual(route)
   })
 
@@ -815,7 +383,7 @@ describe('ControllerProfilePage', () => {
     expect(provider.programs).toHaveLength(5)
   })
 
-  it.each(['saved', 'other'] as const)('keeps running and pending checkboxes in %s selected through telemetry changes', async (section) => {
+  it.each(['saved', 'other'] as const)('skips running and pending checkboxes in %s and reconciles selected IDs on telemetry changes', async (section) => {
     const profile = seedProfile()
     renderLiveProgramInventory(profile, {
       storageId: `eligibility-${section}`, activeProgramId: 'A', configSourceIp: '192.168.8.224',
@@ -824,18 +392,16 @@ describe('ControllerProfilePage', () => {
     })
     fireEvent.click(await screen.findByRole('button', { name: `Select ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}` }))
     act(() => useControllerPanelStore.setState({ activatingProgramId: 'B' }))
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeEnabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('title', 'Cannot delete: Running now — switch to another Pattern first')
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeEnabled()
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('title', 'Cannot delete: Waiting to confirm the running Pattern')
-    expect(screen.getByRole('checkbox', { name: 'Select Alpha' }).closest('tr')).toHaveTextContent('Cannot delete: Running now')
-    expect(screen.getByRole('checkbox', { name: 'Select Beta' }).closest('tr')).toHaveTextContent('Cannot delete: Waiting')
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Alpha' })).toHaveAttribute('title', 'Running now — switch to another Pattern first')
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Select Beta' })).toHaveAttribute('title', 'Waiting to confirm the running Pattern')
     fireEvent.click(screen.getByRole('checkbox', { name: /Select all/ }))
-    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByText('1 of 3 selected')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
     act(() => useControllerPanelStore.setState({ activeProgramId: 'C', activatingProgramId: null }))
-    expect(screen.getByText('3 of 3 selected')).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).toBeChecked()
+    expect(screen.getByText('0 of 3 selected')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select Gamma' })).not.toBeChecked()
   })
 
   it('prevents duplicate batch confirms while a delete is pending', async () => {

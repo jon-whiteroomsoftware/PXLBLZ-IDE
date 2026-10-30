@@ -176,8 +176,6 @@ export interface PixelblazeConnectionOptions {
   now?: () => number
   /** How long a correlated request waits for its reply before rejecting. */
   requestTimeoutMs?: number
-  /** Provisional measurement cap for the entire Save, including prior wire debt. */
-  saveTimeoutMs?: number
   /** Maximum wall time to observe a pushed program become active. */
   activationTimeoutMs?: number
   /** Delay between active-program polls while activation is pending. */
@@ -228,19 +226,6 @@ export class PixelblazeConnection {
   private ws: WebSocketLike | null = null
   private pingHandle: unknown = null
   private readonly pending = new Map<string, Pending[]>()
-  // Wire debt survives request deadlines: firmware acknowledgements have no IDs.
-  private readonly wireAcks: Array<(value: unknown) => void> = []
-  private readonly ackRequests = new Set<(error: Error) => void>()
-  private saveUnavailable = false
-  private saveOperation: {
-    frames: Uint8Array[]
-    next: number
-    finalSubmitted: boolean
-    settled: boolean
-    timer: unknown
-    resolve: () => void
-    reject: (error: Error) => void
-  } | null = null
   private readonly listeners = new Map<ConnectionEvent, Set<EventListener>>()
   // In-flight binary reassembly buffers, keyed by message type. A device may
   // interleave types, so each accumulates independently until its `last` frame.
@@ -338,13 +323,7 @@ export class PixelblazeConnection {
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const ws = this.opts.webSocketFactory(this.url)
-      const previous = this.ws
-      if (previous) {
-        this.handleClose('socket replaced', true)
-        previous.close()
-      }
       this.ws = ws
-      this.saveUnavailable = false
       // Latches once the open race is decided (open, pre-open error, or timeout),
       // so a later event can't double-settle the promise or start a keepalive on a
       // socket we've already abandoned.
@@ -365,7 +344,6 @@ export class PixelblazeConnection {
           : null
 
       ws.onopen = () => {
-        if (this.ws !== ws) return
         if (settled) return
         settled = true
         if (timer != null) this._clearTimeout(timer)
@@ -375,9 +353,8 @@ export class PixelblazeConnection {
         this.emit('open')
         resolve()
       }
-      ws.onmessage = (ev) => { if (this.ws === ws) this.handleMessage(ev.data) }
+      ws.onmessage = (ev) => this.handleMessage(ev.data)
       ws.onerror = (ev) => {
-        if (this.ws !== ws) return
         // Emit to subscribers UNCONDITIONALLY — deliberately outside the `settled`
         // latch. The latch guards only the one-shot connect() promise (resolve/
         // reject exactly once); the `error` event is a separate, repeatable signal
@@ -391,7 +368,6 @@ export class PixelblazeConnection {
         reject(new Error('WebSocket error before open'))
       }
       ws.onclose = (ev) => {
-        if (this.ws !== ws) return
         if (!settled) {
           settled = true
           if (timer != null) this._clearTimeout(timer)
@@ -565,8 +541,6 @@ export class PixelblazeConnection {
    *  The spike uses it to observe exactly what the device does with source-only
    *  push. Fire-and-forget at the protocol level. */
   putSourceCode(source: string): void {
-    this.assertMutationAllowed()
-    this.saveUnavailable = true
     const compressed = LZString.compressToUint8Array(source)
     for (const frame of encodeBinaryFrames(MessageType.putSourceCode, compressed)) {
       this.sendBinary(frame)
@@ -581,56 +555,15 @@ export class PixelblazeConnection {
    *  the reference client's `PBP.toPixelblaze`:
    *  https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L3126
    *
-   *  Ack-paced transmission; resolves only on the device's separate successful
-   *  completion after the final frame is submitted on this socket. */
-  saveProgram(id: string, pbpBlob: Uint8Array): Promise<void> {
-    if (this.saveOperation) return Promise.reject(new Error('Controller Save is pending'))
-    if (this.saveUnavailable) return Promise.reject(new Error('Controller Save unavailable on this socket; reconnect before saving again'))
+   *  Fire-and-forget at the protocol level: resolves once every frame is sent. */
+  saveProgram(id: string, pbpBlob: Uint8Array): void {
     const idBytes = new TextEncoder().encode(id)
     const payload = new Uint8Array(idBytes.length + pbpBlob.length)
     payload.set(idBytes, 0)
     payload.set(pbpBlob, idBytes.length)
-    return new Promise<void>((resolve, reject) => {
-      this.saveOperation = {
-        frames: encodeBinaryFrames(MessageType.putSourceCode, payload),
-        next: 0, finalSubmitted: false, settled: false, timer: undefined,
-        resolve, reject,
-      }
-      this.saveOperation.timer = this._setTimeout(() => {
-        this.failSave('completion timed out')
-      }, this.opts.saveTimeoutMs ?? 20000)
-      this.advanceSave()
-    })
-  }
-
-  private failSave(reason: string): void {
-    const operation = this.saveOperation
-    if (!operation) return
-    this.saveUnavailable = true
-    this._clearTimeout(operation.timer)
-    this.saveOperation = null
-    if (!operation.settled) operation.reject(new Error(`Controller Save unconfirmed: ${reason}`))
-  }
-
-  private advanceSave(): void {
-    const operation = this.saveOperation
-    if (!operation || this.wireAcks.length) return
-    if (operation.settled) {
-      this.saveOperation = null
-      return
+    for (const frame of encodeBinaryFrames(MessageType.putSourceCode, payload)) {
+      this.sendBinary(frame)
     }
-    if (operation.next >= operation.frames.length) return
-    const frame = operation.frames[operation.next++]
-    operation.finalSubmitted = operation.next === operation.frames.length
-    try {
-      this.sendBinary(frame, true)
-    } catch (error) {
-      this.failSave(`send failed: ${(error as Error).message}`)
-    }
-  }
-
-  private assertMutationAllowed(): void {
-    if (this.saveOperation) throw new Error('Controller Save is pending')
   }
 
   /** Push compiled bytecode to the device as the save-and-run sequence (H10,
@@ -792,36 +725,6 @@ export class PixelblazeConnection {
     frame: object,
     options: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<unknown> {
-    if (responseKey === 'ack') {
-      return new Promise((resolve, reject) => {
-        let timer: unknown
-        let settled = false
-        const fail = (error: Error) => {
-          if (settled) return
-          settled = true
-          this._clearTimeout(timer)
-          this.ackRequests.delete(fail)
-          reject(error)
-        }
-        const finish = (value: unknown) => {
-          if (settled) return
-          settled = true
-          this._clearTimeout(timer)
-          this.ackRequests.delete(fail)
-          resolve(value)
-        }
-        try {
-          this.assertMutationAllowed()
-          this.ackRequests.add(fail)
-          timer = this._setTimeout(() => {
-            fail(new RequestTimeoutError('Pixelblaze request timed out waiting for "ack"'))
-          }, options.timeoutMs ?? this.opts.requestTimeoutMs)
-          this.sendJson(frame, finish)
-        } catch (error) {
-          fail(error as Error)
-        }
-      })
-    }
     const pending = this.enqueue(responseKey, options)
     try {
       options.signal?.throwIfAborted()
@@ -840,34 +743,18 @@ export class PixelblazeConnection {
     return entry
   }
 
-  private sendJson(frame: object, onAck?: (value: unknown) => void): void {
-    const ackBearing = ['ping', 'pause', 'setCode', 'setControls'].some((key) => key in frame)
-    if (ackBearing) this.assertMutationAllowed()
+  private sendJson(frame: object): void {
     if (!this.ws || this.ws.readyState !== OPEN) {
       throw new Error('Cannot send: Pixelblaze connection is not open')
     }
-    this.sendWithAck(JSON.stringify(frame), ackBearing ? onAck ?? (() => undefined) : undefined)
+    this.ws.send(JSON.stringify(frame))
   }
 
-  private sendBinary(frame: Uint8Array, saveOwned = false): void {
-    if (!saveOwned) this.assertMutationAllowed()
+  private sendBinary(frame: Uint8Array): void {
     if (!this.ws || this.ws.readyState !== OPEN) {
       throw new Error('Cannot send: Pixelblaze connection is not open')
     }
-    this.sendWithAck(frame, () => undefined)
-  }
-
-  private sendWithAck(frame: string | Uint8Array, onAck?: (value: unknown) => void): void {
-    if (onAck) this.wireAcks.push(onAck)
-    try {
-      this.ws!.send(frame)
-    } catch (error) {
-      if (onAck) {
-        const index = this.wireAcks.indexOf(onAck)
-        if (index >= 0) this.wireAcks.splice(index, 1)
-      }
-      throw error
-    }
+    this.ws.send(frame)
   }
 
   private handleMessage(data: unknown): void {
@@ -922,22 +809,7 @@ export class PixelblazeConnection {
     }
     // Resolve the first matching pending request by response field.
     if ('vars' in msg) this.fulfil('vars', msg.vars)
-    // Evaluate completion before ack can submit another frame: the message
-    // must have arrived after the final submission, even if it carries both.
-    if (msg.saveProgramSourceFile !== undefined && this.saveOperation) {
-      if (!msg.saveProgramSourceFile) this.failSave('device reported failure')
-      else if (this.saveOperation.finalSubmitted && !this.saveOperation.settled) {
-        const operation = this.saveOperation
-        operation.settled = true
-        this._clearTimeout(operation.timer)
-        this.saveOperation = null
-        operation.resolve()
-      }
-    }
-    if (msg.ack) {
-      this.wireAcks.shift()?.(msg.ack)
-      this.advanceSave()
-    }
+    if ('ack' in msg) this.fulfil('ack', msg.ack)
     // getControls reply carries a `controls` object; we resolve with the whole msg.
     if ('controls' in msg) this.fulfil('controls', msg)
     // getConfig replies as two packets: settings (top-level `brightness`) and
@@ -982,8 +854,6 @@ export class PixelblazeConnection {
     if (!this.opts.pingIntervalMs) return
     this.lastInboundAt = this._now()
     this.pingHandle = this._setInterval(() => {
-      // Save owns its operation-wide deadline while flash work is pending.
-      if (this.saveOperation) return
       // Before pinging again, check whether the device has gone silent. A live
       // Pixelblaze answers pings AND streams fps, so a quiet window past the
       // watchdog means it is gone even if the socket never closed.
@@ -991,7 +861,7 @@ export class PixelblazeConnection {
       // Firmware ack packets carry no request id. Never enqueue a keepalive
       // behind another ack-based command: if that command's acknowledgement is
       // lost, the ping reply would otherwise report false success for it.
-      if (this.wireAcks.length) return
+      if (this.pending.has('ack')) return
       // Swallow keepalive failures — the lifecycle close/error path reports them.
       this.ping().catch(() => undefined)
     }, this.opts.pingIntervalMs)
@@ -1017,15 +887,8 @@ export class PixelblazeConnection {
     }
   }
 
-  private handleClose(detail?: unknown, replaced = false): void {
+  private handleClose(detail?: unknown): void {
     this.stopPing()
-    this.failSave('connection closed or replaced')
-    this.wireAcks.length = 0
-    for (const reject of this.ackRequests) reject(new Error('Pixelblaze connection closed'))
-    this.ackRequests.clear()
-    this.binaryBuffers.clear()
-    this.ws = null
-    this.saveUnavailable = false
     // Reject everything still waiting — the reply can never arrive now.
     for (const queue of this.pending.values()) {
       for (const entry of queue) {
@@ -1034,7 +897,7 @@ export class PixelblazeConnection {
       }
     }
     this.pending.clear()
-    if (!replaced) this.emit('close', detail)
+    this.emit('close', detail)
   }
 }
 

@@ -93,14 +93,11 @@ the page request simply times out and the feature looks broken while the code is
 correct. Lead with this whenever handing over a hardware check that touched
 `background.js`.
 
-**A full socket pool.** Jon reports roughly five WebSocket slots; unclean closes
-exhaust them easily. A full pool can return `ECONNRESET` on connect or leave the
-WebSocket upgrade unanswered while HTTP still answers. Cark showed the latter
-after I31's run on 2026-10-28, still stalled at host rechecks from 04:07Z through
-04:21Z. Recovery requires a power-cycle, performed by Jon. Tests must use
-`close(1000)` and await the actual close. Every live viewer holds a socket: the
-Controller's own web UI, each app instance and the phone app. Close the others
-before a hardware run. See [Jon's report and the corrected diagnosis](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221#issuecomment-6460603486).
+**A full socket pool.** The firmware accepts only a small number of concurrent
+WebSocket connections. A `ECONNRESET` on connect while HTTP still answers means
+the pool is full, not that the code is wrong. Every live viewer holds a socket:
+the device's own web UI tab, each app instance, the phone app. Close the others
+before suspecting a bug.
 
 ## Testing disconnect detection
 

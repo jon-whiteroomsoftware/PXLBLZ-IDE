@@ -316,9 +316,6 @@ Save-mode PBP embed the stamp; Run-only bytecode has no source and no banner.
 `parsePxlblzBanner` is the read-back seam. New program ids are 17 firmware
 characters with a `pxb` prefix; overwrites preserve pre-existing ids, so the
 banner is the durable provenance signal.
-Code-changing profile passes retain logical transform IDs, including sample-only
-helpers; sample/drive pairs deduplicate under their parent ID. Later wrapped
-Pattern Saves include `stored-artifact` to preserve their import policy.
 
 ## 7. Validation, loading, and runtime shim
 
@@ -752,36 +749,6 @@ record from the exact embedded banner — artifact hash, transform ids,
 timestamp, optional Show output contract — making transform freshness locally
 computable.
 
-The Save promise waits for a truthy `saveProgramSourceFile` completion on the
-same current socket after the final frame is submitted. Save drains prior FIFO
-acknowledgements, then paces its 1280-byte-body chunks by truthy ack; completion
-may precede the final ack. Positive completion releases reservation immediately;
-activation/controls can send while FIFO wire debt remains. The next Save waits
-for all prior debt before submitting its first frame. Local sends and generic
-ack never establish success.
-Timeout, negative completion, connection loss/replacement, and send failure
-reject; failed Save or experimental type-1 source transmission prevents another
-Save on that socket until replacement. Wire debt survives request timeouts.
-During reservation, keepalive is suppressed and new ack-bearing commands and
-binary mutations reject; unrelated reads remain available. `saveTimeoutMs` is
-separate from request deadlines and defaults to a final 20-second operation-wide
-deadline, including prior FIFO acknowledgement debt and awaited completion.
-Explicit overrides remain available. The helper owns a full-body HTTP FIFO per
-normalized host across page ports, holding new HTTP starts during socket-owned
-Save until defined completion or actual owner close. Provider deadlines never
-release HTTP ownership. Cloud
-discovery is independent. Ownership is in memory: helper restart or reconnect
-after close may overlap a firmware write. Adoption requires separately reloading
-the unpacked helper; publication remains held. Direct-probe fidelity and physical
-latency/overlap proof remain pending. The direct probe now awaits Save completion,
-holds new HTTP starts on socket-owned Save in both modes, and pauses its liveness
-verdict budget while held. Its default diagnostic mode still overlaps HTTP
-outside Save, unlike the helper's full-body FIFO. Reports expose successful Save
-completion latencies. The final deadline was selected from 24 clean-close Saves
-with a measured maximum of 2615.987ms; the physical run used the provisional cap,
-and the final 20-second setting has not been physically rerun. See the
-[Controller Save transport agreement](contracts/controller-pattern-import.md#controller-save-transport).
-
 **Transient replacement fit.** Steady-state fit and replacement fit are
 different questions: a Pattern can pass every steady-state limit and still
 fail a direct large-to-large replacement, because activation briefly holds
@@ -812,41 +779,28 @@ successful saved-delivery bookkeeping or claim a physical rollback.
 
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
-catalogs. Bindings take precedence over program-ID prefixes: bound entries appear
-under Saved PXLBLZ Patterns and link to Studio. Unbound `pxb` IDs appear under
-Unimported PXLBLZ Patterns with their raw device names; other unbound IDs appear
-under Other Patterns. Neither unbound group is reconciled, and listing reads no
-saved source. The running id is marked in all three tables. Row actions stay visually hidden until hover or keyboard
+catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
+unbound entries are Other Patterns and are never reconciled. The running id is
+marked in either table. Row actions stay visually hidden until hover or keyboard
 focus; Run delegates to the panel store's transient activation path and never
 navigates Studio or changes the open subject or its Run/Save records. Program
-ids move from a column into the name tooltip, and unbound groups have no
+ids move from a column into the name tooltip, and Other Patterns have no
 freshness column.
 
-All three sections share one active selection owner. `controllerPatternBatch.ts`
-provides immutable ID selection, eligibility reconciliation, an ordered sequential
-runner and failed-only retry that preserves completed outcomes. Selecting a section starts empty;
-selection follows current group membership, including running and pending IDs.
-Missing members are pruned without resurrection. Delete alone excludes active,
-pending and unknown-active evidence, explains exclusions below selected-group
-row names, and filters confirmation to eligible selected names.
-Batch Delete reuses queued delete safety checks. Other bulk Import retains its
-account-only recovery path. Unimported bulk Import confirms snapshot names before
-any source read, then calls the same durable command as single-item Import for
-each selected slot without navigation. Import permits active/pending targets;
-its own activation preserves checks and cannot suppress later targets. Initial
-dispatch checks the captured view, current slot/name and source ownership.
-Its results retain named errors and allow
-failed-only retry after incomplete bound rows move to Saved.
+Both sections share one selection owner. `controllerPatternBatch.ts` provides
+immutable ID selection, eligibility reconciliation, and an ordered sequential
+runner that collects per-Pattern failures. Selecting a section clears the other;
+running and pending-running IDs are excluded before the confirmation snapshot.
+Batch adapters reuse single-row import decisions and queued delete safety checks.
 Each delete retains its captured Controller session and raw device name, and
 revalidates live running state before writing. A failed item does not cancel later
 items. Completion refreshes the inventory, reports named failures, and exits
-selection mode. Inventory refresh failure cannot change a completed command's
-outcome. The
+selection mode. Batch imports save Studio records without navigation. The
 page-header Refresh requests one inventory-refresh generation alongside the
 existing metadata/installed-map refresh; the inventory owner performs the full
 list read through the existing live-store pipeline.
 
-Delete is available in all three groups only after Controller-scoped
+Delete is available for managed and Other rows only after Controller-scoped
 active-program evidence arrives, and remains disabled for the live running id,
 including when that id changes after the confirmation dialog opens. A fresh
 config read revalidates the active id immediately before the device command;
@@ -903,28 +857,10 @@ connection refresh may retain the rows so QUEUED/SYNCING/FAILED work remains
 visible, but steady freshness becomes UNKNOWN until the new read completes.
 Offline, failed, and new-connection reads make no freshness claim.
 
-`readSavedProgram` decodes a PBP and separates PXLBLZ provenance from source.
-Other and owned source recovery opens the existing Studio Pattern, restores a
-deleted one, creates a personal Pattern from foreign source, or explains that
-recovery is impossible; this recovery does not mutate the Controller.
-
-Single-item and bulk Import in Unimported PXLBLZ Patterns confirm before downloading,
-create a fresh personal Pattern, and write only the selected Controller slot.
-An integrity-valid Pattern stamp with no transforms recovers the banner-stripped
-body and receives the current profile, preferring independently matched exact
-stock/current-account canonical source when available. Nonempty transforms,
-including `stored-artifact`, or missing/damaged provenance keep source wrapped:
-initial import preserves its exact PBP and old behavior, and later wrapped Saves
-stamp the token to retain policy across accounts. The durable account ledger
-governs that policy and the editor's persistent amber notice. An incomplete bound receipt offers
-Resume import after reload; retries retain the same Pattern and slot identities
-and report prior durable write progress truthfully. Reporting distinguishes
-response-read failures, named command completion, and confirmed running status;
-observational refresh failures preserve completed import outcomes. Unreadable import metadata
-disables Import and Resume without disabling ordinary inventory or Run. See
-[Controller Pattern import](contracts/controller-pattern-import.md) for fidelity,
-session guards, and evidence limits. Final committed browser and native-firmware
-qualification remains pending.
+`readSavedProgram` decodes a PBP and separates PXLBLZ provenance from source;
+Import opens the existing Studio Pattern, restores a deleted one, creates a
+personal Pattern from foreign source, or explains that recovery is impossible.
+Import never mutates the Controller.
 
 **Managed-artifact reconciliation.** Opt-in per profile. A program is eligible
 only with both an overwrite binding and a successful push record plus

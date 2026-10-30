@@ -10,7 +10,6 @@ export interface RecoveredSavedProgram {
   deviceName: string
   sourceCode: string | null
   stamp: ParsedPxlblzBanner | null
-  storedArtifact?: { pbp: Uint8Array; sourceCode: string }
 }
 
 export type SavedProgramRecoveryResult =
@@ -35,7 +34,7 @@ export function recoverSavedProgram(
       ok: false,
       error: {
         kind: 'undecodable',
-        message: `Saved program ${programId} response could not be decoded as PBP. Retry reading this saved program.`,
+        message: `Saved program ${programId} is not a readable PBP blob.`,
       },
     }
   }
@@ -49,7 +48,6 @@ export function recoverSavedProgram(
       deviceName: decoded.name,
       sourceCode: storedSource ? stripPxlblzBanner(storedSource) : null,
       stamp,
-      storedArtifact: { pbp: bytes.slice(), sourceCode: decoded.sourceCode },
     },
   }
 }

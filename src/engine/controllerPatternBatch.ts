@@ -1,4 +1,4 @@
-export type ControllerPatternSection = 'saved' | 'unimported' | 'other'
+export type ControllerPatternSection = 'saved' | 'other'
 export type ControllerPatternSelection = { section: ControllerPatternSection | null; selectedIds: readonly string[] }
 export type ControllerBatchPattern = { id: string; name: string }
 export type ControllerPatternBatchResult = {
@@ -38,24 +38,6 @@ export async function runControllerPatternBatch(patterns: readonly ControllerBat
   return result
 }
 
-export async function retryControllerPatternBatch(
-  previous: ControllerPatternBatchResult,
-  perform: (pattern: ControllerBatchPattern) => Promise<void>,
-): Promise<ControllerPatternBatchResult> {
-  const retried = await runControllerPatternBatch(previous.failed.map((item) => item.pattern), perform)
-  return { succeeded: [...previous.succeeded, ...retried.succeeded], failed: retried.failed }
-}
-
 export function controllerPatternBatchNames(patterns: readonly ControllerBatchPattern[]): string[] {
   return [...patterns.slice(0, 8).map((pattern) => pattern.name), ...(patterns.length > 8 ? [`…${patterns.length - 8} more`] : [])]
-}
-
-export function controllerPatternDeleteDisabledReason(
-  programId: string,
-  state: { sessionKnown: boolean; activeProgramId?: string; activatingProgramId: string | null },
-): string | null {
-  if (!state.sessionKnown || !state.activeProgramId?.trim() || programId === state.activatingProgramId) {
-    return 'Waiting to confirm the running Pattern'
-  }
-  return programId === state.activeProgramId ? 'Running now — switch to another Pattern first' : null
 }

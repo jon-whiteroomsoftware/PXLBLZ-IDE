@@ -1,8 +1,4 @@
 import type { Page } from '@playwright/test'
-import { decodePbp } from '../../src/engine/pbpEncode'
-
-let savedProgramsBindingSequence = 0
-export type SharedFakeControllerPrograms = Map<string, { name: string; pbpBase64: string }>
 
 export interface FakeControllerHelperOptions {
   address?: string
@@ -28,22 +24,7 @@ export interface FakeControllerHelperOptions {
 export async function installFakeControllerHelper(
   page: Page,
   options: FakeControllerHelperOptions,
-  sharedPrograms?: SharedFakeControllerPrograms,
 ): Promise<void> {
-  const sharedProgramBinding = sharedPrograms ? `__pxlblzSavedPrograms${++savedProgramsBindingSequence}` : null
-  if (sharedPrograms && sharedProgramBinding) {
-    await page.exposeBinding(sharedProgramBinding, (_source, request: { operation: 'list' | 'read' | 'save' | 'delete'; id?: string; pbpBase64?: string }) => {
-      if (request.operation === 'list') return [...sharedPrograms].map(([id, program]) => ({ id, name: program.name }))
-      if (!request.id) throw new Error('Synthetic saved program needs an exact slot id')
-      if (request.operation === 'read') return sharedPrograms.get(request.id)?.pbpBase64 ?? null
-      if (request.operation === 'delete') { sharedPrograms.delete(request.id); return null }
-      if (!request.pbpBase64) throw new Error('Synthetic save needs PBP bytes')
-      const decoded = decodePbp(new Uint8Array(Buffer.from(request.pbpBase64, 'base64')))
-      if (!decoded) throw new Error('Synthetic save received invalid PBP bytes')
-      sharedPrograms.set(request.id, { name: decoded.name, pbpBase64: request.pbpBase64 })
-      return null
-    })
-  }
   await page.addInitScript((fixture) => {
     const connections = new Set<string>()
     const RELAY_SOURCE = 'pblz-relay'
@@ -58,13 +39,6 @@ export async function installFakeControllerHelper(
       // Opaque bootstrap origins can deny storage; the in-page fake still works.
     }
     const writes: Array<Record<string, unknown>> = []
-    const chunks = new Map<string, Uint8Array[]>()
-    let sharedWrites: Promise<unknown> = Promise.resolve()
-    let readCount = 0
-    const shared = (request: { operation: 'list' | 'read' | 'save' | 'delete'; id?: string; pbpBase64?: string }): Promise<unknown> => {
-      const binding = (window as unknown as Record<string, (request: unknown) => Promise<unknown>>)[fixture.sharedProgramBinding!]
-      return binding(request)
-    }
     Object.defineProperty(window, '__fakeControllerWrites', {
       configurable: true,
       value: writes,
@@ -87,11 +61,7 @@ export async function installFakeControllerHelper(
       connId,
       payload: { text: JSON.stringify(body) },
     })
-    const replyPrograms = async (connId: string) => {
-      if (fixture.sharedProgramBinding) {
-        await sharedWrites
-        programs = await shared({ operation: 'list' }) as typeof programs
-      }
+    const replyPrograms = (connId: string) => {
       const body = new TextEncoder().encode(
         programs.map((program) => `${program.id}\t${program.name}`).join('\n'),
       )
@@ -106,7 +76,7 @@ export async function installFakeControllerHelper(
       })
     }
 
-    window.addEventListener('message', async (event) => {
+    window.addEventListener('message', (event) => {
       if (event.source !== window) return
       const message = event.data as Record<string, unknown> | undefined
       if (
@@ -160,14 +130,8 @@ export async function installFakeControllerHelper(
       }
       if (message.type === 'get-program') {
         if (fixture.address && message.address !== fixture.address) return
-        let programData = fixture.savedProgramData?.[String(message.programId)] ?? null
-        if (fixture.sharedProgramBinding) {
-          await sharedWrites
-          writes.push({ readProgram: String(message.programId), readCount: ++readCount })
-          programData = await shared({ operation: 'read', id: String(message.programId) }) as string | null
-        }
         emit({ type: 'program-data', reqId: message.reqId, ok: true,
-          programData })
+          programData: fixture.savedProgramData?.[String(message.programId)] ?? null })
         return
       }
       if (message.type === 'compile') {
@@ -184,36 +148,8 @@ export async function installFakeControllerHelper(
       if (message.type !== 'send') return
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (payload?.binary && typeof message.connId === 'string') {
-        // Multiple fixtures listen on the page; only the owning connection may acknowledge.
-        if (fixture.address && !connections.has(message.connId)) return
         // Type 1 is putSourceCode: the saved PBP carrying the source.
-        const frame = Uint8Array.from(atob(payload.binary), (character) => character.charCodeAt(0))
-        if (frame[0] === 1) {
-          if (!fixture.sharedProgramBinding) {
-            if (frame[1] & 4) writes.push({ save: true })
-          } else {
-            const connId = message.connId
-            if (frame[1] & 1) chunks.set(connId, [])
-            const parts = chunks.get(connId)
-            if (!parts) throw new Error('Synthetic save received continuation without first frame')
-            parts.push(frame.slice(2))
-            if (frame[1] & 4) {
-              chunks.delete(connId)
-              const bytes = new Uint8Array(parts.reduce((count, part) => count + part.length, 0))
-              let offset = 0
-              for (const part of parts) { bytes.set(part, offset); offset += part.length }
-              const id = new TextDecoder().decode(bytes.slice(0, 17))
-              writes.push({ save: true, programId: id })
-              sharedWrites = sharedWrites.then(() => shared({ operation: 'save', id, pbpBase64: bytesToBase64(bytes.slice(17)) }))
-            }
-          }
-          if (frame[1] & 4) {
-            // Completion confirms persistence, not merely receipt of the final frame.
-            if (fixture.sharedProgramBinding) await sharedWrites
-            reply(message.connId, { saveProgramSourceFile: 1 })
-          }
-        }
-        reply(message.connId, { ack: 1 })
+        if (atob(payload.binary).charCodeAt(0) === 1) writes.push({ save: true })
         return
       }
       if (!payload?.text || typeof message.connId !== 'string') return
@@ -238,6 +174,7 @@ export async function installFakeControllerHelper(
           runSequencer: fixture.runSequencer,
         })
       }
+      if (command.ping) reply(message.connId, { ack: 1 })
       if (typeof command.name === 'string') {
         deviceName = command.name
         try {
@@ -246,10 +183,9 @@ export async function installFakeControllerHelper(
           // Keep the current document's device state even if storage is denied.
         }
       }
-      if (command.listPrograms) await replyPrograms(message.connId)
+      if (command.listPrograms) replyPrograms(message.connId)
       if (typeof command.deleteProgram === 'string') {
         programs = programs.filter((program) => program.id !== command.deleteProgram)
-        if (fixture.sharedProgramBinding) await shared({ operation: 'delete', id: command.deleteProgram })
       }
       if (command.getControls !== undefined) {
         reply(message.connId, { controls: fixture.controls ?? {} })
@@ -265,11 +201,9 @@ export async function installFakeControllerHelper(
         activeProgramId = pendingProgramId
         pendingProgramId = null
       }
-      if (['ping', 'pause', 'setCode', 'setControls'].some((key) => key in command)) {
-        reply(message.connId, { ack: 1 })
-      }
+      if ('pause' in command && !('setCode' in command)) reply(message.connId, { ack: 1 })
     })
-  }, { ...options, sharedProgramBinding })
+  }, options)
 }
 
 /** Distinct synthetic devices keyed by their real transport address and firmware MAC. */

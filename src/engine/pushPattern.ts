@@ -126,14 +126,8 @@ export interface PushPatternResult {
   created: boolean
 }
 
-export interface ControllerActivationDeps {
-  provider: Pick<ControllerProvider, 'compile' | 'getActiveProgramBytecodeSize' | 'pushBytecode'>
-  assertDeviceSession?: () => void
-  mintDrainId?: () => string
-}
-
-export async function drainBeforeUnsafeActivation(
-  deps: ControllerActivationDeps,
+async function drainBeforeUnsafeActivation(
+  deps: PushPatternDeps,
   incomingBytecodeBytes: number,
 ): Promise<void> {
   const outgoingBytecodeBytes = await deps.provider.getActiveProgramBytecodeSize()
@@ -155,8 +149,8 @@ export async function drainBeforeUnsafeActivation(
   }
 }
 
-export async function activateTarget(
-  deps: ControllerActivationDeps,
+async function activateTarget(
+  deps: PushPatternDeps,
   bytecode: Uint8Array,
   opts: { id: string; name: string },
 ): Promise<void> {

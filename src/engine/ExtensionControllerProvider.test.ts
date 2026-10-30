@@ -178,7 +178,6 @@ function makeDeviceTransport(
         case 'send': {
           if ('binary' in msg.payload) {
             binaryWrites.push(base64ToBytes(msg.payload.binary))
-            reply(msg.connId, { ack: 1 })
             return
           }
           const cmd = JSON.parse(msg.payload.text) as Record<string, unknown>
@@ -204,10 +203,7 @@ function makeDeviceTransport(
           }
           if ('pixelCount' in cmd) writes.push(cmd)
           if ('setVars' in cmd) writes.push(cmd)
-          if ('setControls' in cmd) {
-            writes.push(cmd)
-            reply(msg.connId, { ack: 1 })
-          }
+          if ('setControls' in cmd) writes.push(cmd)
           if ('activeProgramId' in cmd) {
             writes.push(cmd)
             if (typeof cmd.activeProgramId === 'string') activeProgramId = cmd.activeProgramId
@@ -219,7 +215,6 @@ function makeDeviceTransport(
           }
           if ('setCode' in cmd) {
             writes.push(cmd)
-            reply(msg.connId, { ack: 1 })
             const setCode = cmd.setCode as { id?: unknown }
             pendingProgramId = typeof setCode.id === 'string' ? setCode.id : null
             if (opts.dropOnFirstSetCode && !droppedSetCode) {
@@ -249,10 +244,6 @@ function makeDeviceTransport(
     binaryWrites,
     isOpen: () => openSocket,
     pushFrame: (obj: object) => reply(lastConnId, obj),
-    captureFrameSender: () => {
-      const connId = lastConnId
-      return (obj: object) => reply(connId, obj)
-    },
     setActiveProgramId: (programId: string) => {
       activeProgramId = programId
     },
@@ -278,99 +269,6 @@ function makeDeviceTransport(
 const TARGET = { address: '192.168.8.224' }
 
 describe('ExtensionControllerProvider', () => {
-  it.each(['success', 'timeout'] as const)('enforces the relay default 20s Save deadline (%s)', async (outcome) => {
-    vi.useFakeTimers()
-    const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0, maxReconnectAttempts: 0 })
-    let status: { state: 'pending' | 'resolved' } | { state: 'rejected'; error: Error } = { state: 'pending' }
-    await p.connect(TARGET)
-    const save = p.saveProgram(new Uint8Array(), { id: 'id' }).then(
-      () => { status = { state: 'resolved' } },
-      (error: Error) => { status = { state: 'rejected', error } },
-    )
-    try {
-      await vi.advanceTimersByTimeAsync(19999)
-      expect(status).toEqual({ state: 'pending' })
-      if (outcome === 'success') {
-        d.pushFrame({ saveProgramSourceFile: 1 })
-        await vi.advanceTimersByTimeAsync(0)
-        await save
-        await vi.advanceTimersByTimeAsync(20001)
-        expect(status).toEqual({ state: 'resolved' })
-      } else {
-        await vi.advanceTimersByTimeAsync(1)
-        expect(status).toEqual({ state: 'rejected', error: new Error('Controller Save unconfirmed: completion timed out') })
-        d.pushFrame({ saveProgramSourceFile: 1 })
-        await vi.advanceTimersByTimeAsync(0)
-        await expect(p.saveProgram(new Uint8Array(), { id: 'id' })).rejects.toThrow('Controller Save unavailable on this socket; reconnect before saving again')
-        await vi.advanceTimersByTimeAsync(60000)
-      }
-      expect(d.binaryWrites).toHaveLength(1)
-    } finally {
-      await p.disconnect()
-      await save
-      expect(vi.getTimerCount()).toBe(0)
-      vi.useRealTimers()
-    }
-  })
-
-  it.each(['negative', 'deadline', 'close'] as const)('propagates %s Save failure', async (failure) => {
-    vi.useFakeTimers()
-    try {
-      const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport, saveTimeoutMs: 100, pingIntervalMs: 0, maxReconnectAttempts: 0 })
-      await p.connect(TARGET)
-      const message = failure === 'negative' ? 'device reported failure'
-        : failure === 'deadline' ? 'completion timed out' : 'connection closed or replaced'
-      const rejected = expect(p.saveProgram(new Uint8Array(8), { id: 'id' })).rejects.toThrow(`Controller Save unconfirmed: ${message}`)
-      if (failure === 'negative') d.pushFrame({ saveProgramSourceFile: 0 })
-      else if (failure === 'deadline') await vi.advanceTimersByTimeAsync(100)
-      else d.dropSocket()
-      await rejected
-      await p.disconnect()
-      await vi.advanceTimersByTimeAsync(60000)
-      expect(d.binaryWrites).toHaveLength(1)
-      expect(vi.getTimerCount()).toBe(0)
-    } finally { vi.useRealTimers() }
-  })
-
-  it('ignores old provider socket completion after reconnect', async () => {
-    const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
-    await p.connect(TARGET)
-    const oldFrame = d.captureFrameSender()
-    const first = expect(p.saveProgram(new Uint8Array(8), { id: 'old' })).rejects.toThrow('Controller Save unconfirmed:')
-    await p.disconnect()
-    await first
-    await p.connect(TARGET)
-    const done = vi.fn()
-    const second = p.saveProgram(new Uint8Array(8), { id: 'new' }).then(done)
-    oldFrame({ saveProgramSourceFile: 1 })
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(done).not.toHaveBeenCalled()
-    d.pushFrame({ saveProgramSourceFile: 1 })
-    await second
-    await p.disconnect()
-  })
-
-  it('awaits device Save completion rather than local transmission or generic ack', async () => {
-    const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
-    await p.connect(TARGET)
-    const done = vi.fn()
-    const save = p.saveProgram(new Uint8Array(8), { id: 'id' }).then(done)
-    d.pushFrame({ ack: 1 })
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(d.binaryWrites).toHaveLength(1)
-    expect(done).not.toHaveBeenCalled()
-    d.pushFrame({ saveProgramSourceFile: 1 })
-    await save
-    expect(done).toHaveBeenCalledTimes(1)
-    await p.disconnect()
-  })
-
   it('reverses MAC bytes and builds the Pixelblaze cloud id', () => {
     expect(reverseMacBytes('34:94:54:EE:D4:3C')).toBe('3cd4ee549434')
     expect(reverseMacBytes('34-94-54-ee-d4-3c')).toBe('3cd4ee549434')
@@ -795,7 +693,6 @@ describe('ExtensionControllerProvider', () => {
         deviceName: 'Aurora Drift',
         sourceCode: source,
         stamp: null,
-        storedArtifact: { pbp: blob, sourceCode: source },
       })
     })
 
@@ -815,18 +712,14 @@ describe('ExtensionControllerProvider', () => {
       await expect(p.readSavedProgram('BROKEN')).rejects.toThrow('GET /p/BROKEN -> 500')
     })
 
-    it.each([
-      ['short', Uint8Array.from([1, 2, 3])],
-      ['truncated', encodePbp({ id: 'BROKEN', name: 'Example', sourceCode: 'export function render(i) {}',
-        byteCode: new Uint8Array(8) }).slice(0, -1)],
-    ])('surfaces a %s successful response as a neutral read error', async (_kind, programData) => {
+    it('surfaces an undecodable PBP as a clean read error', async () => {
       const p = new ExtensionControllerProvider({
-        transport: makeDeviceTransport({ programData }).transport,
+        transport: makeDeviceTransport({ programData: Uint8Array.from([1, 2, 3]) }).transport,
       })
       await p.connect(TARGET)
 
       await expect(p.readSavedProgram('BROKEN')).rejects.toThrow(
-        'Saved program BROKEN response could not be decoded as PBP. Retry reading this saved program.',
+        'Saved program BROKEN is not a readable PBP blob.',
       )
     })
 

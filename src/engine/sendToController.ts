@@ -97,9 +97,6 @@ export interface DirtyGateInput {
   activeProgramId?: string
 }
 
-/** Local successful-send memo only; never a durable profile freshness value. */
-export const STORED_ARTIFACT_PROFILE_SIGNATURE = 'stored-artifact'
-
 /** Decide whether the current source already matches what was last pushed *in the
  *  armed mode* — the mode-split dirty gate (#238). Run and save are tracked
  *  separately, so arming the other mode after a clean push re-enables Send. */
@@ -117,8 +114,8 @@ export function isAlreadyPushed({
   if (source.length === 0) return false
   const last = mode === 'save' ? lastSavedSource : lastRunSource
   if (last !== source) return false
-  const lastProfile = mode === 'save' ? lastSavedProfileSignature : lastRunProfileSignature
-  if (lastProfile !== STORED_ARTIFACT_PROFILE_SIGNATURE && profileSignature !== undefined) {
+  if (profileSignature !== undefined) {
+    const lastProfile = mode === 'save' ? lastSavedProfileSignature : lastRunProfileSignature
     if ((lastProfile ?? '') !== profileSignature) return false
   }
   // Save cleanliness describes durable Controller storage, not which Pattern happens

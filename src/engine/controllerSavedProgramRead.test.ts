@@ -34,7 +34,6 @@ describe('recoverSavedProgram', () => {
           name: 'Aurora Drift',
           transforms: ['power-cap'],
         }),
-        storedArtifact: { sourceCode: stamped, pbp: programBlob('Aurora Drift', stamped) },
       },
     })
   })
@@ -49,7 +48,6 @@ describe('recoverSavedProgram', () => {
         deviceName: 'Foreign lights',
         sourceCode: source,
         stamp: null,
-        storedArtifact: { sourceCode: source, pbp: programBlob('Foreign lights', source) },
       },
     })
   })
@@ -99,39 +97,17 @@ describe('recoverSavedProgram', () => {
         deviceName: 'Compiled only',
         sourceCode: null,
         stamp: null,
-        storedArtifact: { sourceCode: '', pbp: programBlob('Compiled only', '') },
       },
     })
   })
 
-  const full = programBlob('Example', 'export function render(i) {}')
-  const invalidSource = full.slice()
-  // An odd compressed-source length cannot be decoded by LZString.
-  new DataView(invalidSource.buffer).setUint32(32, 1, true)
-  it.each([
-    ['empty', new Uint8Array()],
-    ['short header', full.slice(0, 35)],
-    ['truncated section', full.slice(0, full.length - 1)],
-    ['undecodable compressed source', invalidSource],
-  ])('reports only response evidence for %s', (_name, bytes) => {
-    expect(recoverSavedProgram('BROKEN', bytes)).toEqual({
+  it('returns a clean error result for an undecodable blob', () => {
+    expect(recoverSavedProgram('BROKEN', Uint8Array.from([1, 2, 3]))).toEqual({
       ok: false,
       error: {
         kind: 'undecodable',
-        message: 'Saved program BROKEN response could not be decoded as PBP. Retry reading this saved program.',
+        message: 'Saved program BROKEN is not a readable PBP blob.',
       },
     })
-  })
-
-  it('retains the exact source and defensive PBP copy including JPEG and bytecode', () => {
-    const sourceCode = stampArtifact('// old comment\nexport function render(i) { rgb(i,0,0) }', {
-      kind: 'pattern', id: 'old', stampedAt: '2026-01-01',
-    })
-    const bytes = encodePbp({ id: 'old', name: 'Old', sourceCode,
-      byteCode: Uint8Array.of(1, 2, 3), previewImage: Uint8Array.of(255, 216, 255, 217) })
-    const original = bytes.slice()
-    const result = recoverSavedProgram('old', bytes)
-    bytes.fill(0)
-    expect(result).toMatchObject({ ok: true, value: { storedArtifact: { pbp: original, sourceCode } } })
   })
 })

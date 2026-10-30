@@ -305,9 +305,8 @@ hardware knowledge lives:
   watts). Every Pattern or Show sent through the profile respects the cap.
   PXLBLZ does not pretend to be an ammeter; plan the physical power system
   for real.
-- **Saved Patterns.** The profile's inventory has Saved PXLBLZ Patterns,
-  Unimported PXLBLZ Patterns, and Other Patterns. Bindings determine ownership;
-  an unbound PXLBLZ slot appears in Unimported, with its device name. The running row has a green marker, and
+- **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
+  from everything else on the device. The running row has a green marker, and
   managed rows show which profile features were baked in and whether the
   copy on the device is current, stale, syncing, queued, or failed. **Run**
   runs the saved Pattern now without changing the startup Pattern or opening
@@ -319,32 +318,17 @@ hardware knowledge lives:
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 
-  **Import** on one Unimported PXLBLZ Pattern asks before reading its source,
-  creates a fresh editable personal Pattern, and saves it back to that same
-  Controller slot. Recoverable authored source uses this profile. Wrapped source
-  keeps its old profile behavior and shows a permanent amber notice above the
-  editor, including after edits and reload. A partial import keeps its destination;
-  **Retry** resumes it, and a bound incomplete row offers **Resume import** after
-  reload. Metadata failures disable importing until Refresh succeeds.
-
-  All three sections have **Select**. Check individual Patterns or use the
+  Each inventory section has **Select**. Check individual Patterns or use the
   header checkbox to select all eligible rows; running and pending-running
   Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
-  offer **Delete** and **Done**; Unimported and Other Patterns also offer **Import**. Switching
+  offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
   sections clears the previous selection. Batch Delete confirms the selected
   names once, then checks safety for each deletion. Both batch operations run
   sequentially, continue after individual failures, name failed Patterns, and
-  leave selection mode when finished. Unimported bulk Import confirms the names
-  before reading source, creates account copies and writes the same selected
-  slots through the single-item command. **Import results** retains each named
-  failure; **Retry failed** resumes only those destinations, including incomplete
-  rows that have moved to Saved. The Controller page and open Studio subject stay
-  unchanged. Other Import remains account-only and leaves the Controller unchanged.
-  The page-header **Refresh** rereads settings, the installed map, and all three
+  leave selection mode when finished. Import preserves Studio identity and
+  recovered source without switching the Studio view or changing the Controller.
+  The page-header **Refresh** rereads settings, the installed map, and both
   Pattern inventories.
-
-  Final committed browser and native-firmware qualification of Controller import
-  remains pending.
 
 A profile's name is the device's name. While the Controller is live, rename it
 from the center title; PXLBLZ writes the new name to the device, reads it

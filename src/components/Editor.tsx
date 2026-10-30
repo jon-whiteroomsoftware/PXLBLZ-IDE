@@ -8,7 +8,6 @@ import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
 import { parseMixinHeader } from '@/engine/mixins'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
-import { ControllerPatternImportNotice } from './ControllerPatternImportNotice'
 
 const SYNC_TICK_MS = 4000
 const PREVIEW_DEBOUNCE_MS = 600
@@ -136,17 +135,12 @@ export function Editor() {
   }, [source, isReadOnly, editorFlavor, setCompileStatus])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {editorFlavor === 'pattern' && <ControllerPatternImportNotice patternId={activePatternId} />}
-      <div className="min-h-0 flex-1">
-        <PixelblazeCodeEditor
-          value={source}
-          flavor={editorFlavor}
-          readOnly={isReadOnly}
-          onMount={handleMount}
-          onChange={handleChange}
-        />
-      </div>
-    </div>
+    <PixelblazeCodeEditor
+      value={source}
+      flavor={editorFlavor}
+      readOnly={isReadOnly}
+      onMount={handleMount}
+      onChange={handleChange}
+    />
   )
 }

@@ -31,18 +31,18 @@ import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
-import { pushPattern, type PushPatternDeps } from '@/engine/pushPattern'
+import { pushPattern } from '@/engine/pushPattern'
 import { sha256CompleteCompileInput, type ShowArtifactCompilationRecord } from '@/engine/showArtifactPricing'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
+  getControllerBindings,
+  setControllerBindings,
   getProgramLabels,
   setProgramLabels,
+  getPushRecords,
   setPushRecords,
-  getControllerMetadataStorage,
-  type ControllerMetadataStorage,
 } from '@/engine/controllerMetadataStorage'
-import { controllerPatternImportPolicy, readControllerPatternImportLedger } from '@/engine/controllerPatternImport'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
 import { planHardwareRenderer } from '@/engine/renderCompatibility'
@@ -90,32 +90,8 @@ import {
   artifactTransformIds,
   prepareControllerArtifactDelivery,
 } from '@/engine/controllerArtifactDelivery'
-import { STORED_ARTIFACT_PROFILE_SIGNATURE, type SendMode } from '@/engine/sendToController'
+import type { SendMode } from '@/engine/sendToController'
 import { canonicalControllerDeviceId, sameControllerDeviceId } from '@/engine/controllerIdentity'
-
-async function readImportLedger(storage: ControllerMetadataStorage) {
-  if (storage.id === 'demo' || !storage.getPatternImports || !storage.setPatternImports) {
-    throw new Error('Controller import storage is unavailable')
-  }
-  return readControllerPatternImportLedger(await storage.getPatternImports())
-}
-async function readImportPolicy(storage: ControllerMetadataStorage, patternId: string) {
-  return controllerPatternImportPolicy(await readImportLedger(storage), patternId)
-}
-
-function deliveryMetadata(storage: ControllerMetadataStorage, assertCurrent: () => void):
-Pick<PushPatternDeps, 'loadBindings' | 'saveBindings' | 'loadPushRecords' | 'savePushRecords'> {
-  const guarded = async <T>(action: () => Promise<T>): Promise<T> => {
-    assertCurrent()
-    try { return await action() } finally { assertCurrent() }
-  }
-  return {
-    loadBindings: () => guarded(() => storage.getControllerBindings()),
-    saveBindings: (next) => guarded(() => storage.setControllerBindings(next)),
-    loadPushRecords: () => guarded(() => storage.getPushRecords()),
-    savePushRecords: (next) => guarded(() => setPushRecords(next, storage)),
-  }
-}
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -1166,17 +1142,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         reconcileControllerProfile: async (profileId) => {
-          const personalContent = getPersonalContentProvider()
-          const metadataStorage = getControllerMetadataStorage()
-          const assertAdapters = () => {
-            if (getPersonalContentProvider() !== personalContent || getControllerMetadataStorage() !== metadataStorage) {
-              throw new Error('Controller session or account changed before reconciliation')
-            }
-          }
           await waitForControllerProfileWrites()
-          assertAdapters()
-          const profiles = await personalContent.listControllerProfiles().catch(() => [])
-          assertAdapters()
+          const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
           const profile = profiles.find((candidate) => candidate.id === profileId)
           if (!profile?.keepPatternsUpToDate) {
             set((state) => ({
@@ -1216,32 +1183,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
           // A failed Show list rejects the reconciliation with the other
           // reads: planning on a partial set would unmanage its Shows (#1129).
-          const expectedStatus = provider.getStatus()
-          const expectedEpoch = live.liveEpoch
-          const localSignature = () => {
-            const local = useControllerProfileStore.getState().profiles.find((p) => p.id === profileId)
-            return local ? controllerProfileReconciliationSignature(local) : null
-          }
-          const preparedLocalSignature = localSignature()
-          const assertSession = () => {
-            if (getPersonalContentProvider() !== personalContent || getControllerMetadataStorage() !== metadataStorage
-              || get().controllers[live.ip]?.liveEpoch !== expectedEpoch
-              || get().controllers[live.ip]?.mapDim !== live.mapDim
-              || (providers.get(live.ip) ?? (get().activeIp === live.ip ? getControllerProvider() : null)) !== provider
-              || expectedStatus.kind !== 'connected' || !statusMatchesConnectedController(expectedStatus.controller, provider.getStatus())
-              || localSignature() !== preparedLocalSignature) throw new Error('Controller session or profile changed before reconciliation')
-          }
-          const [programs, bindings, pushRecords, config, showRecords, importLedger] = await Promise.all([
+          const personalContent = getPersonalContentProvider()
+          const [programs, bindings, pushRecords, config, showRecords] = await Promise.all([
             provider.listPrograms(),
-            metadataStorage.getControllerBindings(),
-            metadataStorage.getPushRecords(),
+            getControllerBindings(),
+            getPushRecords(),
             provider.getConfig().catch(() => null),
             personalContent.listShowDocumentsV2?.() ?? Promise.resolve([]),
-            readImportLedger(metadataStorage),
           ])
-          assertSession()
-          const storedArtifactPatternIds = Object.values(importLedger.byPatternId)
-            .filter((r) => r.sourceMode === 'stored-artifact').map((r) => r.patternId)
           const patternState = usePatternStore.getState()
           const libraryState = useLibraryStore.getState()
           const mapState = useMapStore.getState()
@@ -1296,7 +1245,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             }]
           })
           const artifacts = [
-            ...patternState.userPatterns.filter((p) => !storedArtifactPatternIds.includes(p.id)).map((pattern) => ({
+            ...patternState.userPatterns.map((pattern) => ({
               bindingKey: pattern.id,
               name: pattern.name,
               source: pattern.src,
@@ -1324,7 +1273,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
             bindings,
             pushRecords,
             artifacts,
-            storedArtifactPatternIds,
           })
           const initialPrograms: ControllerReconciliationProgram[] = [
             ...plan.current.map((artifact) => ({
@@ -1378,20 +1326,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
             jobs: plan.jobs,
             activeProgramId: config?.activeProgramId,
             shouldContinue: async () => {
-              try {
-                assertSession()
-                const latestProfiles = await personalContent.listControllerProfiles()
-                assertSession()
-                const latest = latestProfiles.find((candidate) => candidate.id === profileId)
-                const latestLive = latest
-                  ? controllerForProfile(latest, get().controllers)
-                  : null
-                return Boolean(
-                  latest?.keepPatternsUpToDate &&
-                  latestLive?.phase === 'live' &&
-                  controllerProfileReconciliationSignature(latest) === reconciliationSignature,
-                )
-              } catch { return false }
+              const latestProfiles = await getPersonalContentProvider()
+                .listControllerProfiles()
+                .catch(() => [])
+              const latest = latestProfiles.find((candidate) => candidate.id === profileId)
+              const latestLive = latest
+                ? controllerForProfile(latest, get().controllers)
+                : null
+              return Boolean(
+                latest?.keepPatternsUpToDate &&
+                latestLive?.phase === 'live' &&
+                controllerProfileReconciliationSignature(latest) === reconciliationSignature,
+              )
             },
             onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
             onJobComplete: (job) => set((state) => {
@@ -1446,39 +1392,27 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 : undefined
               invalidateRendererState(live.ip)
               if (activate) retainRendererResumeRecovery(live.ip)
-              await queueControllerDeviceWrite(live.ip, async () => {
-                assertSession()
-                if (!job.bindingKey.startsWith('show:')) {
-                  const policy = await readImportPolicy(metadataStorage, job.bindingKey)
-                  assertSession()
-                  if (!policy.allowReconciliation) throw new Error('Stored-artifact Pattern cannot be reconciled')
-                }
-                const latestProfiles = await personalContent.listControllerProfiles()
-                assertSession()
-                const latest = latestProfiles.find((p) => p.id === profileId)
-                if (!latest?.keepPatternsUpToDate || controllerProfileReconciliationSignature(latest) !== reconciliationSignature) {
-                  throw new Error('Controller profile changed before reconciliation')
-                }
-                return pushPattern({
-                  provider,
-                  controllerId: live.ip,
-                  patternId: job.bindingKey,
-                  source: bundled.code,
-                  ...(job.bindingKey.startsWith('show:')
-                    ? {}
-                    : { sourceHash: artifactHash(job.source) }),
-                  name: job.name,
-                  persist: true,
-                  activateOnSave: activate,
-                  requireExisting: true,
-                  previewImage,
-                  transforms,
-                  artifactStamp,
-                  profileSignature: job.profileSignature,
-                  ...deliveryMetadata(metadataStorage, assertSession),
-                  assertDeviceSession: assertSession,
-                })
-              })
+              await queueControllerDeviceWrite(live.ip, () => pushPattern({
+                provider,
+                controllerId: live.ip,
+                patternId: job.bindingKey,
+                source: bundled.code,
+                ...(job.bindingKey.startsWith('show:')
+                  ? {}
+                  : { sourceHash: artifactHash(job.source) }),
+                name: job.name,
+                persist: true,
+                activateOnSave: activate,
+                requireExisting: true,
+                previewImage,
+                transforms,
+                artifactStamp,
+                profileSignature: job.profileSignature,
+                loadBindings: getControllerBindings,
+                saveBindings: setControllerBindings,
+                loadPushRecords: getPushRecords,
+                savePushRecords: setPushRecords,
+              }))
               if (activate) assumeRendererPlaying(live.ip)
             },
           })
@@ -1512,63 +1446,32 @@ export const useControllerStore = create<ControllerConnectionState>()(
           retainRendererResumeRecovery(controllerId)
           try {
             const activeController = get().controllers[controllerId]
-            const isPattern = artifact.artifactStamp.kind !== 'show'
-            const personalContent = getPersonalContentProvider()
-            const metadataStorage = getControllerMetadataStorage()
-            const capturedProvider = getControllerProvider()
-            const capturedStatus = capturedProvider.getStatus()
-            const capturedEpoch = activeController?.liveEpoch
-            let assertProfile = () => {}
-            const assertPatternSession = () => {
-              if (!isPattern) return
-              if (getPersonalContentProvider() !== personalContent || getControllerMetadataStorage() !== metadataStorage
-                || getControllerProvider() !== capturedProvider || get().activeIp !== controllerId
-                || get().controllers[controllerId]?.liveEpoch !== capturedEpoch || capturedStatus.kind !== 'connected'
-                || get().controllers[controllerId]?.mapDim !== activeController?.mapDim
-                || !statusMatchesConnectedController(capturedStatus.controller, capturedProvider.getStatus())) {
-                throw new Error('Controller session changed before Pattern delivery')
-              }
-              assertProfile()
-            }
-            const policy = isPattern ? await readImportPolicy(metadataStorage, artifact.artifactId) : { applyProfile: true }
-            assertPatternSession()
-            if (policy.applyProfile) await waitForControllerProfileWrites()
-            const profiles = !policy.applyProfile ? [] : isPattern
-              ? await personalContent.listControllerProfiles()
-              : await personalContent.listControllerProfiles().catch(() => [])
-            assertPatternSession()
+            await waitForControllerProfileWrites()
+            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const profileSignature = policy.applyProfile ? controllerProfileArtifactSignature(
+            const profileSignature = controllerProfileArtifactSignature(
               profile,
               artifact.artifactId,
               { mapDim: activeController?.mapDim ?? null },
-            ) : undefined
-            const localSignature = () => controllerProfileArtifactSignature(
-              activeController ? findProfileForLiveController(useControllerProfileStore.getState().profiles, activeController) : null,
-              artifact.artifactId, { mapDim: activeController?.mapDim ?? null })
-            const preparedLocalSignature = localSignature()
-            if (isPattern && policy.applyProfile) assertProfile = () => {
-              if (localSignature() !== preparedLocalSignature) throw new Error('Controller profile changed before Pattern delivery')
-            }
+            )
             const extraPasses = []
-            if (policy.applyProfile && activeController?.mapDim && isPattern) {
+            if (activeController?.mapDim && artifact.artifactStamp.kind !== 'show') {
               extraPasses.push({
                 id: 'renderer-adapter',
                 kind: 'renderer-adapter' as const,
                 mapDim: activeController.mapDim,
               })
             }
-            const compiledLibraries = compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries)
             const delivery = prepareControllerArtifactDelivery({
               source: artifact.source,
               profile,
               artifactId: artifact.artifactId,
-              libraries: compiledLibraries,
+              libraries: compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
               extraPasses,
             })
-            const bundled = delivery.bundled ?? (isPattern ? bundleWithPasses(artifact.source, compiledLibraries, []) : null)
+            const bundled = delivery.bundled
             if (bundled && activeController?.mapDim) {
               const hardwarePlan = planHardwareRenderer(
                 activeController.mapDim,
@@ -1583,7 +1486,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               (warning) => warning.code === 'renderer-adapter-name-collision',
             )
             if (adapterCollision) throw new Error(adapterCollision.message)
-            const source = !policy.applyProfile && bundled ? bundled.code : delivery.source
+            const source = delivery.source
             const pressure = assessShowCompilePressure({
               deliveredSourceBytes: deliveredShowSourceBytes(source),
               ...artifact.compilePressure,
@@ -1597,28 +1500,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               transforms: [...new Set([
                 ...(artifact.artifactStamp.transforms ?? []),
                 ...transforms,
-                ...(isPattern && !policy.applyProfile ? ['stored-artifact'] : []),
               ])],
             }
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
-              async () => {
-                assertPatternSession()
-                if (isPattern) {
-                  const currentPolicy = await readImportPolicy(metadataStorage, artifact.artifactId)
-                  assertPatternSession()
-                  if (currentPolicy.applyProfile !== policy.applyProfile) throw new Error('Controller import policy changed before Pattern delivery')
-                  if (policy.applyProfile) {
-                    await waitForControllerProfileWrites()
-                    const currentProfiles = await personalContent.listControllerProfiles()
-                    assertPatternSession()
-                    const currentProfile = activeController ? findProfileForLiveController(currentProfiles, activeController) : null
-                    if (controllerProfileArtifactSignature(currentProfile, artifact.artifactId, { mapDim: activeController?.mapDim ?? null }) !== profileSignature) {
-                      throw new Error('Controller profile changed before Pattern delivery')
-                    }
-                  }
-                }
-                const provider = isPattern ? capturedProvider : getControllerProvider()
+              () => {
+                const provider = getControllerProvider()
                 const status = provider.getStatus()
                 const liveEpoch = get().controllers[controllerId]?.liveEpoch
                 const expectedControllerSession = artifact.expectedControllerSession
@@ -1627,7 +1514,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
                     : undefined)
                 const assertDeviceSession = expectedControllerSession
                   ? () => {
-                      assertPatternSession()
                       if (
                         get().activeIp !== controllerId
                         || (get().controllers[controllerId]?.liveEpoch ?? 0) !== expectedControllerSession.liveEpoch
@@ -1637,7 +1523,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                         throw new Error('Controller session changed before Show delivery')
                       }
                     }
-                  : isPattern ? assertPatternSession : undefined
+                  : undefined
                 // Compilation evidence survives upload failure, but never a stale
                 // asynchronous hash completion. It is excluded from persistence.
                 set({ lastShowArtifactCompilation: null })
@@ -1653,7 +1539,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   profileSignature,
                   transforms: artifactStamp.transforms,
                   stampedAt: artifact.artifactStamp.stampedAt,
-                  ...deliveryMetadata(metadataStorage, () => assertDeviceSession?.()),
+                  loadBindings: getControllerBindings,
+                  saveBindings: setControllerBindings,
+                  loadPushRecords: getPushRecords,
+                  savePushRecords: setPushRecords,
                   ...(assertDeviceSession ? { assertDeviceSession } : {}),
                   onCompiledArtifact: async (compiled) => {
                     let sourceSha256: string
@@ -1675,21 +1564,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 })
               },
             )
-            assertPatternSession()
             assumeRendererPlaying(controllerId)
             useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
 
             if (artifact.name) {
               const labels = withProgramLabel(
-                await (isPattern ? metadataStorage.getProgramLabels() : getProgramLabels()),
+                await getProgramLabels(),
                 controllerId,
                 programId,
                 artifact.name,
               )
-              assertPatternSession()
-              if (isPattern) await metadataStorage.setProgramLabels(labels)
-              else await setProgramLabels(labels)
-              assertPatternSession()
+              await setProgramLabels(labels)
               useControllerPanelStore.getState().noteProgramLabel(programId, artifact.name)
             }
             if (artifact.persist) void useControllerPanelStore.getState().refreshPrograms()
@@ -1719,7 +1604,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...state[profileRecordKey],
                 [controllerId]: {
                   ...state[profileRecordKey][controllerId],
-                  [artifact.artifactId]: profileSignature ?? STORED_ARTIFACT_PROFILE_SIGNATURE,
+                  [artifact.artifactId]: profileSignature,
                 },
               },
               ...(!artifact.persist
@@ -2015,46 +1900,29 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const provider = getControllerProvider()
             const expectedStatus = provider.getStatus()
             const expectedLiveEpoch = activeController?.liveEpoch ?? 0
-            const personalContent = getPersonalContentProvider()
-            const metadataStorage = getControllerMetadataStorage()
-            let assertProfile = () => {}
             const assertDeviceSession = () => {
               if (
                 expectedStatus.kind !== 'connected'
-                || getPersonalContentProvider() !== personalContent
-                || getControllerMetadataStorage() !== metadataStorage
                 || get().activeIp !== controllerId
                 || (get().controllers[controllerId]?.liveEpoch ?? 0) !== expectedLiveEpoch
-                || get().controllers[controllerId]?.mapDim !== activeController?.mapDim
                 || getControllerProvider() !== provider
                 || !statusMatchesConnectedController(expectedStatus.controller, provider.getStatus())
               ) {
                 throw new Error('Controller session changed before Pattern delivery')
               }
-              assertProfile()
             }
-            const policy = await readImportPolicy(metadataStorage, patternId)
-            assertDeviceSession()
-            if (policy.applyProfile) await waitForControllerProfileWrites()
-            const profiles = policy.applyProfile ? await personalContent.listControllerProfiles() : []
-            assertDeviceSession()
+            await waitForControllerProfileWrites()
+            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const profileSignature = policy.applyProfile ? controllerProfileArtifactSignature(
+            const profileSignature = controllerProfileArtifactSignature(
               profile,
               patternId,
               { mapDim: activeController?.mapDim ?? null },
-            ) : undefined
-            const localSignature = () => controllerProfileArtifactSignature(
-              activeController ? findProfileForLiveController(useControllerProfileStore.getState().profiles, activeController) : null,
-              patternId, { mapDim: activeController?.mapDim ?? null })
-            const preparedLocalSignature = localSignature()
-            if (policy.applyProfile) assertProfile = () => {
-              if (localSignature() !== preparedLocalSignature) throw new Error('Controller profile changed before Pattern delivery')
-            }
-            const recipe = policy.applyProfile ? controllerProfilePassRecipe(profile, previewSource, patternId) : []
-            if (policy.applyProfile && activeController?.mapDim) {
+            )
+            const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
+            if (activeController?.mapDim) {
               recipe.push({
                 id: 'renderer-adapter',
                 kind: 'renderer-adapter',
@@ -2103,35 +1971,23 @@ export const useControllerStore = create<ControllerConnectionState>()(
             assertDeviceSession()
             const { created, programId } = await queueControllerDeviceWrite(
               controllerId,
-              async () => {
-                assertDeviceSession()
-                const currentPolicy = await readImportPolicy(metadataStorage, patternId)
-                assertDeviceSession()
-                if (currentPolicy.applyProfile !== policy.applyProfile) throw new Error('Controller import policy changed before Pattern delivery')
-                if (policy.applyProfile) {
-                  await waitForControllerProfileWrites()
-                  const currentProfiles = await personalContent.listControllerProfiles()
-                  assertDeviceSession()
-                  const currentProfile = activeController ? findProfileForLiveController(currentProfiles, activeController) : null
-                  if (controllerProfileArtifactSignature(currentProfile, patternId, { mapDim: activeController?.mapDim ?? null }) !== profileSignature) {
-                    throw new Error('Controller profile changed before Pattern delivery')
-                  }
-                }
-                return pushPattern({
-                  provider,
-                  controllerId,
-                  patternId,
-                  source: code,
-                  sourceHash: artifactHash(previewSource),
-                  name: previewPatternName,
-                  persist,
-                  previewImage,
-                  transforms: policy.applyProfile ? artifactTransformIds(bundled.summary.passes) : ['stored-artifact'],
-                  profileSignature,
-                  ...deliveryMetadata(metadataStorage, assertDeviceSession),
-                  assertDeviceSession,
-                })
-              },
+              () => pushPattern({
+              provider,
+              controllerId,
+              patternId,
+              source: code,
+              sourceHash: artifactHash(previewSource),
+              name: previewPatternName,
+              persist,
+              previewImage,
+              transforms: artifactTransformIds(bundled.summary.passes),
+              profileSignature,
+              loadBindings: getControllerBindings,
+              saveBindings: setControllerBindings,
+              loadPushRecords: getPushRecords,
+              savePushRecords: setPushRecords,
+              assertDeviceSession,
+              }),
             )
             assertDeviceSession()
             assumeRendererPlaying(controllerId)
@@ -2142,14 +1998,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // Persist the cache and mirror it into the panel store for immediate display.
             if (previewPatternName) {
               const labels = withProgramLabel(
-                await metadataStorage.getProgramLabels(),
+                await getProgramLabels(),
                 controllerId,
                 programId,
                 previewPatternName,
               )
-              assertDeviceSession()
-              await metadataStorage.setProgramLabels(labels)
-              assertDeviceSession()
+              await setProgramLabels(labels)
               useControllerPanelStore.getState().noteProgramLabel(programId, previewPatternName)
             }
             // Save-and-run (#238): the saved program is now on the device and active, but
@@ -2184,7 +2038,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...s[profileRecordKey],
                 [controllerId]: {
                   ...s[profileRecordKey][controllerId],
-                  [patternId]: profileSignature ?? STORED_ARTIFACT_PROFILE_SIGNATURE,
+                  [patternId]: profileSignature,
                 },
               },
               ...(!persist
