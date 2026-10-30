@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The installed release is pinned in `package.json` and `package-lock.json`;
+The current release is WRSP 1.5.7 (#1253), pinned in `package.json` and `package-lock.json`;
 runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -77,6 +77,24 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.5.7 adoption (#1253)
+
+The executable package advances from 1.5.6 (#1243) to 1.5.7. The UI proof gate
+prints a bounded summary and names the complete report under
+`$TMPDIR/wrsp-ui-proof-*/report.log`; its exit codes are unchanged (WRSP #470).
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.7, tag `v1.5.7` |
+| Source | `f444ab7be6f4ef44034b66cbd051f300566324ed` |
+| Tarball | `vendor/whiteroom-software-process-1.5.7.tgz` |
+| SHA256 | `1091ccb286bc3592ef0e5a456e8de874de62a22bd5a5e8e1c53d6701c4d6f9c1` |
+
+The release also updates installed agent guidance for issue-body size warnings,
+bounded claim-line editing, headless Playwright routing and developer startup
+(WRSP #471–#473). No copied hook or project role policy changes. The
+unreferenced 1.5.6 tarball is removed; its adoption evidence remains below.
+
 ## WRSP 1.5.6 adoption (#1243)
 
 The executable package advances from 1.5.0 (#1225) to 1.5.6. Its grant reader
@@ -89,7 +107,7 @@ does not authorize a push.
 | --- | --- |
 | Release | `@whiteroom/software-process` 1.5.6, tag `v1.5.6` |
 | Source | `06be8ab679ac914a4d91cea6b3fd4e636ade2cca` |
-| Tarball | `vendor/whiteroom-software-process-1.5.6.tgz` |
+| Tarball | `vendor/whiteroom-software-process-1.5.6.tgz` (removed by #1253) |
 | SHA256 | `4809e7e52771f2d06f1ad2d67c36af45637bd4f991663e12c3c478cda9b4de2e` |
 
 The copied `.husky/coordinator-reminder.sh` matches the release hook and stays
