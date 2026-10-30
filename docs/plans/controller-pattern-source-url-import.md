@@ -1,7 +1,7 @@
 # Controller Pattern import through an original-source URL
 
 Status: agreed product direction, updated 2026-10-30; not a completion claim.
-Related work: [#1221](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221).
+Related work: [#1251](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1251), current issue; [#1221](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1221), closed predecessor.
 
 Import retrieves clean Pattern source from a URL recorded in the saved
 Controller artifact and creates a personal Pattern in the recipient's account.
