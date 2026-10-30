@@ -74,8 +74,12 @@ describe('Preview Slow-Mo section gate', () => {
     fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo dreamy' }), { target: { value: '1' } })
     expect(usePreviewStore.getState().slowMo).toEqual({ position: 0.5, dreamy: 1 })
     fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
-    expect(screen.getByRole('slider', { name: 'Slow-mo speed' })).toBeVisible()
-    expect(screen.getByRole('slider', { name: 'Slow-mo dreamy' })).toBeVisible()
+    expect(screen.queryByRole('slider', { name: 'Slow-mo speed' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Slow-mo dreamy' })).not.toBeInTheDocument()
+    act(() => usePreviewStore.getState().setSlowMo({ position: 1, dreamy: 0.5 }))
+    fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
+    expect(screen.getByRole('slider', { name: 'Slow-mo speed' })).toHaveValue('1')
+    expect(screen.getByRole('slider', { name: 'Slow-mo dreamy' })).toHaveValue('0.5')
   })
 
   it('never mounts in the Show profile with the flag and active settings', () => {

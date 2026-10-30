@@ -391,7 +391,8 @@ is empty and complete `code`/`fxCode` identity with `bundle()` is preserved.
 With the flag, the wrapper is always applied. The ordinary preview Speed
 selector scales display delta independently of the wrapper's speed position.
 
-The section keeps speed and dreamy side by side when collapsed or expanded.
+The expanded section keeps speed and dreamy side by side; collapsing it shows
+their current values in the same single-line readout as the Preview section.
 Copy generated code is expanded content and projects current settings into code
 initializers. A refusal stays visible while the unwrapped Pattern runs. Slider
 changes update encoded runtime globals without resetting time or recompiling

@@ -1,8 +1,10 @@
 import type { SlowMoPlan } from '@/engine/slowMo'
 import { slowMoRateFromPosition } from '@/engine/slowMo'
 import type { SlowMoDraft } from '@/engine/slowMoDraft'
+import { formatPercentageValue } from '@/engine/percentageValue'
 import { DeckDisclosureHeader } from './Deck'
 import { DeckSlider } from './DeckSlider'
+import { PanelReadout } from './PanelReadout'
 import './SlowMoLab.css'
 
 export interface SlowMoLabProps {
@@ -18,8 +20,17 @@ export interface SlowMoLabProps {
 export function SlowMoLab({ draft, onChange, declined, expanded, onExpandedChange, onCopy, copyError }: SlowMoLabProps) {
   return (
     <section aria-label="Slow-Mo" className="panel-section slowmo-section" data-expanded={expanded}>
-      <DeckDisclosureHeader label="Slow-Mo" expanded={expanded} onToggle={() => onExpandedChange(!expanded)} summaryRow />
-      <div className="panel-section-body">
+      <DeckDisclosureHeader label="Slow-Mo" expanded={expanded} onToggle={() => onExpandedChange(!expanded)} summaryRow
+        summary={!expanded && <>
+          <PanelReadout items={[
+            { label: 'speed', value: `${Number(slowMoRateFromPosition(draft.position).toFixed(3))}×` },
+            { label: 'dreamy', value: formatPercentageValue(draft.dreamy) },
+          ]} />
+          {declined && <span role="status" className="text-amber-400">{declined.message}</span>}
+        </>}
+      />
+      <div className="panel-section-body" hidden={!expanded}>
+        {expanded && <>
         <div className="panel-fields">
           <DeckSlider
             label="speed"
@@ -54,6 +65,7 @@ export function SlowMoLab({ draft, onChange, declined, expanded, onExpandedChang
             {copyError && <p role="status">{copyError}</p>}
           </div>
         )}
+        </>}
       </div>
     </section>
   )

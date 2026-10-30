@@ -51,7 +51,7 @@ function expectInside(control: DOMRect, panel: DOMRect) {
 }
 
 describe('Slow-Mo in the production preview grid', () => {
-  it.each([460, 375])('keeps both sliders in one row when collapsed and expanded at %ipx', width => {
+  it.each([460, 375])('collapses to one header and keeps expanded sliders in one row at %ipx', width => {
     const host = document.createElement('div')
     host.style.width = `${width}px`
     document.body.appendChild(host)
@@ -62,10 +62,16 @@ describe('Slow-Mo in the production preview grid', () => {
       const section = screen.getByRole('region', { name: 'Slow-Mo' })
       const panel = section.getBoundingClientRect()
       const sliders = section.querySelectorAll<HTMLElement>('[data-deck="slider"]')
-      expect(sliders).toHaveLength(2)
-      const [speed, dreamy] = [...sliders].map(el => el.getBoundingClientRect())
-      expect(Math.abs(speed.top - dreamy.top)).toBeLessThanOrEqual(1)
-      expect(overlaps(speed, dreamy)).toBe(false)
+      expect(sliders).toHaveLength(expanded ? 2 : 0)
+      if (expanded) {
+        const [speed, dreamy] = [...sliders].map(el => el.getBoundingClientRect())
+        expect(Math.abs(speed.top - dreamy.top)).toBeLessThanOrEqual(1)
+        expect(overlaps(speed, dreamy)).toBe(false)
+      } else {
+        const header = section.querySelector('[data-deck="section-header"]')!.getBoundingClientRect()
+        expect(panel.height).toBe(header.height + 1)
+        expect(section.querySelector('.panel-section-body')).toHaveAttribute('hidden')
+      }
       for (const control of section.querySelectorAll<HTMLElement>('input, button')) {
         expectInside(control.getBoundingClientRect(), panel)
         control.focus()

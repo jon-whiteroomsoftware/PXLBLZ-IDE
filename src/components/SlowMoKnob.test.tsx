@@ -50,7 +50,7 @@ afterEach(() => { cleanup(); history.replaceState(null, '', originalUrl) })
 
 it('T1/T7 exposes a native position slider with the logarithmic readout', () => {
   const onChange = vi.fn()
-  render(<SlowMoLab draft={createSlowMoDraft()} onChange={onChange} declined={null} expanded={false} onExpandedChange={vi.fn()} />)
+  render(<SlowMoLab draft={createSlowMoDraft()} onChange={onChange} declined={null} expanded onExpandedChange={vi.fn()} />)
   const speed = screen.getByRole('slider', { name: 'Slow-mo speed' })
   expect(speed).toHaveAttribute('min', '0')
   expect(speed).toHaveAttribute('max', '1')

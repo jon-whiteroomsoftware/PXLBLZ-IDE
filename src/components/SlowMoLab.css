@@ -1,4 +1,4 @@
-.slowmo-section .panel-section-body {
+.slowmo-section .panel-section-body:not([hidden]) {
   padding-bottom: 5px;
 }
 
