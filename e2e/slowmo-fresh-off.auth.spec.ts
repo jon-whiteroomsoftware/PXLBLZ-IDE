@@ -53,8 +53,8 @@ async function copy(page: Page, position: number, decay: number) {
   expect(code).toContain('slider__pxlblz_slowmo_speed')
   expect(code).not.toMatch(/__pxlblz_slowmo_(?:attack|curve|shape|width|step|offset)/)
   const pixels = await page.evaluate(async code => {
-    const bundlePath = '/src/engine/bundle.ts'
-    const runtimePath = '/src/engine/fastReplay.ts'
+    const bundlePath = '/PXLBLZ-IDE/src/engine/bundle.ts'
+    const runtimePath = '/PXLBLZ-IDE/src/engine/fastReplay.ts'
     const { bundle } = await import(bundlePath)
     const { createFastReplayRuntime } = await import(runtimePath)
     const runtime = createFastReplayRuntime({ ...bundle(code, {}), dimension: 2 }, {
@@ -84,7 +84,7 @@ for (const width of [1440, 900]) {
       expect(Math.abs(speed!.y - dreamy!.y)).toBeLessThanOrEqual(1)
       expect(speed!.x + speed!.width).toBeLessThan(dreamy!.x)
       expect(await section(page).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
-      await section(page).screenshot({ path: test.info().outputPath(`slowmo-${width}-${expanded}.png`) })
+      await page.screenshot({ path: test.info().outputPath(`slowmo-${width}-${expanded}.png`) })
     }
     const position = await drag(page, 'speed', 0.5)
     expect(Number(await slider(page, 'dreamy').inputValue())).toBe(0)

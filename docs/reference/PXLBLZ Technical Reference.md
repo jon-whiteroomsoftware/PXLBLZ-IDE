@@ -303,47 +303,35 @@ call shapes become transform warnings, and generated source is always
 inspectable. The interception boundary is deliberately honest: aliases, object
 methods, and dynamically selected sinks are not guessed.
 
-**Slow-mo lab (unlanded flagged prototype, `?slowmo=1`).** The preview-only
-`slowmo` recipe's blend family gives a Pattern a fixed-step clock and captures
-RGB into A/B frames for hold, linear blend, or smoothstep interpolation.
-Scope-aware rewriting redirects `time` and captures `rgb`/`hsv`/`hsv24` after
-bundling, including inlined libraries. The blend pass appends rate, step, curve,
-stagger shape, and width globals to `runtimeVars`,
-preserving authored controls and watched variables. A declined pass preserves
-exact `code`/`fxCode` and exposes its reason in the summary.
+**Slow-Mo (flagged preview prototype, `?slowmo=1`).** The preview-only
+`slowmo` recipe gives a Pattern a fixed 16 ms clock, captures RGB into A/B
+frames, and linearly blends the latest captures. Scope-aware rewriting redirects
+`time` and captures `rgb`/`hsv`/`hsv24` after bundling, including inlined
+libraries. A declined pass preserves exact `code`/`fxCode` and exposes its
+reason in the summary. Palette output, missing renderers, shadowed builtins,
+reserved names and excess wrapper array use retain their named refusals.
 
-Stagger assigns each pixel a normalized offset `q`: sweep uses `index/N` in
-1D or clamped `x`; radial uses normalized distance from the centre; scatter
-uses `(index * 0.6180267333984375) % 1`. That exact scatter literal keeps `q`
-identical in Fast and Precise; a literal `65536` denominator overflows 16.16.
-The scaled offset `o = width*q` uses normal input-encoding and multiply
-quantization. Each pixel blends inside `[o, o + 1 - width]`, with `o <= width`
-(strictly less for scatter), so its window ends at or before the interval
-boundary. Hold gives a wipe; width zero preserves slice-A pixels bit-exactly.
+Two settings control the wrapper: speed position and dreamy, each from 0 to 1.
+Speed follows `2 ** (-4 * (1 - position))`, from 1/16 to full speed. Position
+at or above 0.97 enters full-speed bypass; below 0.94 leaves it. Bypass runs the
+inner Pattern at display cadence. Leaving bypass refreshes both captures to
+avoid blending stale endpoints. Dreamy sets decay to `10000 * dreamy ** 2` ms;
+0 gives no trails, 0.5 gives 2,500 ms and 1 gives 10,000 ms. Both settings are
+live runtime globals. Generated code exports the speed slider for manual paste.
 
-Optional persistence applies per-channel attack/decay after the in-between
-output. Once per display frame, each coefficient is `1 - exp(-displayDelta/tau)`
-(or 1 for zero tau), so attack and decay follow display time. Three arrays
-hold shown RGB in LED levels (0–255), snapping to the target below 1/64 of
-a level to close the Precise-mode tail. After priming, zero display delta
-preserves the shown pixels, including with zero taus. Attack (0–5,000 ms)
-and decay (0–10,000 ms) are live `runtimeVars`; persistence on/off rebuilds.
+Decay applies per channel after blending, with immediate rise. Once per display
+frame its coefficient is `1 - exp(-displayDelta / decayMs)`, or 1 at zero
+decay. Three arrays hold shown RGB in LED levels (0–255), snapping to the target
+below 1/64 of a level to close the Precise-mode tail. After priming, zero display
+delta preserves those arrays. Full speed with dreamy 0 uses native color calls;
+positive dreamy continues decay during bypass. The wrapper always allocates
+nine arrays: `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133), excluding
+authored arrays.
 
-The six blend arrays cost `6N + 24` words (1,560 at 256 pixels). Persistence
-adds three arrays, for `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133),
-excluding authored arrays. Clock mode without persistence uses an empty
-recipe. Clock with persistence runs the inner Pattern live every display frame,
-including zero-delta frames, preserving authored `time()` calls and the host's
-already-scaled delta. Its coefficients recover display time with `delta / rate`;
-only rate, attack, and decay are tunable globals on this path. The wrapper
-allocates three arrays for `3N + 12` words (N ≤ 3,409), excluding authored arrays.
-It applies persistence directly to captured RGB, without A/B frames or a
-generated clock.
-
-The blend wrapper runs at most four inner `beforeRender` steps per display
-frame, once each in order, advancing the clock for each, followed by one
-resulting capture. The display blends the latest two captures and skips
-intermediate real frames on screen, with no extra render pass, as accepted in
+Outside bypass, the wrapper runs at most four inner `beforeRender(16)` steps
+per display frame, advancing the clock for each, followed by one resulting
+capture. The display blends the latest two captures and skips intermediate real
+frames on screen, with no extra render pass, as accepted in
 [#1236](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1236).
 Push and Show compilation are unchanged.
 
@@ -397,25 +385,19 @@ paints, and publishes FPS and watched vars. Runtime exceptions stop the loop.
 `tickHeadless` executes all stateful render work without painting; Show seek
 replay depends on it because render functions may mutate state.
 
-The flagged slow-mo lab (`?slowmo=1`) applies `bundleWithPasses` to Pattern
-preview after resolving the pixel count. The recipe is empty with the flag
-absent, Off, or Clock with persistence Off, preserving complete `code`/`fxCode`
-identity with `bundle()`. Clock with persistence On uses a persistence-only
-wrapper over the live Pattern. Clock composes preview Speed × rate; the blend
-family uses the wrapper's fixed-step rate with ordinary preview Speed.
+The flagged Slow-Mo section (`?slowmo=1`) applies `bundleWithPasses` to
+Pattern preview after resolving the pixel count. Without the flag, the recipe
+is empty and complete `code`/`fxCode` identity with `bundle()` is preserved.
+With the flag, the wrapper is always applied. The ordinary preview Speed
+selector scales display delta independently of the wrapper's speed position.
 
-Live rate, step, curve, stagger shape/width, and persistence attack/decay dials
-update encoded runtime globals without resetting time. In-between exposes
-Sweep, Radial, and Scatter with width 0–0.9 (0 off). A full session draft stays
-editable with Method Off; effective settings remain null, preserving baseline
-`code`/`fxCode` and Copy output. Only Clock disables stagger, retaining its values.
-After-effect controls whether the retained draft attack/decay dials project to
-persistence; those dials remain editable while After-effect is Off. Method Off
-retains every draft field. Source, Pattern, layout, fidelity, Clock/blend structure,
-or persistence On/Off changes re-prime the preview. Refusals keep the unwrapped preview running;
-Copy generated code projects current values into code initializers. Lab state
-stays session-only: both draft and effective settings are omitted from persisted
-snapshots and dropped from stale hydration blobs.
+The section keeps speed and dreamy side by side when collapsed or expanded.
+Copy generated code is expanded content and projects current settings into code
+initializers. A refusal stays visible while the unwrapped Pattern runs. Slider
+changes update encoded runtime globals without resetting time or recompiling
+the runtime. Source, Pattern, layout and fidelity changes re-prime the preview.
+Slow-Mo state stays session-only: draft and effective settings are omitted from
+persisted snapshots and dropped from stale hydration blobs.
 
 The Show Stage has two advancement contracts: live playback advances once per
 presented frame (`advanceLive`), deterministic seek advances at fixed 60 Hz
@@ -1710,9 +1692,9 @@ The agent diagnostic harness and its baseline suites are described in §28.
 - Show seeking reconstructs Pattern state exactly, but Trails restarts its
   history at the seek destination.
 
-The flagged slow-mo lab prototype (§6) sets nominal per-frame pace to
-`1000 / stepMs * rate` updates/sec: the default 16 ms gives `62.5 * rate`.
-The display trails by one captured frame. Its Pattern clock T wraps at 2^14
+The flagged Slow-Mo prototype (§6) sets nominal per-frame pace to
+`62.5 * rate` updates/sec outside full-speed bypass. The display trails by
+one captured frame in that fixed-step path. Its Pattern clock T wraps at 2^14
 units of 65,536 ms, about 12.4 Pattern days. `time(interval)` stays
 phase-continuous across that wrap for power-of-two 16.16 raw intervals and
 may jump otherwise. Clock-of-day builtins are unchanged. Preview tests do

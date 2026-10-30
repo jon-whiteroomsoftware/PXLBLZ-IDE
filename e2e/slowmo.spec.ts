@@ -173,4 +173,5 @@ test('absent flag hides Slow-Mo on a loaded Pattern editor', async ({ page }) =>
   await expand(page, 'Preview')
   await expect(page.getByTestId('preview-pane').locator('canvas.rounded-sm')).toBeVisible()
   await expect(page.getByRole('region', { name: 'Slow-Mo', exact: true })).toHaveCount(0)
+  await page.screenshot({ path: test.info().outputPath('slowmo-flag-off.png') })
 })

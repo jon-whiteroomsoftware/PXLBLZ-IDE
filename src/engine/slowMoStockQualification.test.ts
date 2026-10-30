@@ -5,6 +5,9 @@ import { bundleWithPasses } from './passEngine'
 import { createFastReplayRuntime, type FastReplayResult } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import type { SlowMoSettings } from './slowMo'
+import plainKaleidoBloom from '@/test/fixtures/slowMoPlainBlendKaleidoBloom.js?raw'
+import plainWavyBands from '@/test/fixtures/slowMoPlainBlendWavyBands.js?raw'
+import plainAuroraSphere from '@/test/fixtures/slowMoPlainBlendAuroraSphere.js?raw'
 
 const settings: SlowMoSettings = { position: 0.5, dreamy: 0 }
 const paletteIds = new Set(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
@@ -31,6 +34,38 @@ function assertPixels(result: FastReplayResult, length: number, context: string)
     })
   })
 }
+
+// These executable baselines were emitted by the pre-product wrapper, independently
+// of the implementation under test; their source commit is pinned in each fixture.
+describe('dreamy zero preserves plain Blend stock pixels', () => {
+  const baselines: Record<string, string> = {
+    KaleidoBloom: plainKaleidoBloom, WavyBands: plainWavyBands, AuroraSphere: plainAuroraSphere,
+  }
+  for (const { id, wrapped, dimension, points } of stockFor(0).filter(({ id }) => id in baselines)) {
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      it(`${id} matches frozen plain Blend within one LED level (${fidelity})`, () => {
+        const options = { mapPoints: points, randomSeed: 7, fidelity }
+        const schedule = [0, ...Array.from({ length: 120 }, (_, i) => [4, 12, 16, 33, 64, 100, 0][i % 7])]
+        const trace = (prepared: ReturnType<typeof bundle>) => {
+          const runtime = createFastReplayRuntime({ ...prepared, dimension }, options)
+          return schedule.map(delta => runtime.advanceLive(delta).pixels.map(pixel => [...pixel]))
+        }
+        // WavyBands uses implicit globals. Match browser execution: finish one
+        // Pattern run, then instantiate the next; interleaving shares timebase.
+        const expectedTrace = trace(bundle(baselines[id], {}))
+        const actualTrace = trace(wrapped)
+        for (const [frame, actual] of actualTrace.entries()) {
+          const expected = expectedTrace[frame]
+          assertPixels({ pixels: actual } as FastReplayResult, points.length, `${id}/${fidelity}`)
+          for (const [i, pixel] of actual.entries()) for (const [channel, value] of pixel.entries()) {
+            expect(Math.abs(value - expected[i][channel]), `${id}/${fidelity} frame ${frame} pixel ${i} channel ${channel}`)
+              .toBeLessThanOrEqual(1 / 255)
+          }
+        }
+      })
+    }
+  }
+})
 
 describe.each([0, 0.5, 1])('I16 full stock sweep dreamy %s', dreamy => {
   const stock = stockFor(dreamy)
