@@ -5,3 +5,57 @@
 .pattern-panel .slowmo-section .panel-fields {
   grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
 }
+
+.slowmo-breathing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 7px;
+  margin-top: 2px;
+  font: 10px/20px var(--font-mono, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.slowmo-breathing label,
+.slowmo-lab-buttons,
+.slowmo-lab-readouts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.slowmo-breathing input[type="range"] {
+  width: 54px;
+  min-width: 0;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent, #9bbdff);
+}
+
+.slowmo-lab-value { min-width: 3ch; }
+
+.slowmo-breathing button {
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--border, #4b5563);
+  border-radius: 3px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.slowmo-breathing button[aria-pressed="true"] {
+  color: var(--accent, #9bbdff);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.slowmo-breathing :focus-visible {
+  outline: 2px solid var(--accent, #9bbdff);
+  outline-offset: 2px;
+}
+
+.slowmo-lab-readouts { gap: 6px; }
+.slowmo-trace-axis { stroke: currentColor; opacity: 0.2; }
+.slowmo-trace-line { stroke: var(--accent, #9bbdff); stroke-width: 1.25; }

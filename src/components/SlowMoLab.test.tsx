@@ -4,14 +4,14 @@ import { SlowMoLab, type SlowMoLabProps } from './SlowMoLab'
 
 const props = (overrides: Partial<SlowMoLabProps> = {}): SlowMoLabProps => ({
   draft: { position: 1, dreamy: 0 }, onChange: vi.fn(), declined: null,
-  expanded: false, onExpandedChange: vi.fn(), ...overrides,
+  expanded: false, onExpandedChange: vi.fn(), telemetry: null, onRestart: vi.fn(), ...overrides,
 })
 afterEach(cleanup)
 
-it('shows only speed and dreamy when expanded', () => {
+it('shows speed and dreamy with the compact breathing lab when expanded', () => {
   render(<SlowMoLab {...props({ expanded: true })} />)
   const section = within(screen.getByRole('region', { name: 'Slow-Mo' }))
-  expect(section.getAllByRole('slider')).toHaveLength(2)
+  expect(section.getAllByRole('slider')).toHaveLength(4)
   expect(section.getByRole('slider', { name: 'Slow-mo speed' })).toHaveValue('1')
   expect(section.getByRole('slider', { name: 'Slow-mo dreamy' })).toHaveValue('0')
   expect(section.queryByRole('combobox')).not.toBeInTheDocument()

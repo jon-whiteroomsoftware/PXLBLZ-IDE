@@ -8,6 +8,7 @@ import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
 import { AUTO_MAP_ID } from '@/engine/settings'
+import { DEFAULT_SLOW_MO_BREATHING } from '@/engine/slowMoBreathing'
 
 const originalUrl = location.href
 afterEach(() => history.replaceState(null, '', originalUrl))
@@ -61,6 +62,27 @@ describe('Preview Slow-Mo section gate', () => {
     usePreviewStore.setState({ slowMo: settings })
     render(<PreviewViewportSection profile="show" />)
     expect(screen.queryByTestId('slowmo-lab')).not.toBeInTheDocument()
+  })
+
+  it('operates the compact breathing controls and hides them on collapse', () => {
+    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
+    render(<SlowMoSection />)
+    expect(screen.getByRole('slider', { name: 'Breathing depth' })).toHaveValue('0.5')
+    expect(screen.getByRole('slider', { name: 'Breathing period' })).toHaveValue('20')
+    fireEvent.change(screen.getByRole('slider', { name: 'Breathing depth' }), { target: { value: '0.8' } })
+    fireEvent.change(screen.getByRole('slider', { name: 'Breathing period' }), { target: { value: '8' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Clipped limits' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Allow above 1×' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Dreamy uses Pattern seconds' }))
+    expect(usePreviewStore.getState().slowMoDraft.breathing).toEqual({
+      ...DEFAULT_SLOW_MO_BREATHING, depth: 0.8, periodSeconds: 8,
+      limits: 'clipped', allowAboveOne: true, dreamyClock: 'pattern',
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Restart cycle' }))
+    expect(usePreviewStore.getState().slowMoRestart).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
+    expect(screen.queryByRole('slider', { name: 'Breathing depth' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Restart cycle' })).not.toBeInTheDocument()
   })
 })
 

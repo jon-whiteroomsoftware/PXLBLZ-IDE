@@ -9,7 +9,8 @@ import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useControlStore, controlInitialState } from '@/store/controlStore'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { bundleWithPasses } from '@/engine/passEngine'
-import { slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { slowMoPositionFromRate, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { DEFAULT_SLOW_MO_BREATHING } from '@/engine/slowMoBreathing'
 import { createRenderLoop, type RenderLoopConfig } from '@/engine/renderLoop'
 import { loadPattern } from '@/engine/loadPattern'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
@@ -108,6 +109,29 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     expect(usePreviewStore.getState().elapsed).toBe(64)
     tick(0)
     expect(usePreviewStore.getState().elapsed).toBe(64)
+  })
+
+  it('drives the running Pattern with breathing and preserves phase through edits and restart', () => {
+    useEditorStore.setState({ previewSource: 'export var patternMs=0; export function beforeRender(d){patternMs+=d} export function render(i){rgb(1,0,0)}' })
+    const draft = { position: slowMoPositionFromRate(0.3), dreamy: 0, breathing: { ...DEFAULT_SLOW_MO_BREATHING, depth: 1 } }
+    usePreviewStore.getState().setSlowMoDraft(draft)
+    render(<Preview showDeck={false} pixelCountCap={3} />)
+    const running = loop()
+    for (let i = 0; i < 250; i++) tick(16)
+    const before = usePreviewStore.getState().slowMoTelemetry!
+    expect(before.phase).toBeCloseTo(0.2, 10)
+    expect(before.realMs).toBe(4000)
+    expect(before.patternMs).toBe(usePreviewStore.getState().elapsed)
+    expect(before.patternMs).toBeCloseTo(config().shim.decodeScalar(config().handle.getExports().patternMs as number), 6)
+    act(() => usePreviewStore.getState().setSlowMoDraft({ ...draft, breathing: { ...draft.breathing, periodSeconds: 2 } }))
+    expect(usePreviewStore.getState().slowMoTelemetry!.phase).toBeCloseTo(before.phase, 10)
+    tick(16)
+    expect(usePreviewStore.getState().slowMoTelemetry!.phase).toBeCloseTo(0.208, 10)
+    const timeBeforeRestart = usePreviewStore.getState().elapsed!
+    act(() => usePreviewStore.getState().restartSlowMoCycle())
+    expect(usePreviewStore.getState().slowMoTelemetry!.phase).toBe(0)
+    expect(usePreviewStore.getState().elapsed).toBe(timeBeforeRestart)
+    expect(loop()).toBe(running)
   })
   it('keeps execution and elapsed time through both live sliders', () => {
     const fixture = 'export var patternMs=0; export function beforeRender(d){patternMs+=d} export function render(i){rgb(patternMs/4096,0,0)}'

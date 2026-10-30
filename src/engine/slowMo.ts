@@ -10,6 +10,13 @@ import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from './show
 
 export const DEFAULT_SLOW_MO_STEP_MS = 16
 export const SLOW_MO_SPEED_SLIDER = 'slider__pxlblz_slowmo_speed'
+export const SLOW_MO_LAB_VARS = {
+  drive: '__pxlblz_slowmo_labDrive',
+  delta: '__pxlblz_slowmo_labDelta',
+  rate: '__pxlblz_slowmo_labRate',
+  bypass: '__pxlblz_slowmo_labBypass',
+  patternDreamy: '__pxlblz_slowmo_labPatternDreamy',
+} as const
 
 function clampPosition(position: number): number {
   if (!Number.isFinite(position)) throw new RangeError('Slow-mo position must be finite.')
@@ -111,6 +118,8 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   const prelude = `${initializers}
 var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
 var ${p}rate = 1
+var ${p}labDrive = 0, ${p}labDelta = 0, ${p}labRate = 1, ${p}labBypass = 0, ${p}labPatternDreamy = 0
+var ${p}frameAdvance = 0
 var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
 export function ${SLOW_MO_SPEED_SLIDER}(v) { ${p}position = clamp(v,0,1) }
 var ${p}r = 0, ${p}g = 0, ${p}b = 0
@@ -128,21 +137,25 @@ ${emitColorCapture(p)}`
   const beforeRender = `export function beforeRender(delta) {
   ${p}cap = 0
   ${p}refresh = 0
+  ${p}frameAdvance = 0
   ${p}rate = pow(2,-4*(1-${p}position))
   if (${p}position >= 0.97) ${p}bypass = 1
   else if (${p}position < 0.94) ${p}bypass = 0
   if (${p}bypass) ${p}rate = 1
+  if (${p}labDrive) { ${p}rate = ${p}labRate; ${p}bypass = ${p}labBypass }
   if (${p}bypass) {
-    ${p}T += delta * 0.0000152587890625
+    ${p}frameAdvance = ${p}labDrive ? ${p}labDelta : delta
+    ${p}T += ${p}frameAdvance * 0.0000152587890625
     if (${p}T >= 16384) ${p}T -= 16384
-    ${p}in_beforeRender(delta)
+    ${p}in_beforeRender(${p}frameAdvance)
   }
   else if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
   else {
-    ${p}acc += delta * ${p}rate
+    ${p}acc += ${p}labDrive ? ${p}labDelta : delta * ${p}rate
     var ${p}n = 0
     while (${p}acc >= 16 && ${p}n < 4) {
       ${p}acc -= 16
+      ${p}frameAdvance += 16
       ${p}T += 16 * 0.0000152587890625
       if (${p}T >= 16384) ${p}T -= 16384
       ${p}in_beforeRender(16); ${p}n += 1
@@ -154,7 +167,8 @@ ${emitColorCapture(p)}`
   ${p}wasBypass = ${p}bypass
   ${p}f = ${p}acc / 16
   ${p}displayDelta = delta
-  ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1
+  var ${p}decayDelta = ${p}labDrive && ${p}labPatternDreamy ? ${p}frameAdvance : delta
+  ${p}kDn = ${p}decay > 0 ? 1-exp(-${p}decayDelta/${p}decay) : 1
 }`
   const update = ['r', 'g', 'b'].map(c => `
     if (${p}phase == 0 || ${p}refresh) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }

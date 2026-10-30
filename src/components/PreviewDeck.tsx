@@ -111,9 +111,11 @@ export function SlowMoSection({ mode }: { mode?: string }) {
   const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
   const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
   const declined = usePreviewStore(s => s.slowMoDeclined)
+  const telemetry = usePreviewStore(s => s.slowMoTelemetry)
+  const restart = usePreviewStore(s => s.restartSlowMoCycle)
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Slow-Mo')
   return <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={declined}
-    expanded={expanded} onExpandedChange={setExpanded} />
+    expanded={expanded} onExpandedChange={setExpanded} telemetry={telemetry} onRestart={restart} />
 }
 
 function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode?: string }) {

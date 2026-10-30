@@ -1,6 +1,7 @@
 import type { SlowMoSettings } from './slowMo'
+import type { SlowMoBreathingSettings } from './slowMoBreathing'
 
-export type SlowMoDraft = SlowMoSettings
+export type SlowMoDraft = SlowMoSettings & { breathing?: SlowMoBreathingSettings }
 
 export function createSlowMoDraft(): SlowMoDraft {
   return { position: 1, dreamy: 0 }

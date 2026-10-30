@@ -17,7 +17,9 @@ import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
-import { SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { SLOW_MO_LAB_VARS, SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
+import { DEFAULT_SLOW_MO_BREATHING } from '@/engine/slowMoBreathing'
+import { createSlowMoBreathingPlayback } from '@/engine/slowMoBreathingPlayback'
 import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { createSlowMoDraft } from '@/engine/slowMoDraft'
 import { createSlowMoElapsed, SLOW_MO_CLOCK_VAR } from '@/engine/slowMoElapsed'
@@ -83,6 +85,7 @@ export function Preview({
   const diffusion = usePreviewStore((s) => s.diffusion)
   const fidelity = usePreviewStore((s) => s.fidelity)
   const slowMo = usePreviewStore((s) => s.slowMo)
+  const slowMoRestart = usePreviewStore((s) => s.slowMoRestart)
   const labEnabled = slowMoEnabled()
   const slowMoStructure = labEnabled ? 'slowmo' : 'baseline'
   const editorSource = useEditorStore((s) => s.source)
@@ -282,15 +285,21 @@ export function Preview({
     // is unaffected.
     const shim = fidelity === 'fast' ? createShim(shimConfig) : createFxShim(shimConfig)
     shimRef.current = shim
+    const breathing = wrapped ? createSlowMoBreathingPlayback(shim, () => {
+      const state = usePreviewStore.getState()
+      return { settings: state.slowMo ?? createSlowMoDraft(),
+        breathing: state.slowMoDraft.breathing ?? DEFAULT_SLOW_MO_BREATHING, restart: state.slowMoRestart }
+    }) : null
 
     let handle: ReturnType<typeof loadPattern>
     try {
       // Read the wrapper clock through the browser-only runtime seam. Keep
       // authored watchers and the emitted artifact metadata unchanged.
       const runtimeMetadata = wrapped ? {
-        ...metadata, runtimeVars: [...(metadata.runtimeVars ?? metadata.patternVars), SLOW_MO_CLOCK_VAR],
+        ...metadata, runtimeVars: [...(metadata.runtimeVars ?? metadata.patternVars), SLOW_MO_CLOCK_VAR, ...Object.values(SLOW_MO_LAB_VARS)],
       } : metadata
       handle = loadPattern(fidelity === 'fast' ? code : fxCode, runtimeMetadata, shim.builtins)
+      if (breathing) handle = breathing.wrap(handle)
       handleRef.current = handle
       executionRef.current = { wrapped }
       publishSlowMoDecline(artifact)
@@ -404,6 +413,7 @@ export function Preview({
           ? slowMoElapsed(shim.decodeScalar(handle.getRuntimeState()[SLOW_MO_CLOCK_VAR] as number))
           : elapsedMs
         usePreviewStore.getState().setElapsed(patternElapsed)
+        usePreviewStore.getState().setSlowMoTelemetry(breathing?.telemetry(patternElapsed) ?? null)
         if (!usePreviewStore.getState().watchPatternVars) return
         // Watched values live in the pattern's numeric domain (raw int32 in
         // fidelity mode); decode scalars and array elements to the float UI
@@ -431,6 +441,7 @@ export function Preview({
       shimRef.current = null
       executionRef.current = null
       usePreviewStore.getState().setSlowMoDeclined(null)
+      usePreviewStore.getState().setSlowMoTelemetry(null)
     }
   }, [previewSource, viewportReady, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName, activePatternId, slowMoStructure])
 
@@ -443,7 +454,7 @@ export function Preview({
       handle.setRuntimeVar(name, shim.encodeScalar(value))
     }
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-  }, [labEnabled, slowMo])
+  }, [labEnabled, slowMo, slowMoRestart])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
