@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1238",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture&slowmo=1",
+  "operation": "Playwright fallback, managed localhost:5176 as local-agent-03. Fresh-Off editable attack/decay keyboard boundaries and baseline Copy; Precise Blend 1/4 persistence with attack 5000/decay 10000, 2340 words, actual Copy; Clock retained dials/780 words and Blend restore; dropdown Enter/Escape focus, 768px fit, zero console/page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1238-l6-lab-c-narrow.png"
+  ],
+  "capturedAtCommit": "a3db48580a1c0529b797576f068265565a37b5b5"
+}
