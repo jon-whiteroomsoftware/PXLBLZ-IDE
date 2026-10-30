@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1221",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-select-1218",
+  "operation": "At desktop and 768px, drove the restored Saved/Other inventory and Other selection using the fake relay. Opened the preserved #1223 Saved Patterns title picker and imported legacy foreign source into the editor without Controller mutation or the removed cross-account import notice.",
+  "captures": [
+    ".wrsp/ui-proof/1221-r1-desktop-inventory.png",
+    ".wrsp/ui-proof/1221-r1-desktop-picker.png",
+    ".wrsp/ui-proof/1221-r1-desktop-legacy-import.png",
+    ".wrsp/ui-proof/1221-r1-narrow-selection.png"
+  ],
+  "capturedAtCommit": "7db9f01b7558ca18617861c3750e07720810022e"
+}
