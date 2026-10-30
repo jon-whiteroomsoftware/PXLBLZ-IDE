@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
+import { writeFile } from 'node:fs/promises'
 import { test, expect } from './fixtures/authenticated'
 
 const slider = (page: Page, name: string) => page.getByRole('slider', { name: `Slow-mo ${name}`, exact: true })
@@ -66,7 +67,9 @@ async function copy(page: Page, position: number, decay: number) {
   }, code)
   expect(pixels).toHaveLength(16)
   for (const pixel of pixels) for (const value of pixel) expect(Number.isFinite(value) && value >= 0 && value <= 1).toBe(true)
-  await test.info().attach(`copy-decay-${decay}.js`, { body: code, contentType: 'text/javascript' })
+  const path = test.info().outputPath(`copy-decay-${decay}.js`)
+  await writeFile(path, code)
+  await test.info().attach(`copy-decay-${decay}.js`, { path, contentType: 'text/javascript' })
 }
 
 for (const width of [1440, 900]) {
