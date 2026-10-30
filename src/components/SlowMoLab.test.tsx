@@ -16,7 +16,7 @@ it('shows only speed and dreamy when expanded', () => {
   expect(section.getByRole('slider', { name: 'Slow-mo dreamy' })).toHaveValue('0')
   expect(section.queryByRole('combobox')).not.toBeInTheDocument()
   expect(section.queryByText('array words')).not.toBeInTheDocument()
-  expect(section.getByRole('button', { name: 'Copy generated code' })).toBeInTheDocument()
+  expect(section.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
 })
 it('collapses to a live summary with no controls or expanded-content spacing', () => {
   const view = render(<SlowMoLab {...props({ draft: { position: 0.5, dreamy: 0.3 } })} />)
@@ -41,13 +41,10 @@ it('updates the sliders independently and delegates collapse', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
   expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false)
 })
-it('keeps refusal visible collapsed and enables Copy only with an artifact', () => {
-  const onCopy = vi.fn()
+it('keeps refusal visible collapsed and expanded without a Copy action', () => {
   const view = render(<SlowMoLab {...props({ declined: { reason: 'palette-output', message: 'Palette output refused.' } })} />)
   expect(screen.getByRole('status')).toHaveTextContent('Palette output refused.')
-  view.rerender(<SlowMoLab {...props({ expanded: true })} />)
-  expect(screen.getByRole('button', { name: 'Copy generated code' })).toBeDisabled()
-  view.rerender(<SlowMoLab {...props({ expanded: true, onCopy })} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Copy generated code' }))
-  expect(onCopy).toHaveBeenCalledOnce()
+  view.rerender(<SlowMoLab {...props({ expanded: true, declined: { reason: 'palette-output', message: 'Palette output refused.' } })} />)
+  expect(screen.getByRole('status')).toHaveTextContent('Palette output refused.')
+  expect(screen.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
 })

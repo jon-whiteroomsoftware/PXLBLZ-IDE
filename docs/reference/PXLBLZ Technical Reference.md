@@ -396,8 +396,7 @@ clock otherwise. Live speed changes preserve the accumulated time.
 
 The expanded section keeps speed and dreamy side by side; collapsing it shows
 their current values in the same single-line readout as the Preview section.
-Copy generated code is expanded content and projects current settings into code
-initializers. A refusal stays visible while the unwrapped Pattern runs. Slider
+A refusal stays visible while the unwrapped Pattern runs. Slider
 changes update encoded runtime globals without resetting time or recompiling
 the runtime. Source, Pattern, layout and fidelity changes re-prime the preview.
 Slow-Mo state stays session-only: draft and effective settings are omitted from

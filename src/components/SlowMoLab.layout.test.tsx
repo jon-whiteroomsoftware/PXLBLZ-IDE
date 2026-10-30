@@ -24,7 +24,6 @@ beforeEach(() => {
   history.replaceState(null, '', `${location.pathname}?slowmo=1`)
   usePreviewStore.setState({
     isRunning: false,
-    slowMoArtifact: { code: 'fixture', arrayWords: 2340 },
     elapsed: 1000,
   })
   usePreviewStore.getState().setSlowMo({ position: 0.5, dreamy: 1 })

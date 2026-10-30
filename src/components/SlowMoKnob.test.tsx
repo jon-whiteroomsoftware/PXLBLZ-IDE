@@ -11,9 +11,6 @@ import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useControlStore, controlInitialState } from '@/store/controlStore'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { createRenderLoop, type RenderLoopConfig } from '@/engine/renderLoop'
-import { loadPattern } from '@/engine/loadPattern'
-import { bundle } from '@/engine/bundle'
-import { createShim, createFxShim } from '@/engine/shim'
 
 const { paint } = vi.hoisted(() => ({ paint: vi.fn() }))
 vi.mock('@/engine/renderer', () => ({ createRenderer: () => ({
@@ -60,7 +57,7 @@ it('T1/T7 exposes a native position slider with the logarithmic readout', () => 
   expect(onChange).toHaveBeenLastCalledWith({ position: 0.75, dreamy: 0 })
 })
 
-it.each(['fast', 'fidelity'] as const)('T2/T7 live Preview %s retains handle/clock and reopens current Copy source', fidelity => {
+it.each(['fast', 'fidelity'] as const)('T2/T7 live Preview %s retains handle, clock and authored controls', fidelity => {
   usePreviewStore.setState({ fidelity })
   render(<Preview showDeck={false} pixelCountCap={3} />)
   const handle = config().handle, running = loop()
@@ -78,15 +75,6 @@ it.each(['fast', 'fidelity'] as const)('T2/T7 live Preview %s retains handle/clo
     const after = config().shim.decodeScalar(handle.getExports().receivedMs as number)
     expect(after).toBeGreaterThanOrEqual(before)
     if (position === 1) expect(after - before).toBe(16)
-    const copied = bundle(usePreviewStore.getState().slowMoArtifact!.code, {})
-    expect(copied.metadata.controls.filter(c => c.exportName === slider)).toHaveLength(1)
-    const shim = (fidelity === 'fast' ? createShim : createFxShim)({ pixelCount: 3, mapPoints: config().mapPoints, dimensions: 1, getVirtualTime: () => 0 })
-    const reopened = loadPattern(fidelity === 'fast' ? copied.code : copied.fxCode, copied.metadata, shim.builtins)
-    for (const delta of [0, 64]) {
-      reopened.beforeRender(shim.encodeScalar(delta))
-      for (let index = 0; index < 3; index++) reopened.render(shim.encodeScalar(index))
-    }
-    const expected = position === 1 ? 64 : Math.floor(64 * 2 ** (-4 * (1 - position)) / 16) * 16
-    expect(shim.decodeScalar(reopened.getExports().receivedMs as number)).toBe(expected)
+    expect(usePreviewStore.getState().elapsed).toBe(after)
   }
 })

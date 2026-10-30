@@ -11,7 +11,6 @@ import { bundleWithPasses } from '@/engine/passEngine'
 import { slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
 import { createRenderLoop, type RenderLoopConfig } from '@/engine/renderLoop'
 import { loadPattern } from '@/engine/loadPattern'
-import { createShim, createFxShim } from '@/engine/shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { bundle } from '@/engine/bundle'
@@ -69,7 +68,7 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
       const error = view.container.querySelector('.text-red-400')
       expect(error, `${name}: ${error?.textContent ?? 'no preview error'}`).toBeNull()
       expect(paint, `${name}: initial frame`).toHaveBeenCalled()
-      expect(usePreviewStore.getState().slowMoArtifact, name).toBeNull()
+      expect(usePreviewStore.getState().slowMoDeclined, name).toBeNull()
       view.unmount()
     }
   })
@@ -79,7 +78,6 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     useMapStore.setState({ activePixelCount: 1000 })
     render(<Preview showDeck={false} pixelCountCap={16} />)
     expect(config().pixelCount).toBe(16)
-    expect(usePreviewStore.getState().slowMoArtifact?.arrayWords).toBe(180)
     const expected = bundleWithPasses(source, {}, [{ kind: 'slowmo', settings: { position: 1, dreamy: 0 }, pixelCount: 16 }])
     expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? expected.code : expected.fxCode)
     tick(16); finite()
@@ -110,7 +108,7 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     tick(0)
     expect(usePreviewStore.getState().elapsed).toBe(64)
   })
-  it('keeps execution and elapsed time through both live sliders and reopens current Copy initializers', () => {
+  it('keeps execution and elapsed time through both live sliders', () => {
     const fixture = 'export var patternMs=0; export function beforeRender(d){patternMs+=d} export function render(i){rgb(patternMs/4096,0,0)}'
     useEditorStore.setState({ previewSource: fixture })
     render(<Preview showDeck={false} pixelCountCap={16} />)
@@ -131,15 +129,6 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
       expect(config().clock.getTime()).toBe(before)
       expect(config().shim.decodeScalar(handle.getExports().patternMs as number)).toBe(patternMs)
       for (const [name, value] of Object.entries(slowMoTunables(current))) expect(setter).toHaveBeenCalledWith(name, config().shim.encodeScalar(value))
-      const copy = usePreviewStore.getState().slowMoArtifact!.code
-      expect(copy).toBe(bundleWithPasses(fixture, {}, [{ kind: 'slowmo', settings: current, pixelCount: 16 }]).code)
-      const reopened = bundle(copy, {})
-      const shim = (fidelity === 'fast' ? createShim : createFxShim)({
-        pixelCount: 16, mapPoints: config().mapPoints, dimensions: 1, getVirtualTime: () => 0,
-      })
-      const fresh = loadPattern(fidelity === 'fast' ? reopened.code : reopened.fxCode, reopened.metadata, shim.builtins)
-      fresh.beforeRender(shim.encodeScalar(0)); fresh.render(shim.encodeScalar(0))
-      expect(shim.capturedPixel().every(Number.isFinite)).toBe(true)
       tick(16); finite()
       expect(config().shim.decodeScalar(handle.getExports().patternMs as number)).toBeGreaterThanOrEqual(patternMs)
     }
@@ -169,23 +158,25 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     act(() => usePreviewStore.getState().setSlowMo({ position: 0, dreamy: 1 }))
     expect(config().getSpeed()).toBe(2)
   })
-  it('clears Copy when parsing or execution fails and on unmount', () => {
+  it('clears the decline when parsing or execution fails and on unmount', () => {
+    const declinedSource = 'var time=1; export function render(i){rgb(1,0,0)}'
+    useEditorStore.setState({ previewSource: declinedSource })
     const view = render(<Preview showDeck={false} pixelCountCap={16} />)
-    expect(usePreviewStore.getState().slowMoArtifact).not.toBeNull()
-    const lastWorking = usePreviewStore.getState().slowMoArtifact
+    expect(usePreviewStore.getState().slowMoDeclined).not.toBeNull()
+    const lastWorking = usePreviewStore.getState().slowMoDeclined
     const running = loop()
     act(() => useEditorStore.setState({ source: 'export function render( {', compileStatus: 'broken' }))
-    expect(usePreviewStore.getState().slowMoArtifact).toBe(lastWorking)
+    expect(usePreviewStore.getState().slowMoDeclined).toBe(lastWorking)
     expect(loop()).toBe(running)
     act(() => useEditorStore.setState({ previewSource: 'export function render( {' }))
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
-    act(() => useEditorStore.setState({ previewSource: source }))
-    expect(usePreviewStore.getState().slowMoArtifact).not.toBeNull()
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
+    act(() => useEditorStore.setState({ previewSource: declinedSource }))
+    expect(usePreviewStore.getState().slowMoDeclined).not.toBeNull()
     act(() => config().onError!(new Error('execution failed')))
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
-    act(() => useEditorStore.setState({ previewSource: source + '\n' }))
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
+    act(() => useEditorStore.setState({ previewSource: declinedSource + '\n' }))
     view.unmount()
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
   })
 
   it('re-primes identical-byte Pattern switches and source edits', () => {
@@ -197,9 +188,9 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     tick(0)
     expect(pixels()[0]).toEqual([0, 0, 1])
     act(() => useEditorStore.setState({ previewSource: '' }))
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
     view.unmount()
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
   })
   it.each([
     ['palette-output', 'var p = [0,1,0,0,1,0,0,1]; setPalette(p); export function render(i) { paint(0.2) }', 16],
@@ -214,7 +205,7 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     act(() => useMapStore.setState({ activePixelCount: count }))
     const base = bundleWithPasses(fixture, {}, [])
     expect(last(vi.mocked(loadPattern).mock.calls)[0]).toBe(fidelity === 'fast' ? base.code : base.fxCode)
-    const declined = usePreviewStore.getState().slowMoArtifact?.declined
+    const declined = usePreviewStore.getState().slowMoDeclined
     expect(declined?.reason).toBe(reason)
     expect(screen.getByText(declined!.message)).toBeInTheDocument()
     const elapsed = config().clock.getTime()

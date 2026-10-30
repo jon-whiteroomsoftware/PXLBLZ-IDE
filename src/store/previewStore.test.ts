@@ -41,24 +41,25 @@ describe('complete session draft', () => {
   })
 })
 
-describe('session-only generated slow-mo artifact', () => {
+describe('session-only slow-mo decline', () => {
   it('replaces, drops stale persistence, preserves live values, and resets', async () => {
-    const live = { code: 'live', arrayWords: 120 }
+    const live = { reason: 'palette-output' as const, message: 'Palette output refused.' }
     const store = usePreviewStore.getState()
-    store.setSlowMoArtifact({ code: 'old', arrayWords: 0 })
-    store.setSlowMoArtifact(live)
+    store.setSlowMoDeclined({ reason: 'no-renderer', message: 'No renderer.' })
+    store.setSlowMoDeclined(live)
     store.setSlowMo(slowMoSample)
-    const merged = mergePersistedPreview({ slowMo: null, slowMoArtifact: { code: 'stale' } }, usePreviewStore.getState())
-    expect(merged.slowMoArtifact).toEqual(live)
+    const merged = mergePersistedPreview({ slowMo: null, slowMoArtifact: { code: 'stale' }, slowMoDeclined: { reason: 'stale' } }, usePreviewStore.getState())
+    expect(merged.slowMoDeclined).toEqual(live)
+    expect(merged).not.toHaveProperty('slowMoArtifact')
     expect(merged.slowMo).toEqual(slowMoSample)
     const saved = localStorage.getItem('pixelblaze-preview')!
     expect(JSON.parse(saved).state).toEqual({ fidelity: 'fast', lightSizeSticky: 0.5, diffusionSticky: 0.5 })
-    store.setSlowMoArtifact(null)
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    store.setSlowMoDeclined(null)
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
     usePreviewStore.setState(previewInitialState)
     localStorage.setItem('pixelblaze-preview', saved)
     await usePreviewStore.persist.rehydrate()
-    expect(usePreviewStore.getState().slowMoArtifact).toBeNull()
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
     expect(usePreviewStore.getState().slowMo).toEqual(createSlowMoDraft())
   })
 })
@@ -263,7 +264,7 @@ describe('I17: Controller artifact isolation from preview slow-mo', () => {
     const dreamy: SlowMoSettings = { ...slowMoSample, dreamy: 1 }
     for (const slowMo of [null, slowMoSample, dreamy, null]) {
       usePreviewStore.getState().setSlowMo(slowMo)
-      usePreviewStore.getState().setSlowMoArtifact(slowMo ? { code: 'preview-only wrapper', arrayWords: 120 } : null)
+      usePreviewStore.getState().setSlowMoDeclined(slowMo ? { reason: 'palette-output', message: 'Preview-only refusal.' } : null)
       expect(usePreviewStore.getState().slowMo).toEqual(slowMo ?? createSlowMoDraft())
       const currentRecipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
       expect(currentRecipe).toEqual(recipe)

@@ -54,11 +54,9 @@ function slowMoPreviewRecipe(settings: SlowMoSettings | null, pixelCount: number
     ? [{ kind: 'slowmo', settings: settings ?? createSlowMoDraft(), pixelCount }] : []
 }
 
-function publishSlowMoArtifact(artifact: ReturnType<typeof bundleWithPasses>) {
+function publishSlowMoDecline(artifact: ReturnType<typeof bundleWithPasses>) {
   const summary = artifact.summary.passes.find(pass => pass.kind === 'slowmo')
-  usePreviewStore.getState().setSlowMoArtifact(slowMoEnabled() ? {
-    code: artifact.code, arrayWords: summary?.slowMo?.arrayWords ?? 0, declined: summary?.declined,
-  } : null)
+  usePreviewStore.getState().setSlowMoDeclined(slowMoEnabled() ? summary?.declined ?? null : null)
 }
 
 // The deck uses its intrinsic height; the preview fits the remaining space.
@@ -109,12 +107,6 @@ export function Preview({
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
   const executionRef = useRef<{
-    source: string
-    libraries: Record<string, string>
-    pixelCount: number
-    base: ReturnType<typeof bundleWithPasses>
-    artifact: ReturnType<typeof bundleWithPasses>
-    settingsKey: string
     wrapped: boolean
   } | null>(null)
   // The 2D viewport the renderer fits within: the pane width, the height left
@@ -300,12 +292,8 @@ export function Preview({
       } : metadata
       handle = loadPattern(fidelity === 'fast' ? code : fxCode, runtimeMetadata, shim.builtins)
       handleRef.current = handle
-      executionRef.current = {
-        source: previewSource, libraries, pixelCount, base: bundled, artifact,
-        settingsKey: slowMoEnabled() ? JSON.stringify(settings) : '',
-        wrapped,
-      }
-      publishSlowMoArtifact(artifact)
+      executionRef.current = { wrapped }
+      publishSlowMoDecline(artifact)
       useEditorStore.getState().setPatternVars(metadata.patternVars)
       useEditorStore.getState().setControls(withControlDescriptions(activeDemoName,
         slowMoEnabled() ? metadata.controls.filter(control => control.exportName !== SLOW_MO_SPEED_SLIDER) : metadata.controls))
@@ -347,7 +335,7 @@ export function Preview({
       handleRef.current = null
       shimRef.current = null
       executionRef.current = null
-      usePreviewStore.getState().setSlowMoArtifact(null)
+      usePreviewStore.getState().setSlowMoDeclined(null)
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
       return
@@ -408,7 +396,7 @@ export function Preview({
         handleRef.current = null
         shimRef.current = null
         executionRef.current = null
-        usePreviewStore.getState().setSlowMoArtifact(null)
+        usePreviewStore.getState().setSlowMoDeclined(null)
         setRuntimeError(err.message)
       },
       onFps: (fps) => usePreviewStore.getState().setFps(fps),
@@ -445,7 +433,7 @@ export function Preview({
       handleRef.current = null
       shimRef.current = null
       executionRef.current = null
-      usePreviewStore.getState().setSlowMoArtifact(null)
+      usePreviewStore.getState().setSlowMoDeclined(null)
     }
   }, [previewSource, viewportReady, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName, activePatternId, slowMoStructure])
 
@@ -453,21 +441,11 @@ export function Preview({
     const context = executionRef.current
     const handle = handleRef.current
     const shim = shimRef.current
-    if (!context || !handle || !shim) return
-    const settingsKey = labEnabled ? JSON.stringify(slowMo) : ''
-    if (settingsKey === context.settingsKey) return
-    if (context.wrapped && labEnabled) {
-      for (const [name, value] of Object.entries(slowMoTunables(slowMo ?? createSlowMoDraft()))) {
-        handle.setRuntimeVar(name, shim.encodeScalar(value))
-      }
-      if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-      if (executionRef.current !== context) return
+    if (!context?.wrapped || !labEnabled || !handle || !shim) return
+    for (const [name, value] of Object.entries(slowMoTunables(slowMo ?? createSlowMoDraft()))) {
+      handle.setRuntimeVar(name, shim.encodeScalar(value))
     }
-    const recipe = slowMoPreviewRecipe(slowMo, context.pixelCount)
-    const artifact = recipe.length ? bundleWithPasses(context.source, context.libraries, recipe) : context.base
-    context.artifact = artifact
-    context.settingsKey = settingsKey
-    publishSlowMoArtifact(artifact)
+    if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
   }, [labEnabled, slowMo])
 
   // Seed the live working state from the resolved settings cascade on open:

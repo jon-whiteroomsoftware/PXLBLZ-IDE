@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Lock, Play, Pause, RotateCcw, TriangleAlert } from 'lucide-react'
 import { CompactBrightness } from './CompactBrightness'
 import { controlIcon } from '@/components/iconScale'
@@ -112,42 +112,10 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
 export function SlowMoSection({ mode }: { mode?: string }) {
   const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
   const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
-  const slowMoArtifact = usePreviewStore(s => s.slowMoArtifact)
-  const [copyFailure, setCopyFailure] = useState<{
-    artifact: NonNullable<typeof slowMoArtifact>
-    message: string
-  } | null>(null)
-  const copyError = copyFailure?.artifact === slowMoArtifact ? copyFailure.message : null
-  const copySlowMo = async () => {
-    setCopyFailure(null)
-    const artifact = slowMoArtifact
-    if (!artifact) return
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(artifact.code)
-      } else {
-        const focus = document.activeElement
-        const textarea = document.createElement('textarea')
-        textarea.value = artifact.code
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        try {
-          document.body.appendChild(textarea)
-          textarea.select()
-          if (!document.execCommand('copy')) throw new Error('Copy failed')
-        } finally {
-          textarea.remove()
-          if (focus instanceof HTMLElement) focus.focus()
-        }
-      }
-    } catch {
-      setCopyFailure({ artifact, message: 'Could not copy generated code.' })
-    }
-  }
+  const declined = usePreviewStore(s => s.slowMoDeclined)
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Slow-Mo')
-  return <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={slowMoArtifact?.declined ?? null}
-    expanded={expanded} onExpandedChange={setExpanded} copyError={copyError}
-    onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
+  return <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={declined}
+    expanded={expanded} onExpandedChange={setExpanded} />
 }
 
 function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode?: string }) {
