@@ -22,7 +22,7 @@ and proxy traffic stay on localhost.
 Existing healthy runtimes adopt this binding only after an owner-coordinated
 restart. Status URLs advertise the preview location; they do not prove an old
 listener's binding. Main's first adoption restart belongs to the eng lead after
-landing #1208; builders must not stop it.
+landing #1208; developers must not stop it.
 
 A bare `npm run dev` is the same single-process shape for ad-hoc use, reading
 `.dev.vars` and persisting to the checkout's `.wrangler/state` — the same

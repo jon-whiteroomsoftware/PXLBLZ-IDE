@@ -8,7 +8,7 @@ and reference docs for current product and architecture detail.
 
 For Scene retirement (#1032–#1045), read
 `docs/plans/scene-retirement-specification.md` before editing or reviewing.
-Record its commit and your assigned proof rows in the issue claim; every builder
+Record its commit and your assigned proof rows in the issue claim; every developer
 dispatch includes that specification. It supersedes the older Scene-retirement
 plans for current design, while as-built contracts remain current until adoption.
 
@@ -92,7 +92,7 @@ Preserve these invariants:
 
 - PXLBLZ issue files use Files root `pxlblz-briefs` (`~/src/pxlblz-wt/briefs/`,
   `http://Agent-Mini.local:8642/files/pxlblz-briefs/`) in `<issue>-<slug>/` folders.
-  Briefs, prompts, builder and lane logs, and their sidecars go in that folder's
+  Briefs, prompts, developer and lane logs, and their sidecars go in that folder's
   `work/`. WRSP's `briefs` root is never a PXLBLZ destination.
 
 ### Concurrent work and landing
@@ -309,7 +309,7 @@ later model/policy changes do not revoke exact approved ranges. Status and push
 still require contiguous coverage ending in a clean approval. Explicit native
 reviewer selection and historical migration details live in
 `docs/agents/verification.md`. Runtime permission to use a provider is separate.
-Read `~/.agents/execution-policy.md` before launching execution builders or
+Read `~/.agents/execution-policy.md` before using its **Execution launcher** or
 choosing fallback or reasoning escalation. Its roles govern availability
 selection and escalation, and it preserves the candidate lineage and
 non-convergence breaker.
