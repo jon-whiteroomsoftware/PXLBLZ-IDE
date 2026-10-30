@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1246",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture",
+  "operation": "Repo Playwright Chromium fallback, synthetic user: opened the flag-off Pattern route at 1440 and 900 and verified Slow-Mo and old Preview Speed were absent. Displayed elapsed advanced approximately 1x wall time in Fast and Precise, with no console or runtime errors.",
+  "captures": [
+    ".wrsp/ui-proof/1246-u5-1440-flag-off.png",
+    ".wrsp/ui-proof/1246-u5-900-flag-off.png"
+  ],
+  "capturedAtCommit": "544aee5937af428b484146e9bf7519212fc4c04e"
+}

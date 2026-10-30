@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1246",
+  "route": "/PXLBLZ-IDE/studio/shows/stock-show-101-clips-cuts-blank-time?capture",
+  "operation": "Repo Playwright Chromium fallback on the issue preview with the synthetic user: pressed 1/2/3 in Shows and measured visible timeline time at approximately 1x/2x/3x, then navigated through Patterns, Docs and Maps and verified every key was unclaimed outside Shows. A Show 2x -> Patterns keys 1/2/3 -> same Show sequence retained 2x playback; no console/runtime errors, Controller connection, hardware operation or other managed runtime contact occurred.",
+  "captures": [".wrsp/ui-proof/1246-u5-show-shortcuts.png"],
+  "capturedAtCommit": "544aee5937af428b484146e9bf7519212fc4c04e"
+}

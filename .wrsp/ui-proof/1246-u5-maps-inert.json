@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1246",
+  "route": "/PXLBLZ-IDE/studio/maps",
+  "operation": "Repo Playwright Chromium fallback, synthetic user: navigated from Shows through Patterns and Docs to Maps, pressed each of 1/2/3 and observed none prevented default outside Shows. No console or runtime errors occurred.",
+  "captures": [".wrsp/ui-proof/1246-u5-maps-inert.png"],
+  "capturedAtCommit": "544aee5937af428b484146e9bf7519212fc4c04e"
+}
