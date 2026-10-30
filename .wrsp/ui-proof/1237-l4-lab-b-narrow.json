@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1237",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture&slowmo=1",
+  "operation": "Playwright fallback on localhost:5176, same managed runtime and synthetic local-agent-03. Precise Blend 1/4, keyboard Scatter and width endpoints, Clock disable/Blend restore, actual clipboard shape=2 width=0.5; 768px fit and zero console/page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1237-l4-lab-b-narrow.png"
+  ],
+  "capturedAtCommit": "e03be609a22085a3ea25f99ebbe20dfd84e4ca3b"
+}
