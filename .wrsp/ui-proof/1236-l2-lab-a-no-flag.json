@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1236",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture",
+  "operation": "Opened the same Pattern editor without slowmo=1 and expanded Preview. No lab is present and the Pattern continues running; console/page errors were empty. Captured through repository Playwright after in-app browser inventory was empty and iab selection reported unavailable; localhost used for secure clipboard access to the same runtime.",
+  "captures": [
+    ".wrsp/ui-proof/1236-l2-lab-a-no-flag.png"
+  ],
+  "capturedAtCommit": "c61f75da1425c6baa176028f943c02be127a2ce8"
+}

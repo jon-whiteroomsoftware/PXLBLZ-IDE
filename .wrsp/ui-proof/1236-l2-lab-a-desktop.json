@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1236",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture&slowmo=1",
+  "operation": "Opened Preview at 1440x1000 as local-agent-03, selected Blend, keyboard-selected rate 1/4, changed step to 32 ms and Blend/Eased/Blend, then selected Precise and paused. Copy generated code read back from the real clipboard includes rate 0.25 and step 32; console/page errors were empty. Captured through repository Playwright after in-app browser inventory was empty and iab selection reported unavailable; localhost used for secure clipboard access to the same runtime.",
+  "captures": [
+    ".wrsp/ui-proof/1236-l2-lab-a-desktop.png"
+  ],
+  "capturedAtCommit": "c61f75da1425c6baa176028f943c02be127a2ce8"
+}

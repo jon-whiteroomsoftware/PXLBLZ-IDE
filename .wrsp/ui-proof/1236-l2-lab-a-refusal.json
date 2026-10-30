@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1236",
+  "route": "/PXLBLZ-IDE/studio/patterns/FastPaletteBlending?capture&slowmo=1",
+  "operation": "Opened the palette Pattern in Precise, selected Blend, and observed the palette-output refusal while the unwrapped preview continued running. Console/page errors were empty. Captured through repository Playwright after in-app browser inventory was empty and iab selection reported unavailable; localhost used for secure clipboard access to the same runtime.",
+  "captures": [
+    ".wrsp/ui-proof/1236-l2-lab-a-refusal.png"
+  ],
+  "capturedAtCommit": "c61f75da1425c6baa176028f943c02be127a2ce8"
+}
