@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1241",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom?capture&slowmo=1",
+  "operation": "Repo Playwright fallback on managed localhost:5176 as synthetic local-agent-03. Precise live position sweep including bypass thresholds, 24 deterministic captured frames; actual clipboard Copy includes reserved slider and current position; Home/End/arrows/Tab focus; 1440/900 readout fit; Clock no-slider, Blend restore and Off byte identity; zero console/page errors.",
+  "captures": [
+    ".wrsp/ui-proof/1241-l8-knob-1440.png",
+    ".wrsp/ui-proof/1241-l8-knob-900.png"
+  ],
+  "capturedAtCommit": "e8247e6bf7e86cb155a8b87801a5b67359846466"
+}
