@@ -29,6 +29,17 @@ function seedPattern(settings?: Record<string, unknown>) {
 }
 
 describe('resolveActiveSettings', () => {
+  it('discards legacy speed while preserving other overrides in resolution and fork snapshots (#1246)', () => {
+    const legacy = { speed: 4, brightness: 0.4, mapId: 'cube' }
+    seedPattern(legacy)
+    seedActiveSettings()
+    expect(resolveActiveSettings()).not.toHaveProperty('speed')
+    expect(forkSettingsSnapshot()).not.toHaveProperty('speed')
+    expect(usePreviewStore.getState()).not.toHaveProperty('speed')
+    expect(usePreviewStore.getState().brightness).toBe(0.4)
+    expect(useMapStore.getState().activeMapId).toBe('cube')
+    expect(legacy).toEqual({ speed: 4, brightness: 0.4, mapId: 'cube' })
+  })
   it('falls back to dev-defaults for a bare pattern', () => {
     seedPattern()
     const eff = resolveActiveSettings()

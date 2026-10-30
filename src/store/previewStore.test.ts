@@ -76,15 +76,6 @@ describe('previewStore', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
-  it('has default speed of 1', () => {
-    expect(usePreviewStore.getState().speed).toBe(1)
-  })
-
-  it('setSpeed updates speed', () => {
-    usePreviewStore.getState().setSpeed(2)
-    expect(usePreviewStore.getState().speed).toBe(2)
-  })
-
   it('has default brightness of 1', () => {
     expect(usePreviewStore.getState().brightness).toBe(1)
   })
@@ -152,10 +143,9 @@ describe('mergePersistedPreview', () => {
     const current = usePreviewStore.getState()
     const persisted = { brightness: 0.3, speed: 4 }
     const merged = mergePersistedPreview(persisted, current)
-    // brightness/speed are per-pattern cascaded now; the blob's stale values must
-    // not land back on the live state — they stay at their initial defaults.
+    // Brightness resolves per Pattern; retired speed must never reappear.
     expect(merged.brightness).toBe(previewInitialState.brightness)
-    expect(merged.speed).toBe(previewInitialState.speed)
+    expect(merged).not.toHaveProperty('speed')
   })
 
   it('migrates a pre-cascade blob: legacy live lightSize/diffusion lift to the sticky baselines', () => {
@@ -207,7 +197,6 @@ describe('session-only slow-mo', () => {
 
   it('replaces the whole setting and restores defaults without changing other preview settings', () => {
     const preserved = {
-      speed: 2,
       fidelity: 'fidelity' as const,
       lightSizeSticky: 0.7,
       diffusionSticky: 0.3,

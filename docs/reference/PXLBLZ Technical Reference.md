@@ -56,7 +56,7 @@ Pattern; map source is ordinary Mapper JavaScript. This keeps preview,
 generated source, the device compiler, and manual copy/paste on one code path.
 
 **Preview state does not leak to hardware.** Renderer mode, camera, light
-size, diffusion, playback speed, preview brightness, selected preview map, and
+size, diffusion, preview brightness, selected preview map, and
 control positions are browser state. Hardware receives only an explicitly
 generated Pattern artifact or an explicitly sent map. Controller-profile
 transforms are included because they are authored hardware intent.
@@ -379,7 +379,7 @@ Render selection follows the firmware 3.66 preference order per map dimension
 `render`; 3D: `render3D` → `render2D` → `render`). Missing trailing
 coordinates fill with `0.5`; extras drop.
 
-Each animation frame scales delta by preview speed, calls `beforeRender` once,
+Each animation frame uses unscaled display delta, calls `beforeRender` once,
 renders every pixel through the adapted coordinates and transform stack,
 paints, and publishes FPS and watched vars. Runtime exceptions stop the loop.
 `tickHeadless` executes all stateful render work without painting; Show seek
@@ -388,11 +388,17 @@ replay depends on it because render functions may mutate state.
 The flagged Slow-Mo section (`?slowmo=1`) applies `bundleWithPasses` to
 Pattern preview after resolving the pixel count. Without the flag, the recipe
 is empty and complete `code`/`fxCode` identity with `bundle()` is preserved.
-With the flag, the wrapper is always applied. The ordinary preview Speed
-selector scales display delta independently of the wrapper's speed position.
+With the flag, the wrapper is always applied. Its speed slider controls Pattern
+time; there is no separate Pattern preview speed setting.
 The Preview row's `elapsed` reading measures time experienced by the Pattern:
 the wrapper's actual fixed-step clock under Slow-Mo, and the ordinary preview
 clock otherwise. Live speed changes preserve the accumulated time.
+
+Show playback rate belongs to the session-only Show transport, separate from
+Pattern preview. Show-only `1`/`2`/`3` shortcuts select 1×/2×/3× without changing
+play/pause; a different Show resets the rate to 1×. Gallery live cards always
+use unscaled delta. Legacy preview speed preferences are discarded on hydration
+and omitted from subsequent per-Pattern settings saves.
 
 The expanded section keeps speed and dreamy side by side; collapsing it shows
 their current values in the same single-line readout as the Preview section.

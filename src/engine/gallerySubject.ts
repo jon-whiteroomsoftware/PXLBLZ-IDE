@@ -31,7 +31,6 @@ export interface GallerySubjectLook {
   lightSize: number
   diffusion: number
   brightness: number
-  speed: number
   solidity: number
 }
 
@@ -60,7 +59,6 @@ export function resolveGallerySubject(subject: GallerySubject): ResolvedGalleryS
         lightSize: settings.lightSize,
         diffusion: settings.diffusion,
         brightness: settings.brightness,
-        speed: settings.speed,
         solidity: settings.solidity,
       },
       keyframeKey: galleryKeyframeKey({ code: prepared.code, mapPoints: layout.mapPoints, randomSeed: GALLERY_KEYFRAME_RANDOM_SEED }),
@@ -82,7 +80,7 @@ export function resolveGalleryShowSubject(show: GalleryShow): ResolvedGallerySub
     prepared,
     mapPoints: geometry.mapPoints,
     draw,
-    look: { lightSize: 1, diffusion: GALLERY_SHOW_DIFFUSION, brightness: 1, speed: 1, solidity: 1 },
+    look: { lightSize: 1, diffusion: GALLERY_SHOW_DIFFUSION, brightness: 1, solidity: 1 },
     keyframeKey: galleryKeyframeKey({ code: prepared.code, mapPoints: geometry.mapPoints, randomSeed: GALLERY_KEYFRAME_RANDOM_SEED }),
     cost: geometry.mapPoints.length,
   }

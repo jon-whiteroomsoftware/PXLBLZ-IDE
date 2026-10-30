@@ -4,6 +4,7 @@ import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import {
   resetPersonalContentProvider,
+  getPersonalContentProvider,
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
@@ -180,6 +181,16 @@ describe('patternStore', () => {
 })
 
 describe('updatePatternSettings', () => {
+  it('discards legacy speed during hydration and subsequent saves without mutating stored inputs (#1246)', async () => {
+    const provider = getPersonalContentProvider()
+    const legacy = { speed: 4, brightness: 0.4 }
+    await provider.createPattern({ id: 'legacy', name: 'Legacy', src: '', controls: {}, updatedAt: 1, settings: legacy })
+    await usePatternStore.getState().loadPatterns()
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ brightness: 0.4 })
+    await usePatternStore.getState().updatePatternSettings('legacy', { lightSize: 0.7 })
+    expect((await provider.listPatterns())[0].settings).toEqual({ brightness: 0.4, lightSize: 0.7 })
+    expect(legacy).toEqual({ speed: 4, brightness: 0.4 })
+  })
   beforeEach(() => {
     usePatternStore.setState({
       userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 }],
@@ -214,6 +225,16 @@ describe('resetPatternSettings', () => {
 })
 
 describe('demo overrides', () => {
+  it('discards legacy speed-only and mixed demo settings on hydration and save (#1246)', async () => {
+    const provider = getPersonalContentProvider()
+    const legacy: Record<string, Partial<Settings>> = JSON.parse('{"AuroraSphere":{"speed":4,"brightness":0.4},"NebulaSphere":{"speed":2}}')
+    await provider.setDemoOverrides(legacy)
+    await usePatternStore.getState().loadDemoOverrides()
+    expect(usePatternStore.getState().demoOverrides).toEqual({ AuroraSphere: { brightness: 0.4 }, NebulaSphere: {} })
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { lightSize: 0.7 })
+    expect(await provider.getDemoOverrides()).toEqual({ AuroraSphere: { brightness: 0.4, lightSize: 0.7 }, NebulaSphere: {} })
+    expect(legacy.AuroraSphere).toEqual({ speed: 4, brightness: 0.4 })
+  })
   it('updateDemoSettings sparse-merges per demo name', async () => {
     await usePatternStore.getState().updateDemoSettings('AuroraSphere', { brightness: 0.5 })
     await usePatternStore.getState().updateDemoSettings('AuroraSphere', { pixelCount: 256 })

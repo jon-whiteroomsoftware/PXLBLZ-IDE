@@ -287,6 +287,28 @@ describe('App smoke test', () => {
     expect(screen.queryByText('No show selected')).not.toBeInTheDocument()
   })
 
+  it('limits playback-rate shortcuts to Shows across Pattern and reference routes (#1246)', async () => {
+    const show = createDefaultShow('rate-scope', 'Rate scope', 1)
+    const pattern: PatternRecord = { id: 'rate-pattern', name: 'Rate Pattern', src: 'export function render(index) {}', controls: {}, updatedAt: 1 }
+    setStudioLocation(`/studio/shows/${show.id}`)
+    seedSignedInWorkspace()
+    seedStoredV2Shows([show])
+    usePatternStore.setState({ userPatterns: [pattern], patternsLoaded: true, activePatternId: pattern.id })
+    render(<App />)
+    fireEvent.keyDown(document.body, { key: '3' })
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
+    for (const place of ['Patterns', 'Docs', 'Maps'] as const) {
+      await choosePlace(place)
+      for (const key of ['1', '2', '3']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+        document.body.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+        expect(useShowTransportStore.getState().playbackRate).toBe(3)
+        expect(usePreviewStore.getState()).not.toHaveProperty('speed')
+      }
+    }
+  })
+
   it('opens a built-in Show as a session-only v2 lesson draft without a query flag (#1067)', async () => {
     const id = 'stock-show-102-transitions-values'
     const createShow = vi.fn(async () => {})

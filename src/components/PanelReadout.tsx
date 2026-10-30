@@ -1,6 +1,6 @@
-import { CircleDot, Clock, Cpu, Droplet, Eye, Gauge, Grid2X2, Hash, Maximize, Rabbit } from 'lucide-react'
+import { CircleDot, Clock, Cpu, Droplet, Eye, Gauge, Grid2X2, Hash, Maximize } from 'lucide-react'
 import type { PanelReadout as Readout } from '@/engine/previewPanel'
-const glyphs = { light: Droplet, diffusion: CircleDot, renderer: Cpu, speed: Rabbit, fps: Gauge, elapsed: Clock, layout: Grid2X2, view: Eye, fit: Maximize, pixels: Hash }
+const glyphs = { light: Droplet, diffusion: CircleDot, renderer: Cpu, fps: Gauge, elapsed: Clock, layout: Grid2X2, view: Eye, fit: Maximize, pixels: Hash }
 export function PanelReadout({ items }: { items: Readout[] }) {
   return <>{items.map((item, index) => {
     const Glyph = item.glyph && glyphs[item.glyph]

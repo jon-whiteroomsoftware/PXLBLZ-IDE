@@ -1,17 +1,16 @@
 import { formatWatchValue } from './watchValue'
 import { formatPercentageValue } from './percentageValue'
 
-export interface PanelReadout { glyph?: 'light' | 'diffusion' | 'renderer' | 'speed' | 'fps' | 'elapsed' | 'layout' | 'view' | 'fit' | 'pixels'; value: string; label?: string; live?: boolean }
+export interface PanelReadout { glyph?: 'light' | 'diffusion' | 'renderer' | 'fps' | 'elapsed' | 'layout' | 'view' | 'fit' | 'pixels'; value: string; label?: string; live?: boolean }
 export function panelSectionKey(mode: string, section: string): string { return `${mode}:${section.toLowerCase()}` }
 export function panelSectionDefault(section: string): boolean { return section === 'Controls' }
 /** CSS container queries use the same 380px panel breakpoint. */
 export function panelFieldColumns(width: number): 1 | 2 { return width < 380 ? 1 : 2 }
-export function describePreviewReadout(s: { lightSize: number; diffusion: number; fidelity: string; speed: number; fps: number | null; elapsed: number | null; layout: string | null }): PanelReadout[] {
+export function describePreviewReadout(s: { lightSize: number; diffusion: number; fidelity: string; fps: number | null; elapsed: number | null; layout: string | null }): PanelReadout[] {
   return [
     { glyph: 'light', value: s.lightSize.toFixed(2) },
     { glyph: 'diffusion', value: formatPercentageValue(s.diffusion) },
     { glyph: 'renderer', value: s.fidelity === 'fast' ? 'Fast' : 'Precise' },
-    { glyph: 'speed', value: `${s.speed}×` },
     { glyph: 'fps', value: s.fps === null ? '—' : s.fps.toFixed(1), live: true },
     { glyph: 'elapsed', value: s.elapsed === null ? '—' : `${(s.elapsed / 1000).toFixed(1)}s`, live: true },
     ...(s.layout ? [{ glyph: 'layout' as const, value: s.layout }] : []),

@@ -3893,7 +3893,7 @@ export function ShowEditor({
   )
 }
 
-const SHOW_PLAYBACK_RATE_BY_KEY: Readonly<Record<string, number | undefined>> = {
+const SHOW_PLAYBACK_RATE_BY_KEY: Readonly<Record<string, 1 | 2 | 3 | undefined>> = {
   '1': 1,
   '2': 2,
   '3': 3,
@@ -3931,7 +3931,7 @@ function ShowTransportControls({
         const playbackRate = SHOW_PLAYBACK_RATE_BY_KEY[event.key]
         if (playbackRate !== undefined) {
           event.preventDefault()
-          usePreviewStore.getState().setSpeed(playbackRate)
+          useShowTransportStore.getState().setPlaybackRate(playbackRate)
           return
         }
       }
@@ -4018,7 +4018,7 @@ function useShowTransportClock(showId: string | null, durationMs: number, clockA
       if (!canAdvanceShowPlayback(usePreviewStore.getState().isRunning, transport.seekStatus)) return
       const last = lastFrameAt ?? now
       lastFrameAt = now
-      const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
+      const deltaMs = Math.max(0, now - last) * transport.playbackRate
       const step = resolveShowPlaybackStep(
         transport.positionMs,
         deltaMs,

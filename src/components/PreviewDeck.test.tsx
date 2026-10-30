@@ -148,11 +148,11 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
 
-    // Preview section: light size, diffusion sliders + renderer, speed.
+    // Preview section: light size, diffusion sliders + renderer.
     expect(screen.getByRole('slider', { name: 'Light size' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Diffusion' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Renderer' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Speed' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Speed' })).not.toBeInTheDocument()
 
     // Telemetry (merged in from the retired Readout section) is unconditional.
     expect(screen.getByText('fps')).toBeInTheDocument()
@@ -233,7 +233,7 @@ describe('PreviewDeck (smoke)', () => {
   it('describes elapsed as Pattern time in the Preview hint', () => {
     render(<PreviewDeck />)
     fireEvent.focus(screen.getByRole('button', { name: 'About the Preview section' }))
-    expect(screen.getByRole('tooltip')).toHaveTextContent('elapsed — Pattern time elapsed, following the playback speed')
+    expect(screen.getByRole('tooltip')).toHaveTextContent('elapsed — Pattern time elapsed, following Slow-Mo when active')
   })
 
   it('collapses Pixelblaze and Preview independently while their info buttons stay independent', () => {

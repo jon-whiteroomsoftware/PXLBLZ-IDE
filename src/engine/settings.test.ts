@@ -17,7 +17,6 @@ describe('DEV_DEFAULTS', () => {
       'solidity',
       'normalize',
       'brightness',
-      'speed',
       'lightSize',
       'diffusion',
       'fidelity',

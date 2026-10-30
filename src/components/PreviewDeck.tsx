@@ -19,7 +19,6 @@ import {
 } from '@/store/settingsCascade'
 import { effectivePixelCount } from '@/engine/layout'
 import { CoordinateViewSelect, MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
-import { SpeedSelector } from '@/components/SpeedSelector'
 import { SlowMoLab } from '@/components/SlowMoLab'
 import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { DeckSelect } from '@/components/DeckSelect'
@@ -65,9 +64,8 @@ const PREVIEW_HINT = (
       ['diffusion', 'soften and blend lights'],
       ['interior opacity', 'opacity for surface maps'],
       ['renderer', 'Fast (native float math) or Precise (hardware-accurate fixed-point)'],
-      ['speed', 'playback rate of the preview'],
       ['fps', 'live preview frame rate'],
-      ['elapsed', 'Pattern time elapsed, following the playback speed'],
+      ['elapsed', 'Pattern time elapsed, following Slow-Mo when active'],
       ['layout', 'map grid dimensions, e.g. 16×16 — grid-shaped maps only (squares, rectangles, cubes)'],
     ]}
   />
@@ -283,7 +281,7 @@ function PixelCountInput() {
 // visible the boundary already drawn in code — real Pixelblaze device
 // settings (pixels, fit, brightness) that exist on hardware and would round-trip to a
 // controller, vs the preview-only Preview section (light size, diffusion, solidity,
-// renderer, speed — "never serialize toward a controller") which also
+// renderer — "never serialize toward a controller") which also
 // absorbs the read-only telemetry (fps/elapsed/layout). All sliders use the one shared
 // long DeckSlider style; non-slider rows stay on the deck's 2-col label/value grid.
 function SecondaryBand({ mode }: { mode?: string }) {
@@ -382,7 +380,6 @@ export function PreviewViewportSection({
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
   const pattern = profile === 'pattern'
   const togglePlayback = usePreviewStore((s) => s.toggle)
-  const speed = usePreviewStore(s => s.speed)
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
   const summaryMode = pattern && Boolean(mode)
 
@@ -405,7 +402,7 @@ export function PreviewViewportSection({
       summaryRow={summaryMode}
       expanded={summaryMode ? expanded : undefined}
       onExpandedChange={summaryMode ? setExpanded : undefined}
-      summary={summaryMode ? <PanelReadout items={describePreviewReadout({ lightSize, diffusion, fidelity, speed, fps, elapsed, layout: layoutLabel })} /> : undefined}
+      summary={summaryMode ? <PanelReadout items={describePreviewReadout({ lightSize, diffusion, fidelity, fps, elapsed, layout: layoutLabel })} /> : undefined}
       actions={headerActions}
     >
       <DeckGrid className="mb-[5px]">
@@ -461,17 +458,10 @@ export function PreviewViewportSection({
             portaled={pattern}
           />
         </DeckCell>
-        {pattern ? (
-          <DeckCell label="speed">
-            <SpeedSelector portaled />
-          </DeckCell>
-        ) : (
-          <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
-        )}
+        <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
       </DeckGrid>
       {pattern && (
         <DeckGrid gapY="gap-y-[3px]" className="mb-[5px] -mt-1.5">
-          <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
           <DeckTelemetry label="elapsed" value={elapsed === null ? '—' : `${(elapsed / 1000).toFixed(1)}s`} />
           {layoutLabel && <DeckTelemetry label="layout" value={layoutLabel} />}
         </DeckGrid>

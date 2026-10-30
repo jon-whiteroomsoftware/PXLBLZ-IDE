@@ -7,7 +7,7 @@ import {
   getPersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { PatternRecord } from '@/engine/personalContentRecords'
-import type { Settings } from '@/engine/settings'
+import { discardLegacyPreviewSpeed, type Settings } from '@/engine/settings'
 import { extractPatternAuthors, normalizePatternAuthors } from '@/engine/patternAttribution'
 import { useEditorStore } from '@/store/editorStore'
 import { flushPendingAutosave } from '@/store/autosaveSync'
@@ -102,16 +102,16 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   loadPatterns: async () => {
     const patterns = await getPersonalContentProvider().listPatterns()
-    set({ userPatterns: patterns.sort((a, b) => b.updatedAt - a.updatedAt), patternsLoaded: true })
+    set({ userPatterns: patterns.map((p) => p.settings ? { ...p, settings: discardLegacyPreviewSpeed(p.settings) } : p).sort((a, b) => b.updatedAt - a.updatedAt), patternsLoaded: true })
   },
 
   loadDemoOverrides: async () => {
     const stored = await getPersonalContentProvider().getDemoOverrides().catch(() => undefined)
-    if (stored) set({ demoOverrides: stored })
+    if (stored) set({ demoOverrides: Object.fromEntries(Object.entries(stored).map(([name, settings]) => [name, discardLegacyPreviewSpeed(settings)])) })
   },
 
   addPattern: async (record) => {
-    const persisted = patternRecordWithAttribution(record)
+    const persisted = patternRecordWithAttribution(record.settings ? { ...record, settings: discardLegacyPreviewSpeed(record.settings) } : record)
     await getPersonalContentProvider().createPattern(persisted)
     trackEntityCreated('pattern')
     set((s) => ({
@@ -162,7 +162,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     set((s) => ({
       userPatterns: s.userPatterns.map((p) => {
         if (p.id !== id) return p
-        merged = { ...p.settings, ...patch }
+        merged = discardLegacyPreviewSpeed({ ...p.settings, ...patch })
         return { ...p, settings: merged }
       }),
     }))
@@ -181,7 +181,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     // Sparse merge over any existing demo overrides, then persist the whole map.
     let next: Record<string, Partial<Settings>> | undefined
     set((s) => {
-      next = { ...s.demoOverrides, [name]: { ...s.demoOverrides[name], ...patch } }
+      next = { ...s.demoOverrides, [name]: discardLegacyPreviewSpeed({ ...s.demoOverrides[name], ...patch }) }
       return { demoOverrides: next }
     })
     if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})

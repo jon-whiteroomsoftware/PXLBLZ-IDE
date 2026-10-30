@@ -162,7 +162,7 @@ renderers:
 
 The settings are split by what the hardware could carry. **Pixelblaze**
 settings (map, modeled pixel count, Fill/Contain fit) describe what the
-Pattern computes against. **Preview** settings (renderer, playback speed,
+Pattern computes against. **Preview** settings (renderer,
 light size, diffusion, interior opacity) only change how the browser draws it.
 Most settings are remembered per Pattern, and none of them ride along when
 you send to a Controller.
@@ -397,7 +397,8 @@ pixel count.
 One proportional timeline holds everything. The gestures you will use
 constantly:
 
-- **Space** plays and pauses, **A** rewinds, **1/2/3** set playback speed;
+- **Space** plays and pauses, **A** rewinds, **1/2/3** set Show playback speed
+  to 1×/2×/3× in the Show workspace only;
   click or drag the ruler to seek. Seeking replays deterministically from
   the start of the Show, so it is exact, never approximate.
 - **Add Clip** places a Pattern at the playhead; double-click empty Layer

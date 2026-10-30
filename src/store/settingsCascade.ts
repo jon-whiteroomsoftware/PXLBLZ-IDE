@@ -83,7 +83,6 @@ export function seedActiveSettings(): void {
   m.setActiveNormalizeMode(eff.normalize)
   const pv = usePreviewStore.getState()
   pv.setBrightness(eff.brightness)
-  pv.setSpeed(eff.speed)
   pv.setLightSize(eff.lightSize)
   pv.setDiffusion(eff.diffusion)
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { usePreviewStore } from './previewStore'
 
 export type ShowSeekStatus = 'idle' | 'rebuilding'
+export type ShowPlaybackRate = 1 | 2 | 3
 
 export function canAdvanceShowPlayback(isRunning: boolean, seekStatus: ShowSeekStatus): boolean {
   return isRunning && seekStatus === 'idle'
@@ -42,11 +42,13 @@ interface ShowTransportState {
   showId: string | null
   durationMs: number
   positionMs: number
+  playbackRate: ShowPlaybackRate
   playbackWindow: ShowPlaybackWindow | null
   seekStatus: ShowSeekStatus
   seekRequest: ShowSeekRequest | null
   nextSeekId: number
   openShow: (showId: string, durationMs: number) => void
+  setPlaybackRate: (playbackRate: ShowPlaybackRate) => void
   setPosition: (showId: string, positionMs: number) => void
   setPlaybackWindow: (showId: string, window: ShowPlaybackWindow) => void
   clearPlaybackWindow: (showId: string) => void
@@ -59,6 +61,7 @@ export const showTransportInitialState = {
   showId: null as string | null,
   durationMs: 0,
   positionMs: 0,
+  playbackRate: 1 as ShowPlaybackRate,
   playbackWindow: null as ShowPlaybackWindow | null,
   seekStatus: 'idle' as ShowSeekStatus,
   seekRequest: null as ShowSeekRequest | null,
@@ -85,8 +88,6 @@ function normalizePlaybackWindow(window: ShowPlaybackWindow, durationMs: number)
 export const useShowTransportStore = create<ShowTransportState>()((set, get) => ({
   ...showTransportInitialState,
   openShow: (showId, rawDurationMs) => {
-    // A different Show starts at 100% preview speed (#1097).
-    if (get().showId !== showId) usePreviewStore.getState().setSpeed(1)
     set((state) => {
       const durationMs = finiteDuration(rawDurationMs)
       if (state.showId !== showId) {
@@ -94,6 +95,7 @@ export const useShowTransportStore = create<ShowTransportState>()((set, get) => 
           showId,
           durationMs,
           positionMs: 0,
+          playbackRate: 1,
           playbackWindow: null,
           seekStatus: 'idle',
           seekRequest: null,
@@ -109,6 +111,7 @@ export const useShowTransportStore = create<ShowTransportState>()((set, get) => 
       }
     })
   },
+  setPlaybackRate: (playbackRate) => set({ playbackRate }),
   setPosition: (showId, positionMs) => set((state) => (
     state.showId === showId
       ? { positionMs: clampPosition(positionMs, state.durationMs, state.playbackWindow) }

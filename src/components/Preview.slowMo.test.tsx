@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { Preview } from './Preview'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
+import { useShowTransportStore } from '@/store/showTransportStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -150,13 +151,13 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     expect(loop()).toBe(running)
     expect(config().handle).toBe(handle)
   })
-  it('leaves the existing preview Speed selector independent', () => {
-    usePreviewStore.setState({ speed: 2 })
+  it('uses unscaled frame delta independently of the Show playback rate', () => {
+    useShowTransportStore.getState().setPlaybackRate(3)
     render(<Preview showDeck={false} pixelCountCap={16} />)
-    act(() => usePreviewStore.getState().setSpeed(2))
-    expect(config().getSpeed()).toBe(2)
+    expect(config().getSpeed()).toBe(1)
     act(() => usePreviewStore.getState().setSlowMo({ position: 0, dreamy: 1 }))
-    expect(config().getSpeed()).toBe(2)
+    expect(config().getSpeed()).toBe(1)
+    useShowTransportStore.getState().setPlaybackRate(1)
   })
   it('clears the decline when parsing or execution fails and on unmount', () => {
     const declinedSource = 'var time=1; export function render(i){rgb(1,0,0)}'

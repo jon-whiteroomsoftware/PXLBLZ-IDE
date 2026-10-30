@@ -152,6 +152,10 @@ Show shortcuts work whenever the timeline workspace has the keyboard — that
 is, whenever you are not typing in a text field or working inside an open
 editing control.
 
+The `1`/`2`/`3` playback-rate shortcuts apply only in the Show workspace.
+They do nothing on Pattern, Gallery, or reference routes. Opening a different
+Show restores 1x playback; reopening the same Show keeps its current rate.
+
 | Shortcut | Action |
 |---|---|
 | `Space` | Play or pause the Show. |

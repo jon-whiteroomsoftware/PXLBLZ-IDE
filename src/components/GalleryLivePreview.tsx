@@ -355,7 +355,7 @@ export function GalleryLivePreview({
           const delta = lastTs === null ? 0 : Math.min(MAX_LIVE_DELTA_MS, ts - lastTs)
           lastTs = ts
           try {
-            paintFrame(runtime.advanceLive(delta * look.speed).frame, true)
+            paintFrame(runtime.advanceLive(delta).frame, true)
           } catch (err) {
             setError(err instanceof Error ? err.message : String(err))
             galleryCardWarmed(key)

@@ -384,10 +384,7 @@ export function Preview({
       handle, shim, clock,
       mapPoints, pixelCount,
       renderCompatibility,
-      getSpeed: () => {
-        const state = usePreviewStore.getState()
-        return state.speed
-      },
+      getSpeed: () => 1,
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,
       paint,

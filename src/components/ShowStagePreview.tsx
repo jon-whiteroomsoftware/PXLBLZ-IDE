@@ -680,7 +680,7 @@ export function ShowStagePreview(input: ShowStagePreviewProps) {
       try {
         const frameStarted = performance.now()
         performanceProbeRef.current?.beginPresentedFrame(now)
-        const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
+        const deltaMs = Math.max(0, now - last) * transport.playbackRate
         const step = resolveShowPlaybackStep(runtime.getElapsedMs(), deltaMs, transport.playbackWindow, durationMs)
         if (step.kind === 'rewind') {
           usePreviewStore.getState().setRunning(false)

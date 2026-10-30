@@ -8,7 +8,6 @@ export type FidelityMode = 'fidelity' | 'fast'
 
 interface PreviewState {
   isRunning: boolean
-  speed: number
   slowMo: SlowMoSettings | null
   slowMoDraft: SlowMoDraft
   slowMoDeclined: SlowMoPlan['declined'] | null
@@ -47,7 +46,6 @@ interface PreviewState {
   setFps: (fps: number | null) => void
   setElapsed: (elapsed: number | null) => void
   setFidelity: (fidelity: FidelityMode) => void
-  setSpeed: (speed: number) => void
   setSlowMo: (slowMo: SlowMoSettings | null) => void
   setSlowMoDraft: (draft: SlowMoDraft) => void
   setSlowMoDeclined: (declined: SlowMoPlan['declined'] | null) => void
@@ -62,7 +60,6 @@ interface PreviewState {
 
 export const previewInitialState = {
   isRunning: true,
-  speed: 1,
   slowMo: createSlowMoDraft() as SlowMoSettings | null,
   slowMoDraft: createSlowMoDraft(),
   slowMoDeclined: null as SlowMoPlan['declined'] | null,
@@ -104,8 +101,8 @@ function clampDiffusion(d: number): number {
 
 // Merge persisted state over the live state. Only true global prefs are persisted
 // now: `fidelity` plus the hybrid global-sticky baselines. The live
-// `brightness`/`speed` are per-pattern cascaded (seeded by the resolver on open), so
-// they are NOT persisted; a legacy blob's `brightness`/`speed`/`grid` are explicitly
+// `brightness` is per-pattern cascaded (seeded by the resolver on open), so
+// it is NOT persisted; a legacy blob's `brightness`/retired `speed`/`grid` are explicitly
 // destructured OUT and dropped — they can never land back on state.
 // Session-only slow-mo is also dropped, preserving the current live setting.
 //
@@ -138,7 +135,6 @@ export const usePreviewStore = create<PreviewState>()(
       setFps: (fps) => set({ fps }),
       setElapsed: (elapsed) => set({ elapsed }),
       setFidelity: (fidelity) => set({ fidelity }),
-      setSpeed: (speed) => set({ speed }),
       setSlowMo: (slowMo) => set(() => {
         const slowMoDraft = slowMoDraftFromSettings(slowMo)
         return { slowMoDraft, slowMo: slowMoSettingsFromDraft(slowMoDraft) }
@@ -160,7 +156,7 @@ export const usePreviewStore = create<PreviewState>()(
       name: 'pixelblaze-preview',
       // Only true GLOBAL prefs ride in localStorage now: the renderer
       // choice `fidelity` and the hybrid global-sticky baselines. Per-pattern
-      // cascaded fields (brightness/speed) and the live hybrid working copies
+      // cascaded fields (brightness) and the live hybrid working copies
       // (lightSize/diffusion) are NOT persisted here — they live on the
       // PatternRecord's sparse overrides and are seeded by the resolver on open.
       partialize: (s) => ({

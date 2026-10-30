@@ -5471,29 +5471,32 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
   it('maps 1, 2, and 3 to 1x, 2x, and 3x without changing playback (#63)', () => {
     const show = createDefaultShow('show-keyboard-speed', 'Keyboard speed', 1000)
     const editor = openV2EditorForRecord(convertForTest(show))
-    usePreviewStore.setState({ isRunning: false, speed: 4 })
+    usePreviewStore.setState({ isRunning: false })
     render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.keyDown(document, { key: '1' })
-    expect(usePreviewStore.getState()).toMatchObject({ speed: 1, isRunning: false })
+    expect(useShowTransportStore.getState().playbackRate).toBe(1)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
     fireEvent.keyDown(document, { key: '2' })
-    expect(usePreviewStore.getState()).toMatchObject({ speed: 2, isRunning: false })
+    expect(useShowTransportStore.getState().playbackRate).toBe(2)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
     act(() => usePreviewStore.setState({ isRunning: true }))
     fireEvent.keyDown(document, { key: '3' })
-    expect(usePreviewStore.getState()).toMatchObject({ speed: 3, isRunning: true })
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
 
     fireEvent.keyDown(document, { key: '1', metaKey: true })
-    expect(usePreviewStore.getState().speed).toBe(3)
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
 
     const input = document.createElement('input')
     input.type = 'text'
     document.body.append(input)
     fireEvent.keyDown(input, { key: '1' })
-    expect(usePreviewStore.getState().speed).toBe(3)
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
     input.remove()
   })
 
-  it('resets the preview speed to 1x when a different Show opens (#1097)', () => {
+  it('resets the Show playback rate to 1x when a different Show opens (#1097)', () => {
     const firstShow = createDefaultShow('show-speed-first', 'Speed first', 1000)
     const secondShow = createDefaultShow('show-speed-second', 'Speed second', 1000)
     const editor = openV2EditorForRecord(convertForTest(firstShow))
@@ -5503,12 +5506,12 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const view = render(<ShowEditor showId={editor.showId} />)
 
     fireEvent.keyDown(document, { key: '3' })
-    expect(usePreviewStore.getState().speed).toBe(3)
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
     view.rerender(<ShowEditor showId={editor.showId} />)
-    expect(usePreviewStore.getState().speed).toBe(3)
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
 
     view.rerender(<ShowEditor showId={secondShow.id} />)
-    expect(usePreviewStore.getState().speed).toBe(1)
+    expect(useShowTransportStore.getState().playbackRate).toBe(1)
   })
 
   it('traverses Clips in timeline order with Tab and Shift-Tab and wraps (#588)', () => {
@@ -5651,8 +5654,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     const editor = openV2EditorForRecord(convertForTest(show))
     usePreviewStore.setState({ isRunning: false })
     const view = render(<ShowEditor showId={editor.showId} />)
-    // The mount resets the speed (#1097); this test's subject is that no shortcut fires after unmount.
-    act(() => usePreviewStore.setState({ speed: 4 }))
+    // The mount resets the rate (#1097); no shortcut may fire after unmount.
+    act(() => useShowTransportStore.getState().setPlaybackRate(3))
     act(() => useShowTransportStore.getState().setPosition(show.id, 5_000))
 
     view.unmount()
@@ -5661,7 +5664,8 @@ export function render(index) { rgb(MyMath.glow(index), 0, 0) }
     fireEvent.keyDown(document, { code: 'Space' })
 
     expect(useShowTransportStore.getState()).toMatchObject({ positionMs: 5_000, seekRequest: null })
-    expect(usePreviewStore.getState()).toMatchObject({ isRunning: false, speed: 4 })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(useShowTransportStore.getState().playbackRate).toBe(3)
   })
 
   /* COVERED: "leaves ordinary vertical wheel input available to the Show editor scroll owner (#476)"
