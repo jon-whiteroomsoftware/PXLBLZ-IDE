@@ -9,7 +9,6 @@ import {
 import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from './showVmResourceLedger'
 
 export const DEFAULT_SLOW_MO_STEP_MS = 16
-export const SLOW_MO_STEP_STOPS = [16, 32] as const
 export const SLOW_MO_SPEED_SLIDER = 'slider__pxlblz_slowmo_speed'
 
 function clampPosition(position: number): number {
@@ -26,21 +25,15 @@ export function slowMoPositionFromRate(rate: number): number {
 }
 
 export interface SlowMoSettings {
-  rate: number
-  position?: number
-  stepMs: number
-  inBetween: 'clock' | 'hold' | 'blend' | 'eased'
-  stagger: { shape: 'sweep' | 'radial' | 'scatter'; width: number }
-  persistence: { attackMs: number; decayMs: number } | null
+  position: number
+  dreamy: number
 }
 
 export type SlowMoDeclineReason =
   | 'palette-output' | 'no-renderer' | 'shadowed-builtin'
   | 'reserved-prefix' | 'array-budget'
-export type SlowMoStructure = 'clock' | 'blend' | 'blend-persistence' | 'persistence-only'
 
 export interface SlowMoPlan {
-  structure: SlowMoStructure
   arrayWords: number
   renderFns: Array<'render' | 'render2D' | 'render3D'>
   declined?: { reason: SlowMoDeclineReason; message: string }
@@ -52,26 +45,21 @@ export interface SlowMoWrapResult {
   tunables: Record<string, number>
 }
 
-export function slowMoArrayWords(pixelCount: number, structure: SlowMoStructure): number {
+export function slowMoArrayWords(pixelCount: number): number {
   if (!Number.isInteger(pixelCount) || pixelCount < 0) {
     throw new RangeError('Slow-mo pixel count must be a nonnegative integer.')
   }
-  const arrays = structure === 'clock' ? 0
-    : structure === 'blend' ? 6
-      : structure === 'blend-persistence' ? 9 : 3
-  return arrays * (pixelCount + PIXELBLAZE_ARRAY_HEADER_WORDS)
+  return 9 * (pixelCount + PIXELBLAZE_ARRAY_HEADER_WORDS)
 }
 
 export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: number): SlowMoPlan {
   const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' })
-  const structure: SlowMoStructure = settings.inBetween === 'clock'
-    ? settings.persistence === null ? 'clock' : 'persistence-only'
-    : settings.persistence === null ? 'blend' : 'blend-persistence'
-  const arrayWords = slowMoArrayWords(pixelCount, structure)
+  slowMoTunables(settings)
+  const arrayWords = slowMoArrayWords(pixelCount)
   const bindings = collectTopLevelBindings(code)
   const renderFns = (['render', 'render2D', 'render3D'] as const)
     .filter((name) => bindings.functions.has(name))
-  const plan: SlowMoPlan = { structure, arrayWords, renderFns }
+  const plan: SlowMoPlan = { arrayWords, renderFns }
   const decline = (reason: SlowMoDeclineReason, message: string): SlowMoPlan => ({
     ...plan, declined: { reason, message },
   })
@@ -117,40 +105,33 @@ export function emitSlowMoWrapper(code: string, settings: SlowMoSettings, pixelC
   const plan = planSlowMo(code, settings, pixelCount)
   if (plan.declined) return { code, plan, tunables: {} }
   const tunables = slowMoTunables(settings)
-  if (plan.structure === 'persistence-only') {
-    return emitClockPersistenceWrapper(code, plan, tunables)
-  }
-  if (plan.structure === 'clock') return { code, plan, tunables: {} }
   const p = `${reservedStem('slowmo')}_`
-  const persistence = settings.persistence !== null
-  const rewritten = rewriteSlowMoSource(code, p, true, !persistence)
+  const rewritten = rewriteSlowMoSource(code, p)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const prelude = `${initializers}
 var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}phase = 0, ${p}cap = 0
-var ${p}position = ${settings.position === undefined ? -1 : clampPosition(settings.position)}
+var ${p}rate = 1
 var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
 export function ${SLOW_MO_SPEED_SLIDER}(v) { ${p}position = clamp(v,0,1) }
 var ${p}r = 0, ${p}g = 0, ${p}b = 0
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
 var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
-${persistence ? `var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
-var ${p}kUp = 1, ${p}kDn = 1, ${p}displayDelta = 0
+var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
+var ${p}kDn = 1, ${p}displayDelta = 0
 function ${p}persist(current,target) {
-  current += (target-current) * (target>current ? ${p}kUp : ${p}kDn)
+  current += (target-current) * (target>current ? 1 : ${p}kDn)
   if (abs(target-current) < 0.015625) current = target
   return current
 }
-` : ''}function ${p}time(interval) { return (${p}T % interval) / interval }
-${emitColorCapture(p, !persistence)}`
+function ${p}time(interval) { return (${p}T % interval) / interval }
+${emitColorCapture(p)}`
   const beforeRender = `export function beforeRender(delta) {
   ${p}cap = 0
   ${p}refresh = 0
-  if (${p}position >= 0) {
-    ${p}rate = pow(2,-4*(1-${p}position))
-    if (${p}position >= 0.97) ${p}bypass = 1
-    else if (${p}position < 0.94) ${p}bypass = 0
-    if (${p}bypass) ${p}rate = 1
-  } else ${p}bypass = 0
+  ${p}rate = pow(2,-4*(1-${p}position))
+  if (${p}position >= 0.97) ${p}bypass = 1
+  else if (${p}position < 0.94) ${p}bypass = 0
+  if (${p}bypass) ${p}rate = 1
   if (${p}bypass) {
     ${p}T += delta * 0.0000152587890625
     if (${p}T >= 16384) ${p}T -= 16384
@@ -160,165 +141,83 @@ ${emitColorCapture(p, !persistence)}`
   else {
     ${p}acc += delta * ${p}rate
     var ${p}n = 0
-    while (${p}acc >= ${p}step && ${p}n < 4) {
-      ${p}acc -= ${p}step
-      ${p}T += ${p}step * 0.0000152587890625
+    while (${p}acc >= 16 && ${p}n < 4) {
+      ${p}acc -= 16
+      ${p}T += 16 * 0.0000152587890625
       if (${p}T >= 16384) ${p}T -= 16384
-      ${p}in_beforeRender(${p}step); ${p}n += 1
+      ${p}in_beforeRender(16); ${p}n += 1
     }
-    if (${p}acc >= ${p}step) ${p}acc = ${p}acc % ${p}step
+    if (${p}acc >= 16) ${p}acc = ${p}acc % 16
     ${p}cap = ${p}n > 0
   }
   if (${p}wasBypass && !${p}bypass) { ${p}cap = 1; ${p}refresh = 1 }
   ${p}wasBypass = ${p}bypass
-  ${p}f = ${p}acc / ${p}step
-${persistence ? `  ${p}displayDelta = delta
-  ${p}kUp = ${p}attack > 0 ? 1-exp(-delta/${p}attack) : 1
+  ${p}f = ${p}acc / 16
+  ${p}displayDelta = delta
   ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1
-` : ''}}`
+}`
   const update = ['r', 'g', 'b'].map(c => `
     if (${p}phase == 0 || ${p}refresh) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
     else { ${p}a${c}[index] = ${p}b${c}[index]; ${p}b${c}[index] = ${p}${c} }`).join('')
-  const channels = ['r', 'g', 'b'].map(c => `${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c`).join(', ')
-  const output = persistence ? `if (${p}displayDelta > 0 || ${p}phase == 0) {
+  const output = `if (${p}displayDelta > 0 || ${p}phase == 0) {
 ${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c) * 255)`).join('\n')}
   }
-  rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)` : `rgb(${channels})`
-  const out = `function ${p}out(index,o) {
+  rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)`
+  const out = `function ${p}out(index) {
   if (${p}cap) {${update}
   }
-  var ${p}u = clamp((${p}f-o)/(1-${p}width),0,1)
-  var ${p}c = ${p}curve == 0 ? (${p}u >= 1) : ${p}curve == 1 ? ${p}u : ${p}u*${p}u*(3-2*${p}u)
+  var ${p}c = ${p}f
   ${output}
   if (index == pixelCount-1) ${p}phase = 1
 }`
-  const offsets = plan.renderFns.map(name => {
-    const dimension = name === 'render' ? '1D' : name === 'render2D' ? '2D' : '3D'
-    const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
-    const sweep = name === 'render' ? 'index/pixelCount' : 'clamp(x,0,1)'
-    const radial = name === 'render' ? 'abs(2*index/pixelCount-1)'
-      : name === 'render2D' ? 'clamp(sqrt(dx*dx+dy*dy)/0.7071067811865476,0,1)'
-        : 'clamp(sqrt(dx*dx+dy*dy+dz*dz)/0.8660254037844386,0,1)'
-    const deltas = name === 'render' ? '' : `var dx=x-0.5, dy=y-0.5${name === 'render3D' ? ', dz=z-0.5' : ''}`
-    return `function ${p}offset${dimension}(${args}) {
-  if (${p}shape == 2) return (index * 0.6180267333984375) % 1
-  if (${p}shape == 0) return ${sweep}
-  ${deltas}
-  return ${radial}
-}`
-  }).join('\n')
   const wrappers = plan.renderFns.map(name => {
     const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
-    const dimension = name === 'render' ? '1D' : name === 'render2D' ? '2D' : '3D'
     return `export function ${name}(${args}) {
   if (${p}bypass) {
     ${p}r = 0; ${p}g = 0; ${p}b = 0
     ${p}in_${name}(${args})
-${persistence ? `    if (${p}displayDelta > 0 || ${p}phase == 0) {
+    if (${p}displayDelta > 0 || ${p}phase == 0) {
 ${['r', 'g', 'b'].map(c => `      ${p}p${c}[index] = ${p}persist(${p}p${c}[index], ${p}${c} * 255)`).join('\n')}
     }
-    rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)
-` : ''}    if (index == pixelCount-1) ${p}phase = 1
+    if (${p}decay > 0) rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)
+    if (index == pixelCount-1) ${p}phase = 1
     return
   }
   if (${p}cap) { ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args}) }
-  ${p}out(index,${p}width == 0 ? 0 : ${p}width * ${p}offset${dimension}(${args}))
-}`
-  }).join('\n')
-  return { code: `${prelude}\n${offsets}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
-}
-
-function emitColorCapture(p: string, directBypass = false): string {
-  return `${directBypass ? `function ${p}hsv24(h,s,v) { if (${p}bypass) { hsv24(h,s,v); return }; ${p}hsv(h,s,v) }\n` : ''}function ${p}rgb(r,g,b) { ${directBypass ? `if (${p}bypass) { rgb(r,g,b); return }; ` : ''}${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
-function ${p}hsv(h,s,v) {
-${directBypass ? `  if (${p}bypass) { hsv(h,s,v); return }\n` : ''}  if (s == 0) { ${p}rgb(v,v,v); return }
-  var ${p}h6 = ((h % 1) + 1) % 1 * 6
-  var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
-  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
-  if (${p}i % 6 == 0) ${p}rgb(v,${p}ht,${p}hp)
-  else if (${p}i % 6 == 1) ${p}rgb(${p}hq,v,${p}hp)
-  else if (${p}i % 6 == 2) ${p}rgb(${p}hp,v,${p}ht)
-  else if (${p}i % 6 == 3) ${p}rgb(${p}hp,${p}hq,v)
-  else if (${p}i % 6 == 4) ${p}rgb(${p}ht,${p}hp,v)
-  else ${p}rgb(v,${p}hp,${p}hq)
-}`
-}
-
-function emitClockPersistenceWrapper(code: string, plan: SlowMoPlan, tunables: Record<string, number>): SlowMoWrapResult {
-  const p = `${reservedStem('slowmo')}_`
-  const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
-  const prelude = `${initializers}
-var ${p}phase = 0, ${p}r = 0, ${p}g = 0, ${p}b = 0
-var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
-var ${p}kUp = 1, ${p}kDn = 1, ${p}displayDelta = 0
-function ${p}persist(current,target) {
-  current += (target-current) * (target>current ? ${p}kUp : ${p}kDn)
-  if (abs(target-current) < 0.015625) current = target
-  return current
-}
-${emitColorCapture(p)}`
-  const beforeRender = `export function beforeRender(delta) {
-  ${p}displayDelta = delta / ${p}rate
-  ${p}kUp = ${p}attack > 0 ? 1-exp(-${p}displayDelta/${p}attack) : 1
-  ${p}kDn = ${p}decay > 0 ? 1-exp(-${p}displayDelta/${p}decay) : 1
-  ${p}in_beforeRender(delta)
-}`
-  const out = `function ${p}out(index) {
-  if (${p}displayDelta > 0 || ${p}phase == 0) {
-${['r', 'g', 'b'].map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], ${p}${c} * 255)`).join('\n')}
-  }
-  rgb(${p}pr[index]/255, ${p}pg[index]/255, ${p}pb[index]/255)
-  if (index == pixelCount-1) ${p}phase = 1
-}`
-  const wrappers = plan.renderFns.map(name => {
-    const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
-    return `export function ${name}(${args}) {
-  ${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args})
   ${p}out(index)
 }`
   }).join('\n')
-  return { code: `${prelude}\n${rewriteSlowMoSource(code, p, false)}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
+  return { code: `${prelude}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`, plan, tunables }
+}
+
+function emitColorCapture(p: string): string {
+  return `function ${p}hsv24(h,s,v) { if (${p}bypass && ${p}decay == 0) hsv24(h,s,v); ${p}captureHsv(h,s,v) }
+function ${p}rgb(r,g,b) { if (${p}bypass && ${p}decay == 0) rgb(r,g,b); ${p}captureRgb(r,g,b) }
+function ${p}captureRgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
+function ${p}hsv(h,s,v) { if (${p}bypass && ${p}decay == 0) hsv(h,s,v); ${p}captureHsv(h,s,v) }
+function ${p}captureHsv(h,s,v) {
+  if (s == 0) { ${p}captureRgb(v,v,v); return }
+  var ${p}h6 = ((h % 1) + 1) % 1 * 6
+  var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
+  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
+  if (${p}i % 6 == 0) ${p}captureRgb(v,${p}ht,${p}hp)
+  else if (${p}i % 6 == 1) ${p}captureRgb(${p}hq,v,${p}hp)
+  else if (${p}i % 6 == 2) ${p}captureRgb(${p}hp,v,${p}ht)
+  else if (${p}i % 6 == 3) ${p}captureRgb(${p}hp,${p}hq,v)
+  else if (${p}i % 6 == 4) ${p}captureRgb(${p}ht,${p}hp,v)
+  else ${p}captureRgb(v,${p}hp,${p}hq)
+}`
 }
 
 export function slowMoTunables(settings: SlowMoSettings): Record<string, number> {
-  if (settings.position !== undefined) clampPosition(settings.position)
-  if (!Number.isFinite(settings.rate) || settings.rate <= 0 || settings.rate > 1) {
-    throw new RangeError('Slow-mo rate must be finite and greater than 0 and at most 1.')
-  }
-  if (!Number.isFinite(settings.stepMs) || settings.stepMs <= 0 || settings.stepMs > 32767) {
-    throw new RangeError('Slow-mo step must be finite and greater than 0 and at most 32767 ms.')
-  }
-  if (!Number.isFinite(settings.stagger.width) || settings.stagger.width < 0 || settings.stagger.width > 0.9) {
-    throw new RangeError('Slow-mo stagger width must be finite and between 0 and 0.9.')
-  }
-  if (!['sweep', 'radial', 'scatter'].includes(settings.stagger.shape)) {
-    throw new RangeError('Slow-mo stagger shape must be sweep, radial, or scatter.')
-  }
-  if (settings.persistence !== null) {
-    const { attackMs, decayMs } = settings.persistence
-    if (!Number.isFinite(attackMs) || attackMs < 0 || attackMs > 5000) {
-      throw new RangeError('Slow-mo attack must be finite and between 0 and 5000 ms.')
-    }
-    if (!Number.isFinite(decayMs) || decayMs < 0 || decayMs > 10000) {
-      throw new RangeError('Slow-mo decay must be finite and between 0 and 10000 ms.')
-    }
+  const position = clampPosition(settings.position)
+  if (!Number.isFinite(settings.dreamy) || settings.dreamy < 0 || settings.dreamy > 1) {
+    throw new RangeError('Slow-mo dreamy must be finite and between 0 and 1.')
   }
   const p = `${reservedStem('slowmo')}_`
-  if (settings.inBetween === 'clock') return settings.persistence === null ? {} : {
-    [`${p}rate`]: settings.rate,
-    [`${p}attack`]: settings.persistence.attackMs,
-    [`${p}decay`]: settings.persistence.decayMs,
-  }
   return {
-    [`${p}rate`]: settings.rate,
-    [`${p}step`]: settings.stepMs,
-    [`${p}curve`]: settings.inBetween === 'hold' ? 0 : settings.inBetween === 'blend' ? 1 : 2,
-    [`${p}shape`]: ['sweep', 'radial', 'scatter'].indexOf(settings.stagger.shape),
-    [`${p}width`]: settings.stagger.width,
-    ...(settings.persistence === null ? {} : {
-      [`${p}attack`]: settings.persistence.attackMs,
-      [`${p}decay`]: settings.persistence.decayMs,
-    }),
+    [`${p}position`]: position,
+    [`${p}decay`]: 10000 * settings.dreamy ** 2,
   }
 }
 
@@ -326,7 +225,7 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Node = Record<string, any>
 
-function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true, preserveHsv24 = false): string {
+function rewriteSlowMoSource(code: string, prefix: string): string {
   const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
   const parents = new Map<Node, Node>()
   function visitParents(node: Node): void {
@@ -359,8 +258,8 @@ function rewriteSlowMoSource(code: string, prefix: string, redirectTime = true, 
     if (node.type === 'Program') root = scope
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !isNameBound(scope, node.callee.name)) {
       const name = node.callee.name
-      if ((redirectTime && name === 'time') || ['rgb', 'hsv', 'hsv24'].includes(name)) {
-        edit(node.callee, `${prefix}${name === 'hsv24' && !preserveHsv24 ? 'hsv' : name}`)
+      if (['time', 'rgb', 'hsv', 'hsv24'].includes(name)) {
+        edit(node.callee, `${prefix}${name}`)
       }
     }
     if (node.type !== 'Identifier' || !entries.has(node.name)) return

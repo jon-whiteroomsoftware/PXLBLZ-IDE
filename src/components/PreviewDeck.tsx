@@ -100,11 +100,54 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
       <SecondaryBand mode={summaryMode} />
+      {slowMoEnabled() && <SlowMoSection mode={summaryMode} />}
       <ControlsPanel mode={summaryMode} />
       <Variables mode={summaryMode} />
       </div>
     </div>
   )
+}
+
+
+export function SlowMoSection({ mode }: { mode?: string }) {
+  const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
+  const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
+  const slowMoArtifact = usePreviewStore(s => s.slowMoArtifact)
+  const [copyFailure, setCopyFailure] = useState<{
+    artifact: NonNullable<typeof slowMoArtifact>
+    message: string
+  } | null>(null)
+  const copyError = copyFailure?.artifact === slowMoArtifact ? copyFailure.message : null
+  const copySlowMo = async () => {
+    setCopyFailure(null)
+    const artifact = slowMoArtifact
+    if (!artifact) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(artifact.code)
+      } else {
+        const focus = document.activeElement
+        const textarea = document.createElement('textarea')
+        textarea.value = artifact.code
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        try {
+          document.body.appendChild(textarea)
+          textarea.select()
+          if (!document.execCommand('copy')) throw new Error('Copy failed')
+        } finally {
+          textarea.remove()
+          if (focus instanceof HTMLElement) focus.focus()
+        }
+      }
+    } catch {
+      setCopyFailure({ artifact, message: 'Could not copy generated code.' })
+    }
+  }
+  const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Slow-Mo')
+  return <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={slowMoArtifact?.declined ?? null}
+    expanded={expanded} onExpandedChange={setExpanded} copyError={copyError}
+    onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
 }
 
 function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode?: string }) {
@@ -372,40 +415,6 @@ export function PreviewViewportSection({
   const pattern = profile === 'pattern'
   const togglePlayback = usePreviewStore((s) => s.toggle)
   const speed = usePreviewStore(s => s.speed)
-  const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
-  const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
-  const slowMoArtifact = usePreviewStore(s => s.slowMoArtifact)
-  const [copyFailure, setCopyFailure] = useState<{
-    artifact: NonNullable<typeof slowMoArtifact>
-    message: string
-  } | null>(null)
-  const copyError = copyFailure?.artifact === slowMoArtifact ? copyFailure.message : null
-  const copySlowMo = async () => {
-    setCopyFailure(null)
-    const artifact = slowMoArtifact
-    if (!artifact) return
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(artifact.code)
-      } else {
-        const focus = document.activeElement
-        const textarea = document.createElement('textarea')
-        textarea.value = artifact.code
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        try {
-          document.body.appendChild(textarea)
-          textarea.select()
-          if (!document.execCommand('copy')) throw new Error('Copy failed')
-        } finally {
-          textarea.remove()
-          if (focus instanceof HTMLElement) focus.focus()
-        }
-      }
-    } catch {
-      setCopyFailure({ artifact, message: 'Could not copy generated code.' })
-    }
-  }
   const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Preview')
   const summaryMode = pattern && Boolean(mode)
 
@@ -492,12 +501,6 @@ export function PreviewViewportSection({
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
         )}
       </DeckGrid>
-      {pattern && slowMoEnabled() && (
-        <>
-          <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={slowMoArtifact?.declined ?? null} arrayWords={slowMoArtifact?.arrayWords ?? null} onCopy={slowMoArtifact ? () => { void copySlowMo() } : undefined} />
-          {copyError && <p role="status">{copyError}</p>}
-        </>
-      )}
       {pattern && (
         <DeckGrid gapY="gap-y-[3px]" className="mb-[5px] -mt-1.5">
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />

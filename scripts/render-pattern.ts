@@ -7,7 +7,7 @@
 //   npm run render -- --file path/to/pattern.js --seconds 5 --fps 30
 //   npm run render -- --file aurora-calm.js --demo AuroraSphere
 //   npm run render -- --demo KaleidoBloom --fidelity precise --seconds 5
-//   npm run render -- --demo Raindrops2D --fidelity precise --slowmo '{"rate":0.25,"stepMs":16,"inBetween":"blend","stagger":{"shape":"sweep","width":0},"persistence":null}'
+//   npm run render -- --demo Raindrops2D --fidelity precise --slowmo '{"position":0.5,"dreamy":0.5}'
 //   npm run render -- --show stock-show-showcase-distortion-effects --start 7 --seconds 2.5
 //
 // With --file, --demo names the mount point whose map/preview config is used

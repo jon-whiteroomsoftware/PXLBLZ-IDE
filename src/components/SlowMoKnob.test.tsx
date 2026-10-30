@@ -1,5 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
 import { SlowMoLab } from './SlowMoLab'
 import { Preview } from './Preview'
@@ -30,7 +29,7 @@ vi.mock('@/engine/loadPattern', async () => {
   return { ...actual, loadPattern: vi.fn(actual.loadPattern) }
 })
 const slider = 'slider__pxlblz_slowmo_speed'
-const settings: SlowMoSettings = { rate: 0.25, stepMs: 16, inBetween: 'blend', stagger: { shape: 'sweep', width: 0 }, persistence: null }
+const settings: SlowMoSettings = { position: 0.5, dreamy: 0 }
 const originalUrl = location.href
 const last = <T,>(values: T[]): T => values[values.length - 1]
 const config = (): RenderLoopConfig => last(vi.mocked(createRenderLoop).mock.calls)[0]
@@ -49,27 +48,16 @@ export function render(i){rgb(receivedMs/4096,speed,0)}` })
 })
 afterEach(() => { cleanup(); history.replaceState(null, '', originalUrl) })
 
-it('T1/T7 lab exposes native position control and returns ownership to every legacy rate stop', async () => {
-  const user = userEvent.setup()
+it('T1/T7 exposes a native position slider with the logarithmic readout', () => {
   const onChange = vi.fn()
-  const draft = { ...createSlowMoDraft(), rate: 0.25, inBetween: 'blend' as const }
-  const props = { draft, onChange, declined: null, arrayWords: 120 }
-  const view = render(<SlowMoLab {...props} />)
-  const speed = screen.getByRole('slider', { name: 'Slow-mo speed position' })
+  render(<SlowMoLab draft={createSlowMoDraft()} onChange={onChange} declined={null} expanded={false} onExpandedChange={vi.fn()} />)
+  const speed = screen.getByRole('slider', { name: 'Slow-mo speed' })
   expect(speed).toHaveAttribute('min', '0')
   expect(speed).toHaveAttribute('max', '1')
   expect(speed).toHaveAttribute('step', '0.001')
-  expect(speed).toHaveValue('0.5')
-  expect(speed).toHaveAttribute('aria-valuetext', '0.25×')
+  expect(speed).toHaveValue('1')
   fireEvent.change(speed, { target: { value: '0.75' } })
-  expect(onChange).toHaveBeenLastCalledWith({ ...draft, position: 0.75, rate: 0.5 })
-  view.rerender(<SlowMoLab {...props} draft={{ ...draft, position: 1 }} />)
-  expect(speed).toHaveAttribute('aria-valuetext', '1×')
-  for (const divisor of [1, 2, 4, 8, 16, 32]) {
-    await user.click(screen.getByRole('button', { name: 'Slow-mo rate' }))
-    await user.click(within(screen.getByRole('listbox', { name: 'Slow-mo rate' })).getByRole('option', { name: divisor === 1 ? '1' : `1/${divisor}` }))
-    expect(onChange).toHaveBeenLastCalledWith({ ...draft, rate: 1 / divisor })
-  }
+  expect(onChange).toHaveBeenLastCalledWith({ position: 0.75, dreamy: 0 })
 })
 
 it.each(['fast', 'fidelity'] as const)('T2/T7 live Preview %s retains handle/clock and reopens current Copy source', fidelity => {
@@ -101,9 +89,4 @@ it.each(['fast', 'fidelity'] as const)('T2/T7 live Preview %s retains handle/clo
     const expected = position === 1 ? 64 : Math.floor(64 * 2 ** (-4 * (1 - position)) / 16) * 16
     expect(shim.decodeScalar(reopened.getExports().receivedMs as number)).toBe(expected)
   }
-  // Selecting a legacy rate removes position and restores authored scheduling.
-  act(() => usePreviewStore.getState().setSlowMo({ ...settings, rate: 1 / 32 }))
-  const before = config().shim.decodeScalar(handle.getExports().receivedMs as number)
-  act(() => running.tickFrame(16))
-  expect(config().shim.decodeScalar(handle.getExports().receivedMs as number) - before).toBeLessThanOrEqual(16)
 })

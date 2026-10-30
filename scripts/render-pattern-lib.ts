@@ -69,33 +69,13 @@ function parseSlowMo(raw: string): SlowMoSettings {
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error('--slowmo requires a SlowMoSettings JSON object.')
   }
-  const { rate, stepMs, inBetween, stagger, persistence } = parsed as Record<string, unknown>
-  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0 || rate > 1) {
-    throw new Error('--slowmo rate must be finite and in (0, 1].')
+  const { position, dreamy } = parsed as Record<string, unknown>
+  for (const [name, value] of Object.entries({ position, dreamy })) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+      throw new Error(`--slowmo ${name} must be finite and in [0, 1].`)
+    }
   }
-  if (typeof stepMs !== 'number' || !Number.isFinite(stepMs) || stepMs <= 0 || stepMs > 32767) {
-    throw new Error('--slowmo stepMs must be finite and in (0, 32767].')
-  }
-  if (inBetween !== 'clock' && inBetween !== 'hold' && inBetween !== 'blend' && inBetween !== 'eased') {
-    throw new Error('--slowmo inBetween must be clock, hold, blend, or eased.')
-  }
-  const offset = stagger as Record<string, unknown> | null
-  if (typeof offset !== 'object' || offset === null || Array.isArray(offset) ||
-    (offset.shape !== 'sweep' && offset.shape !== 'radial' && offset.shape !== 'scatter') ||
-    typeof offset.width !== 'number' || !Number.isFinite(offset.width) || offset.width < 0 || offset.width > 0.9) {
-    throw new Error('--slowmo stagger must have shape sweep, radial, or scatter and finite width in [0, 0.9].')
-  }
-  const afterEffect = persistence as Record<string, unknown> | null
-  if (afterEffect !== null && (typeof afterEffect !== 'object' || Array.isArray(afterEffect) ||
-    typeof afterEffect.attackMs !== 'number' || !Number.isFinite(afterEffect.attackMs) || afterEffect.attackMs < 0 || afterEffect.attackMs > 5000 ||
-    typeof afterEffect.decayMs !== 'number' || !Number.isFinite(afterEffect.decayMs) || afterEffect.decayMs < 0 || afterEffect.decayMs > 10000)) {
-    throw new Error('--slowmo persistence must be null or have finite attackMs in [0, 5000] and decayMs in [0, 10000].')
-  }
-  return {
-    rate, stepMs, inBetween,
-    stagger: { shape: offset.shape, width: offset.width },
-    persistence: afterEffect === null ? null : { attackMs: afterEffect.attackMs as number, decayMs: afterEffect.decayMs as number },
-  }
+  return { position: position as number, dreamy: dreamy as number }
 }
 
 export function parseRenderArgs(argv: string[]): RenderConfig {

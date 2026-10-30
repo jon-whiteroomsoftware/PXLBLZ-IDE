@@ -69,7 +69,7 @@ interface PreviewState {
 export const previewInitialState = {
   isRunning: true,
   speed: 1,
-  slowMo: null as SlowMoSettings | null,
+  slowMo: createSlowMoDraft() as SlowMoSettings | null,
   slowMoDraft: createSlowMoDraft(),
   slowMoArtifact: null as SlowMoPreviewArtifact | null,
   brightness: 1,
@@ -145,12 +145,12 @@ export const usePreviewStore = create<PreviewState>()(
       setElapsed: (elapsed) => set({ elapsed }),
       setFidelity: (fidelity) => set({ fidelity }),
       setSpeed: (speed) => set({ speed }),
-      setSlowMo: (slowMo) => set((s) => {
-        const slowMoDraft = slowMoDraftFromSettings(slowMo, s.slowMoDraft)
+      setSlowMo: (slowMo) => set(() => {
+        const slowMoDraft = slowMoDraftFromSettings(slowMo)
         return { slowMoDraft, slowMo: slowMoSettingsFromDraft(slowMoDraft) }
       }),
       setSlowMoDraft: (draft) => set({
-        slowMoDraft: { ...draft, stagger: { ...draft.stagger }, persistence: { ...draft.persistence } },
+        slowMoDraft: { ...draft },
         slowMo: slowMoSettingsFromDraft(draft),
       }),
       setSlowMoArtifact: (slowMoArtifact) => set({ slowMoArtifact }),

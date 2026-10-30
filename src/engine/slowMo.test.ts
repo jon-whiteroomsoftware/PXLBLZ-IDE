@@ -1,79 +1,32 @@
-import {
-  DEFAULT_SLOW_MO_STEP_MS,
-  SLOW_MO_STEP_STOPS,
-  emitSlowMoWrapper,
-  planSlowMo,
-  slowMoArrayWords,
-  slowMoTunables,
-  type SlowMoSettings,
-  type SlowMoStructure,
-} from './slowMo'
+import { DEFAULT_SLOW_MO_STEP_MS, emitSlowMoWrapper, planSlowMo, slowMoArrayWords, slowMoTunables, type SlowMoSettings } from './slowMo'
 
-const settings: SlowMoSettings = Object.freeze({
-  rate: 0.25,
-  stepMs: 20,
-  inBetween: 'blend',
-  stagger: Object.freeze({ shape: 'sweep', width: 0 }),
-  persistence: null,
-})
+const settings: SlowMoSettings = Object.freeze({ position: 0.5, dreamy: 0 })
 const renderer = 'export function render(index) { rgb(1, 0, 0) }'
-const structures: Array<[SlowMoStructure, SlowMoSettings, number, number]> = [
-  ['clock', { ...settings, inBetween: 'clock' }, 0, 0],
-  ['blend', settings, 1560, 24],
-  ['blend-persistence', { ...settings, persistence: { attackMs: 0, decayMs: 500 } }, 2340, 36],
-  ['persistence-only', { ...settings, inBetween: 'clock', persistence: { attackMs: 0, decayMs: 500 } }, 780, 12],
-]
 
 describe('slow-mo memory accounting', () => {
-  it.each(structures)('counts %s arrays including empty headers', (structure, input, words, headers) => {
-    expect(slowMoArrayWords(256, structure)).toBe(words)
-    expect(slowMoArrayWords(0, structure)).toBe(headers)
-    expect(planSlowMo(renderer, input, 256)).toEqual({ structure, arrayWords: words, renderFns: ['render'] })
-  })
-
-  it.each([-1, 0.5, NaN, Infinity, -Infinity])('rejects invalid pixel count %s for every structure', (count) => {
-    for (const [structure, input] of structures) {
-      expect(() => slowMoArrayWords(count, structure)).toThrow(RangeError)
-      expect(() => planSlowMo(renderer, input, count)).toThrow(RangeError)
-    }
-  })
-
-  it.each([
-    [structures[1], 1702, 1703, 10236, 10242],
-    [structures[2], 1133, 1134, 10233, 10242],
-    [structures[3], 3409, 3410, 10239, 10242],
-  ] as const)('accepts the last fitting count for %s and declines the next', ([structure, input], accepted, declined, below, above) => {
-    expect(planSlowMo(renderer, input, accepted)).toEqual({ structure, arrayWords: below, renderFns: ['render'] })
-    expect(planSlowMo(renderer, input, declined)).toEqual({
-      structure, arrayWords: above, renderFns: ['render'],
-      declined: { reason: 'array-budget', message: `Slow-mo needs ${above} array words; the VM budget is 10240.` },
+  it('counts nine arrays including headers even at dreamy zero', () => {
+    expect(slowMoArrayWords(256)).toBe(2340)
+    expect(slowMoArrayWords(0)).toBe(36)
+    expect(planSlowMo(renderer, settings, 256)).toEqual({ arrayWords: 2340, renderFns: ['render'] })
+    expect(planSlowMo(renderer, settings, 1133).declined).toBeUndefined()
+    expect(planSlowMo(renderer, settings, 1134).declined).toEqual({
+      reason: 'array-budget', message: 'Slow-mo needs 10242 array words; the VM budget is 10240.',
     })
+  })
+  it.each([-1, 0.5, NaN, Infinity, -Infinity])('rejects invalid pixel count %s', count => {
+    expect(() => slowMoArrayWords(count)).toThrow(RangeError)
+    expect(() => planSlowMo(renderer, settings, count)).toThrow(RangeError)
   })
 })
 
 describe('slow-mo planner', () => {
-  it.each(['clock', 'hold', 'blend', 'eased'] as const)('plans %s without mutating arbitrary explicit steps', (inBetween) => {
-    const input: SlowMoSettings = Object.freeze({
-      ...settings, inBetween, stepMs: 45,
-      persistence: Object.freeze({ attackMs: 70, decayMs: 900 }),
-    })
-    const before = structuredClone(input)
-    expect(planSlowMo(renderer, input, 256)).toEqual({
-      structure: inBetween === 'clock' ? 'persistence-only' : 'blend-persistence',
-      arrayWords: inBetween === 'clock' ? 780 : 2340,
-      renderFns: ['render'],
-    })
-    expect(input).toEqual(before)
-    expect(settings.stepMs).toBe(20)
-  })
-
   it.each([
     ['function render(i) {}', ['render']],
     ['export function render2D(i, x, y) {}', ['render2D']],
     ['export function render3D(i, x, y, z) {}', ['render3D']],
     ['export function render3D(i) {}\nfunction render(i) {}\nexport function render2D(i) {}', ['render', 'render2D', 'render3D']],
   ])('orders only top-level function entry points: %s', (code, renderFns) => {
-    expect(planSlowMo(code as string, settings, 256)).toEqual({ structure: 'blend', arrayWords: 1560, renderFns })
+    expect(planSlowMo(code as string, settings, 256)).toEqual({ arrayWords: 2340, renderFns })
   })
 
   it.each([
@@ -82,7 +35,7 @@ describe('slow-mo planner', () => {
     'function helper() { function render(i) {} }',
   ])('declines missing top-level renderer: %s', (code) => {
     expect(planSlowMo(code, settings, 256)).toEqual({
-      structure: 'blend', arrayWords: 1560, renderFns: [],
+      arrayWords: 2340, renderFns: [],
       declined: { reason: 'no-renderer', message: 'Slow-mo requires render, render2D, or render3D.' },
     })
   })
@@ -90,7 +43,7 @@ describe('slow-mo planner', () => {
   it.each(['paint', 'setPalette'])('declines unshadowed %s calls in helpers and beforeRender', (name) => {
     for (const fn of ['helper', 'beforeRender']) {
       expect(planSlowMo(`function ${fn}() { ${name}(0) }\n${renderer}`, settings, 256)).toEqual({
-        structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+        arrayWords: 2340, renderFns: ['render'],
         declined: { reason: 'palette-output', message: 'Slow-mo does not capture palette output (paint/setPalette).' },
       })
     }
@@ -99,7 +52,7 @@ describe('slow-mo planner', () => {
   it.each(['time', 'rgb', 'hsv', 'hsv24'])('declines top-level variable and function %s bindings', (name) => {
     for (const declaration of [`var ${name} = 0`, `export var ${name} = 0`, `function ${name}() {}`, `export function ${name}() {}`]) {
       expect(planSlowMo(`${declaration}\n${renderer}`, settings, 256)).toEqual({
-        structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+        arrayWords: 2340, renderFns: ['render'],
         declined: { reason: 'shadowed-builtin', message: `Slow-mo cannot wrap a top-level binding named ${name}.` },
       })
     }
@@ -112,20 +65,20 @@ describe('slow-mo planner', () => {
     ['hsv24', 'switch(1){case 1: var hsv24=0}'],
   ])('declines hoisted top-level %s bindings', (name, declaration) => {
     expect(planSlowMo(`${declaration}\n${renderer}`, settings, 256)).toEqual({
-      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+      arrayWords: 2340, renderFns: ['render'],
       declined: { reason: 'shadowed-builtin', message: `Slow-mo cannot wrap a top-level binding named ${name}.` },
     })
   })
 
   it.each(['paint', 'setPalette'])('accepts a hoisted top-level local %s call', name => {
     expect(planSlowMo(`if(1){var ${name}=custom} ${name}(); export function render(i){}`, settings, 256)).toEqual({
-      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+      arrayWords: 2340, renderFns: ['render'],
     })
   })
 
   it('does not hoist nested lexical bindings into the Program scope', () => {
     expect(planSlowMo(`if(1){let time=0;const hsv=0}\n${renderer}`, settings, 256)).toEqual({
-      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+      arrayWords: 2340, renderFns: ['render'],
     })
   })
 
@@ -138,7 +91,7 @@ describe('slow-mo planner', () => {
 
   it('declines reserved identifiers', () => {
     expect(planSlowMo(`var __pxlblz_slowmo_value = 0\n${renderer}`, settings, 256)).toEqual({
-      structure: 'blend', arrayWords: 1560, renderFns: ['render'],
+      arrayWords: 2340, renderFns: ['render'],
       declined: { reason: 'reserved-prefix', message: 'Slow-mo source uses the reserved __pxlblz_slowmo_ prefix.' },
     })
   })
@@ -153,7 +106,7 @@ describe('slow-mo planner', () => {
     'var __pxlblz_slowmo = 0',
     'var authored = array(100000)',
   ])('accepts local shadowing and non-builtin text: %s', (code) => {
-    expect(planSlowMo(`${code}\n${renderer}`, settings, 256)).toEqual({ structure: 'blend', arrayWords: 1560, renderFns: ['render'] })
+    expect(planSlowMo(`${code}\n${renderer}`, settings, 256)).toEqual({ arrayWords: 2340, renderFns: ['render'] })
   })
 
   it('returns the first applicable refusal in specification order', () => {
@@ -177,53 +130,21 @@ describe('slow-mo planner', () => {
     expect(() => planSlowMo('export function render(', settings, 256)).toThrow(SyntaxError)
   })
 
-  it('pins the settled default and only lab stops', () => {
+
+  it('does not mutate frozen settings', () => {
+    const before = structuredClone(settings)
+    emitSlowMoWrapper(renderer, settings, 3)
+    expect(settings).toEqual(before)
     expect(DEFAULT_SLOW_MO_STEP_MS).toBe(16)
-    expect(SLOW_MO_STEP_STOPS).toEqual([16, 32])
   })
-
-  it.each(['hold', 'blend', 'eased'] as const)('emits current %s tunable initializers', (inBetween) => {
-    const input = { ...settings, inBetween }
-    const tunables = slowMoTunables(input)
-    expect(tunables).toEqual({
-      __pxlblz_slowmo_rate: 0.25,
-      __pxlblz_slowmo_step: 20,
-      __pxlblz_slowmo_curve: ['hold', 'blend', 'eased'].indexOf(inBetween),
-      __pxlblz_slowmo_shape: 0,
-      __pxlblz_slowmo_width: 0,
-    })
-    const result = emitSlowMoWrapper(renderer, input, 3)
-    expect(result.tunables).toEqual(tunables)
-    for (const [name, value] of Object.entries(tunables)) expect(result.code).toContain(`var ${name} = ${value}`)
-    expect(result.code).toContain('__pxlblz_slowmo_step * 0.0000152587890625')
-    expect(result.code).not.toMatch(/\/\s*65536/)
-    expect(result.code.match(/array\(pixelCount\)/g)).toHaveLength(6)
-    expect(result.code).not.toMatch(/__pxlblz_slowmo_(attack|decay|pr|pg|pb|kUp|kDn)/)
+  it.each([NaN, Infinity, -Infinity])('rejects nonfinite position %s', position => {
+    expect(() => slowMoTunables({ ...settings, position })).toThrow(RangeError)
   })
-
-  it.each([0, -1, 1.01, NaN, Infinity, -Infinity])('rejects rate %s', rate => {
-    expect(() => slowMoTunables({ ...settings, rate })).toThrow(RangeError)
-    expect(() => emitSlowMoWrapper(renderer, { ...settings, rate }, 3)).toThrow(RangeError)
+  it.each([-0.001, 1.001, NaN, Infinity, -Infinity])('rejects dreamy %s', dreamy => {
+    expect(() => emitSlowMoWrapper(renderer, { ...settings, dreamy }, 3)).toThrow(RangeError)
   })
-  it.each([0, -1, 32768, NaN, Infinity, -Infinity])('rejects step %s', stepMs => {
-    expect(() => slowMoTunables({ ...settings, stepMs })).toThrow(RangeError)
-    expect(() => emitSlowMoWrapper(renderer, { ...settings, stepMs }, 3)).toThrow(RangeError)
-  })
-  it('keeps clock baseline and named declines byte-identical', () => {
-    const clock = { ...settings, inBetween: 'clock' as const }
-    expect(slowMoTunables(clock)).toEqual({})
-    expect(emitSlowMoWrapper(renderer, clock, 3)).toEqual({ code: renderer, plan: planSlowMo(renderer, clock, 3), tunables: {} })
+  it('keeps named declines byte-identical', () => {
     const code = `paint(0); ${renderer}`
     expect(emitSlowMoWrapper(code, settings, 3)).toEqual({ code, plan: planSlowMo(code, settings, 3), tunables: {} })
-  })
-  it('accepts blend and clock persistence after named budget declines', () => {
-    const persistence = { ...settings, persistence: { attackMs: 0, decayMs: 100 } }
-    expect(emitSlowMoWrapper(renderer, persistence, 1133).plan.declined).toBeUndefined()
-    expect(emitSlowMoWrapper(renderer, persistence, 1134).plan.declined?.reason).toBe('array-budget')
-    const clock = emitSlowMoWrapper(renderer, { ...persistence, inBetween: 'clock' }, 3409)
-    expect(clock.plan).toMatchObject({ structure: 'persistence-only', arrayWords: 10239 })
-    expect(clock.tunables).toEqual({ __pxlblz_slowmo_rate: settings.rate, __pxlblz_slowmo_attack: 0, __pxlblz_slowmo_decay: 100 })
-    expect(emitSlowMoWrapper(renderer, { ...persistence, inBetween: 'clock' }, 3410).plan.declined?.reason).toBe('array-budget')
-    expect(emitSlowMoWrapper(renderer, { ...settings, stagger: { shape: 'scatter', width: 0.5 } }, 3).tunables.__pxlblz_slowmo_width).toBe(0.5)
   })
 })

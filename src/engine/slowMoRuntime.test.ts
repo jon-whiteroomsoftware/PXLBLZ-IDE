@@ -5,10 +5,7 @@ import { loadPattern } from './loadPattern'
 import { createFxShim, createShim } from './shim'
 import { emitSlowMoWrapper, planSlowMo, type SlowMoSettings } from './slowMo'
 
-const settings: SlowMoSettings = {
-  rate: 0.25, stepMs: 16, inBetween: 'hold',
-  stagger: { shape: 'sweep', width: 0 }, persistence: null,
-}
+const settings: SlowMoSettings = { position: 0.5, dreamy: 0 }
 const modes = ['fast', 'fidelity'] as const
 const points = Array.from({ length: 3 }, (_, i) => ({ sample: [i / 4, 0.5, 0.75] }))
 const prefix = '__pxlblz_slowmo_'
@@ -65,7 +62,7 @@ export function ${entry}(${args}) {${call}}`
         }
       })
 
-      it.each(['hold', 'blend', 'eased'] as const)(`I2 catch-up ${entry} preserves histories and latest captures with %s`, inBetween => {
+      it(`I2 catch-up ${entry} preserves histories and latest captures`, () => {
         const source = `export var calls=0, renders=0
 export var deltas=array(16), ticks=array(16)
 export function beforeRender(delta) {
@@ -80,11 +77,11 @@ export function ${entry}(${args}) {
         const base = runtime(source, mode, dimension, false)
         const captures = [base.advanceLive(0).pixels.map(pixel => [...pixel])]
         for (let i = 0; i < 6; i++) captures.push(base.advanceLive(16).pixels.map(pixel => [...pixel]))
-        const prepared = artifact(source, { ...settings, rate: 1, inBetween })
+        const prepared = artifact(source, { ...settings, position: 0.75 })
         const wrapped = createFastReplayRuntime({ ...prepared, dimension }, {
           mapPoints: points, randomSeed: 7, fidelity: mode,
         })
-        const c = inBetween === 'hold' ? 0 : inBetween === 'blend' ? 0.25 : 0.15625
+        const c = 0.25
         const interpolate = (a: number, b: number) => captures[a].map((pixel, i) =>
           pixel.map((value, channel) => value + (captures[b][i][channel] - value) * c))
         // A capture traverses the inner renderer once, even when several clock steps run.
@@ -97,7 +94,7 @@ export function ${entry}(${args}) {
           { delta: 4, calls: 7, renders: 12, pixels: interpolate(4, 6) },
         ]
         for (const row of rows) {
-          const result = wrapped.advanceLive(row.delta)
+          const result = wrapped.advanceLive(row.delta * 2)
           // Replay getters expose mutable state: snapshot pixels and exports before advancing.
           const pixels = result.pixels.map(pixel => [...pixel])
           const exports = result.exports
@@ -133,15 +130,15 @@ export function render(i){rgb(initial+t, time(1), 0)}`
     })
 
     for (const sink of ['rgb', 'hsv']) {
-      it.each(['hold', 'blend', 'eased'] as const)(`I6 ${sink} interpolates channels with %s`, inBetween => {
+      it(`I6 ${sink} interpolates channels with Blend`, () => {
         const source = `var count=0; export function beforeRender(d){count+=1}
 export function render(i){${sink === 'rgb' ? 'rgb(count%2,0,1-count%2)' : 'hsv(count%2 == 1 ? 0 : 2/3,1,1)'}}`
-        const a = artifact(source, { ...settings, inBetween })
+        const a = artifact(source, settings)
         const r = createFastReplayRuntime({ ...a, dimension: 1 }, { mapPoints: points, randomSeed: 1, fidelity: mode })
         r.advanceLive(0)
         for (const f of [0, 0.25, 0.5, 0.75]) {
           const result = r.advanceLive(f === 0 ? 64 : 16)
-          const c = inBetween === 'hold' ? 0 : inBetween === 'blend' ? f : f*f*(3-2*f)
+          const c = f
           close(result.pixels, points.map(() => [1-c, 0, c]), tolerance)
           result.pixels.flat().forEach(v => { expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(1) })
         }
@@ -157,23 +154,15 @@ export function render(i){rgb(gain,0,0)}`, mode)
       close(r.frame(64), points.map(() => [0.75,0,0]), tolerance)
     })
 
-    it.each(['rate', 'step', 'curve'])('I11 live %s changes later output without resetting authored state', name => {
+    it('I11 live position changes output without resetting authored state', () => {
       const r = direct(`export var count=0; export function beforeRender(d){count+=1}
 export function render(i){rgb(count/16,0,0)}`, mode)
-      r.frame(0)
-      r.frame(64)
+      r.frame(0); r.frame(64)
       const before = r.count()
-      expect(before).toBe(2)
-      if (name === 'curve') {
-        r.set(name, 1)
-        close(r.frame(32), points.map(() => [1.5/16,0,0]), tolerance)
-        expect(r.count()).toBe(before)
-      } else {
-        r.set(name, name === 'rate' ? 0.5 : 8)
-        r.frame(32)
-        close(r.frame(32), points.map(() => [3/16,0,0]), tolerance)
-        expect(r.count()).toBe(before + 2)
-      }
+      r.set('position', 0.75)
+      r.frame(32)
+      close(r.frame(32), points.map(() => [3/16,0,0]), tolerance)
+      expect(r.count()).toBe(before + 2)
     })
 
     it('I13 beforeRender sinks cannot leak into a no-sink renderer', () => {
@@ -268,15 +257,15 @@ export function render3D(i,x,y,z){render2D(i,x,y)}`
 
     it('I14 caps catch-up at four and drops the excess backlog', () => {
       const r = direct(`export var count=0; export function beforeRender(d){count+=1}
-export function render(i){rgb(count/16,0,0)}`, mode, { ...settings, rate: 1 })
+export function render(i){rgb(count/16,0,0)}`, mode, { ...settings, position: 0.75 })
       r.frame(0)
-      r.frame(100)
+      r.frame(200)
       expect(r.count()).toBe(5)
-      r.frame(11)
+      r.frame(22)
       expect(r.count()).toBe(5)
-      r.frame(1)
+      r.frame(2)
       expect(r.count()).toBe(6)
-      close(r.frame(16), points.map(() => [6/16,0,0]), tolerance)
+      close(r.frame(32), points.map(() => [6/16,0,0]), tolerance)
     })
 
     it('I15 matches clamped shim HSV across normalized hue and out-of-range s/v', () => {
@@ -295,15 +284,15 @@ export function render(i){rgb(count/16,0,0)}`, mode, { ...settings, rate: 1 })
 }
 
 describe('slow-mo pass integration and scope diagnostics', () => {
-  it('I11 preserves authored metadata and exposes exactly the five runtime tunables', () => {
+  it('I11 preserves authored metadata and exposes exactly the two runtime tunables', () => {
     const source = 'export var gain=0.5; export function sliderGain(v){gain=v} export function render(i){rgb(gain,0,0)}'
     const base = bundle(source, {})
     const result = artifact(source)
     for (const key of ['renderFns','exportedVars','patternVars'] as const) expect(result.metadata[key]).toEqual(base.metadata[key])
     expect(result.metadata.controls).toEqual([...base.metadata.controls, { exportName: 'slider__pxlblz_slowmo_speed', kind: 'slider', label: 'Slow-mo speed' }])
-    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'rate', prefix+'step', prefix+'curve', prefix+'shape', prefix+'width', prefix+'position'])
+    expect(result.metadata.runtimeVars).toEqual([...(base.metadata.runtimeVars ?? base.metadata.patternVars), prefix+'position', prefix+'decay'])
     expect(new Set(result.metadata.runtimeVars).size).toBe(result.metadata.runtimeVars!.length)
-    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender', 'slider__pxlblz_slowmo_speed'], estimatedPixelCost: 0, slowMo: { arrayWords: 42, tunables: [prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width'] } })
+    expect(result.summary.passes[0]).toMatchObject({ beforeRender: 'synthesized', exportsAdded: ['beforeRender', 'slider__pxlblz_slowmo_speed'], estimatedPixelCost: 0, slowMo: { arrayWords: 63, tunables: [prefix+'position',prefix+'decay'] } })
     expect(result.summary.globalsAdded).toContain(prefix+'ar')
   })
 
@@ -312,14 +301,15 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     const libraries = { Lamp: 'var count=0; function tick(){count+=1} function value(){return count/16}' }
     const base = bundle(source, libraries)
     const result = artifact(source, settings, libraries)
-    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'rate',prefix+'step',prefix+'curve',prefix+'shape',prefix+'width',prefix+'position'])
+    expect(result.metadata.runtimeVars).toEqual([...base.metadata.runtimeVars!, prefix+'position',prefix+'decay'])
     expect(result.summary.passes[0]).toMatchObject({ beforeRender:'wrapped', exportsAdded:['slider__pxlblz_slowmo_speed'] })
   })
 
   it('imports and executes the reciprocal pass-engine/slow-mo function boundary', async () => {
     const { bundleWithPasses: apply } = await import('./passEngine')
-    const { DEFAULT_SLOW_MO_STEP_MS: stepMs } = await import('./slowMo')
-    const prepared = apply('export function render(i){rgb(0.5,0,0)}', {}, [{ kind:'slowmo', settings:{ ...settings, stepMs }, pixelCount:3 }])
+    const { DEFAULT_SLOW_MO_STEP_MS } = await import('./slowMo')
+    expect(DEFAULT_SLOW_MO_STEP_MS).toBe(16)
+    const prepared = apply('export function render(i){rgb(0.5,0,0)}', {}, [{ kind:'slowmo', settings, pixelCount:3 }])
     const r = createFastReplayRuntime({ ...prepared, dimension:1 }, { mapPoints:points, randomSeed:1 })
     close(r.advanceLive(0).pixels, points.map(() => [0.5,0,0]), 0)
   })
@@ -341,21 +331,14 @@ describe('slow-mo pass integration and scope diagnostics', () => {
     expect(result.summary.passes[0].declined?.reason).toBe(reason)
   })
 
-  it('I12 accepts blend budget edge and preserves clock identity without a summary', () => {
+  it('I12 accepts the decay-buffer budget edge and refuses one more pixel', () => {
     const source = 'export function render(i){rgb(1,0,0)}'
-    expect(bundleWithPasses(source, {}, [{ kind:'slowmo', settings, pixelCount:1702 }]).summary.passes[0].declined).toBeUndefined()
+    expect(bundleWithPasses(source, {}, [{ kind:'slowmo', settings, pixelCount:1133 }]).summary.passes[0].slowMo?.arrayWords).toBe(10233)
     const base = bundle(source, {})
-    const clock = artifact(source, { ...settings, inBetween:'clock' })
-    expect(clock).toMatchObject({ ...base, summary: { passes: [] } })
-    const persistence = { ...settings, persistence:{ attackMs:0, decayMs:100 } }
-    const declined = bundleWithPasses(source, {}, [{ kind:'slowmo',settings:persistence,pixelCount:1134 }])
+    const declined = bundleWithPasses(source, {}, [{ kind:'slowmo',settings,pixelCount:1134 }])
     expect(declined).toMatchObject({ ...base, summary:{ passes:[{
       declined:{ reason:'array-budget',message:'Slow-mo needs 10242 array words; the VM budget is 10240.' },
     }] } })
-    expect(bundleWithPasses(source, {}, [{ kind:'slowmo',settings:persistence,pixelCount:1133 }]).summary.passes[0].slowMo?.arrayWords).toBe(10233)
-    expect(bundleWithPasses(source, {}, [{ kind:'slowmo', settings:{ ...persistence, inBetween:'clock' }, pixelCount:3409 }]).summary.passes[0].slowMo).toEqual({
-      arrayWords:10239, tunables:['__pxlblz_slowmo_rate', '__pxlblz_slowmo_attack', '__pxlblz_slowmo_decay'],
-    })
   })
 
   it.each([

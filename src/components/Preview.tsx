@@ -19,6 +19,7 @@ import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
 import { SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
 import { slowMoEnabled } from '@/dev/slowMoFlag'
+import { createSlowMoDraft } from '@/engine/slowMoDraft'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
@@ -48,8 +49,8 @@ function cube3DCanvasPx(containerWidth: number, containerHeight?: number): numbe
 }
 
 function slowMoPreviewRecipe(settings: SlowMoSettings | null, pixelCount: number): PassRecipe {
-  return slowMoEnabled() && settings && (settings.inBetween !== 'clock' || settings.persistence !== null)
-    ? [{ kind: 'slowmo', settings, pixelCount }] : []
+  return slowMoEnabled()
+    ? [{ kind: 'slowmo', settings: settings ?? createSlowMoDraft(), pixelCount }] : []
 }
 
 function publishSlowMoArtifact(artifact: ReturnType<typeof bundleWithPasses>) {
@@ -84,8 +85,7 @@ export function Preview({
   const fidelity = usePreviewStore((s) => s.fidelity)
   const slowMo = usePreviewStore((s) => s.slowMo)
   const labEnabled = slowMoEnabled()
-  const slowMoStructure = !labEnabled || !slowMo || (slowMo.inBetween === 'clock' && slowMo.persistence === null)
-    ? 'baseline' : `${slowMo.inBetween === 'clock' ? 'clock' : 'blend'}:${slowMo.persistence !== null}`
+  const slowMoStructure = labEnabled ? 'slowmo' : 'baseline'
   const editorSource = useEditorStore((s) => s.source)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
   const compileStatus = useEditorStore((s) => s.compileStatus)
@@ -390,7 +390,7 @@ export function Preview({
       renderCompatibility,
       getSpeed: () => {
         const state = usePreviewStore.getState()
-        return state.speed * (slowMoEnabled() && state.slowMo?.inBetween === 'clock' ? state.slowMo.rate : 1)
+        return state.speed
       },
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,
@@ -445,12 +445,9 @@ export function Preview({
     if (!context || !handle || !shim) return
     const settingsKey = labEnabled ? JSON.stringify(slowMo) : ''
     if (settingsKey === context.settingsKey) return
-    if (context.wrapped && labEnabled && slowMo) {
-      for (const [name, value] of Object.entries(slowMoTunables(slowMo))) {
+    if (context.wrapped && labEnabled) {
+      for (const [name, value] of Object.entries(slowMoTunables(slowMo ?? createSlowMoDraft()))) {
         handle.setRuntimeVar(name, shim.encodeScalar(value))
-      }
-      if (slowMo.inBetween !== 'clock') {
-        handle.setRuntimeVar('__pxlblz_slowmo_position', shim.encodeScalar(slowMo.position ?? -1))
       }
       if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
       if (executionRef.current !== context) return
