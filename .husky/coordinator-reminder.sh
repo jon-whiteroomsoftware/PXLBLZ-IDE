@@ -3,9 +3,9 @@
 # Exits 0 always. Keys on provenance, not on who runs `git commit`: the launcher
 # records every path a worker touched in <git-dir>/wrsp/worker-touched, and a
 # core.quotePath=false: the record holds raw path bytes; default quoting would render src/café.ts as "src/caf\303\251.ts" and never match.
-# process running with WRSP_ROLE=builder (a builder committing per its brief) is
-# silent. Arguments are the source path prefixes to watch; default: src bin hooks.
-[ "${WRSP_ROLE:-}" = builder ] && exit 0
+# confined batch worker is silent. The builder marker is historical (#441).
+# Arguments are the source path prefixes to watch; default: src bin hooks.
+case "${WRSP_ROLE:-}" in builder|batch) exit 0 ;; esac
 [ $# -gt 0 ] || set -- src bin hooks
 files=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR -- "$@" 2>/dev/null) || exit 0
 [ -n "$files" ] || exit 0

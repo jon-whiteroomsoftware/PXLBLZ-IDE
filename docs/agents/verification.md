@@ -77,6 +77,27 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.5.6 adoption (#1243)
+
+The executable package advances from 1.5.0 (#1225) to 1.5.6. Its grant reader
+accepts the transfer metadata written by the installed host tools, so a valid
+transferred eng-lead grant passes publication authorization. Publication still
+belongs to the granted eng lead; the developer's read-only authorization probe
+does not authorize a push.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.6, tag `v1.5.6` |
+| Source | `06be8ab679ac914a4d91cea6b3fd4e636ade2cca` |
+| Tarball | `vendor/whiteroom-software-process-1.5.6.tgz` |
+| SHA256 | `4809e7e52771f2d06f1ad2d67c36af45637bd4f991663e12c3c478cda9b4de2e` |
+
+The copied `.husky/coordinator-reminder.sh` matches the release hook and stays
+silent for `WRSP_ROLE=batch` and the historical `builder` marker. No other
+copied hook or project policy changes. `.node-version` selects Node 24; #1243
+records verification under v24.22.1. The unreferenced 1.5.0 and 1.3.0 tarballs
+are removed; earlier adoption sections retain their historical release facts.
+
 ## WRSP 1.3.0 adoption (#1189)
 
 This adoption updates the executable package from 1.2.0. See WRSP
@@ -86,7 +107,7 @@ This adoption updates the executable package from 1.2.0. See WRSP
 | --- | --- |
 | Release | `@whiteroom/software-process` 1.3.0, tag `v1.3.0` |
 | Source | `434331ce40452fe4ad7e3ddec294201ef6ec58aa` |
-| Tarball | `vendor/whiteroom-software-process-1.3.0.tgz` |
+| Tarball | `vendor/whiteroom-software-process-1.3.0.tgz` (removed by #1243) |
 | SHA256 | `0a8c5c84522f805614dc1cf40b775b1c49f7840e5465a5a4acdea0d7ce01a50a` |
 
 No copied hook, bin, package export or `wrsp.config.mjs` key changed, and the
