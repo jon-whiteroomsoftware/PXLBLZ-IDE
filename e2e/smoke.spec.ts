@@ -347,17 +347,51 @@ test('public routes do not start Controller integration (#998)', async ({ page }
 })
 
 test('Gallery animates the cards nearest the pointer and freezes the rest on posters (#888)', async ({ page }) => {
-  await page.goto('gallery')
+  await page.goto('gallery?seed=5')
   const live = page.locator('[data-testid="gallery-live-preview"][data-gallery-mode="live"]')
-  // The pool holds at most six cards, all of them on screen.
-  const allLiveOnScreen = () =>
-    live.evaluateAll((elements) =>
-      elements.length > 0 && elements.length <= 6 && elements.every((element) => {
+  // Admission follows the pixel budget; the first-ranked card always gets in.
+  const livePoolState = async () => {
+    const cards = await live.evaluateAll((elements) =>
+      elements.map((element) => {
         const rect = element.getBoundingClientRect()
-        return rect.bottom > 0 && rect.top < window.innerHeight
+        return {
+          id: element.closest('button[id]')?.id ?? '',
+          onScreen: rect.bottom > 0 && rect.top < window.innerHeight,
+        }
       }),
     )
+    return page.evaluate(async (cards) => {
+      const appBase = new URL('.', document.baseURI)
+      const [
+        { galleryPatternBySlug },
+        { galleryShowBySlug },
+        { estimateGallerySubjectCost },
+        { GALLERY_LIVE_PIXEL_BUDGET },
+      ] = await Promise.all([
+        import(/* @vite-ignore */ new URL('src/engine/galleryCatalog.ts', appBase).href),
+        import(/* @vite-ignore */ new URL('src/engine/galleryShows.ts', appBase).href),
+        import(/* @vite-ignore */ new URL('src/engine/gallerySubject.ts', appBase).href),
+        import(/* @vite-ignore */ new URL('src/components/galleryLiveCoordinator.ts', appBase).href),
+      ])
+      const cost = cards.reduce((sum, card) => {
+        if (card.id.startsWith('gallery-')) {
+          const pattern = galleryPatternBySlug(card.id.slice('gallery-'.length))
+          if (!pattern) throw new Error(`Unknown Gallery Pattern anchor: ${card.id}`)
+          return sum + estimateGallerySubjectCost({ kind: 'pattern', name: pattern.name, src: pattern.src }, pattern.dim)
+        }
+        const show = card.id.startsWith('show-') ? galleryShowBySlug(card.id.slice('show-'.length)) : undefined
+        if (!show) throw new Error(`Unknown Gallery Show anchor: ${card.id}`)
+        return sum + estimateGallerySubjectCost({ kind: 'show', id: show.id }, 2)
+      }, 0)
+      return { count: cards.length, cost, budget: GALLERY_LIVE_PIXEL_BUDGET, allOnScreen: cards.every((card) => card.onScreen) }
+    }, cards)
+  }
+  const allLiveOnScreen = async () => {
+    const state = await livePoolState()
+    return state.count > 0 && state.allOnScreen && (state.count === 1 || state.cost <= state.budget)
+  }
   await expect.poll(allLiveOnScreen).toBe(true)
+  console.log('Gallery live pool initial', await livePoolState())
 
   const cards = page.locator('[id^="gallery-"]')
   const first = cards.first().locator('[data-testid="gallery-live-preview"]')
@@ -372,12 +406,14 @@ test('Gallery animates the cards nearest the pointer and freezes the rest on pos
   await target.hover()
   await expect(target.locator('[data-testid="gallery-live-preview"]')).toHaveAttribute('data-gallery-mode', 'live')
   await expect.poll(allLiveOnScreen).toBe(true)
+  console.log('Gallery live pool hover', await livePoolState())
   await expect(first).toHaveAttribute('data-gallery-mode', 'frozen')
   await expect(first.locator('[data-testid="gallery-poster"]')).toHaveAttribute('data-has-poster', 'true')
 
   // Scrolling moves the live set to the new viewport.
   await page.getByTestId('gallery-page').evaluate((element) => { element.scrollTop = 3000 })
   await expect.poll(allLiveOnScreen).toBe(true)
+  console.log('Gallery live pool scroll', await livePoolState())
   // Frozen cards in view receive posters one at a time.
   await expect.poll(() => page.locator('[data-gallery-mode="frozen"] [data-has-poster="true"]').count()).toBeGreaterThan(1)
 })
