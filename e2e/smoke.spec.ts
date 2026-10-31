@@ -387,7 +387,7 @@ test('Gallery density picker changes the grid and persists (#888)', async ({ pag
 test('Gallery leads with a Show band and opens its detail page (#894)', async ({ page }) => {
   await page.goto('gallery')
   const bands = page.getByTestId('gallery-show-band')
-  await expect(bands).toHaveCount(4)
+  await expect(bands).toHaveCount(6)
   // The hero band comes before the first Pattern card, and keeps the stage's shape.
   const hero = page.locator('#show-overture-installation')
   await expect(hero).toBeVisible()
@@ -405,7 +405,7 @@ test('Gallery leads with a Show band and opens its detail page (#894)', async ({
   // The Shows directory lists only bands; a search hides them.
   await page.getByLabel('Directory filter').selectOption('Shows')
   await expect(page).toHaveURL(/\/gallery\/shows$/)
-  await expect(bands).toHaveCount(4)
+  await expect(bands).toHaveCount(6)
   await expect(page.locator('[id^="gallery-"]')).toHaveCount(0)
   await page.goto('gallery')
   await page.getByLabel('Search patterns').fill('aurora')
@@ -419,6 +419,20 @@ test('Gallery leads with a Show band and opens its detail page (#894)', async ({
   await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(4)
   await page.getByRole('button', { name: 'Gallery', exact: true }).click()
   await expect(page).toHaveURL(/\/gallery#show-overture-installation$/)
+
+  for (const { slug, chapters } of [
+    { slug: 'after-hours-installation', chapters: 7 },
+    { slug: 'totality-installation', chapters: 6 },
+  ]) {
+    await page.goto('gallery/shows')
+    const band = page.locator(`#show-${slug}`)
+    await band.scrollIntoViewIfNeeded()
+    await expect(band.getByTestId('gallery-live-preview')).toHaveAttribute('data-gallery-mode', 'live')
+    await band.click()
+    await expect(page).toHaveURL(new RegExp(`/s/${slug}$`))
+    await expect(page.getByTestId('show-detail-stage')).toBeVisible()
+    await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(chapters)
+  }
 })
 
 test('unknown Show routes fail gracefully (#894)', async ({ page }) => {

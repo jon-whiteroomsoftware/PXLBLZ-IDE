@@ -59,6 +59,18 @@ export const GALLERY_SHOWS: readonly GalleryShow[] = [
     byline: 'by PXLBLZ, with Coronal Mass Ejection by ZRanger1',
     premise: 'A quiet corona, a building flare, and the ejection itself, timed as one arc.',
   },
+  {
+    id: 'stock-show-installation-after-hours',
+    slug: 'after-hours-installation',
+    byline: 'by PXLBLZ, with NeonTube and LumaMarquee',
+    premise: 'A roadside FOOD sign at 2 a.m.: one failing letter, a chasing arrow, and a short that takes the whole sign white.',
+  },
+  {
+    id: 'stock-show-installation-totality',
+    slug: 'totality-installation',
+    byline: 'by PXLBLZ, with LumaCells',
+    premise: 'The moon crosses a boiling gold sun in held steps. A white flash gives way to red prominences and a cool corona.',
+  },
 ]
 
 export function galleryShowBySlug(slug: string): GalleryShow | undefined {

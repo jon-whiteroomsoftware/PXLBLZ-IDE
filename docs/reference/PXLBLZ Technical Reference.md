@@ -137,7 +137,7 @@ regenerates them through Vite SSR (`scripts/gallery-keyframes.ts`), keeping the 
 public Gallery Pattern and Gallery Show has a current keyframe.
 
 **Gallery Shows.** `galleryShows.ts` is the curated, ordered list
-(Overture, Quadrille, Redline, Coronal) with byline and premise, the band
+(Overture, Quadrille, Redline, Coronal, After Hours, Totality) with byline and premise, the band
 geometry rules (height 0.4 x grid width, width from the stage's aspect, capped
 at 0.7 x grid width; caption at most 0.8 x preview width), and
 `resolveGalleryShowGeometry` / `prepareGalleryShow`, which resolve the Show's

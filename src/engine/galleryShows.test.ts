@@ -24,9 +24,16 @@ import {
 import type { MapPoint } from './maps'
 
 describe('Gallery Shows catalogue', () => {
-  // Delete this v1 projection test when shows.ts is deleted.
+  // These four historical Gallery Shows have frozen v1 parity fixtures.
+  // Later native-only Shows are covered by the native Stage/contract tests.
   it('keeps facts and geometry equal to the pinned v1 Gallery Shows', () => {
-    for (const show of GALLERY_SHOWS) {
+    for (const slug of [
+      'overture-installation',
+      'quadrille',
+      'redline-installation',
+      'coronal-mass-ejection-remix',
+    ]) {
+      const show = galleryShowBySlug(slug)!
       const legacy = v1StockShowById(show.id)!
       const expectedLoopMs = showLoopDurationMs(legacy.show)
       expect(galleryShowFacts(show), show.id).toEqual({
@@ -80,6 +87,8 @@ describe('Gallery Shows catalogue', () => {
       'quadrille',
       'redline-installation',
       'coronal-mass-ejection-remix',
+      'after-hours-installation',
+      'totality-installation',
     ])
     expect(new Set(GALLERY_SHOWS.map((show) => show.slug)).size).toBe(GALLERY_SHOWS.length)
     expect(galleryShowBySlug('quadrille')?.id).toBe('stock-show-remix-quadrille')
@@ -125,12 +134,12 @@ describe('Gallery Shows catalogue', () => {
 
   it('resolves installation Shows at their contract count and portable Shows at the Gallery count', () => {
     for (const show of GALLERY_SHOWS) {
-      const contract = v1StockShowById(show.id)!.show.outputContract
+      const contract = stockShowV2ById(show.id)!.outputContract
       const expected = contract?.kind === 'installation' ? contract.pixelCount : GALLERY_SHOW_PIXEL_COUNT
       expect(galleryShowPixelCount(show)).toBe(expected)
       expect(resolveGalleryShowGeometry(show).mapPoints.length).toBe(expected)
     }
-    expect(GALLERY_SHOWS.some((show) => v1StockShowById(show.id)!.show.outputContract?.kind === 'installation')).toBe(true)
+    expect(GALLERY_SHOWS.some((show) => stockShowV2ById(show.id)!.outputContract?.kind === 'installation')).toBe(true)
   })
 
   it('keeps a wide stage wide and a 3D stage square', () => {
