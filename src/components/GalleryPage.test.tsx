@@ -4,7 +4,7 @@ import { GalleryPage } from './GalleryPage'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 
 beforeEach(() => {
-  window.history.replaceState(null, '', '/gallery')
+  window.history.replaceState(null, '', '/gallery?seed=5')
   useRouterStore.setState(routerInitialState)
   vi.restoreAllMocks()
 })
@@ -100,14 +100,14 @@ describe('Gallery return anchors', () => {
 })
 
 describe('Gallery Shows (#894)', () => {
-  it('leads with the hero band, spreads the rest, and sizes each to its stage', () => {
+  it('leads with Totality for seed 5, spreads the rest, and sizes each to its stage', () => {
     render(<GalleryPage />)
     const bands = screen.getAllByTestId('gallery-show-band')
     expect(bands).toHaveLength(6)
     const grid = screen.getByTestId('gallery-grid')
     expect(grid.firstElementChild).toBe(bands[0])
-    expect(bands[0]).toHaveTextContent('Overture Installation')
-    expect(within(bands[0]).getByRole('button', { name: /Overture Installation, a Show/ })).toHaveAttribute('id', 'show-overture-installation')
+    expect(bands[0]).toHaveTextContent('Totality Installation')
+    expect(within(bands[0]).getByRole('button', { name: /Totality Installation, a Show/ })).toHaveAttribute('id', 'show-totality-installation')
     // Bands are ordered and interleaved, not clustered.
     const children = [...grid.children]
     const bandIndexes = bands.map((band) => children.indexOf(band))
@@ -176,7 +176,7 @@ describe('Gallery Shows (#894)', () => {
     const bands = screen.getAllByTestId('gallery-show-band')
     expect(grid).not.toHaveAttribute('data-spotlight')
     fireEvent.mouseEnter(bands[1])
-    expect(grid).toHaveAttribute('data-spotlight', 'stock-show-remix-quadrille')
+    expect(grid).toHaveAttribute('data-spotlight', 'stock-show-remix-overture')
     expect(bands[1]).toHaveAttribute('data-spotlit', 'true')
     expect(bands[0]).not.toHaveAttribute('data-spotlit')
     fireEvent.mouseLeave(bands[1])

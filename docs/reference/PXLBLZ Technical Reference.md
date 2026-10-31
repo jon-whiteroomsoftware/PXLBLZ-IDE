@@ -96,8 +96,21 @@ the public subset, so they have no Gallery card, directory, or detail route.
 Cards run the real bundle/shim/render pipeline at bounded pixel counts with an
 animation slot limit, IntersectionObserver pausing, and a reduced-motion static
 frame. Cards, Pattern detail, and Studio resolve one shared recommended
-presentation per Pattern. The `ZRanger1` section keeps its published popularity
+presentation per Pattern. In the Studio rail, the `ZRanger1` section keeps its published popularity
 order; other sections are alphabetical.
+
+**Gallery order.** `galleryOrder.ts` shuffles the public Pattern catalogue from
+a seed, then greedily spreads shared sections, shared authors and runs of three
+equal dimensions. It selects the first conflict-free remaining card, or the
+first with the fewest violations when every card conflicts. Missing authors
+never match. Directory and dimension filters retain the permutation; a
+nonempty name search sorts A–Z. `galleryOrderSession.ts` stores the seed and
+visit index in sessionStorage and advances a small localStorage visit counter
+once for each new session seed. Shows rotate from that visit index, keeping
+the existing band spacing. A URL `seed` fixes both the permutation and lead
+(decimal uint32 directly, other text hashed); `?capture` defaults to seed 0.
+Overrides bypass storage. If storage is unavailable, the choice lasts for the
+page load, including detail/Back navigation.
 
 **Gallery live pool.** Every card is poster-first. `GalleryLivePreview`
 owns a 2D poster canvas and mounts a WebGL canvas only while the card is

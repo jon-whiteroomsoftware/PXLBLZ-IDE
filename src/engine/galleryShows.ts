@@ -33,7 +33,7 @@ export const GALLERY_SHOW_BAND_HEIGHT_RATIO = 0.4
 /** A stage wider than this fraction of the grid gives up height instead. */
 export const GALLERY_SHOW_BAND_MAX_WIDTH_RATIO = 0.7
 
-/** Deterministic order: the hero first. */
+/** Catalogue rotation order; the public Gallery chooses the lead per session. */
 export const GALLERY_SHOWS: readonly GalleryShow[] = [
   {
     id: 'stock-show-remix-overture',

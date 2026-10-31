@@ -26,6 +26,13 @@ loop length, and the chapter currently playing. A band opens the Show's own
 page (`/s/<slug>`), with the Stage at full size and its chapters laid out as an
 arc. The **Shows** directory lists only the Shows.
 
+Each browser session gets its own Pattern order, spreading sections, authors,
+and dimensions through the page. Folder and dimension filters keep that order;
+typing a name sorts matching Patterns A–Z. Returning from a detail page keeps
+the session order and brings the selected card back into view. All Gallery
+Shows appear each time, with the lead taking turns across sessions. The Studio
+rail keeps its existing order.
+
 Pattern cards open on a chosen keyframe of their Pattern. The cards nearest
 your pointer run the real preview engine, so the animation follows the mouse
 around the grid; on a touch screen, the cards nearest the top animate instead.

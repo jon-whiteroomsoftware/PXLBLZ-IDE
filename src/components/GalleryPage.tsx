@@ -6,10 +6,11 @@ import {
   GALLERY_CATEGORIES,
   GALLERY_DIRECTORIES,
   GALLERY_PATTERNS,
-  filterGalleryPatterns,
   type GalleryDirectory,
   type GalleryPattern,
 } from '@/engine/galleryCatalog'
+import { filterOrderedGalleryPatterns, orderGalleryPatterns, rotateGalleryShows } from '@/engine/galleryOrder'
+import { createGalleryOrderSessionResolver } from '@/engine/galleryOrderSession'
 import type { DimLens } from '@/engine/dimLens'
 import {
   GALLERY_DENSITY_OPTIONS,
@@ -35,6 +36,16 @@ import { GalleryLivePreview } from './GalleryLivePreview'
 /** Directory label that lists only the Show bands. */
 export const GALLERY_SHOWS_CATEGORY = 'Shows'
 export const SHOWS_DIRECTORY: GalleryDirectory = { label: GALLERY_SHOWS_CATEGORY, slug: 'shows' }
+
+function galleryLocalStorage(): Storage | null {
+  try { return window.localStorage } catch { return null }
+}
+
+const resolveOrderSession = createGalleryOrderSessionResolver({
+  sessionStorage: () => window.sessionStorage,
+  localStorage: galleryLocalStorage,
+  randomSeed: () => crypto.getRandomValues(new Uint32Array(1))[0],
+})
 
 const DIM_OPTIONS: { label: string; value: DimLens }[] = [
   { label: 'Any dimension', value: 'all' },
@@ -244,20 +255,23 @@ function ShowBand({
 export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const [lens, setLens] = useState<DimLens>('all')
   const [query, setQuery] = useState('')
+  const [orderSession] = useState(() => resolveOrderSession(window.location.search))
+  const orderedPatterns = useMemo(() => orderGalleryPatterns(GALLERY_PATTERNS, orderSession.seed), [orderSession.seed])
+  const orderedShows = useMemo(() => rotateGalleryShows(GALLERY_SHOWS, orderSession.visit), [orderSession.visit])
   const [density, setDensity] = useState<GalleryDensity>(() =>
-    readGalleryDensity(typeof localStorage === 'undefined' ? null : localStorage),
+    readGalleryDensity(galleryLocalStorage()),
   )
   const navigate = useRouterStore((state) => state.navigate)
   const changeDensity = (next: GalleryDensity) => {
     setDensity(next)
-    writeGalleryDensity(typeof localStorage === 'undefined' ? null : localStorage, next)
+    writeGalleryDensity(galleryLocalStorage(), next)
   }
   const category = directory?.label ?? GALLERY_ALL_CATEGORY
 
   const showsOnly = category === GALLERY_SHOWS_CATEGORY
   const patterns = useMemo(
-    () => (showsOnly ? [] : filterGalleryPatterns(GALLERY_PATTERNS, { lens, category, query })),
-    [lens, category, query, showsOnly],
+    () => (showsOnly ? [] : filterOrderedGalleryPatterns(orderedPatterns, { lens, category, query })),
+    [lens, category, query, showsOnly, orderedPatterns],
   )
   // Bands appear in the unfiltered Gallery and in the Shows directory only:
   // a dimension lens, a Pattern directory, or a search is about Patterns.
@@ -265,11 +279,11 @@ export function GalleryPage({ directory }: { directory?: GalleryDirectory }) {
   const bandBefore = useMemo(() => {
     const map = new Map<number, GalleryShow[]>()
     if (!showsVisible) return map
-    galleryShowInsertionIndexes(GALLERY_SHOWS.length, patterns.length).forEach((at, i) => {
-      map.set(at, [...(map.get(at) ?? []), GALLERY_SHOWS[i]])
+    galleryShowInsertionIndexes(orderedShows.length, patterns.length).forEach((at, i) => {
+      map.set(at, [...(map.get(at) ?? []), orderedShows[i]])
     })
     return map
-  }, [patterns.length, showsVisible])
+  }, [patterns.length, showsVisible, orderedShows])
   const gridRef = useRef<HTMLDivElement>(null)
   const [gridWidth, setGridWidth] = useState(1136)
   // Spotlight: while a band is hovered or focused, everything else dims. Hover

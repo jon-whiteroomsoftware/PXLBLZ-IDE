@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
+async function galleryOrder(page: Page) {
+  return {
+    patterns: await page.locator('[id^="gallery-"]').evaluateAll((elements) => elements.map((element) => element.id)),
+    shows: await page.getByTestId('gallery-show-band').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-show-id'))),
+  }
+}
+
 async function choosePlace(page: Page, name: string): Promise<void> {
   const topBar = page.getByTestId('top-bar')
   await topBar.locator('[aria-haspopup="listbox"]').click()
@@ -47,8 +54,10 @@ test('app icon keeps the live accent color on hover (#674)', async ({ page }) =>
 })
 
 test('gallery Back navigation restores the originating Pattern card', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('gallery?seed=5')
   const cards = page.locator('[id^="gallery-"]')
+  await expect(cards).toHaveCount(87)
+  const order = await galleryOrder(page)
   const origin = cards.first()
   const anchorId = await origin.getAttribute('id')
   await origin.dispatchEvent('click')
@@ -57,6 +66,7 @@ test('gallery Back navigation restores the originating Pattern card', async ({ p
 
   await expect(page).toHaveURL(new RegExp(`#${anchorId}$`))
   await expect(page.locator(`#${anchorId}`)).toBeInViewport()
+  expect(await galleryOrder(page)).toEqual(order)
 })
 
 test('Gallery directory routes are shareable and stay in sync with the filter', async ({ page }) => {
@@ -385,16 +395,18 @@ test('Gallery density picker changes the grid and persists (#888)', async ({ pag
 })
 
 test('Gallery leads with a Show band and opens its detail page (#894)', async ({ page }) => {
-  await page.goto('gallery')
+  await page.goto('gallery?seed=5')
   const bands = page.getByTestId('gallery-show-band')
   await expect(bands).toHaveCount(6)
-  // The hero band comes before the first Pattern card, and keeps the stage's shape.
-  const hero = page.locator('#show-overture-installation')
+  const order = await galleryOrder(page)
+  // Seed 5 selects Totality from the six-Show rotation, before the first Pattern.
+  const hero = page.locator('#show-totality-installation')
+  await expect(bands.first()).toHaveAttribute('data-show-id', 'stock-show-installation-totality')
   await expect(hero).toBeVisible()
   const heroBox = await hero.boundingBox()
   const firstCard = await page.locator('[id^="gallery-"]').first().boundingBox()
   expect(heroBox!.y).toBeLessThan(firstCard!.y)
-  expect(heroBox!.width).toBeGreaterThan(heroBox!.height)
+  expect(heroBox!.width).toBeCloseTo(heroBox!.height, 0)
   // The hero is live, and its loop thermometer advances.
   const heroPreview = hero.locator('[data-testid="gallery-live-preview"]')
   await expect(heroPreview).toHaveAttribute('data-gallery-mode', 'live')
@@ -404,32 +416,37 @@ test('Gallery leads with a Show band and opens its detail page (#894)', async ({
 
   // The Shows directory lists only bands; a search hides them.
   await page.getByLabel('Directory filter').selectOption('Shows')
-  await expect(page).toHaveURL(/\/gallery\/shows$/)
+  await expect(page).toHaveURL(/\/gallery\/shows\?seed=5$/)
   await expect(bands).toHaveCount(6)
   await expect(page.locator('[id^="gallery-"]')).toHaveCount(0)
-  await page.goto('gallery')
+  await page.goto('gallery?seed=5')
   await page.getByLabel('Search patterns').fill('aurora')
   await expect(bands).toHaveCount(0)
 
   // A band opens the Show's page; Back returns to the band.
-  await page.goto('gallery')
+  await page.goto('gallery?seed=5')
   await hero.click()
-  await expect(page).toHaveURL(/\/s\/overture-installation$/)
+  await expect(page).toHaveURL(/\/s\/totality-installation\?seed=5$/)
   await expect(page.getByTestId('show-detail-stage')).toBeVisible()
-  await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(4)
+  await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(6)
+  await page.goBack()
+  await expect(page).toHaveURL(/\/gallery\?seed=5#show-totality-installation$/)
+  await expect(hero).toBeInViewport()
+  expect(await galleryOrder(page)).toEqual(order)
+  await hero.click()
   await page.getByRole('button', { name: 'Gallery', exact: true }).click()
-  await expect(page).toHaveURL(/\/gallery#show-overture-installation$/)
+  await expect(page).toHaveURL(/\/gallery\?seed=5#show-totality-installation$/)
 
   for (const { slug, chapters } of [
     { slug: 'after-hours-installation', chapters: 7 },
     { slug: 'totality-installation', chapters: 6 },
   ]) {
-    await page.goto('gallery/shows')
+    await page.goto('gallery/shows?seed=5')
     const band = page.locator(`#show-${slug}`)
     await band.scrollIntoViewIfNeeded()
     await expect(band.getByTestId('gallery-live-preview')).toHaveAttribute('data-gallery-mode', 'live')
     await band.click()
-    await expect(page).toHaveURL(new RegExp(`/s/${slug}$`))
+    await expect(page).toHaveURL(new RegExp(`/s/${slug}\\?seed=5$`))
     await expect(page.getByTestId('show-detail-stage')).toBeVisible()
     await expect(page.getByTestId('show-detail-chapters').locator('li')).toHaveCount(chapters)
   }
