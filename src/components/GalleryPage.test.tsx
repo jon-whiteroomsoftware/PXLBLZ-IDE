@@ -103,7 +103,7 @@ describe('Gallery Shows (#894)', () => {
   it('leads with the hero band, spreads the rest, and sizes each to its stage', () => {
     render(<GalleryPage />)
     const bands = screen.getAllByTestId('gallery-show-band')
-    expect(bands).toHaveLength(4)
+    expect(bands).toHaveLength(6)
     const grid = screen.getByTestId('gallery-grid')
     expect(grid.firstElementChild).toBe(bands[0])
     expect(bands[0]).toHaveTextContent('Overture Installation')
@@ -126,7 +126,7 @@ describe('Gallery Shows (#894)', () => {
 
   it('lists only bands in the Shows directory, and honours lens and search there too', () => {
     render(<GalleryPage directory={{ label: 'Shows', slug: 'shows' }} />)
-    expect(screen.getAllByTestId('gallery-show-band')).toHaveLength(4)
+    expect(screen.getAllByTestId('gallery-show-band')).toHaveLength(6)
     expect(screen.queryByRole('button', { name: /IridescentFibers/ })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Search patterns'), { target: { value: 'x' } })
     expect(screen.queryAllByTestId('gallery-show-band')).toHaveLength(0)
