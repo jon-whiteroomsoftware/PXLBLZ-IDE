@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1257",
+  "route": "/PXLBLZ-IDE/gallery",
+  "operation": "Verified two fresh sessions with different Pattern orders and Overture/Quadrille leads, stable reload and Pattern/Show Back order and scroll, filter subsequences, search A-Z, seed/capture reproducibility and a clean console. Captured both desktop sessions, the Back return and fixed seed 5 at narrow width after waiting for font readiness; inspected all images and the Back caption crop.",
+  "captures": [
+    ".wrsp/ui-proof/1257-session-one-desktop.png",
+    ".wrsp/ui-proof/1257-session-two-desktop.png",
+    ".wrsp/ui-proof/1257-back-return.png",
+    ".wrsp/ui-proof/1257-seed-five-narrow.png"
+  ],
+  "capturedAtCommit": "4e38463ecd63c9e82d5bdb4aa4c88dad99650a6e"
+}
