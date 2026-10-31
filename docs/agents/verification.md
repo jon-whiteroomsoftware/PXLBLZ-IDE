@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The current release is WRSP 1.5.7 (#1253), pinned in `package.json` and `package-lock.json`;
+The current release is WRSP 1.5.8 (#1254), pinned in `package.json` and `package-lock.json`;
 runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -77,6 +77,24 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.5.8 adoption (#1254)
+
+The executable package advances from 1.5.7 (#1253) to 1.5.8. Lead files now
+live in one per-project Files root. `wrsp-lead` requires four decisions-file
+sections, in order: Needs your answer, Judgment calls, Work queue and Proposed
+next (WRSP #484). The PXLBLZ eng lead owns that file's migration and render proof.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.8, tag `v1.5.8` |
+| Source | `e3238475e8ec409d9abb121f54af41bb52532a3a` |
+| Tarball | `vendor/whiteroom-software-process-1.5.8.tgz` |
+| SHA256 | `ab0315668a5b7381d279a0376cd2fdf500e19f3a048377ab0a4893e0eaf24835` |
+
+The release also adds the OpenTelemetry probe report (WRSP #482). No copied
+hook or project role policy changes. The unreferenced 1.5.7 tarball is removed;
+its adoption evidence remains below.
+
 ## WRSP 1.5.7 adoption (#1253)
 
 The executable package advances from 1.5.6 (#1243) to 1.5.7. The UI proof gate
@@ -87,7 +105,7 @@ prints a bounded summary and names the complete report under
 | --- | --- |
 | Release | `@whiteroom/software-process` 1.5.7, tag `v1.5.7` |
 | Source | `f444ab7be6f4ef44034b66cbd051f300566324ed` |
-| Tarball | `vendor/whiteroom-software-process-1.5.7.tgz` |
+| Tarball | `vendor/whiteroom-software-process-1.5.7.tgz` (removed by #1254) |
 | SHA256 | `1091ccb286bc3592ef0e5a456e8de874de62a22bd5a5e8e1c53d6701c4d6f9c1` |
 
 The release also updates installed agent guidance for issue-body size warnings,
