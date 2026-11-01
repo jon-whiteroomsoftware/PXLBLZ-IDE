@@ -193,8 +193,28 @@ describe.each(['fast', 'fidelity'] as const)('slow-mo execution %s', fidelity =>
     view.unmount()
     expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
   })
+  it('runs wrapped palette capture without a refusal', () => {
+    const fixture = 'var p = [0,1,0,0,1,0,0,1]; setPalette(p); export function render(i) { paint(0.2) }'
+    useEditorStore.setState({ previewSource: fixture })
+    useMapStore.setState({ activePixelCount: 16 })
+    render(<Preview pixelCountCap={16} />)
+
+    const base = bundleWithPasses(fixture, {}, [])
+    const wrapped = bundleWithPasses(fixture, {}, [{ kind: 'slowmo', settings, pixelCount: 16 }])
+    const artifact = last(vi.mocked(loadPattern).mock.calls)[0]
+    expect(artifact).not.toBe(fidelity === 'fast' ? base.code : base.fxCode)
+    expect(artifact).toBe(fidelity === 'fast' ? wrapped.code : wrapped.fxCode)
+    expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
+
+    tick(16)
+    expect(pixels()).toHaveLength(16)
+    for (const [r, g, b] of pixels()) {
+      expect(r).toBeCloseTo(0.8, 4)
+      expect(g).toBe(0)
+      expect(b).toBeCloseTo(0.2, 4)
+    }
+  })
   it.each([
-    ['palette-output', 'var p = [0,1,0,0,1,0,0,1]; setPalette(p); export function render(i) { paint(0.2) }', 16],
     ['no-renderer', 'export var value = 1', 16],
     ['shadowed-builtin', 'var time = 1; export function render(i) { rgb(1,0,0) }', 16],
     ['reserved-prefix', 'var __pxlblz_slowmo_authored = 1; export function render(i) { rgb(1,0,0) }', 16],
