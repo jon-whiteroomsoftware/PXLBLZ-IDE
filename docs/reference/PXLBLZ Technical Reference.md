@@ -1383,7 +1383,9 @@ linearly. Under Precise that clock ran 11.9 ms late per 48.6 s loop at
 60 fps, and at 50 ms frames rolled over 1 ms before the loop point (#1204).
 `showClockEmit.ts` instead keeps whole seconds plus a [0, 1000) ms
 accumulator, adds each delivery as `ms - 1000 + delta` so the sum stays in
-16.16 range for any delivery, carries and wraps by exact comparison, and derives
+16.16 range for any delivery, carries whole seconds shifted down by the loop's
+whole seconds so a loop up to 32,767 s stays in range, carries and wraps by
+exact comparison, and derives
 `__pxlblz_show_elapsed_s` with one rounding, held one step below the loop
 literal. Every Show clock site and the step-calendar prelude use it. The
 register stays within half a step of the exact sum of delivered deltas

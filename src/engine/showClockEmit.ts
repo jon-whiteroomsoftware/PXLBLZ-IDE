@@ -8,8 +8,9 @@
 // milliseconds is exact in 16.16, carries and loop wraps use exact comparison and
 // subtraction, and the seconds value is derived with one rounding per frame.
 // The accumulator gives up 1,000 ms before the delivery is added, so the sum
-// stays in [-1000, 31768) for any 16.16 delivery and no intermediate passes
-// 32,767; the 32,767 s horizon is unchanged.
+// stays in [-1000, 31768) for any 16.16 delivery; whole seconds likewise give
+// up the loop's whole seconds before the carry. No intermediate passes 32,767
+// for a loop up to 32,767 s, the unchanged horizon.
 
 /** 2^-16, exact in binary64 and 16.16. */
 const ONE_LSB = '0.0000152587890625'
@@ -34,10 +35,22 @@ export interface ShowClockAdvanceOptions {
 export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): string {
   const s = SHOW_CLOCK_WHOLE_S
   const ms = SHOW_CLOCK_MS
+  const loopMs = options.loopMs
+  if (loopMs !== undefined && (!Number.isFinite(loopMs) || loopMs <= 0)) throw new Error(`Show clock loop must be positive, got ${loopMs} ms`)
+  const loopS = loopMs === undefined ? 0 : Math.floor(loopMs / 1000)
+  const loopRemainderMs = loopMs === undefined ? 0 : loopMs - loopS * 1000
+  // A loop past the 16.16 range has a literal that wraps negative under
+  // Precise, so a `while` would never exit. One wrap per frame is the most
+  // such a loop can need for any in-range delta.
+  const inRange = loopMs === undefined || loopMs / 1000 <= MAX_16_16_INTEGER
+  // Whole seconds give up the loop's whole seconds before the carry, as ms gives
+  // up 1,000: s - loopS + carries stays in [-loopS, 33] and a wrap's borrow at
+  // least -loopS - 1, so a loop up to 32,767 s never passes the 16.16 range.
+  const shift = loopMs !== undefined && inRange && loopS > 0 ? loopS : 0
   const lines = [
     // The register is s + ms / 1000 rounded once, so subtracting the same
     // quotient recovers s exactly; + 0.5 tolerates any sub-half-second write.
-    `var ${s} = floor(__pxlblz_show_elapsed_s - ${ms} / 1000 + 0.5)`,
+    `var ${s} = floor(__pxlblz_show_elapsed_s - ${ms} / 1000 + 0.5)${shift ? ` - ${shift}` : ''}`,
     // ms + delta can pass 32,767 (999 + 31,769); ms - 1000 + delta cannot.
     `${ms} = ${ms} - 1000 + delta`,
     `while (${ms} >= 0) {`,
@@ -48,21 +61,16 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
   ]
   const wraps = options.wraps
   if (wraps) lines.push(`${wraps.declare ? 'var ' : ''}${wraps.name} = 0`)
-  const loopMs = options.loopMs
   if (loopMs !== undefined) {
-    if (!Number.isFinite(loopMs) || loopMs <= 0) throw new Error(`Show clock loop must be positive, got ${loopMs} ms`)
-    const loopS = Math.floor(loopMs / 1000)
-    const loopRemainderMs = loopMs - loopS * 1000
     const wrapCount = wraps ? [`  ${wraps.name} = ${wraps.name} + 1`] : []
-    // A loop past the 16.16 range has a literal that wraps negative under
-    // Precise, so a `while` would never exit. One wrap per frame is the most
-    // such a loop can need for any in-range delta.
-    const wrap = loopMs / 1000 > MAX_16_16_INTEGER ? 'if' : 'while'
+    const wrap = inRange ? 'while' : 'if'
+    // Seconds compared with the loop's whole seconds, in shifted terms.
+    const whole = loopS - shift
     if (loopRemainderMs === 0) {
-      lines.push(`${wrap} (${s} >= ${loopS}) {`, `  ${s} = ${s} - ${loopS}`, ...wrapCount, '}')
+      lines.push(`${wrap} (${s} >= ${whole}) {`, `  ${s} = ${s} - ${loopS}`, ...wrapCount, '}')
     } else {
       lines.push(
-        `${wrap} (${s} > ${loopS} || (${s} == ${loopS} && ${ms} >= ${loopRemainderMs})) {`,
+        `${wrap} (${s} > ${whole} || (${s} == ${whole} && ${ms} >= ${loopRemainderMs})) {`,
         ...(loopS > 0 ? [`  ${s} = ${s} - ${loopS}`] : []),
         `  ${ms} = ${ms} - ${loopRemainderMs}`,
         `  if (${ms} < 0) {`,
@@ -73,6 +81,7 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
         '}',
       )
     }
+    if (shift) lines.push(`${s} = ${s} + ${shift}`)
   }
   lines.push(`__pxlblz_show_elapsed_s = ${s} + ${ms} / 1000`)
   // The one rounding can reach the loop literal (ms / 1000 rounds up to the

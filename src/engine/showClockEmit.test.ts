@@ -133,6 +133,21 @@ describe.each(['fast', 'precise'] as const)('Show clock tracks the exact delta s
     }
   }, 120_000)
 
+  // Loops at the 32,767 s horizon (#1204 review round 2 P1): the whole-seconds
+  // carry must not pass 32,767 before the loop wraps it. 1,023 deliveries of
+  // 32,000 ms reach 32,736 s, then 10,000 ms and largest-value deliveries cross
+  // the loop point; 32,734 s is the longest loop whose unshifted carry fits.
+  it.each([32_767_000, 32_766_500, 32_734_000])('loop %d ms: deliveries crossing a loop at the 32,767 s horizon', (loopMs) => {
+    const advance = emitShowClockAdvance({ loopMs, wraps: { name: 'h_wraps', declare: false } })
+    const approach = (index: number) => index < 1_023 ? 32_000 : null
+    for (const tail of [[10_000, 10_000, 10_000, 10_000], [999, MAX_DELIVERY_MS, MAX_DELIVERY_MS], [500, 31_769, 31_769]]) {
+      const deltas = (index: number) => approach(index) ?? (index - 1_023 < tail.length ? tail[index - 1_023] : null)
+      const result = run(mode, advance, loopMs, deltas)
+      expect(result.maxError.le(bound(mode)), `${loopMs} ms after ${tail}: max error ${result.maxError.toNumber()} s`).toBe(true)
+      expect(result.outOfRange).toBe(0)
+    }
+  }, 120_000)
+
   it('reads 32.9 s after 900 then 32,000 ms on the 48,600 ms loop (review P1)', () => {
     const result = run(mode, emitShowClockAdvance({ loopMs: 48_600 }), 48_600, list([900, 32_000], () => null))
     const expected = mode === 'precise' ? Math.round(32.9 * 65536) : 32 + 900 / 1000
@@ -177,8 +192,12 @@ describe('emission', () => {
   it('stays plain Pixelblaze arithmetic with no value above 32,767', () => {
     const text = emitShowClockAdvance({ loopMs: 48_600, wraps: { name: 'w', declare: true } })
     expect(text).not.toMatch(/delta \/ 1000/)
-    expect(text).toContain('while (__pxlblz_show_clock_s > 48 || (__pxlblz_show_clock_s == 48 && __pxlblz_show_clock_ms >= 600))')
-    expect(emitShowClockAdvance({ loopMs: 49_000 })).toContain('while (__pxlblz_show_clock_s >= 49)')
+    // Whole seconds are carried and wrapped shifted by the loop's whole seconds.
+    expect(text).toContain('floor(__pxlblz_show_elapsed_s - __pxlblz_show_clock_ms / 1000 + 0.5) - 48')
+    expect(text).toContain('while (__pxlblz_show_clock_s > 0 || (__pxlblz_show_clock_s == 0 && __pxlblz_show_clock_ms >= 600))')
+    expect(text).toContain('__pxlblz_show_clock_s = __pxlblz_show_clock_s + 48')
+    expect(emitShowClockAdvance({ loopMs: 49_000 })).toContain('while (__pxlblz_show_clock_s >= 0)')
+    expect(emitShowClockAdvance({ loopMs: 700 })).toContain('floor(__pxlblz_show_elapsed_s - __pxlblz_show_clock_ms / 1000 + 0.5)\n')
   })
 })
 
@@ -218,7 +237,7 @@ export function beforeRender`,
 
 describe('loops past the 16.16 range', () => {
   it('wrap with `if`, because the loop literal itself wraps negative under Precise', () => {
-    expect(emitShowClockAdvance({ loopMs: 32_767_000 })).toContain('while (__pxlblz_show_clock_s >= 32767)')
+    expect(emitShowClockAdvance({ loopMs: 32_767_000 })).toContain('while (__pxlblz_show_clock_s >= 0)')
     expect(emitShowClockAdvance({ loopMs: 32_768_000 })).toContain('if (__pxlblz_show_clock_s >= 32768)')
     expect(emitShowClockAdvance({ loopMs: 40_000_500 })).toContain('if (__pxlblz_show_clock_s > 40000 ||')
   })
