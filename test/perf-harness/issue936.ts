@@ -62,6 +62,12 @@ export function latchRedline(code: string): Omit<Issue936Candidates, 'exact'> {
     throw new Error('placement prelude not found')
   }
   const placementPrelude = render.slice(placementPreludeStart, placementPreludeEnd)
+  // The zone header's minified names (zone, pixel count, width, height) shift
+  // whenever the artifact gains globals, so read them rather than assume them:
+  // a stale name would clobber an unrelated global such as the Show clock's.
+  const header = /^export function render2D\(index, x, y\) \{\n {2}var (__pxlblz_\w+) = -1\nvar __pxlblz_b = -1\nvar (__pxlblz_\w+) = 1\nvar (__pxlblz_\w+) = 1\nvar (__pxlblz_\w+) = 1\n/.exec(render)
+  if (!header) throw new Error('zone header not found')
+  const [, zone, count, width, height] = header
   // The zone chain assigns `__pxlblz_b = index - BASE`; the latched form
   // records BASE and the boundary index instead (`index <= END` gives END + 1).
   const zoneChain = render.slice(zoneChainStart, zoneChainEnd)
@@ -82,16 +88,16 @@ var __pxlblz_lat_base = 0
 var __pxlblz_lat_col = 0
 var __pxlblz_lat_row = 0
 var __pxlblz_lat_d = -1
-var __pxlblz_C = -1
-var __pxlblz_c = 1
-var __pxlblz_A = 1
-var __pxlblz_D = 1
+var ${zone} = -1
+var ${count} = 1
+var ${width} = 1
+var ${height} = 1
 `
   const boundary = `  if (index == 0 || index == __pxlblz_lat_next) {
-  __pxlblz_C = -1
-  __pxlblz_c = 1
-  __pxlblz_A = 1
-  __pxlblz_D = 1
+  ${zone} = -1
+  ${count} = 1
+  ${width} = 1
+  ${height} = 1
   __pxlblz_lat_next = -1
 ${zoneChain}  __pxlblz_lat_col = -1
   __pxlblz_lat_row = 0
@@ -102,17 +108,17 @@ ${zoneChain}  __pxlblz_lat_col = -1
   }
 `
   const perPixelOriginal = `  var __pxlblz_b = index - __pxlblz_lat_base
-  var __pxlblz_t = __pxlblz_A == 1 ? 0.5 : (__pxlblz_b % __pxlblz_A) / (__pxlblz_A - 1)
-  var __pxlblz_u = __pxlblz_D == 1 ? 0.5 : floor(__pxlblz_b / __pxlblz_A) / (__pxlblz_D - 1)
+  var __pxlblz_t = ${width} == 1 ? 0.5 : (__pxlblz_b % ${width}) / (${width} - 1)
+  var __pxlblz_u = ${height} == 1 ? 0.5 : floor(__pxlblz_b / ${width}) / (${height} - 1)
 `
   const perPixelCounters = `  var __pxlblz_b = index - __pxlblz_lat_base
   __pxlblz_lat_col = __pxlblz_lat_col + 1
-  if (__pxlblz_lat_col == __pxlblz_A) {
+  if (__pxlblz_lat_col == ${width}) {
     __pxlblz_lat_col = 0
     __pxlblz_lat_row = __pxlblz_lat_row + 1
   }
-  var __pxlblz_t = __pxlblz_A == 1 ? 0.5 : __pxlblz_lat_col / (__pxlblz_A - 1)
-  var __pxlblz_u = __pxlblz_D == 1 ? 0.5 : __pxlblz_lat_row / (__pxlblz_D - 1)
+  var __pxlblz_t = ${width} == 1 ? 0.5 : __pxlblz_lat_col / (${width} - 1)
+  var __pxlblz_u = ${height} == 1 ? 0.5 : __pxlblz_lat_row / (${height} - 1)
 `
   const chainDispatch = arms.map((arm, i) => `${i === 0 ? '' : ' else '}if (__pxlblz_lat_d == ${arm.id}) {\n${arm.body}}`).join('')
   const tail = (dispatchCode: string) => `  if (__pxlblz_lat_d < 0) return

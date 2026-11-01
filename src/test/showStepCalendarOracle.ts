@@ -370,8 +370,10 @@ export class FastRegister {
   step(delta: number, restarts: number[]) {
     const prev = this.e
     let s = Math.floor(prev - this.ms / 1000 + 0.5)
-    let ms = this.ms + delta
-    while (ms >= 1000) { ms = ms - 1000; s = s + 1 }
+    // As emitted: ms gives up 1,000 before the add, so binary64 rounds in the same order.
+    let ms = this.ms - 1000 + delta
+    while (ms >= 0) { ms = ms - 1000; s = s + 1 }
+    ms = ms + 1000
     let wraps = 0
     while (s > this.loopS || (s === this.loopS && ms >= this.loopRemainderMs)) {
       s = s - this.loopS
