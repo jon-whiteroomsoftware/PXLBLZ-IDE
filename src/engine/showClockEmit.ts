@@ -123,6 +123,20 @@ export function emitShowClockInstant(atMs: number): string {
   return wholeS === 0 ? `${remainderMs} / 1000` : `${wholeS} + ${remainderMs} / 1000`
 }
 
+/**
+ * The register the advance derives at exactly `atMs`, `s + ms / 1000` in
+ * binary64, for a comparison with an authored instant (decision 12). Emitted as
+ * its shortest round-trip literal, it equals the Fast register bit for bit; a
+ * plain `atMs / 1000` literal is one ulp off on a tie (1,118 ms). Precise reads
+ * the same register from it as from the plain literal: a whole-ms instant lies
+ * on a 16.16 step only when ms is a multiple of 125, where both are exact, and
+ * elsewhere they differ by about 1e-16, far from any step or half-step.
+ */
+export function showClockInstantValue(atMs: number): number {
+  const wholeS = Math.floor(atMs / 1000)
+  return wholeS + (atMs - wholeS * 1000) / 1000
+}
+
 /** Leading text of the loop-point hold, the advance's last statement. */
 export const SHOW_CLOCK_LOOP_HOLD = 'if (__pxlblz_show_elapsed_s >= '
 

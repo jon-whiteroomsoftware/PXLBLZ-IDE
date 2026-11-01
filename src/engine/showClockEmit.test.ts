@@ -5,7 +5,8 @@ import { Q } from '../test/showStepCalendarOracle'
 import { bundle } from './bundle'
 import { loadPattern } from './loadPattern'
 import { createFxShim, createShim, planeShimConfig } from './shim'
-import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
+import { compileShow } from './showCompiler'
+import { emitShowClockAdvance, emitShowClockInstant, showClockInstantValue, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
 
 type Mode = 'fast' | 'precise'
 const LEGACY = (loopMs: number) => `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopMs / 1000}`
@@ -337,6 +338,50 @@ export function beforeRender`,
     expect(emitShowClockInstant(1_118)).toBe('1 + 118 / 1000')
     expect(emitShowClockInstant(118)).toBe('118 / 1000')
     expect(emitShowClockInstant(49_000)).toBe('49')
+  })
+})
+
+describe('instant literals (#1204 decision 12)', () => {
+  // The compile-time literal of the clock's route reads as the register the
+  // clock derives, in both modes, for every ms remainder. Whole seconds 1 and
+  // 48 cover a binary64 tie band (1,118 ms) and the #1197 loop.
+  it.each(['fast', 'precise'] as const)('equal the clock route for every remainder 0 to 999 (%s)', (mode) => {
+    for (const wholeS of [0, 1, 48, 32_000]) {
+      const atMs = (ms: number) => wholeS * 1000 + ms
+      const fns = Array.from({ length: 1000 }, (_, ms) => `function h_r${ms}() { return ${emitShowClockInstant(atMs(ms))} }
+function h_l${ms}() { return ${showClockInstantValue(atMs(ms))} }`)
+      const { fns: loaded } = load(mode, program('').replace('export function beforeRender', `${fns.join('\n')}\nexport function beforeRender`))
+      const mismatches = Array.from({ length: 1000 }, (_, ms) => ms).filter(ms => loaded[`h_l${ms}`]() !== loaded[`h_r${ms}`]())
+      expect(mismatches, `${wholeS} s`).toEqual([])
+    }
+  })
+
+  it('is the binary64 route, not the decimal, on a tie', () => {
+    expect(showClockInstantValue(1_118)).toBe(1 + 118 / 1000)
+    expect(showClockInstantValue(1_118)).not.toBe(1.118)
+    expect(showClockInstantValue(49_000)).toBe(49)
+  })
+})
+
+describe('authored boundaries (#1204 decision 8)', () => {
+  // A delivery that lands exactly on a cut shows the incoming member. The cut's
+  // instant must be the clock's own route, not a decimal literal: 1,118 ms is a
+  // binary64 tie, and 1,600 ms has a fraction past half a 16.16 step.
+  const memberSource = (id: number) => `export var who = 0
+export function beforeRender(delta) { who = ${id} }
+export function render(index) { rgb(who, 0, 0) }`
+  it.each([
+    ['fast', 1_118], ['precise', 1_118], ['fast', 1_600], ['precise', 1_600],
+  ] as const)('a %s cut at %i ms reached exactly shows the incoming member', (mode, cutMs) => {
+    const artifact = compileShow({ clips: [{ id: 'from', source: memberSource(1) }, { id: 'to', source: memberSource(2) }], cut: { startMs: cutMs } }, {})
+    const config = { ...planeShimConfig({ rows: 1, cols: 1 }), getVirtualTime: () => 0 }
+    const shim = mode === 'precise' ? createFxShim(config) : createShim(config)
+    const handle = loadPattern(mode === 'precise' ? artifact.fxCode : artifact.code, artifact.metadata, shim.builtins)
+    const phase = () => (handle.getRuntimeState() as Record<string, number>).__pxlblz_show_phase
+    handle.beforeRender(shim.encodeScalar(cutMs - 1))
+    expect(phase(), 'one ms before the cut').toBe(0)
+    handle.beforeRender(shim.encodeScalar(1))
+    expect(phase(), 'exactly on the cut').toBe(shim.encodeScalar(2))
   })
 })
 

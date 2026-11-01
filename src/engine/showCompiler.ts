@@ -16,7 +16,7 @@ import {
   stepCalendarResetLines,
   type StepCalendarSpec,
 } from './showStepClockEmit'
-import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION, SHOW_CLOCK_POSITION_MS } from './showClockEmit'
+import { emitShowClockAdvance, emitShowClockInstant, showClockInstantValue, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION, SHOW_CLOCK_POSITION_MS } from './showClockEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
@@ -4273,7 +4273,7 @@ function emitTrailsOutputEffectSource(
   const suspendExpression = suspensionLifetimes.length === 0
     ? '0'
     : suspensionLifetimes.map((lifetime) => (
-        `(__pxlblz_show_elapsed_s >= ${lifetime.start / 1000} && __pxlblz_show_elapsed_s < ${lifetime.end / 1000})`
+        `(__pxlblz_show_elapsed_s >= ${showClockInstantValue(lifetime.start)} && __pxlblz_show_elapsed_s < ${showClockInstantValue(lifetime.end)})`
       )).join(' || ')
   const wrappedOutputs = rewriteTrailsOutputHooks(source)
   const runtime = `var __pxlblz_show_trails_index = 0
@@ -4379,7 +4379,7 @@ function emitCutShowCode(
     to.code.trim(),
     `export function beforeRender(delta) {
   ${emitShowClockAdvance()}
-  if (__pxlblz_show_elapsed_s < ${cut.startMs / 1000}) {
+  if (__pxlblz_show_elapsed_s < ${showClockInstantValue(cut.startMs)}) {
     __pxlblz_show_phase = 0
     ${from.prefix}_advance(delta)
   } else {
@@ -4415,9 +4415,9 @@ function emitAdaptationRampShowCode(
     member.code.trim(),
     `export function beforeRender(delta) {
   ${emitShowClockAdvance()}
-  if (__pxlblz_show_elapsed_s < ${ramp.startMs / 1000}) {
+  if (__pxlblz_show_elapsed_s < ${showClockInstantValue(ramp.startMs)}) {
     __pxlblz_show_mix = 0
-  } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
+  } else if (__pxlblz_show_elapsed_s < ${showClockInstantValue(transitionEnd)}) {
     __pxlblz_show_mix = ${emitShowEasingExpression(ramp.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${ramp.startMs / 1000}) / ${ramp.durationMs / 1000}`)}
   } else {
     __pxlblz_show_mix = 1
@@ -4728,7 +4728,7 @@ function emitSceneSequenceShowCode(
   const usesSnapshot = snapshotSegments.length > 0
   const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
   const schedulerBranches = segments.map((segment, index) => {
-    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${showClockInstantValue(segment.endMs)})`
     if (segment.kind === 'hold') {
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
@@ -5191,7 +5191,7 @@ ${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}
     ? `function __pxlblz_show_advance_hidden_instances(delta) {
 ${continuityMembers.map((member) => {
       const window = continuityWindowByMember.get(member)!
-      return `  if (!${advancedFlag(member)} && __pxlblz_show_elapsed_s >= ${window.startMs / 1_000} && __pxlblz_show_elapsed_s < ${window.endMs / 1_000}) ${member.prefix}_advance(${restartDelta(member)})`
+      return `  if (!${advancedFlag(member)} && __pxlblz_show_elapsed_s >= ${showClockInstantValue(window.startMs)} && __pxlblz_show_elapsed_s < ${showClockInstantValue(window.endMs)}) ${member.prefix}_advance(${restartDelta(member)})`
     }).join('\n')}
 }`
     : ''
@@ -5615,7 +5615,7 @@ ${deterministicLoopReset
       if (durationRuns.length === 1) return `__pxlblz_show_scene = ${steppedScene}`
       return `${index === 0 ? 'if' : index === durationRuns.length - 1 ? 'else' : 'else if'}${index === durationRuns.length - 1
         ? ''
-        : ` (__pxlblz_show_elapsed_s < ${last.endMs / 1000})`} __pxlblz_show_scene = ${steppedScene}`
+        : ` (__pxlblz_show_elapsed_s < ${showClockInstantValue(last.endMs)})`} __pxlblz_show_scene = ${steppedScene}`
     }).join('\n')
     const minimumScene = segments[0].sceneIndex
     const maximumScene = segments[segments.length - 1].sceneIndex
@@ -5659,7 +5659,7 @@ ${setupGroups}`
   // elapsed moves backwards (loop wrap or deterministic seek), and holds
   // reset the snapshot flags every frame as before.
   const unrolledSchedulerChain = () => segments.map((segment, index) => {
-    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${showClockInstantValue(segment.endMs)})`
     if (segment.kind === 'hold') {
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
@@ -5744,7 +5744,7 @@ ${setupForPlacements(
     if (segments.length === 0) return ''
     if (emissionOptions.schedulerTable === 'none') return unrolledSchedulerChain()
     schedulerTableDeclarations.push(
-      ...emitFractionalDataTable('__pxlblz_show_sched_end', segments.map((segment) => segment.endMs / 1000)).lines,
+      ...emitFractionalDataTable('__pxlblz_show_sched_end', segments.map((segment) => showClockInstantValue(segment.endMs))).lines,
       ...emitIntegerDataTable('__pxlblz_show_sched_code', segments.map((segment) => (
         segment.sceneIndex * 2 + (segment.kind === 'transition' ? 1 : 0)
       ))).lines,
@@ -5848,7 +5848,7 @@ ${setupForPlacements(
 
   const layoutSelectLines = [...switches]
     .sort((left, right) => left.atMs - right.atMs)
-    .map((routingSwitch) => `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
+    .map((routingSwitch) => `  if (__pxlblz_show_elapsed_s >= ${showClockInstantValue(routingSwitch.atMs)}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
     .join('\n')
   const coordinateTargetAssignments = coordinateFields.length > 0
     ? [
@@ -6344,10 +6344,10 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
       boundary.kernel,
       boundary.easing,
       boundary.durationMs / 1_000,
-      // #1204: the unrolled scheduler's literal start and end, so boundary
-      // selection and local time use its comparisons and subtraction.
-      boundary.startMs / 1_000,
-      (boundary.startMs + boundary.durationMs) / 1_000,
+      // #1204: start and end as the clock's own register (decision 12), so a
+      // delivery landing exactly on a boundary selects it in Fast and Precise.
+      showClockInstantValue(boundary.startMs),
+      showClockInstantValue(boundary.startMs + boundary.durationMs),
     ])
     const easingByIdentity = new Map<string, ShowTransitionEasing>()
     for (const segment of scoreTransitionSegments) {
@@ -10098,14 +10098,14 @@ function emitRoutingLayoutShowCode(
     const sourceLayoutIndex = previousLayoutIndex
     previousLayoutIndex = destinationLayoutIndex
     if (durationMs === 0) {
-      return `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${destinationLayoutIndex}`
+      return `  if (__pxlblz_show_elapsed_s >= ${showClockInstantValue(routingSwitch.atMs)}) __pxlblz_show_route_layout = ${destinationLayoutIndex}`
     }
     const progress = '__pxlblz_show_route_progress'
-    return `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) {
+    return `  if (__pxlblz_show_elapsed_s >= ${showClockInstantValue(routingSwitch.atMs)}) {
     __pxlblz_show_route_layout = ${destinationLayoutIndex}
     __pxlblz_show_route_from_layout = ${sourceLayoutIndex}
     __pxlblz_show_route_progress = 1
-    if (__pxlblz_show_elapsed_s < ${(routingSwitch.atMs + durationMs) / 1000}) {
+    if (__pxlblz_show_elapsed_s < ${showClockInstantValue((routingSwitch.atMs + durationMs))}) {
       __pxlblz_show_route_progress = clamp((__pxlblz_show_elapsed_s - ${routingSwitch.atMs / 1000}) / ${durationMs / 1000}, 0, 1)
       __pxlblz_show_route_progress = ${emitShowEasingExpression(routingSwitch.easing ?? 'linear', progress)}
       __pxlblz_show_route_reverse = ${routingSwitch.direction === 'reverse' ? 1 : 0}
@@ -10206,7 +10206,7 @@ function emitRoutingPropertyAssignments(propertyRamps: ShowRoutingPropertyRampsR
     const from = clampNumber(ramp.from, 0, 1)
     const to = clampNumber(ramp.to, 0, 1)
     const durationMs = Math.max(0, ramp.durationMs)
-    const atS = ramp.atMs / 1000
+    const atS = showClockInstantValue(ramp.atMs)
     const durationS = Math.max(1, durationMs) / 1000
     const progress = `clamp((__pxlblz_show_elapsed_s - ${atS}) / ${durationS}, 0, 1)`
     const segment = ramp.curveSegment
@@ -10221,7 +10221,7 @@ function emitRoutingPropertyAssignments(propertyRamps: ShowRoutingPropertyRampsR
       : `${from} * (1 - ${mix}) + ${to} * ${mix}`
     lines.push(`  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_route_split_position = ${to}
-    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_route_split_position = ${value}
+    if (__pxlblz_show_elapsed_s < ${showClockInstantValue((ramp.atMs + durationMs))}) __pxlblz_show_route_split_position = ${value}
   }`)
   }
   return lines.join('\n')
@@ -10373,7 +10373,7 @@ function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe
       const from = clampNumber(ramp.from, 1, 8)
       const to = clampNumber(ramp.to, 1, 8)
       const durationMs = Math.max(0, ramp.durationMs)
-      const atS = ramp.atMs / 1000
+      const atS = showClockInstantValue(ramp.atMs)
       const durationS = Math.max(1, durationMs) / 1000
       const progress = `clamp((__pxlblz_show_elapsed_s - ${atS}) / ${durationS}, 0, 1)`
       const segment = ramp.curveSegment
@@ -10388,7 +10388,7 @@ function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe
         : `${from} * (1 - ${mix}) + ${to} * ${mix}`
       return `  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_sample_repeat_scale = ${to}
-    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_sample_repeat_scale = ${value}
+    if (__pxlblz_show_elapsed_s < ${showClockInstantValue((ramp.atMs + durationMs))}) __pxlblz_show_sample_repeat_scale = ${value}
   }`
     }),
   ]
@@ -11920,12 +11920,12 @@ function emitScheduler(
 ): string {
   return `export function beforeRender(delta) {
   ${emitShowClockAdvance()}
-  if (__pxlblz_show_elapsed_s < ${transitionStart / 1000}) {
+  if (__pxlblz_show_elapsed_s < ${showClockInstantValue(transitionStart)}) {
     __pxlblz_show_phase = 0
     __pxlblz_show_mix = 0
     ${resetSnapshot ? '__pxlblz_show_snapshot_ready = 0' : ''}
     ${from.prefix}_advance(delta)
-  } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
+  } else if (__pxlblz_show_elapsed_s < ${showClockInstantValue(transitionEnd)}) {
     __pxlblz_show_phase = 1
     __pxlblz_show_mix = ${emitShowEasingExpression(easing, `(__pxlblz_show_elapsed_s - ${transitionStart / 1000}) / ${duration / 1000}`)}
     ${scalarField ? emitScalarFieldLifecycle(scalarField) : ''}

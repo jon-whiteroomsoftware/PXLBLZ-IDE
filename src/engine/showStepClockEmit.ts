@@ -2,7 +2,7 @@
 // Normative semantics and corrected bounds: AF9 af9-revised-design.md.
 // Packed ticks K = s + m/1024 are exact in Fast and Precise. Absolute instants
 // stay within L; callers bound packed durations to 16 s before converting to ms.
-import { emitShowClockAdvance } from './showClockEmit'
+import { emitShowClockAdvance, showClockInstantValue } from './showClockEmit'
 export interface StepCalendarWindow { startMs: number; endMs: number }
 export interface StepCalendarSpec {
   prefix: string
@@ -342,7 +342,7 @@ export function stepCalendarOriginLines(spec: StepCalendarSpec, atMs: number): s
   const p = spec.prefix
   return [
     `${p}_cal_t = ${packedMs(atMs)}`,
-    `if (${atMs / 1000} > __pxlblz_show_elapsed_s) ${p}_cal_lag = 1`,
+    `if (${showClockInstantValue(atMs)} > __pxlblz_show_elapsed_s) ${p}_cal_lag = 1`,
     `else ${p}_cal_lag = 0`,
   ]
 }
