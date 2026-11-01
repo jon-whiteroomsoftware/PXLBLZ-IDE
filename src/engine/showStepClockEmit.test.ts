@@ -18,6 +18,7 @@ import {
   stepCalendarNeedsResidue, splitStepRequest, STEP_CALENDAR_TICK_LINE,
   type StepCalendarSpec,
 } from './showStepClockEmit'
+import { emitShowClockAdvance, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
 const HALF = new R(1n, 2n)
 const ONE = R.of(1)
 const THOUSAND = R.of(1000)
@@ -30,6 +31,7 @@ const check = (ok: boolean, label: string) => { expect(ok, label).toBe(true); re
 const results: Record<string, unknown> = {}
 function helperProgram() { return `${emitStepCalendarSharedHelpers()}
 var __pxlblz_show_elapsed_s = 0
+${SHOW_CLOCK_MS_DECLARATION}
 function old_tick_ms(a, b) {
   return (floor(b) - floor(a)) * 1000 + (frac(b) - frac(a)) * 1024
 }
@@ -463,7 +465,7 @@ function calendarProgram(spec: StepCalendarSpec): string {
   return [
     'var h_s = 0', 'var h_ms = 0', 'var h_calls = 0', 'var h_deliveries = 0',
     'var h_max_abs = 0', 'var h_min_abs = 0', 'var h_max_ms_arg = 0',
-    'var __pxlblz_show_elapsed_s = 0',
+    'var __pxlblz_show_elapsed_s = 0', SHOW_CLOCK_MS_DECLARATION,
     `var ${p}_adapt_timeScale = 1`, `var ${p}_elapsed = 0`,
     `function ${p}_beforeRender(delta) {
   h_calls = h_calls + 1
@@ -632,8 +634,7 @@ function scenarioProgram(spec: StepCalendarSpec): string {
   ].join('\n  ')
   return calendarProgram(spec) + `
 function h_frame_det(delta) {
-  var wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${spec.loopMs / 1000}
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${spec.loopMs / 1000}
+  ${emitShowClockAdvance({ loopMs: spec.loopMs, wraps: { name: 'wrapped', declare: true } })}
   if (wrapped) {
   ${reset}
   }
@@ -735,8 +736,10 @@ describe('step calendar scenarios', () => {
         shared++
         expect(new Set(states).size, `${family}/${mode}/${tick}`).toBe(1)
       }
+      // #1204 recensus: the exact Show clock raised Precise from 8679 and 103 shared
+      // ticks; seek now equals Fast, because cadences no longer drift apart.
       expect(shared, `${family}/${mode} shared ticks`).toBe(
-        family === 'partitions' ? (mode === 'fast' ? 8728 : 8679) : (mode === 'fast' ? 1184 : 103))
+        family === 'partitions' ? (mode === 'fast' ? 8728 : 8724) : 1184)
     }
   })
 })

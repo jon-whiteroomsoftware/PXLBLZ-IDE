@@ -46,11 +46,13 @@ function boundarySampleTimesMsV2(record: ShowRecordV2): number[] {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
-    ['stock-show-reference-slide-transitions', { none: 20_603, structure: 15_732, exact: 16_186, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 28_491, structure: 22_698, exact: 22_659, boundaries: 7, exactKernels: 5 }],
+    ['stock-show-reference-slide-transitions', { none: 20_954, structure: 16_083, exact: 16_537, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 29_027, structure: 23_232, exact: 23_195, boundaries: 7, exactKernels: 5 }],
   ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).
+    // Re-pinned 2026-11-01 for the exact Show clock (#1204): +351 and +534..536
+    // bytes, all clock emission; the specialization verdicts are unchanged.
     const baseline = compileMotionV2(motionReference(id), { motionTransitionSharing: 'none' })
     const selected = compileMotionV2(motionReference(id), { motionTransitionSharing: 'exact' })
     const structural = compileMotionV2(motionReference(id), { motionTransitionSharing: 'structure' })

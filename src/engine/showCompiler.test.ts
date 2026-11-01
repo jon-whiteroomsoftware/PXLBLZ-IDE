@@ -1793,9 +1793,10 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, 0) 
       id: 'ordinary-scalar',
       source: 'export var value = 1\nexport function beforeRender(delta) { value = value + delta }\nexport function render(index) { rgb(value, 0, 0) }',
       expectedBaselines: 1,
-      expectedGlobals: 20,
+      // #1204: +1 for the Show clock's millisecond accumulator.
+      expectedGlobals: 21,
     },
-    { id: 'stock-luma-chevron', source: DEMOS.LumaChevron, expectedBaselines: 18, expectedGlobals: 54 },
+    { id: 'stock-luma-chevron', source: DEMOS.LumaChevron, expectedBaselines: 18, expectedGlobals: 55 },
   ])('charges the delivered $id Restart baselines to the 256-global artifact ledger (#1037)', ({ id, source, expectedBaselines, expectedGlobals }) => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 63 }] }]
     const artifact = compileShow({
@@ -4783,9 +4784,10 @@ export function render(index) { rgb(0, ticks, index) }
       loopDurationMs: 60_000,
     }, {})
 
-    expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 60')
+    expect(artifact.expandedCode).toContain('while (__pxlblz_show_clock_s >= 60) {')
+    expect(artifact.expandedCode).toContain('if (__pxlblz_show_elapsed_s >= 60) __pxlblz_show_elapsed_s = 60 - 0.0000152587890625')
     expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s >= 40')
-    expect(artifact.expandedCode).not.toContain('% 60000')
+    expect(artifact.expandedCode).not.toContain('60000')
   })
 
   it('routes native 2D members through normalized zone-local square coordinates (#401)', () => {
@@ -7123,7 +7125,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       transitionCost: 'bounded-renderer-window',
       worstInstantRenderersPerPixel: 2,
     })
-    expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 5')
+    expect(artifact.expandedCode).toContain('while (__pxlblz_show_clock_s >= 5) {')
   })
 
   it('eases one private clock to exact pause and back across a scene sequence (#417)', () => {

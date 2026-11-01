@@ -16,6 +16,7 @@ import {
   stepCalendarResetLines,
   type StepCalendarSpec,
 } from './showStepClockEmit'
+import { emitShowClockAdvance, SHOW_CLOCK_MS_DECLARATION, SHOW_CLOCK_POSITION_MS } from './showClockEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
@@ -4358,7 +4359,7 @@ function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOut
     emitRuntimePrelude([member], outputDimension),
     member.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  ${emitShowClockAdvance()}
   ${member.prefix}_advance(delta)
 }`,
     render,
@@ -4377,7 +4378,7 @@ function emitCutShowCode(
     from.code.trim(),
     to.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  ${emitShowClockAdvance()}
   if (__pxlblz_show_elapsed_s < ${cut.startMs / 1000}) {
     __pxlblz_show_phase = 0
     ${from.prefix}_advance(delta)
@@ -4413,7 +4414,7 @@ function emitAdaptationRampShowCode(
     emitRuntimePrelude([member], outputDimension, { includeAdaptationMix: true }),
     member.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  ${emitShowClockAdvance()}
   if (__pxlblz_show_elapsed_s < ${ramp.startMs / 1000}) {
     __pxlblz_show_mix = 0
   } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
@@ -4811,7 +4812,7 @@ ${scene.member.prefix}_emit()`
       ? ['var __pxlblz_show_snapshot_transition = -1', 'var __pxlblz_show_snapshot_ready = 0']
       : []),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
+  ${emitShowClockAdvance({ loopMs: cursor })}
   ${schedulerBranches}
 }`,
     `export function ${outputDimension !== 1 ? 'render2D(index, x, y)' : 'render(index)'} {
@@ -5168,16 +5169,15 @@ ${indentBlock([...restartMemberResetLines(member), ...memberSlotOwnerResetLines(
     : []
   const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
   var __pxlblz_show_restart_path_delta_s = delta / 1000`
-  const loopAdvancePrelude = deterministicLoopReset ? `var __pxlblz_show_loop_wrapped = __pxlblz_show_elapsed_s + delta / 1000 >= ${totalMs / 1_000}
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}
+  const loopAdvancePrelude = deterministicLoopReset ? `${emitShowClockAdvance({ loopMs: totalMs, wraps: { name: '__pxlblz_show_loop_wrapped', declare: true } })}
   if (__pxlblz_show_loop_wrapped) {
 ${indentBlock(loopResetLines.join('\n'), 4)}
-    delta = __pxlblz_show_elapsed_s * 1000
+    delta = ${SHOW_CLOCK_POSITION_MS}
   }${stepCalendars.size > 0 ? `\n  ${STEP_CALENDAR_TICK_LINE}` : ''}${continuityMembers.length > 0 ? `
 ${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}` : ''}`
     : stepCalendars.size > 0
       ? emitStepCalendarLoopPrelude(totalMs, calendarPrefixes)
-      : `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1_000}`
+      : emitShowClockAdvance({ loopMs: totalMs })
   const hiddenContinuityFunction = continuityMembers.length > 0
     ? `function __pxlblz_show_advance_hidden_instances(delta) {
 ${continuityMembers.map((member) => {
@@ -10171,7 +10171,7 @@ ${representation === 'coordinate-predicates'
       : []),
     ...progressiveGlobals,
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopDurationMs / 1000}
+  ${emitShowClockAdvance({ loopMs: loopDurationMs })}
   __pxlblz_show_route_layout = 0${progressiveReset}
 ${selectLines.join('\n')}
 ${propertyAssignments ? `${propertyAssignments}\n` : ''}${countBlocks.join('\n')}
@@ -11840,6 +11840,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
 
   return [
     'var __pxlblz_show_elapsed_s = 0',
+    SHOW_CLOCK_MS_DECLARATION,
     ...(directSinkMemberIds.size > 0 && !functionValuedSinks ? ['var __pxlblz_show_direct = 0'] : []),
     ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
@@ -11900,7 +11901,7 @@ function emitScheduler(
   scalarField?: SelectedScalarField,
 ): string {
   return `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  ${emitShowClockAdvance()}
   if (__pxlblz_show_elapsed_s < ${transitionStart / 1000}) {
     __pxlblz_show_phase = 0
     __pxlblz_show_mix = 0
@@ -12013,7 +12014,7 @@ function emitRouteScheduler(routes: ResolvedRoute[]): string {
     ]
   })
   return `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  ${emitShowClockAdvance()}
 ${lines.join('\n')}
 }`
 }

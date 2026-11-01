@@ -352,19 +352,35 @@ function fastTickExpression(e: number): bigint {
   return BigInt(sec) * 1000n + BigInt(m)
 }
 
+/** The emitted Show clock (#1204): whole seconds plus a [0, 1000) ms accumulator,
+ * wrapped by exact comparison, then one derived register held below the loop point. */
 export class FastRegister {
   e = 0
+  ms = 0
   epoch = 0n
   expressionVsExactHalfUp = 0
   readonly Ls: number
-  constructor(readonly loopMs: number) { this.Ls = loopMs / 1000 }
+  readonly loopS: number
+  readonly loopRemainderMs: number
+  constructor(readonly loopMs: number) {
+    this.Ls = loopMs / 1000
+    this.loopS = Math.floor(loopMs / 1000)
+    this.loopRemainderMs = loopMs - this.loopS * 1000
+  }
   step(delta: number, restarts: number[]) {
     const prev = this.e
-    const unwrapped = prev + delta / 1000
-    const next = unwrapped % this.Ls
-    const wrapsQ = Q.ofDouble(unwrapped).sub(Q.ofDouble(next)).div(Q.ofDouble(this.Ls))
-    if (!wrapsQ.isInt()) throw new Error('non-integer wrap count')
-    const wraps = Number(wrapsQ.n)
+    let s = Math.floor(prev - this.ms / 1000 + 0.5)
+    let ms = this.ms + delta
+    while (ms >= 1000) { ms = ms - 1000; s = s + 1 }
+    let wraps = 0
+    while (s > this.loopS || (s === this.loopS && ms >= this.loopRemainderMs)) {
+      s = s - this.loopS
+      ms = ms - this.loopRemainderMs
+      if (ms < 0) { ms = ms + 1000; s = s - 1 }
+      wraps++
+    }
+    let next = s + ms / 1000
+    if (next >= this.Ls) next = this.Ls - 1 / 65536
     // D1/D2: Fast's tick is defined by the emitted expression evaluated in binary64.
     const tick = fastTickExpression(next)
     if (tick !== Q.ofDouble(next).mul(Q.int(1000)).add(new Q(1n, 2n)).floor()) this.expressionVsExactHalfUp++
@@ -382,36 +398,55 @@ export class FastRegister {
       }
     }
     this.e = next
+    this.ms = ms
     this.epoch += BigInt(wraps)
     return { wraps, tick, abs: this.epoch * BigInt(this.loopMs) + tick, regFast: next, crossing, xMs: this.xMs() }
   }
   xMs() { return Q.int(this.epoch * BigInt(this.loopMs)).add(Q.ofDouble(this.e).mul(Q.int(1000))) }
 }
 
+/** Raw 16.16 model of the same clock; ms is held in raw units of 2^-16 ms. */
 export class PreciseRegister {
   raw = 0n
+  msRaw = 0n
   epoch = 0n
   readonly Lraw: bigint
+  readonly loopS: bigint
+  readonly loopRemainderRaw: bigint
   constructor(readonly loopMs: number) {
     const literal = BigInt(fx.fromFloat(loopMs / 1000))
     const exact = floorDiv(BigInt(loopMs) * 65536n * 2n + 1000n, 2000n)
     if (literal !== exact) throw new Error(`loop literal ${literal} differs from exact ${exact}`)
+    if (!Number.isInteger(loopMs)) throw new Error(`register model needs whole-ms loops, got ${loopMs}`)
     this.Lraw = exact
+    this.loopS = BigInt(Math.floor(loopMs / 1000))
+    this.loopRemainderRaw = (BigInt(loopMs) - this.loopS * 1000n) * 65536n
   }
   step(delta: number, restarts: number[]) {
     const dRaw = BigInt(fx.fromFloat(delta))
-    const inc = floorDiv(dRaw + 500n, 1000n)
-    const sum = this.raw + inc
-    if (sum > 2147483647n) throw new Error('Precise register would overflow (inherited L + delta horizon)')
-    const next = sum % this.Lraw
-    const wraps = Number((sum - next) / this.Lraw)
+    const quotient = (msRaw: bigint) => floorDiv(msRaw + 500n, 1000n)
+    const inc = quotient(dRaw)
+    const pathEnd = this.raw + inc
+    let s = floorDiv(this.raw - quotient(this.msRaw) + 32768n, 65536n)
+    let msRaw = this.msRaw + dRaw
+    if (msRaw > 2147483647n) throw new Error('Precise ms accumulator would overflow')
+    while (msRaw >= 65536000n) { msRaw -= 65536000n; s += 1n }
+    let wraps = 0
+    while (s > this.loopS || (s === this.loopS && msRaw >= this.loopRemainderRaw)) {
+      s -= this.loopS
+      msRaw -= this.loopRemainderRaw
+      if (msRaw < 0n) { msRaw += 65536000n; s -= 1n }
+      wraps++
+    }
+    let next = s * 65536n + quotient(msRaw)
+    if (next >= this.Lraw) next = this.Lraw - 1n
     const tick = floorDiv(next * 1000n + 32768n, 65536n)
     let crossing: PlannedFrame['crossing'] = null
     for (const eMs of restarts) {
       const eRaw = BigInt(fx.fromFloat(eMs / 1000))
       for (let k = wraps + 1; k >= 0; k--) {
         const ek = eRaw + BigInt(k) * this.Lraw
-        if (this.raw < ek && ek <= sum) {
+        if (this.raw < ek && ek <= pathEnd) {
           const abs = (this.epoch + BigInt(k)) * BigInt(this.loopMs) + BigInt(eMs)
           if (!crossing || abs > crossing.abs) crossing = { eMs, beforeWrap: k < wraps, abs }
           break
@@ -419,6 +454,7 @@ export class PreciseRegister {
       }
     }
     this.raw = next
+    this.msRaw = msRaw
     this.epoch += BigInt(wraps)
     return { wraps, tick, abs: this.epoch * BigInt(this.loopMs) + tick, regRaw: next, crossing, xMs: this.xMs() }
   }
