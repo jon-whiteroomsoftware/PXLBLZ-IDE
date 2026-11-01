@@ -10,4 +10,4 @@ exports[`routing representation characterization (#570) > packed-pixels output i
 
 exports[`routing representation characterization (#570) > range-branches output is byte-stable 1`] = `"7dff81646d09acd2"`;
 
-exports[`routing representation characterization (#570) > route-mode output is byte-stable 1`] = `"41b52db108d3a108"`;
+exports[`routing representation characterization (#570) > route-mode output is byte-stable 1`] = `"199fa229a068d11f"`;

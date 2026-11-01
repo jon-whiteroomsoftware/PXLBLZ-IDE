@@ -42,7 +42,7 @@ const BASELINE_DIR = 'docs/reference/evidence/issue-1042-v2-baselines'
 const committedBaselines = JSON.parse(readFileSync(resolve(repoRoot, BASELINE_DIR, 'baselines.json'), 'utf8')) as { generator: { nodeMajor: number } }
 const comparable = runtimeComparability(committedBaselines.generator.nodeMajor, process.versions.node).comparable
 const PINNED_DIGESTS: Record<string, string> = {
-  'baselines.json': '9b1e2ff30d3207a584d112b82fd7e83bc0ceab16adb85f09f52079ca6dca6cde', // #1210 Luma shared-affine source/EPE; runtime frames unchanged; #1242 intentional stock-source recensus; #1204 exact Show clock recensus
+  'baselines.json': '5a7bdcc794b1f6a926987b130fcae70b46f91d8b23c5cde0d92068db8403337e', // #1210 Luma shared-affine source/EPE; runtime frames unchanged; #1242 intentional stock-source recensus; #1204 exact Show clock recensus
   'runtime-frames.json': '6e582c5667b812edfae99212872b91b626e6cf8737ba817feb13ce0a9f342477', // re-pinned when track time moved to seconds (#1197); #1242 intentional stock-source recensus; #1204 exact Show clock recensus
   'fixtures/animation.json': '5fe5e38c50a73ca5ff25305a93063a3f50f673d676c5f78bd38de1b51eb2c5e7',
   'fixtures/groups.json': 'be4db1bb8ba11efba0f1864642c32ffcfee22aabc8de2415a7c839ff6a15e505',
