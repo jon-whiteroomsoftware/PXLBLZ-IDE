@@ -46,8 +46,8 @@ function boundarySampleTimesMsV2(record: ShowRecordV2): number[] {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it.each([
-    ['stock-show-reference-slide-transitions', { none: 20_991, structure: 16_120, exact: 16_574, boundaries: 6, exactKernels: 4 }],
-    ['stock-show-reference-zoom-spin-transitions', { none: 29_064, structure: 23_269, exact: 23_232, boundaries: 7, exactKernels: 5 }],
+    ['stock-show-reference-slide-transitions', { none: 21_026, structure: 16_155, exact: 16_609, boundaries: 6, exactKernels: 4 }],
+    ['stock-show-reference-zoom-spin-transitions', { none: 29_098, structure: 23_303, exact: 23_266, boundaries: 7, exactKernels: 5 }],
   ] as const)('fits the two-instance %s under the activation budget', (id, pins) => {
     // Historical #525 boundary: pin passes that postdate its pinned bytes.
     // Re-pinned 2026-08-22 when the references dropped their backdrop (#63).

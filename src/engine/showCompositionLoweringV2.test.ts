@@ -2345,7 +2345,7 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
   it('keeps the generated source of a record whose pieces already fit', () => {
     // Pinned on the code before #1103; re-pinned when track time moved to seconds (#1197),
     // and when the Show clock advance became exact (#1204: only clock emission changed).
-    expect(generatedHash(animationRecord())).toBe('a72a6b58c74e11857d21477b91744c6cb3a644beeeb379e09d7854b88c83216c')
+    expect(generatedHash(animationRecord())).toBe('547994381a2f60584e73ee06ad098e3d771ac9c51653cbf8475dec21564c681b')
   })
 
   it('keeps compiler vocabulary out of user-facing preparation refusals (#1043)', () => {

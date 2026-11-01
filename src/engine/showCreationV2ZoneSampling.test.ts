@@ -153,7 +153,7 @@ describe('a fresh Show under each Zone sampling mode', () => {
   it('wraps the Show clock under `span` and never wraps under `independent`', () => {
     const span = built(INSTALLATION, 'span')
     const independent = built(INSTALLATION, 'independent')
-    const wrap = `while (__pxlblz_show_clock_s >= ${SHOW_END_MS / 1_000}) {`
+    const wrap = `__pxlblz_show_clock_s = __pxlblz_show_clock_s + ${SHOW_END_MS / 1_000}`
     expect(showClockBlock(span.artifact.expandedCode)).toContain(wrap)
     expect(showClockBlock(independent.artifact.expandedCode)).not.toContain(wrap)
 

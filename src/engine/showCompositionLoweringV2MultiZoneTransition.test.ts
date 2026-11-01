@@ -220,7 +220,7 @@ describe('a fresh Show that gains a second Zone', () => {
     // one-Zone fresh Show holds its last Clip, and both compilers stop doing so
     // the moment a Zone is added.
     const two = compiledV2(addZone(freshV2(INSTALLATION), SECOND_ZONE)).artifact.expandedCode
-    const wrap = `while (__pxlblz_show_clock_s >= ${SHOW_END_MS / 1_000}) {`
+    const wrap = `__pxlblz_show_clock_s = __pxlblz_show_clock_s + ${SHOW_END_MS / 1_000}`
     expect(showClockBlock(two)).toContain(wrap)
     expect(showClockBlock(two)).toContain(SHOW_CLOCK_LOOP_HOLD)
     expect(showClockBlock(compiledV1(addShowZone(freshV1(INSTALLATION))).expandedCode)).toBe(showClockBlock(two))

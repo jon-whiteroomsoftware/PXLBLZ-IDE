@@ -4784,7 +4784,7 @@ export function render(index) { rgb(0, ticks, index) }
       loopDurationMs: 60_000,
     }, {})
 
-    expect(artifact.expandedCode).toContain('while (__pxlblz_show_clock_s >= 60) {')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_clock_s = __pxlblz_show_clock_s + 60')
     expect(artifact.expandedCode).toContain('if (__pxlblz_show_elapsed_s >= 60) __pxlblz_show_elapsed_s = 60 - 0.0000152587890625')
     expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s >= 40')
     expect(artifact.expandedCode).not.toContain('60000')
@@ -7125,7 +7125,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       transitionCost: 'bounded-renderer-window',
       worstInstantRenderersPerPixel: 2,
     })
-    expect(artifact.expandedCode).toContain('while (__pxlblz_show_clock_s >= 5) {')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_clock_s = __pxlblz_show_clock_s + 5')
   })
 
   it('eases one private clock to exact pause and back across a scene sequence (#417)', () => {

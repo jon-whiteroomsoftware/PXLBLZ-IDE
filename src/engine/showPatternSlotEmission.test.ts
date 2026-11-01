@@ -116,8 +116,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     // CompassRose casting and twin columns, but its tracks now follow the
     // shipping reference's linear ramps and lower speed values, so both
     // artifacts shrink by the same score data while the exchange holds.
-    expect(baseline.summary.artifactBytes).toBe(78_784) // #1204 exact Show clock (was 78_392, #1210)
-    expect(selected.summary.artifactBytes).toBe(52_472) // #1204 exact Show clock (was 52_075, #1210)
+    expect(baseline.summary.artifactBytes).toBe(78_819) // #1204 exact Show clock (was 78_392, #1210)
+    expect(selected.summary.artifactBytes).toBe(52_509) // #1204 exact Show clock (was 52_075, #1210)
     // #717 interning shrank the fixture enough that the #559 byte-budget
     // fallback no longer binds: the faster per-member HSV chain fits.
     expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
@@ -156,8 +156,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
     // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566);
     // #571's prologue-rebinding removal trimmed both builds again.
-    expect(baseline.summary.artifactBytes).toBe(72_510) // #1204 exact Show clock (was 71_933, #1210)
-    expect(selected.summary.artifactBytes).toBe(65_191) // #1204 exact Show clock (was 64_612, #1210)
+    expect(baseline.summary.artifactBytes).toBe(72_544) // #1204 exact Show clock (was 71_933, #1210)
+    expect(selected.summary.artifactBytes).toBe(65_225) // #1204 exact Show clock (was 64_612, #1210)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 204,
       totalWords: 696,
@@ -166,7 +166,7 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       remainingGlobals: 10,
       // Was -692 before wave-2: the emission diet brought this fixture back
       // under the activation ceiling; #571 added 240 more bytes of headroom.
-      remainingArtifactBytes: 3_193, // #1204 exact Show clock (was 3_772, #1210)
+      remainingArtifactBytes: 3_159, // #1204 exact Show clock (was 3_772, #1210)
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))
