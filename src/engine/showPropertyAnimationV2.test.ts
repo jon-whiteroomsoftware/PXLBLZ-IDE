@@ -411,18 +411,20 @@ describe('v2 property animation', () => {
       for (const atMs of [349, 350, 351, 500, 849, 850]) {
         const result = runtime.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
         const referenceResult = reference.advanceTo(atMs, { stepMs: 1, forceFullIntermediateRender: true })
-        if (atMs >= 350 && atMs < 850 && !(atMs === 849 && fidelity === 'fidelity')) {
+        if (atMs >= 350 && atMs < 850) {
           result.frame.forEach((channel, index) => {
-            expect(channel, `${fidelity} source parity at ${atMs}, channel ${index}`)
+            // #1204: the exact Precise clock lands on the 350 ms cut (22,938
+            // ticks, the quantized 0.35), where the trimmed kernel emits its
+            // float-exact endpoint literal and the uncut kernel evaluates its
+            // 16.16 formula: measured 1 LSB apart. Elsewhere parity is exact.
+            if (fidelity === 'fidelity' && atMs === 350) {
+              expect(Math.abs(channel - referenceResult.frame[index]), `${fidelity} cut-start parity, channel ${index}`).toBeLessThanOrEqual(1 / 65536)
+            } else expect(channel, `${fidelity} source parity at ${atMs}, channel ${index}`)
               .toBeCloseTo(referenceResult.frame[index], 12)
           })
           if (fidelity === 'fast') {
             expect(result.frame[0], `evaluator at ${atMs}`).toBeCloseTo(evaluateShowPropertyTrackV2(original, atMs)!, 8)
           }
-        } else if (atMs === 349 && fidelity === 'fidelity') {
-          // The 16.16 accumulator crosses this logical boundary early. Compare
-          // against the uncut generated source kernel at the measured boundary.
-          expect(Array.from(result.frame)).toEqual(Array.from(referenceResult.frame))
         } else expect(Array.from(result.frame)).toEqual([0, 0, 0])
       }
     },

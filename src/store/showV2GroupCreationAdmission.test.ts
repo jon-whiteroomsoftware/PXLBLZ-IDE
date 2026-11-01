@@ -96,8 +96,10 @@ it.each(['fast', 'fidelity'] as const)('reopened native%s UI-admitted grouping p
       const clocks = runtimes.map(runtime => Number(runtime.snapshot().runtimeState.__pxlblz_show_elapsed_s))
       expect(clocks[1]).toBe(clocks[0])
       const elapsed = Number(frames[1].exports[`${artifacts[1].summary.clips[0].prefix}_elapsed`])
-      if (time === 3000) { expect(clocks[1]).toBeLessThan(3); expect(elapsed).toBe(3000) }
-      else { expect(clocks[1]).toBeGreaterThan(3); expect(elapsed).toBeGreaterThan(0); expect(elapsed).toBeLessThan(1) }
+      // #1204: the exact clock lands on the 3,000 ms Restart, so that frame
+      // restarts the member; the old drifted clock read just under 3.
+      if (time === 3000) { expect(clocks[1]).toBe(3); expect(elapsed).toBe(0) }
+      else { expect(clocks[1]).toBe(3.001); expect(elapsed).toBe(1) }
     }
     for (const name of ['elapsed', 'gain']) expect(frames[1].exports[`${artifacts[1].summary.clips[0].prefix}_${name}`]).toBe(frames[0].exports[`${artifacts[0].summary.clips[0].prefix}_${name}`])
 

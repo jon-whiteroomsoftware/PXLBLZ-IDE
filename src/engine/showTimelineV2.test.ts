@@ -485,9 +485,15 @@ it.each(['fast', 'fidelity'] as const)('executes restricted nonlinear held ordin
       const expected = 0.2 + 0.6 * ((authoredTime - 100) / duration) ** 2
       const snapshot = after.runtime.advanceTo(atMs, { stepMs: 125, forceFullIntermediateRender: true })
       const preimage = before.runtime.advanceTo(authoredTime, { stepMs: 12525, forceFullIntermediateRender: true })
+      // #1204: the exact 16.16 clock is within 0.5 tick of the instant, and
+      // the float curve at that clock is within 0.92 LSB of the expected
+      // value. The remainder, up to 5.11 LSB (Group at 351 ms), is the
+      // Precise curve's own arithmetic: quantized 0.1/0.15/0.3 literals and
+      // two divisions on a slope of about 2 LSB per tick. The old drifted
+      // clock happened to offset it under 4 LSB.
       for (const value of snapshot.frame) {
         if (fidelity === 'fast') expect(value, `${kind} ${atMs}`).toBeCloseTo(expected, 12)
-        else expect(Math.abs(value - expected), `${kind} Q16 ${atMs}`).toBeLessThan(4 / 65536)
+        else expect(Math.abs(value - expected), `${kind} Q16 ${atMs}`).toBeLessThan(6 / 65536)
         expect(Math.round(value * 255), `${kind} displayed ${atMs}`).toBe(Math.round(expected * 255))
       }
       expect(Array.from(snapshot.frame, value => Math.round(value * 255))).toEqual(Array.from(preimage.frame, value => Math.round(value * 255)))

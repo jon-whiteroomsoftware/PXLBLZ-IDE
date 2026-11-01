@@ -362,10 +362,11 @@ it('keeps authored opacity separate from nonlinear numeric animation and resumes
     // it is not a widened preservation oracle or a byte-exact playback claim.
     if (fidelity === 'fast') expect(active.frame).toEqual(beforeActive.frame)
     else {
-      // re-pinned when track time moved to seconds (#1197): one-LSB 16.16 quantization move (amended rule (c))
-      expect(Array.from(beforeActive.frame)).toEqual([.1477203369140625, .0573577880859375, .1147308349609375, .205078125, .0573577880859375, .1147308349609375])
-      // re-pinned when track time moved to seconds (#1197): one-LSB 16.16 quantization move (amended rule (c))
-      expect(Array.from(active.frame)).toEqual([.1477203369140625, .057373046875, .11474609375, .2050933837890625, .057373046875, .11474609375])
+      // Re-pinned for the exact Show clock (#1204): at 250 ms the Precise clock
+      // now reads 16,384 ticks (0.25 s) instead of the drifted 16,500, which
+      // moves both frames to within about 2 LSB of Fast (.14643305826175837).
+      expect(Array.from(beforeActive.frame)).toEqual([.1464080810546875, .0570068359375, .114013671875, .2034149169921875, .0570068359375, .114013671875])
+      expect(Array.from(active.frame)).toEqual([.14642333984375, .0570068359375, .114013671875, .20343017578125, .0570068359375, .114013671875])
     }
     expect(active.exports).toEqual(beforeActive.exports)
     expect(actual.advanceTo(350, { stepMs: 1 }).frame).not.toEqual(original.advanceTo(350, { stepMs: 1 }).frame)

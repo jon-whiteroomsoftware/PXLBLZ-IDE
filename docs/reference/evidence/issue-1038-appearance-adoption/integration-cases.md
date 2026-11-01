@@ -16,13 +16,13 @@ b = clamp(luma + (b-luma)*factor, 0, 1) // saturation
 b = clamp((b-.5)*factor+.5, 0, 1)      // contrast
 ```
 
-The untouched near-zero Fast blue channel at Group entry is
-3.552713678800501e-16 before the operation, 3.608224830031759e-16 after adding
-saturation (second pixel 3.3306690738754696e-16), and
-3.3306690738754696e-16 after adding contrast. The measured later positive small
-channels and exact full vectors are retained in
-[neutral-color-residual.json](neutral-color-residual.json); tests assert them
-exactly, rather than allowing a tolerance. The cause is the additional neutral
+Since the exact Show clock (#1204), the Fast blue channel at Group entry
+(20,000 ms) is exactly 0 before and after adding either Effect, and 23,000 ms is
+identical too. The remaining measured residual is at 24,999 ms, one float64
+ulp in the small positive blue channels; its exact full vectors are retained in
+[neutral-color-residual.json](neutral-color-residual.json), and tests assert
+them exactly rather than allowing a tolerance. (Before #1204, the drifted clock
+also left near-zero residuals at Group entry and at 23,000 ms.) The cause is the additional neutral
 arithmetic's cancellation/association in float64, not a changed Group payload.
 Changing the selected parameter to 2 leaves all Group frames exactly identical
 to the candidate's original 1.4/1.3 result. Exact private elapsed/runtime exports
