@@ -70,7 +70,8 @@ describe('table-driven routed Show score emission (#542)', () => {
     // again 2026-08-02 when the reference pair recast to the measured
     // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop, and
     // 2026-08-22 when every Transition reference dropped that backdrop (#63).
-    expect(baseline.artifact?.summary.artifactBytes).toBe(24_610)
+    // #1204: +351 bytes for the exact Show clock (only clock emission changed).
+    expect(baseline.artifact?.summary.artifactBytes).toBe(24_961)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,
@@ -113,6 +114,44 @@ describe('table-driven routed Show score emission (#542)', () => {
     expect(boundaryChecksums(selected, show, 'fast')).toEqual(boundaryChecksums(baseline, show, 'fast'))
     expect(boundaryChecksums(selected, show, 'fidelity')).toEqual(boundaryChecksums(baseline, show, 'fidelity'))
   }, 20_000)
+
+  it('selects and times each Easing boundary like the unrolled emitter when the exact clock lands on its start, midpoint and end', () => {
+    // #1204: whole-millisecond deltas land the exact Show clock on boundary
+    // instants. At each midpoint the step easings (floor(t * 4) / 4,
+    // step-start and hold t < 0.5) change value, and rebuilding the start as
+    // first + k * period put t on the other side of the step. At the start
+    // and end, floor(position / period) and local < duration picked a
+    // different segment from the unrolled scheduler's literal comparisons,
+    // which advanced different members for that frame. The score now reads
+    // the scheduler's literal start, duration and end.
+    const show = reference('stock-show-reference-easing')
+    const compile = (showScoreSharing: 'none' | 'force') => {
+      const result = compileShowForArtifactV2(show, showScoreSharing)
+      if (!result.artifact) throw new Error(result.error ?? 'Easing reference did not compile.')
+      return result.artifact
+    }
+    const landingsMs = show.composition.transitions.flatMap((transition) => {
+      const from = show.composition.clips.find((clip) => clip.id === transition.participants[0]?.fromClipId)
+      if (!from || transition.durationMs <= 0) return []
+      const startMs = from.startMs + from.durationMs
+      return [startMs, startMs + transition.durationMs / 2, startMs + transition.durationMs]
+    })
+    expect(landingsMs).toHaveLength(60)
+    expect(landingsMs.every((timeMs) => Number.isInteger(timeMs / 50))).toBe(true)
+    const landingChecksums = (artifact: CompiledArtifact, fidelity: 'fast' | 'fidelity') => {
+      const runtime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: nativeDimension(artifact.metadata.renderFns),
+      }, { mapPoints: SCORE_MAP_POINTS, randomSeed: 542, fidelity })
+      return landingsMs.map((timeMs) => runtime.advanceTo(timeMs, { stepMs: 50 }).checksum)
+    }
+    const baseline = compile('none')
+    const selected = compile('force')
+    expect(landingChecksums(selected, 'fast')).toEqual(landingChecksums(baseline, 'fast'))
+    expect(landingChecksums(selected, 'fidelity')).toEqual(landingChecksums(baseline, 'fidelity'))
+  }, 60_000)
 
   it.each([
     'stock-show-reference-blend-fade-transitions',

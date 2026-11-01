@@ -6344,6 +6344,10 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
       boundary.kernel,
       boundary.easing,
       boundary.durationMs / 1_000,
+      // #1204: the unrolled scheduler's literal start and end, so boundary
+      // selection and local time use its comparisons and subtraction.
+      boundary.startMs / 1_000,
+      (boundary.startMs + boundary.durationMs) / 1_000,
     ])
     const easingByIdentity = new Map<string, ShowTransitionEasing>()
     for (const segment of scoreTransitionSegments) {
@@ -6494,17 +6498,19 @@ ${hiddenContinuityCall ? `    ${hiddenContinuityCall}
 ${hiddenContinuityCall ? `    ${hiddenContinuityCall}
 ` : ''}    return
   }
-  var __pxlblz_show_score_local = __pxlblz_show_score_position - __pxlblz_show_score_boundary * ${periodSeconds}
-  var __pxlblz_show_score_offset = __pxlblz_show_score_boundary * 5
+  if (__pxlblz_show_elapsed_s < __pxlblz_show_score_plans[__pxlblz_show_score_boundary * 7 + 5]) __pxlblz_show_score_boundary = __pxlblz_show_score_boundary - 1
+  else if (__pxlblz_show_score_boundary < ${scorePlan.boundaries.length - 1} && __pxlblz_show_elapsed_s >= __pxlblz_show_score_plans[__pxlblz_show_score_boundary * 7 + 12]) __pxlblz_show_score_boundary = __pxlblz_show_score_boundary + 1
+  var __pxlblz_show_score_offset = __pxlblz_show_score_boundary * 7
+  var __pxlblz_show_score_start_s = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 5]
+  var __pxlblz_show_score_local = __pxlblz_show_elapsed_s - __pxlblz_show_score_start_s
   __pxlblz_show_score_from_stack = __pxlblz_show_score_plans[__pxlblz_show_score_offset]
   __pxlblz_show_score_to_stack = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 1]
   __pxlblz_show_score_kernel = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 2]
-  var __pxlblz_show_score_transition_s = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 4]
-  if (__pxlblz_show_score_local < __pxlblz_show_score_transition_s) {
+  if (__pxlblz_show_elapsed_s < __pxlblz_show_score_plans[__pxlblz_show_score_offset + 6]) {
     __pxlblz_show_scene = __pxlblz_show_score_boundary
     __pxlblz_show_transition = __pxlblz_show_score_boundary
-    __pxlblz_show_transition_start_s = __pxlblz_show_elapsed_s - __pxlblz_show_score_local
-    __pxlblz_show_mix = __pxlblz_show_score_ease(__pxlblz_show_score_plans[__pxlblz_show_score_offset + 3], __pxlblz_show_score_local / __pxlblz_show_score_transition_s)
+    __pxlblz_show_transition_start_s = __pxlblz_show_score_start_s
+    __pxlblz_show_mix = __pxlblz_show_score_ease(__pxlblz_show_score_plans[__pxlblz_show_score_offset + 3], __pxlblz_show_score_local / __pxlblz_show_score_plans[__pxlblz_show_score_offset + 4])
 ${scoreUsesSnapshot ? `    if (__pxlblz_show_score_snapshot_boundary != __pxlblz_show_score_boundary) {
       __pxlblz_show_score_snapshot_boundary = __pxlblz_show_score_boundary
       __pxlblz_show_snapshot_ready = 0

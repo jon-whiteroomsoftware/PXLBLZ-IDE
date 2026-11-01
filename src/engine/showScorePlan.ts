@@ -160,7 +160,9 @@ export function buildShowScorePlan(input: ShowScorePlanInput): ShowScorePlan {
   }
 
   const cadence = recognizeBoundaryCadence(boundaries.map((boundary) => boundary.startMs))
-  const fieldsPerBoundary = cadence.kind === 'regular' ? 5 : 6
+  // #1204: every boundary carries its literal start and end, so the score
+  // selects boundaries and derives local time like the unrolled emitter.
+  const fieldsPerBoundary = 7
   const parameterCount = boundaries.reduce((sum, boundary) => sum + boundary.parameters.length, 0)
   const elementCount = boundaries.length * fieldsPerBoundary + parameterCount
   const loopDurationMs = input.loopDurationMs

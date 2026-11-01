@@ -146,8 +146,11 @@ it('retargets nonlinear Clip animation to each exact derived run/section identit
   record.composition.propertyTracks = [{ id: 'opacity', target: { kind: 'clip-opacity', clipId: 'clip' }, activeStartMs: 0, activeDurationMs: 1000,
     keyframes: [{ id: 'first', timeMs: 0, value: .2, easing: { curve: 'sine', direction: 'in-out' } }, { id: 'last', timeMs: 1000, value: .8, easing: { curve: 'linear' } }] }]
   const expected = expectedRuns(record)
-  // Worked sine kernel at u0/.4/.8/1; retained coefficients remain the source kernel.
-  const times = [0, 400, 800, 1000], values = [.2, .40729490168751575, .7427050983124843, .8]
+  // Worked sine kernel at u0/.4/.8/1 as base + delta * ease(u); retained
+  // coefficients remain the source kernel. #1204: the exact clock lands on
+  // 400 ms, where both records emit this endpoint, so the value at .4 is the
+  // kernel's own .4072949016875158, not the lerp form's 1-ulp-lower value.
+  const times = [0, 400, 800, 1000], values = [.2, .4072949016875158, .7427050983124843, .8]
   expected.composition.propertyTracks = [0, 1, 2].map(index => ({ id: `expected-opacity-${index}`, target: { kind: 'clip-opacity', clipId: `expected-run-${index}` },
     activeStartMs: times[index], activeDurationMs: times[index + 1] - times[index], keyframes: [
       { id: `expected-first-${index}`, timeMs: times[index], value: values[index], easing: { curve: 'sine', direction: 'in-out' },
@@ -161,12 +164,13 @@ it('retargets nonlinear Clip animation to each exact derived run/section identit
   expect(record).toEqual(before)
 })
 
-// Recipe pins from adapter f3db7122; source/EPE proved on Node 24 for #1210.
+// Recipe pins from adapter f3db7122; source/EPE proved on Node 24 for #1210,
+// re-pinned for the exact Show clock (#1204: only clock emission changed).
 const admittedBytes = {
-  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'a16901b9f5dbc0323e703883e852f953cb0e013e2d11c132a047daba54b88638', epe: '9ceced78ae6be83fcfe2a29e1b38b400d24355f784a80f97d6b14f71308dd3da' },
-  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '7e9ff674476fbb08019e6d090b934ff6887b29a7408454b7947a5736435ef7f2', epe: 'a807e0a81ca8637c9b1fada879abe7d3322bd14705305c853f4f8d60800d8494' },
-  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: '7719d4af0c4b6b9eb62bbb96fe8839ab966eabfe8d3a4b07451b6a858a3b792b', epe: '35e7e328ac3647c30a290adb761ecae6846a7d4a26460275fbdfedb4e9bb33a0' },
-  transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '990152b318f5432c3d0b19608926e114491459d04c8791da146dc55b031af408', epe: '067ce811187fecdc2d7a78b017e8fdfcce8ab5e02a247f2dc9047d8e2798f4e1' },
+  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'fc06ed6b32c041d2fe133b533553e78182f82c9c0c2122e1180194698fd8c290', epe: 'fb08ebf0b1d688f874a44da3df6994774303f0ffb87a17691caebbf1863eaea2' },
+  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '1916af110a63ea5d7e03343ddf928ff1a0eeab405e851cbac5557bce308b0743', epe: 'fb7afba2f1b2b0fed89395f5a7e34cca9e4e43a9d3c2adfbcefbddc8d3f31d71' },
+  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: 'acb576f6334e97f6fb9aaf474c18794603c0dd3112e53ad8b6b2ebf6e92d3840', epe: '25bd7c397896323ee30751b2c120839f343601f4a2ac219cf4062cec2068dce9' },
+  transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '7c4d5b738250ebfd9d79dc2eda9b721f4ef094cd1f92e314bcef43863aaf61cc', epe: 'af6ed1cb548a17415b841c44d53636a5aab77bcf320b8949c56fc2cb09db003f' },
 }
 it.each(['live', 'freeze', 'strobe', 'transition'] as const)('preserves pinned admitted %s recipe/source/EPE bytes including canonical field-order equivalence', mode => {
   const record = compatibilityFixture(mode), before = structuredClone(record)
