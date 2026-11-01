@@ -184,11 +184,17 @@ const SWEEP_LOOPS: (number | undefined)[] = [undefined, 1, 700, 999, 1_000, 49_0
 const SWEEP_DELIVERIES = [0, ONE_LSB_MS, 999, 1_000, 31_768, 32_000, MAX_DELIVERY_MS]
 const WRAP_COUNT_MAX = 32_767
 const MAX_16_16_INTEGER_S = 32_767
+/** The largest 16.16 value, 32,767.99998474 s, in ms: a non-looping clock's last exact position. */
+const NONE_HORIZON_MS = (32_768 * 65_536 - 1) / 65_536 * 1000
+/** The largest register's fraction in ms: 1,000 LSB below 1,000 ms, on the 16.16 grid. */
+const LAST_FRACTION_MS = 1000 - 1000 / 65_536
 
 function sweepStates(loopMs: number | undefined): { s: number; ms: number }[] {
   const lastS = loopMs === undefined ? NONE_MAX_S : Math.ceil(loopMs / 1000) - 1
   const remainderMs = loopMs === undefined ? 0 : loopMs % 1000
   const states = [0, lastS].flatMap(s => [0, 1000 - ONE_LSB_MS, ...(remainderMs ? [remainderMs - ONE_LSB_MS] : [])].map(ms => ({ s, ms })))
+  // A non-looping clock also starts at its last whole second and at the largest register.
+  if (loopMs === undefined) states.push({ s: MAX_16_16_INTEGER_S, ms: 0 }, { s: MAX_16_16_INTEGER_S, ms: LAST_FRACTION_MS })
   const reachable = states.filter(({ s, ms }) => loopMs === undefined || s * 1000 + ms < loopMs)
   return reachable.filter((state, index) => reachable.findIndex(other => other.s === state.s && other.ms === state.ms) === index)
 }
@@ -218,8 +224,8 @@ function sweep(mode: Mode, loopMs: number | undefined): SweepFailure[] {
   const failures: SweepFailure[] = []
   for (const { s, ms } of sweepStates(loopMs)) {
     for (const deltas of sweepSequences()) {
-      // A clock with no loop is defined up to its 32,768 s horizon.
-      if (!L && s * 1000 + ms + deltas.reduce((sum, delta) => sum + delta, 0) >= (MAX_16_16_INTEGER_S + 1) * 1000 - 1) continue
+      // A clock with no loop is defined at or below the largest 16.16 value, 32,767.99998474 s.
+      if (!L && s * 1000 + ms + deltas.reduce((sum, delta) => sum + delta, 0) > NONE_HORIZON_MS) continue
       fns.h_set(enc(s), enc(ms))
       let position = Q.int(s * 1000).add(deliveredMs(mode, ms, enc))
       deltas.forEach((delta, frame) => {
@@ -254,6 +260,20 @@ describe.each(['fast', 'precise'] as const)('domain sweep: the clock equals the 
     const failures = sweep(mode, loopMs)
     expect(failures.slice(0, 5), `${failures.length} failures`).toEqual([])
   }, 120_000)
+})
+
+describe('non-looping horizon', () => {
+  // Decision 10: the non-looping clock is exact at or below the largest register; later positions wrap, as base's did.
+  it.each([
+    ['the largest register, delivered nothing', LAST_FRACTION_MS, 0],
+    ['the last whole second, delivered up to the largest register', 0, LAST_FRACTION_MS],
+  ])('%s reads 32,767 + 65,535/65,536 s in Precise', (_label, ms, delta) => {
+    const { handle, fns, enc } = load('precise', sweepProgram(undefined))
+    fns.h_set(enc(MAX_16_16_INTEGER_S), enc(ms))
+    fns.h_frame(enc(delta))
+    const state = handle.getRuntimeState() as Record<string, number>
+    expect(state.__pxlblz_show_elapsed_s).toBe(MAX_16_16_INTEGER_S * 65_536 + 65_535)
+  })
 })
 
 describe('fault sensitivity', () => {

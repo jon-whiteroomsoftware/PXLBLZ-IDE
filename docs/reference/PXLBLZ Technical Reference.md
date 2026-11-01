@@ -1393,6 +1393,8 @@ modulo the loop (1.5 steps on a held frame), with no growth across loops.
 The per-frame wrap count is exact up to 32,767. Only a 1 ms loop can wrap
 more often in one frame (up to 32,768 times), and its count saturates at
 32,767 rather than wrapping negative.
+A Show clock that doesn't loop is exact at or below 32,767.99998 s, the
+largest 16.16 value; later positions are unsupported and wrap negative.
 Member private clocks still advance by `scaledDelta / 1000`; see the
 accepted divergences in §31.
 

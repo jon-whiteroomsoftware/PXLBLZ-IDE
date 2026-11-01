@@ -8,8 +8,10 @@
 // milliseconds is exact in 16.16, carries and loop wraps use exact comparison and
 // subtraction, and the seconds value is derived with one rounding per frame.
 //
-// Domain: any 16.16 delivery in [0, 32,767.99998] ms; no loop, or any loop
-// whose literal 16.16 holds (1 ms to 32,767,999 ms; authoring sets no ceiling).
+// Domain: any 16.16 delivery in [0, 32,767.99998] ms; no loop, for positions at
+// or below 32,767.99998474 s (the largest register within half a step), or any
+// loop whose literal 16.16 holds (1 ms to 32,767,999 ms; authoring sets no
+// ceiling).
 // Ranges over that domain, L the loop's whole seconds (shift L when L > 0):
 //   ms - 1000 + delta      [-1000, 31,768)    ms gives up 1,000 before the add
 //   carries per frame      [0, 32]
