@@ -4,12 +4,35 @@ import { afterAll, beforeAll, expect, it } from 'vitest'
 import { build } from 'esbuild'
 import { chromium } from '@playwright/test'
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
+import { setImmediate } from 'node:timers/promises'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import { createSessionToken } from '../../cloudflare/auth'
 let runtime: Miniflare
 let cookie: string
 let script: string
 const client = { clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }
 const bindings = { SESSION_SECRET: 'test-secret', AGENT_SERVICE_ENABLED: '1', AGENT_ACCOUNT_ALLOWLIST: 'github:123,github:456', AGENT_OAUTH_ORIGIN: 'https://app.test', AGENT_OAUTH_CLIENTS: JSON.stringify([{ clientId: 'test-client', clientName: 'Test Agent', redirectUris: ['https://client.test/callback'] }]) }
+async function dispatchFetch(...args: Parameters<Miniflare['dispatchFetch']>): Promise<Response> {
+  const response = await runtime.dispatchFetch(...args)
+  // These requests return finite HTML/JSON or empty bodies. Miniflare shares
+  // the network stream with an Undici Response whose finalizer can cancel it.
+  // Consume it now so callers can inspect the buffered copy after other I/O.
+  const body = response.body === null ? null : await response.arrayBuffer()
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: Array.from(response.headers) })
+}
+async function collectResponseGarbage() {
+  setFlagsFromString('--expose-gc')
+  let gc: () => void
+  try { gc = runInNewContext('gc') as () => void }
+  finally { setFlagsFromString('--no-expose-gc') }
+  // Give unreachable fetch Responses and their stream finalizers event-loop turns.
+  for (let turn = 0; turn < 3; turn += 1) {
+    await setImmediate()
+    gc()
+    await setImmediate()
+  }
+}
 function runtimeOptions(patch: Record<string, string> = {}) {
   return convertV4MiniflareOptions({ modules: true, script, compatibilityDate: '2026-06-30', compatibilityFlags: ['global_fetch_strictly_public'], bindings: { ...bindings, ...patch }, durableObjects: { AGENT_ACCOUNTS: { className: 'AgentAccount', useSQLite: true }, AGENT_OAUTH_AUTHORITY: { className: 'AgentOAuthAuthority', useSQLite: true } } })
 }
@@ -26,7 +49,7 @@ async function authURL(patch: Record<string, string> = {}) {
   return `https://app.test/oauth/authorize?${new URLSearchParams({ agent: '1', client_id: client.clientId, redirect_uri: client.redirectUris[0], response_type: 'code', scope: 'agent:connect', state: 'test-state', resource: 'https://app.test/mcp', code_challenge_method: 'S256', code_challenge: challenge, ...patch })}`
 }
 async function consent() {
-  const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } })
+  const response = await dispatchFetch(await authURL(), { headers: { Cookie: cookie } })
   const html = await response.text()
   expect(response.status, html).toBe(200)
   expect(html).toContain('The application can read the Show and submit edits.')
@@ -34,10 +57,10 @@ async function consent() {
   return html.match(/name="nonce" value="([^"]+)"/)![1]
 }
 function answer(nonce: string, decision = 'allow', customCookie = cookie, origin = 'https://app.test') {
-  return runtime.dispatchFetch('https://app.test/oauth/authorize', { method: 'POST', headers: { Origin: origin, Cookie: customCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ nonce, decision }).toString(), redirect: 'manual' })
+  return dispatchFetch('https://app.test/oauth/authorize', { method: 'POST', headers: { Origin: origin, Cookie: customCookie, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ nonce, decision }).toString(), redirect: 'manual' })
 }
 function exchange(fields: Record<string, string>) {
-  return runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: client.clientId, resource: 'https://app.test/mcp', ...fields }).toString() })
+  return dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: client.clientId, resource: 'https://app.test/mcp', ...fields }).toString() })
 }
 async function authorized() {
   const response = await answer(await consent())
@@ -51,42 +74,42 @@ async function authorized() {
   return result
 }
 it('requires signed eligible consent with exact redirect/resource/S256 and refuses forged account identity', async () => {
-  const signIn = await runtime.dispatchFetch(await authURL())
+  const signIn = await dispatchFetch(await authURL())
   expect(signIn.status).toBe(200)
   expect(await signIn.text()).toContain('Sign in to connect your agent')
-  const forged = await runtime.dispatchFetch(await authURL(), { headers: { 'X-Agent-Account': 'github:123' } })
+  const forged = await dispatchFetch(await authURL(), { headers: { 'X-Agent-Account': 'github:123' } })
   expect(forged.status).toBe(200)
   expect(await forged.text()).toContain('Sign in to connect your agent')
   for (const patch of [{ redirect_uri: 'https://hostile.test' }, { resource: 'https://hostile.test/mcp' }, { code_challenge_method: 'plain' }, { client_id: 'https://hostile.test/client.json' }, { scope: 'edit' }] as Record<string, string>[]) {
-    expect((await runtime.dispatchFetch(await authURL(patch), { headers: { Cookie: cookie } })).status).toBe(400)
+    expect((await dispatchFetch(await authURL(patch), { headers: { Cookie: cookie } })).status).toBe(400)
   }
 })
 
 it('resumes a signed-out authorization through one opaque, one-use account continuation', async () => {
-  const started = await runtime.dispatchFetch(await authURL())
+  const started = await dispatchFetch(await authURL())
   const html = await started.text()
   const continuation = html.match(/agent_continue=([-a-f0-9]{36})/)?.[1]
   expect(continuation).toEqual(expect.any(String))
   expect(html).not.toContain('redirect_uri')
 
   const continuedCookie = `${cookie}; pxlblz_agent_continue=${continuation}`
-  const resumed = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
+  const resumed = await dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
   expect(resumed.status, await resumed.clone().text()).toBe(200)
   expect(await resumed.text()).toContain('Allow this agent to connect?')
   expect(resumed.headers.get('Set-Cookie')).toContain('pxlblz_agent_continue=;')
 
-  const replay = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
+  const replay = await dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: continuedCookie } })
   expect(replay.status).toBe(400)
   expect(await replay.text()).toContain('Authorization expired')
 
-  const tampered = await runtime.dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: `${cookie}; pxlblz_agent_continue=00000000-0000-4000-8000-000000000000` } })
+  const tampered = await dispatchFetch('https://app.test/oauth/authorize', { headers: { Cookie: `${cookie}; pxlblz_agent_continue=00000000-0000-4000-8000-000000000000` } })
   expect(tampered.status).toBe(400)
   expect(await tampered.text()).toContain('Authorization expired')
 })
 
 it('refuses signed-out authorization before storing continuation when the service is disabled', async () => {
   await runtime.setOptions(runtimeOptions({ AGENT_SERVICE_ENABLED: '0' }))
-  const response = await runtime.dispatchFetch(await authURL())
+  const response = await dispatchFetch(await authURL())
   expect(response.status).toBe(503)
   expect(await response.text()).not.toContain('agent_continue=')
   await runtime.setOptions(runtimeOptions())
@@ -102,15 +125,15 @@ it('binds one-use consent to the authenticated account and permits cancel withou
   expect((await answer(nonce)).status).toBe(400)
 })
 it('discovers OAuth and MCP through the actual Worker with the finite canonical catalogue before attachment', async () => {
-  const challenge = await runtime.dispatchFetch('https://app.test/mcp')
+  const challenge = await dispatchFetch('https://app.test/mcp')
   expect(challenge.status).toBe(401)
   expect(challenge.headers.get('WWW-Authenticate')).toContain('/.well-known/oauth-protected-resource/mcp')
-  const crossOrigin = await runtime.dispatchFetch('https://app.test/mcp', { headers: { Origin: 'https://client.test' } })
+  const crossOrigin = await dispatchFetch('https://app.test/mcp', { headers: { Origin: 'https://client.test' } })
   expect(crossOrigin.headers.get('Access-Control-Allow-Origin')).toBe('https://client.test')
   expect(crossOrigin.headers.get('Access-Control-Expose-Headers')).toContain('WWW-Authenticate')
-  const metadata = await runtime.dispatchFetch('https://app.test/.well-known/oauth-protected-resource/mcp')
+  const metadata = await dispatchFetch('https://app.test/.well-known/oauth-protected-resource/mcp')
   expect(await metadata.json()).toMatchObject({ resource: 'https://app.test/mcp', authorization_servers: ['https://app.test'] })
-  const authorizationServer = await runtime.dispatchFetch('https://app.test/.well-known/oauth-authorization-server')
+  const authorizationServer = await dispatchFetch('https://app.test/.well-known/oauth-authorization-server')
   expect(await authorizationServer.json()).toMatchObject({
     authorization_endpoint: 'https://app.test/oauth/authorize',
     registration_endpoint: 'https://app.test/oauth/register',
@@ -119,7 +142,7 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   })
   const tokens = await authorized()
   async function rpc(method: string, params?: unknown) {
-    return runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
+    return dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
   }
   const initialize = await rpc('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } })
   expect(initialize.status).toBe(200)
@@ -159,16 +182,16 @@ it('discovers OAuth and MCP through the actual Worker with the finite canonical 
   const retiredResult = (await retiredRead.json() as { result: { content: Array<{ text: string }>; structuredContent: unknown; isError?: boolean } }).result
   expect(retiredResult).toMatchObject({ isError: true, structuredContent: { code: 'no_live_editor' } })
   expect(JSON.parse(retiredResult.content[0].text)).toEqual(retiredResult.structuredContent)
-  expect((await runtime.dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
-  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
+  expect((await dispatchFetch(`https://app.test/mcp?access_token=${tokens.access_token}`)).status).toBe(401)
+  expect((await dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}`, Origin: 'https://hostile.test' } })).status).toBe(403)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
   expect((await rpc('tools/list')).status).toBe(401)
 }, 10_000)
 it('marks read_show on a retired binding as an MCP tool error in actual workerd', async () => {
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]
-  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
+  const channel = (body: object) => dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const rpc = (name: string, args: object = {}) => dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
   const registration = await (await channel({ type: 'register', sessionId: 'retired-binding', showId, showVersion: 2 })).json() as { registrationId: string }
   const window = { registrationId: registration.registrationId, sessionId: 'retired-binding', showId }
   await channel({ type: 'arm', ...window })
@@ -196,7 +219,7 @@ it('registers bounded public DCR clients without replacing static clients', asyn
     const registrations = []
     for (let index = 0; index < 10; index++) {
       const token_endpoint_auth_method = index === 1 ? 'client_secret_basic' : index === 2 ? 'client_secret_post' : 'none'
-      const response = await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dynamic, token_endpoint_auth_method, client_name: `${dynamic.client_name} ${index}` }) })
+      const response = await dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...dynamic, token_endpoint_auth_method, client_name: `${dynamic.client_name} ${index}` }) })
       registrations.push(await capture(response))
     }
     expect(registrations.map(response => response.status), JSON.stringify(registrations.map(response => response.body))).toEqual(Array(10).fill(201))
@@ -205,11 +228,11 @@ it('registers bounded public DCR clients without replacing static clients', asyn
     expect(registered).toMatchObject({ redirect_uris: dynamic.redirect_uris, token_endpoint_auth_method: 'none' })
     expect(registeredClients.map(value => value.token_endpoint_auth_method)).toEqual(['none', 'client_secret_basic', 'client_secret_post'])
     expect(registeredClients.slice(1).every(value => typeof value.client_secret === 'string')).toBe(true)
-    const limited = await capture(await runtime.dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynamic) }))
+    const limited = await capture(await dispatchFetch('https://app.test/oauth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dynamic) }))
     expect(limited.status).toBe(429)
 
     for (const clientInfo of registeredClients) {
-      const authorization = await capture(await runtime.dispatchFetch(await authURL({ client_id: clientInfo.client_id, redirect_uri: requestedRedirect }), { headers: { Cookie: cookie } }))
+      const authorization = await capture(await dispatchFetch(await authURL({ client_id: clientInfo.client_id, redirect_uri: requestedRedirect }), { headers: { Cookie: cookie } }))
       expect(authorization.status, authorization.body).toBe(200)
       const nonce = authorization.body.match(/name="nonce" value="([^"]+)"/)![1]
       const allowed = await capture(await answer(nonce))
@@ -222,11 +245,11 @@ it('registers bounded public DCR clients without replacing static clients', asyn
         fields.set('client_id', clientInfo.client_id)
         if (clientInfo.token_endpoint_auth_method === 'client_secret_post') fields.set('client_secret', clientInfo.client_secret!)
       }
-      const token = await capture(await runtime.dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers, body: fields.toString() }))
+      const token = await capture(await dispatchFetch('https://app.test/oauth/token', { method: 'POST', headers, body: fields.toString() }))
       expect(token.status, token.body).toBe(200)
       if (clientInfo.token_endpoint_auth_method === 'none') {
         const issued = JSON.parse(token.body) as { access_token: string }
-        const initialize = (origin: string) => runtime.dispatchFetch('https://app.test/mcp', {
+        const initialize = (origin: string) => dispatchFetch('https://app.test/mcp', {
           method: 'POST',
           headers: { Authorization: `Bearer ${issued.access_token}`, Origin: origin, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' },
           body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'loopback', version: '1' } } }),
@@ -238,7 +261,7 @@ it('registers bounded public DCR clients without replacing static clients', asyn
 
     // Reintroducing deployment-owned preregistration leaves the DCR records live.
     await runtime.setOptions(runtimeOptions())
-    expect((await capture(await runtime.dispatchFetch(await authURL(), { headers: { Cookie: cookie } }))).status).toBe(200)
+    expect((await capture(await dispatchFetch(await authURL(), { headers: { Cookie: cookie } }))).status).toBe(200)
   } finally {
     await runtime.setOptions(runtimeOptions())
   }
@@ -253,12 +276,12 @@ it('refuses wrong resource, redirect and verifier without consuming the valid co
 it('rechecks service availability while preserving revocation', async () => {
   const tokens = await authorized()
   await runtime.setOptions(runtimeOptions({ AGENT_SERVICE_ENABLED: '0' }))
-  const response = await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })
+  const response = await dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })
   expect(response.status).toBe(503)
   expect((await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token })).status).toBe(400)
   expect((await exchange({ token: tokens.refresh_token })).status).toBe(200)
   await runtime.setOptions(runtimeOptions())
-  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
+  expect((await dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
 })
 
 it('keeps external grants usable when only built-in eligibility changes', async () => {
@@ -300,7 +323,7 @@ it('submits native browser consent and follows a registered cross-origin callbac
 it('bounds outstanding consent and grant admissions per account without revoking earlier grants', async () => {
   const other = `pxlblz_session=${await createSessionToken({ userId: 'github:456', primaryProvider: 'github', primaryHandle: null, displayName: null, avatarUrl: null }, 'test-secret')}`
   async function pending() {
-    const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: other } })
+    const response = await dispatchFetch(await authURL(), { headers: { Cookie: other } })
     return { response, nonce: (await response.text()).match(/name="nonce" value="([^"]+)"/)?.[1] }
   }
   const attempts = await Promise.all(Array.from({ length: 5 }, () => pending()))
@@ -322,7 +345,7 @@ it('bounds outstanding consent and grant admissions per account without revoking
 it('shows only the signed account label and escapes hostile display text', async () => {
   const displayName = 'Zoë </strong><img src=x onerror=alert(1)>'
   const signed = `pxlblz_session=${await createSessionToken({ userId: 'github:123', primaryProvider: 'github', primaryHandle: null, displayName, avatarUrl: null }, 'test-secret')}`
-  const response = await runtime.dispatchFetch(await authURL(), { headers: { Cookie: signed, 'X-Agent-Account-Label': 'Forged account' } })
+  const response = await dispatchFetch(await authURL(), { headers: { Cookie: signed, 'X-Agent-Account-Label': 'Forged account' } })
   const html = await response.text()
   expect(response.status).toBe(200)
   expect(html).toContain('Zoë &lt;/strong&gt;&lt;img src=x onerror=alert(1)&gt;')
@@ -336,8 +359,8 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   try {
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]
-  const channel = async (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const rpc = (name: string, args: object = {}) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
+  const channel = async (body: object) => dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const rpc = (name: string, args: object = {}) => dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) })
   const registration = await (await channel({ type: 'register', sessionId: 'mcp-live', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'mcp-live', showId }
   await channel({ type: 'arm', ...own })
@@ -414,8 +437,10 @@ it('routes authenticated canonical MCP calls and confirms editing retirement onl
   expect(sequences).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   expect(receivedBulk).toEqual(bulkArgs)
   expect(new Set(receivedNames)).toEqual(new Set(Array.from({ length: 9 }, (_, index) => `Parallel ${index + 1}`)))
+  await Promise.all(calls)
+  await collectResponseGarbage()
   for (const call of calls) expect(await (await call).json()).toMatchObject({ result: { structuredContent: { code: 'changed' } } })
-  const oversized = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: ' '.repeat(67_585) })
+  const oversized = await dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, 'Content-Type': 'application/json' }, body: ' '.repeat(67_585) })
   expect(oversized.status).toBe(413)
   expect(await oversized.json()).toEqual({ error: 'invalid_request' })
   const committing = rpc('commit_edit', { ...identity, idempotency_key: 'commit' })
@@ -450,8 +475,8 @@ it('moves one live external binding between authorized Show editors with fresh i
   runtime = movementRuntime
   try {
   const tokens = await authorized()
-  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const mcp = (method: string, params?: object) => runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
+  const channel = (body: object) => dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const mcp = (method: string, params?: object) => dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json', 'MCP-Protocol-Version': '2025-11-25' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, ...(params ? { params } : {}) }) })
   const rpc = (name: string, args: object = {}) => mcp('tools/call', { name, arguments: args })
   const toolResult = async (response: { json(): Promise<unknown> }) => (await response.json() as { result: { structuredContent: Record<string, unknown> } }).result.structuredContent
   const firstShowId = STOCK_SHOW_IDS[0]
@@ -539,18 +564,18 @@ it('moves one live external binding between authorized Show editors with fresh i
 it('local Forget revokes only the grant attached to the exact owning window', async () => {
   const tokens = await authorized()
   const showId = STOCK_SHOW_IDS[0]
-  const channel = (body: object) => runtime.dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const channel = (body: object) => dispatchFetch('https://app.test/api/agent/channel?agent=1', { method: 'POST', headers: { Cookie: cookie, Origin: 'https://app.test', 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const registration = await (await channel({ type: 'register', sessionId: 'forget', showId, showVersion: 2 })).json() as { registrationId: string }
   const own = { registrationId: registration.registrationId, sessionId: 'forget', showId }
   await channel({ type: 'arm', ...own })
-  const connected = await runtime.dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_connection', arguments: {} } }) })
+  const connected = await dispatchFetch('https://app.test/mcp', { method: 'POST', headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_connection', arguments: {} } }) })
   const connectedResult = (await connected.json() as { result: { structuredContent: { code: string; binding_id?: string } } }).result.structuredContent
   expect(connectedResult).toMatchObject({ code: 'bound', binding_id: expect.any(String) })
   const bindingId = connectedResult.binding_id!
   expect(await (await channel({ type: 'forget', ...own, sessionId: 'another-window', bindingId })).json()).toEqual({ code: 'not_bound_here' })
-  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(405)
+  expect((await dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(405)
   expect(await (await channel({ type: 'forget', ...own, bindingId })).json()).toEqual({ code: 'forgotten' })
-  expect((await runtime.dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
+  expect((await dispatchFetch('https://app.test/mcp', { headers: { Authorization: `Bearer ${tokens.access_token}` } })).status).toBe(401)
   expect(await (await channel({ type: 'poll', ...own })).json()).toMatchObject({ connection: { kind: 'idle' } })
   await channel({ type: 'leave', ...own })
 })
