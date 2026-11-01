@@ -1726,9 +1726,11 @@ The agent diagnostic harness and its baseline suites are described in §28.
 - Precise Show time is exact at the Show clock, not downstream of it (#1204).
   Member private clocks (`scaledDelta / 1000`) and Pattern-authored
   accumulators such as `timebase = (timebase + delta/1000) % 3600` round each
-  frame, the latter as on firmware. On Property Animation at 48,599 ms they
-  account for 0.027 of a 0.030 max Fast/Precise channel delta; the rest is one
-  frame of 16.16 arithmetic. A Precise Timeline curve sits within 6 LSB of the
+  frame, the latter as on firmware. Their bias depends on the frame delta, so
+  the residual does too: on Property Animation at 48,599 ms the max
+  Fast/Precise channel delta is 0.030 at 50 ms frames, 0.016 at 30 fps and
+  0.093 at 60 fps, and forcing those accumulators to Fast leaves 0.0034 to
+  0.0036, one frame of 16.16 arithmetic. A Precise Timeline curve sits within 6 LSB of the
   exact value: the clock contributes at most 0.92 LSB, and the remainder is
   the curve's own 16.16 literals and divisions, not clock residual.
 - Profile interception understands supported top-level output call shapes,
