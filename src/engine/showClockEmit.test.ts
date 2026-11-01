@@ -96,6 +96,8 @@ const variable = (totalMs: number) => {
 const list = (values: number[], then: (index: number) => number | null) => (index: number) => index < values.length ? values[index] : then(index - values.length)
 
 const LOOPS = [48_600, 49_000, 15_000, 1_001, 700]
+/** The largest value a 16.16 register holds, exact in binary64. */
+const MAX_DELIVERY_MS = 32_767 + 65_535 / 65_536
 const bound = (mode: Mode) => mode === 'precise' ? PRECISE_BOUND_S : FAST_BOUND_S
 
 describe.each(['fast', 'precise'] as const)('Show clock tracks the exact delta sum (%s)', (mode) => {
@@ -117,6 +119,36 @@ describe.each(['fast', 'precise'] as const)('Show clock tracks the exact delta s
       expect(result.outOfRange).toBe(0)
     }
   }, 120_000)
+
+  // Deliveries whose sum with the ms accumulator passes the 16.16 range (#1204
+  // review P1): the accumulator sits at 999 ms, then the delivery is the largest
+  // in-range sum (31,768 ms), the first sum past 32,767 (31,769 ms), or the
+  // largest 16.16 value; 900 then 32,000 ms is the reviewer's case.
+  it.each(LOOPS)('loop %d ms: deliveries whose sum with the accumulator passes 32,767 ms', (loopMs) => {
+    const advance = emitShowClockAdvance({ loopMs, wraps: { name: 'h_wraps', declare: false } })
+    for (const values of [[999, 31_768], [999, 31_769], [999, MAX_DELIVERY_MS], [900, 32_000], [32_000, 15_999, 32_000], [999, MAX_DELIVERY_MS, 999, MAX_DELIVERY_MS]]) {
+      const result = run(mode, advance, loopMs, list(values, fixed(1000 / 60, loopMs)))
+      expect(result.maxError.le(bound(mode)), `${loopMs} ms after ${values}: max error ${result.maxError.toNumber()} s`).toBe(true)
+      expect(result.outOfRange).toBe(0)
+    }
+  }, 120_000)
+
+  it('reads 32.9 s after 900 then 32,000 ms on the 48,600 ms loop (review P1)', () => {
+    const result = run(mode, emitShowClockAdvance({ loopMs: 48_600 }), 48_600, list([900, 32_000], () => null))
+    const expected = mode === 'precise' ? Math.round(32.9 * 65536) : 32 + 900 / 1000
+    expect(result.registerAtEnd).toBe(expected)
+  })
+
+  it('a delivery crossing the loop point lands past it and counts one wrap', () => {
+    // 32,000 + 15,999 + 32,000 ms on the 48,600 ms loop is 31,399 ms into the
+    // next pass, and 999 + 32,000 ms passes 32,767 before the carry.
+    const advance = emitShowClockAdvance({ loopMs: 48_600, wraps: { name: 'h_wraps', declare: false } })
+    const { handle, fns, enc } = load(mode, program(advance))
+    for (const delta of [32_000, 15_999, 32_000]) fns.h_frame(enc(delta))
+    const state = handle.getRuntimeState() as Record<string, number>
+    expect(state.__pxlblz_show_elapsed_s).toBe(mode === 'precise' ? Math.round(31.399 * 65536) : 31 + 399 / 1000)
+    expect(state.h_wraps).toBe(mode === 'precise' ? 65536 : 1)
+  })
 
   it('non-looping clock stays exact over 486 s', () => {
     const result = run(mode, emitShowClockAdvance(), undefined, fixed(1000 / 60, 486_000))

@@ -7,7 +7,9 @@
 // whole seconds plus a millisecond accumulator in [0, 1000): summing `delta` in
 // milliseconds is exact in 16.16, carries and loop wraps use exact comparison and
 // subtraction, and the seconds value is derived with one rounding per frame.
-// Every intermediate stays below 32,767, so the 32,767 s horizon is unchanged.
+// The accumulator gives up 1,000 ms before the delivery is added, so the sum
+// stays in [-1000, 31768) for any 16.16 delivery and no intermediate passes
+// 32,767; the 32,767 s horizon is unchanged.
 
 /** 2^-16, exact in binary64 and 16.16. */
 const ONE_LSB = '0.0000152587890625'
@@ -36,11 +38,13 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
     // The register is s + ms / 1000 rounded once, so subtracting the same
     // quotient recovers s exactly; + 0.5 tolerates any sub-half-second write.
     `var ${s} = floor(__pxlblz_show_elapsed_s - ${ms} / 1000 + 0.5)`,
-    `${ms} = ${ms} + delta`,
-    `while (${ms} >= 1000) {`,
+    // ms + delta can pass 32,767 (999 + 31,769); ms - 1000 + delta cannot.
+    `${ms} = ${ms} - 1000 + delta`,
+    `while (${ms} >= 0) {`,
     `  ${ms} = ${ms} - 1000`,
     `  ${s} = ${s} + 1`,
     '}',
+    `${ms} = ${ms} + 1000`,
   ]
   const wraps = options.wraps
   if (wraps) lines.push(`${wraps.declare ? 'var ' : ''}${wraps.name} = 0`)
