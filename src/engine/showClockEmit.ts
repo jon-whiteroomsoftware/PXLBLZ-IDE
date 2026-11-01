@@ -7,15 +7,25 @@
 // whole seconds plus a millisecond accumulator in [0, 1000): summing `delta` in
 // milliseconds is exact in 16.16, carries and loop wraps use exact comparison and
 // subtraction, and the seconds value is derived with one rounding per frame.
-// The accumulator gives up 1,000 ms before the delivery is added, so the sum
-// stays in [-1000, 31768) for any 16.16 delivery; whole seconds likewise give
-// up the loop's whole seconds before the carry. No intermediate passes 32,767
-// for a loop up to 32,767 s, the unchanged horizon.
+//
+// Domain: any 16.16 delivery in [0, 32,767.99998] ms; no loop, or any loop
+// whose literal 16.16 holds (1 ms to 32,767,999 ms; authoring sets no ceiling).
+// Ranges over that domain, L the loop's whole seconds (shift L when L > 0):
+//   ms - 1000 + delta      [-1000, 31,768)    ms gives up 1,000 before the add
+//   carries per frame      [0, 32]
+//   s - L + carries        [-L, 32]           shifted seconds before the wrap
+//   wrap borrow (s - 1)    >= -L              a borrow follows s >= 1
+//   s after the wrap       [0, L], register   [0, loop)
+//   wraps per frame        <= 1 + 32,768 / loop ms: 33 for loops >= 1 s and
+//                          32,768 at 1 ms, so a count that can pass 32,767 saturates
+// Full table and sweep: proof-1204.md, `showClockEmit.test.ts` "domain sweep".
 
 /** 2^-16, exact in binary64 and 16.16. */
 const ONE_LSB = '0.0000152587890625'
 /** Largest whole value a 16.16 register holds. */
 const MAX_16_16_INTEGER = 32_767
+/** Largest value a 16.16 register holds. */
+const MAX_16_16 = MAX_16_16_INTEGER + 65_535 / 65_536
 
 export const SHOW_CLOCK_MS = '__pxlblz_show_clock_ms'
 export const SHOW_CLOCK_MS_DECLARATION = `var ${SHOW_CLOCK_MS} = 0`
@@ -42,10 +52,10 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
   // A loop past the 16.16 range has a literal that wraps negative under
   // Precise, so a `while` would never exit. One wrap per frame is the most
   // such a loop can need for any in-range delta.
-  const inRange = loopMs === undefined || loopMs / 1000 <= MAX_16_16_INTEGER
+  const inRange = loopMs === undefined || loopMs / 1000 <= MAX_16_16
   // Whole seconds give up the loop's whole seconds before the carry, as ms gives
-  // up 1,000: s - loopS + carries stays in [-loopS, 33] and a wrap's borrow at
-  // least -loopS - 1, so a loop up to 32,767 s never passes the 16.16 range.
+  // up 1,000: s - loopS + carries stays in [-loopS, 32], and a borrow follows
+  // s >= 1, so it is at least -loopS.
   const shift = loopMs !== undefined && inRange && loopS > 0 ? loopS : 0
   const lines = [
     // The register is s + ms / 1000 rounded once, so subtracting the same
@@ -62,7 +72,13 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
   const wraps = options.wraps
   if (wraps) lines.push(`${wraps.declare ? 'var ' : ''}${wraps.name} = 0`)
   if (loopMs !== undefined) {
-    const wrapCount = wraps ? [`  ${wraps.name} = ${wraps.name} + 1`] : []
+    // A frame wraps at most 1 + 32,768 / loopMs times (a position below the
+    // loop plus the largest delivery). Past 32,767 the count would wrap
+    // negative and read as no wrap, so it saturates instead (a 1 ms loop).
+    const saturate = 1 + (MAX_16_16_INTEGER + 1) / loopMs > MAX_16_16_INTEGER
+    const wrapCount = wraps
+      ? [`  ${saturate ? `if (${wraps.name} < ${MAX_16_16_INTEGER}) ` : ''}${wraps.name} = ${wraps.name} + 1`]
+      : []
     const wrap = inRange ? 'while' : 'if'
     // Seconds compared with the loop's whole seconds, in shifted terms.
     const whole = loopS - shift

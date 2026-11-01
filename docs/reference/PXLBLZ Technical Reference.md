@@ -1384,12 +1384,15 @@ linearly. Under Precise that clock ran 11.9 ms late per 48.6 s loop at
 `showClockEmit.ts` instead keeps whole seconds plus a [0, 1000) ms
 accumulator, adds each delivery as `ms - 1000 + delta` so the sum stays in
 16.16 range for any delivery, carries whole seconds shifted down by the loop's
-whole seconds so a loop up to 32,767 s stays in range, carries and wraps by
-exact comparison, and derives
+whole seconds so every loop whose literal 16.16 holds (to 32,767,999 ms)
+stays in range, carries and wraps by exact comparison, and derives
 `__pxlblz_show_elapsed_s` with one rounding, held one step below the loop
 literal. Every Show clock site and the step-calendar prelude use it. The
 register stays within half a step of the exact sum of delivered deltas
 modulo the loop (1.5 steps on a held frame), with no growth across loops.
+The per-frame wrap count is exact up to 32,767. Only a 1 ms loop can wrap
+more often in one frame (up to 32,768 times), and its count saturates at
+32,767 rather than wrapping negative.
 Member private clocks still advance by `scaledDelta / 1000`; see the
 accepted divergences in §31.
 

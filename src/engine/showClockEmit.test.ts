@@ -5,7 +5,7 @@ import { Q } from '../test/showStepCalendarOracle'
 import { bundle } from './bundle'
 import { loadPattern } from './loadPattern'
 import { createFxShim, createShim, planeShimConfig } from './shim'
-import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
+import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
 
 type Mode = 'fast' | 'precise'
 const LEGACY = (loopMs: number) => `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopMs / 1000}`
@@ -171,6 +171,91 @@ describe.each(['fast', 'precise'] as const)('Show clock tracks the exact delta s
   }, 120_000)
 })
 
+// Domain sweep (#1204 eng-lead decision 9). Every loop class, from every state
+// extreme, under every delivery extreme and the two-frame pairs with the largest
+// delivery. Loops are whole ms (V2 Show End is a safe integer, legacy durations
+// are rounded) with no authored ceiling, so the domain runs from 1 ms to
+// 32,767,999 ms, the longest loop whose literal 16.16 holds. The wrapping shim
+// turns an overflow anywhere into a wrong clock, count or range.
+const ONE_LSB_MS = 1 / 65_536
+/** The longest supported clock: a non-looping clock whose largest delivery still fits. */
+const NONE_MAX_S = 32_767 - 33
+const SWEEP_LOOPS: (number | undefined)[] = [undefined, 1, 700, 999, 1_000, 49_000, 1_001, 48_600, 32_767_000, 32_767_999]
+const SWEEP_DELIVERIES = [0, ONE_LSB_MS, 999, 1_000, 31_768, 32_000, MAX_DELIVERY_MS]
+const WRAP_COUNT_MAX = 32_767
+const MAX_16_16_INTEGER_S = 32_767
+
+function sweepStates(loopMs: number | undefined): { s: number; ms: number }[] {
+  const lastS = loopMs === undefined ? NONE_MAX_S : Math.ceil(loopMs / 1000) - 1
+  const remainderMs = loopMs === undefined ? 0 : loopMs % 1000
+  const states = [0, lastS].flatMap(s => [0, 1000 - ONE_LSB_MS, ...(remainderMs ? [remainderMs - ONE_LSB_MS] : [])].map(ms => ({ s, ms })))
+  const reachable = states.filter(({ s, ms }) => loopMs === undefined || s * 1000 + ms < loopMs)
+  return reachable.filter((state, index) => reachable.findIndex(other => other.s === state.s && other.ms === state.ms) === index)
+}
+
+function sweepSequences(): number[][] {
+  return SWEEP_DELIVERIES.flatMap(delta => [[delta], [delta, MAX_DELIVERY_MS], [MAX_DELIVERY_MS, delta]])
+}
+
+function sweepProgram(loopMs: number | undefined): string {
+  const hold = loopMs === undefined ? '' : `\n  ${SHOW_CLOCK_LOOP_HOLD}${loopMs / 1000}) __pxlblz_show_elapsed_s = ${loopMs / 1000} - 0.0000152587890625`
+  return program(emitShowClockAdvance({ ...(loopMs === undefined ? {} : { loopMs }), wraps: { name: 'h_wraps', declare: false } })).replace(
+    'export function beforeRender',
+    // The state as the advance leaves it: ms, then the register derived once.
+    `function h_set(s, ms) {
+  __pxlblz_show_clock_ms = ms
+  __pxlblz_show_elapsed_s = s + ms / 1000${hold}
+}
+export function beforeRender`,
+  )
+}
+
+interface SweepFailure { loopMs: number | undefined; start: string; deltas: number[]; frame: number; reason: string }
+
+function sweep(mode: Mode, loopMs: number | undefined): SweepFailure[] {
+  const { handle, fns, enc } = load(mode, sweepProgram(loopMs))
+  const L = loopMs === undefined ? null : Q.int(loopMs)
+  const failures: SweepFailure[] = []
+  for (const { s, ms } of sweepStates(loopMs)) {
+    for (const deltas of sweepSequences()) {
+      // A clock with no loop is defined up to its 32,768 s horizon.
+      if (!L && s * 1000 + ms + deltas.reduce((sum, delta) => sum + delta, 0) >= (MAX_16_16_INTEGER_S + 1) * 1000 - 1) continue
+      fns.h_set(enc(s), enc(ms))
+      let position = Q.int(s * 1000).add(deliveredMs(mode, ms, enc))
+      deltas.forEach((delta, frame) => {
+        fns.h_frame(enc(delta))
+        position = position.add(deliveredMs(mode, delta, enc))
+        const state = handle.getRuntimeState() as Record<string, number>
+        const register = registerS(mode, state.__pxlblz_show_elapsed_s)
+        const wraps = mode === 'precise' ? state.h_wraps / 65_536 : state.h_wraps
+        const fail = (reason: string) => failures.push({ loopMs, start: `${s} s + ${ms} ms`, deltas, frame, reason })
+        // Exact modular sum: wraps = floor(position / L), register = the remainder.
+        const exactWraps = L ? position.div(L).floor() : 0n
+        if (L && (register.lt(Q.int(0)) || register.ge(L.div(Q.int(1000))))) fail(`register ${register.toNumber()} s outside the loop`)
+        // A 16.16 count holds at most 32,767 wraps; only a 1 ms loop can need more.
+        const countable = exactWraps <= BigInt(WRAP_COUNT_MAX)
+        const expectedWraps = countable ? exactWraps : BigInt(WRAP_COUNT_MAX)
+        // The unwrapped position judges count and register together, so a binary64
+        // sum a few ulps either side of the loop point stays one instant.
+        const unwrapped = register.add(L ? L.mul(Q.int(countable ? BigInt(wraps) : exactWraps)).div(Q.int(1000)) : Q.int(0))
+        const error = unwrapped.sub(position.div(Q.int(1000)))
+        const magnitude = error.lt(Q.int(0)) ? Q.int(0).sub(error) : error
+        if (magnitude.gt(bound(mode))) fail(`clock ${register.toNumber()} s with ${wraps} wraps, exact ${position.toNumber() / 1000} s (${exactWraps} wraps)`)
+        if (!countable && BigInt(wraps) !== expectedWraps) fail(`wrap count ${wraps}, expected the saturated ${expectedWraps}`)
+        position = L ? position.sub(L.mul(Q.int(exactWraps))) : position
+      })
+    }
+  }
+  return failures
+}
+
+describe.each(['fast', 'precise'] as const)('domain sweep: the clock equals the exact modular sum (%s)', (mode) => {
+  it.each(SWEEP_LOOPS.map(loopMs => [loopMs === undefined ? 'none' : `${loopMs} ms`, loopMs] as const))('loop %s', (_label, loopMs) => {
+    const failures = sweep(mode, loopMs)
+    expect(failures.slice(0, 5), `${failures.length} failures`).toEqual([])
+  }, 120_000)
+})
+
 describe('fault sensitivity', () => {
   it('the pre-#1204 emission fails the same oracle in Precise (rounding accumulates per frame)', () => {
     // advanceTo(48_599, { stepMs: 50 }): 971 steps of 50 ms, then 49 ms.
@@ -235,11 +320,25 @@ export function beforeRender`,
   })
 })
 
+describe('wrap count', () => {
+  it('saturates at 32,767 only where a frame can wrap more often (#1204 round 2 P2)', () => {
+    const w = { name: 'w', declare: true }
+    expect(emitShowClockAdvance({ loopMs: 1, wraps: w })).toContain('if (w < 32767) w = w + 1')
+    expect(emitShowClockAdvance({ loopMs: 2, wraps: w })).not.toContain('if (w < 32767)')
+    expect(emitShowClockAdvance({ loopMs: 48_600, wraps: w })).not.toContain('if (w < 32767)')
+  })
+})
+
 describe('loops past the 16.16 range', () => {
   it('wrap with `if`, because the loop literal itself wraps negative under Precise', () => {
     expect(emitShowClockAdvance({ loopMs: 32_767_000 })).toContain('while (__pxlblz_show_clock_s >= 0)')
     expect(emitShowClockAdvance({ loopMs: 32_768_000 })).toContain('if (__pxlblz_show_clock_s >= 32768)')
     expect(emitShowClockAdvance({ loopMs: 40_000_500 })).toContain('if (__pxlblz_show_clock_s > 40000 ||')
+  })
+
+  it('start past the longest loop whose literal 16.16 holds', () => {
+    expect(emitShowClockAdvance({ loopMs: 32_767_999 })).toContain('while (__pxlblz_show_clock_s > 0 ||')
+    expect(emitShowClockAdvance({ loopMs: 32_767_999 })).toContain('floor(__pxlblz_show_elapsed_s - __pxlblz_show_clock_ms / 1000 + 0.5) - 32767')
   })
 
   it('terminate a Precise frame for an out-of-range loop', () => {
