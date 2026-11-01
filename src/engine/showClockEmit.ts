@@ -11,6 +11,8 @@
 
 /** 2^-16, exact in binary64 and 16.16. */
 const ONE_LSB = '0.0000152587890625'
+/** Largest whole value a 16.16 register holds. */
+const MAX_16_16_INTEGER = 32_767
 
 export const SHOW_CLOCK_MS = '__pxlblz_show_clock_ms'
 export const SHOW_CLOCK_MS_DECLARATION = `var ${SHOW_CLOCK_MS} = 0`
@@ -48,11 +50,15 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
     const loopS = Math.floor(loopMs / 1000)
     const loopRemainderMs = loopMs - loopS * 1000
     const wrapCount = wraps ? [`  ${wraps.name} = ${wraps.name} + 1`] : []
+    // A loop past the 16.16 range has a literal that wraps negative under
+    // Precise, so a `while` would never exit. One wrap per frame is the most
+    // such a loop can need for any in-range delta.
+    const wrap = loopMs / 1000 > MAX_16_16_INTEGER ? 'if' : 'while'
     if (loopRemainderMs === 0) {
-      lines.push(`while (${s} >= ${loopS}) {`, `  ${s} = ${s} - ${loopS}`, ...wrapCount, '}')
+      lines.push(`${wrap} (${s} >= ${loopS}) {`, `  ${s} = ${s} - ${loopS}`, ...wrapCount, '}')
     } else {
       lines.push(
-        `while (${s} > ${loopS} || (${s} == ${loopS} && ${ms} >= ${loopRemainderMs})) {`,
+        `${wrap} (${s} > ${loopS} || (${s} == ${loopS} && ${ms} >= ${loopRemainderMs})) {`,
         ...(loopS > 0 ? [`  ${s} = ${s} - ${loopS}`] : []),
         `  ${ms} = ${ms} - ${loopRemainderMs}`,
         `  if (${ms} < 0) {`,
@@ -69,10 +75,25 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
   // next second, or to the literal's own rounded fraction). No segment owns the
   // loop point, so hold the register one 16.16 step below it.
   if (loopMs !== undefined) {
-    lines.push(`if (__pxlblz_show_elapsed_s >= ${loopMs / 1000}) __pxlblz_show_elapsed_s = ${loopMs / 1000} - ${ONE_LSB}`)
+    lines.push(`${SHOW_CLOCK_LOOP_HOLD}${loopMs / 1000}) __pxlblz_show_elapsed_s = ${loopMs / 1000} - ${ONE_LSB}`)
   }
   return lines.join(`\n${options.indent ?? '  '}`)
 }
+
+/**
+ * A Show instant written as the advance derives the register, so the clock at
+ * exactly `atMs` equals it bit for bit in Fast and Precise. A decimal literal
+ * would differ by one binary64 ulp on a round-to-even tie of `s + ms / 1000`.
+ */
+export function emitShowClockInstant(atMs: number): string {
+  const wholeS = Math.floor(atMs / 1000)
+  const remainderMs = atMs - wholeS * 1000
+  if (remainderMs === 0) return `${wholeS}`
+  return wholeS === 0 ? `${remainderMs} / 1000` : `${wholeS} + ${remainderMs} / 1000`
+}
+
+/** Leading text of the loop-point hold, the advance's last statement. */
+export const SHOW_CLOCK_LOOP_HOLD = 'if (__pxlblz_show_elapsed_s >= '
 
 /** Clock position in ms after the advance, for post-wrap delta delivery. */
 export const SHOW_CLOCK_POSITION_MS = `${SHOW_CLOCK_WHOLE_S} * 1000 + ${SHOW_CLOCK_MS}`

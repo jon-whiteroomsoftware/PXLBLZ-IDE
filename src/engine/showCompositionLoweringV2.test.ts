@@ -24,6 +24,7 @@ import { applyShowCommandV2 } from './showCommandsV2/registry'
 import { materializeShowGroupsV2 } from './showGroupsV2'
 import { showAnimationCommandFixture } from '../test/showAnimationCommandFixture'
 import { showSplitClipFixture } from '../test/showSplitClipFixture'
+import { SHOW_CLOCK_MS } from './showClockEmit'
 import type { MapPoint } from './maps/types'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
 
@@ -93,8 +94,9 @@ function reopenedRestartScheduler(
   fidelity: 'fast' | 'fidelity',
   restartEvents: number[],
   withHiddenGap = false,
+  loopDurationMs?: number,
 ) {
-  const artifact = restartSchedulerArtifact(policy, restartEvents, withHiddenGap)
+  const artifact = restartSchedulerArtifact(policy, restartEvents, withHiddenGap, loopDurationMs)
   const reopened = parseEpe(exportShowEpeV2ForTest(convertibleV2Record(), artifact.code).text)
   const runtime = createFastReplayRuntime({
     code: reopened.src,
@@ -124,12 +126,43 @@ function decodedScalar(value: unknown, fidelity: 'fast' | 'fidelity'): number {
   return Number(value) / (fidelity === 'fidelity' ? 65_536 : 1)
 }
 
+/**
+ * The exact Show clock at `positionMs` into its loop, as the emitted advance
+ * derives it: whole seconds plus `ms / 1000`, rounded once (#1204).
+ */
+function exactShowClock(positionMs: number, fidelity: 'fast' | 'fidelity'): number {
+  const wholeS = Math.floor(positionMs / 1_000)
+  const remainderMs = positionMs - wholeS * 1_000
+  return fidelity === 'fidelity'
+    ? fx.add(fx.fromFloat(wholeS), fx.div(fx.fromFloat(remainderMs), fx.fromFloat(1_000)))
+    : wholeS + remainderMs / 1_000
+}
+
+/**
+ * Compacted name of the clock's ms accumulator. It is not a Pattern variable,
+ * so it has no metadata binding; read it from the advance's whole-seconds
+ * recovery, `floor(<elapsed> - <ms> / 1000 + 0.5)`.
+ */
+function showClockMsBinding(artifact: { code: string; metadata: { patternVarBindings?: Record<string, string> } }): string {
+  const elapsed = artifact.metadata.patternVarBindings?.__pxlblz_show_elapsed_s ?? '__pxlblz_show_elapsed_s'
+  const escaped = elapsed.replace(/[$]/g, '\\$&')
+  const match = new RegExp(`floor\\(${escaped} - ([A-Za-z_$][\\w$]*) / 1000 \\+ 0\\.5\\)`).exec(artifact.code)
+  if (!match) throw new Error(`No ${SHOW_CLOCK_MS} advance found in the artifact.`)
+  return match[1]
+}
+
 async function runGeneratedRestartProgress(
   source: string,
   sampleBinding: string,
   elapsedBinding: string,
   fidelity: 'fast' | 'fidelity' = 'fast',
-  options: { deltaMs?: number; initialElapsedSeconds?: number; warmupDeltaMs?: number } = {},
+  options: {
+    deltaMs?: number
+    initialElapsedSeconds?: number
+    /** Compacted name of the millisecond accumulator; required with initialElapsedSeconds. */
+    clockMsBinding?: string
+    warmupDeltaMs?: number
+  } = {},
 ): Promise<{
   elapsed: number
   randomCalls: number
@@ -186,7 +219,10 @@ async function runGeneratedRestartProgress(
     eval(workerData.source.replace(/\\bexport\\s+/g, ''))
     if (workerData.warmupDeltaMs !== undefined) beforeRender(encode(workerData.warmupDeltaMs))
     if (workerData.initialElapsedSeconds !== undefined) {
+      // The clock is whole seconds recovered from the register plus the ms
+      // accumulator (#1204), so seed both as one consistent state.
       eval(workerData.elapsedBinding + ' = encode(workerData.initialElapsedSeconds)')
+      eval(workerData.clockMsBinding + ' = encode(workerData.initialClockMs)')
     }
     beforeRender(encode(workerData.deltaMs))
     render(encode(0))
@@ -198,6 +234,9 @@ async function runGeneratedRestartProgress(
       pixel: captured[0],
     })
   `
+  if (options.initialElapsedSeconds !== undefined && options.clockMsBinding === undefined) {
+    throw new Error('Seeding the Show clock register needs clockMsBinding as well (#1204).')
+  }
   const worker = new Worker(workerSource, {
     eval: true,
     workerData: {
@@ -208,6 +247,10 @@ async function runGeneratedRestartProgress(
       fidelity,
       deltaMs: options.deltaMs ?? 670,
       initialElapsedSeconds: options.initialElapsedSeconds,
+      clockMsBinding: options.clockMsBinding,
+      initialClockMs: options.initialElapsedSeconds === undefined
+        ? undefined
+        : Math.round((options.initialElapsedSeconds - Math.floor(options.initialElapsedSeconds)) * 1e9) / 1e6,
       warmupDeltaMs: options.warmupDeltaMs,
       fxMethods: Object.entries(fx).map(([name, implementation]) => [name, implementation.toString()]),
     },
@@ -775,15 +818,11 @@ describe('lowerShowCompositionV2ForCompile', () => {
       artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
       'fidelity',
     )
-    const deltaSeconds = fx.div(fx.fromFloat(670), fx.fromFloat(1000))
-    const loopDuration = fx.fromFloat(0.1)
-    const expectedElapsed = fx.sub(deltaSeconds, fx.mul(fx.fromFloat(6), loopDuration))
-    // The 16.16 clock rounds 670 ms to 43,909 ticks and 100 ms to 6,554
-    // ticks. Six complete loops therefore leave exactly 4,585 ticks.
-    expect(deltaSeconds).toBe(43_909)
-    expect(loopDuration).toBe(6_554)
-    expect(expectedElapsed).toBe(4_585)
-    expect(result.elapsed).toBe(expectedElapsed)
+    // The clock wraps 670 ms in whole milliseconds and rounds the remaining
+    // 70 ms once: 4,588 ticks. Subtracting six rounded 100 ms loops (6,554
+    // ticks each) from a rounded 670 ms (43,909) would leave 4,585 (#1204).
+    expect(exactShowClock(70, 'fidelity')).toBe(4_588)
+    expect(result.elapsed).toBe(exactShowClock(70, 'fidelity'))
     expect(result.randomCalls).toBe(14)
     expect(result.lastRandom).toBe(fx.fromFloat(seededRandomDraw('fidelity', 14)))
     expect(result.sample).toBe(result.lastRandom)
@@ -806,18 +845,14 @@ describe('lowerShowCompositionV2ForCompile', () => {
       artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
       artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
       fidelity,
-      { deltaMs, initialElapsedSeconds },
+      {
+        deltaMs,
+        initialElapsedSeconds,
+        clockMsBinding: showClockMsBinding(artifact),
+      },
     )
-    const expectedElapsed = fidelity === 'fidelity'
-      ? fx.mod(
-          fx.add(
-            fx.fromFloat(initialElapsedSeconds),
-            fx.div(fx.fromFloat(deltaMs), fx.fromFloat(1_000)),
-          ),
-          fx.fromFloat(loopDurationMs / 1_000),
-        )
-      : (initialElapsedSeconds + deltaMs / 1_000) % (loopDurationMs / 1_000)
-    expect(result.elapsed).toBe(expectedElapsed)
+    // 16,383,990 + 20 ms wraps the 16,384,000 ms loop to exactly 10 ms.
+    expect(result.elapsed).toBe(exactShowClock(16_383_990 + deltaMs - loopDurationMs, fidelity))
     expect(result.randomCalls).toBe(1)
     const expectedSample = seededRandomDraw(fidelity, 1)
     expect(result.lastRandom).toBe(fidelity === 'fidelity' ? fx.fromFloat(expectedSample) : expectedSample)
@@ -843,17 +878,15 @@ describe('lowerShowCompositionV2ForCompile', () => {
         artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
         artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
         fidelity,
-        { warmupDeltaMs: 16, deltaMs: 20, initialElapsedSeconds },
+        {
+          warmupDeltaMs: 16,
+          deltaMs: 20,
+          initialElapsedSeconds,
+          clockMsBinding: showClockMsBinding(artifact),
+        },
       )
-      const expectedElapsed = fidelity === 'fidelity'
-        ? fx.mod(
-            fx.add(
-              fx.fromFloat(initialElapsedSeconds),
-              fx.div(fx.fromFloat(20), fx.fromFloat(1_000)),
-            ),
-            fx.fromFloat(durationSeconds),
-          )
-        : (initialElapsedSeconds + 0.02) % durationSeconds
+      // 10 ms before the end plus 20 ms lands exactly 10 ms into the next loop.
+      const expectedElapsed = exactShowClock(10, fidelity)
       const expectedSample = seededRandomDraw(fidelity, 2)
       expect(result.elapsed).toBe(expectedElapsed)
       expect(result.randomCalls).toBe(2)
@@ -893,32 +926,35 @@ describe('lowerShowCompositionV2ForCompile', () => {
     },
   )
 
-  it.each([
-    { policy: 'continuous' as const, expectedDraws: 20 },
-    { policy: 'deterministic-loop' as const, expectedDraws: 1 },
-  ])(
-    'makes bounded Precise progress through the minimum 1 ms $policy loop',
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { fidelity, policy: 'continuous' as const, expectedDraws: 20 },
+    { fidelity, policy: 'deterministic-loop' as const, expectedDraws: 0 },
+  ])))(
+    'makes bounded $fidelity progress through the minimum 1 ms $policy loop',
     { timeout: 5_000 },
-    async ({ policy, expectedDraws }) => {
+    async ({ fidelity, policy, expectedDraws }) => {
       const artifact = restartSchedulerArtifact(policy, [0], false, 1)
       const prefix = artifact.summary.clips[0].prefix
       const sampleName = `${prefix}_sample`
       const elapsedName = '__pxlblz_show_elapsed_s'
       const result = await runGeneratedRestartProgress(
-        artifact.fxCode,
+        fidelity === 'fidelity' ? artifact.fxCode : artifact.code,
         artifact.metadata.patternVarBindings?.[sampleName] ?? sampleName,
         artifact.metadata.patternVarBindings?.[elapsedName] ?? elapsedName,
-        'fidelity',
+        fidelity,
         { deltaMs: 20 },
       )
-      const deltaSeconds = fx.div(fx.fromFloat(20), fx.fromFloat(1_000))
-      const duration = fx.fromFloat(0.001)
-      expect(duration).toBe(66)
-      expect(result.elapsed).toBe(fx.mod(deltaSeconds, duration))
+      // 20 whole 1 ms loops leave the clock exactly at 0 (#1204), so the frame
+      // ends on the time-zero Restart with no time after it: the member is
+      // restarted (sample 0) and gets a zero delta. Continuous draws once per
+      // wrapped loop; deterministic-loop resets each loop and never draws.
+      // Before #1204 Precise drifted 57 ticks past 0 and the old Fast scan
+      // ended about 1e-18 s past the loop point the clock read as 0, so both
+      // drew once more after the Restart.
+      expect(result.elapsed).toBe(0)
       expect(result.randomCalls).toBe(expectedDraws)
-      const expectedSample = seededRandomDraw('fidelity', expectedDraws)
-      expect(result.sample).toBe(fx.fromFloat(expectedSample))
-      expect(result.pixel).toBe(expectedSample)
+      expect(result.sample).toBe(0)
+      expect(result.pixel).toBe(0)
     },
   )
 
@@ -954,17 +990,46 @@ describe('lowerShowCompositionV2ForCompile', () => {
       let stepped = steppedFixture.runtime.advanceLive(100)
       for (const deltaMs of [100, 100, 120]) stepped = steppedFixture.runtime.advanceLive(deltaMs)
       const expectedSample = seededRandomDraw(fidelity, expectedDraw)
-      const steppedExpectedSample = seededRandomDraw(fidelity, fidelity === 'fast' ? expectedDraw : 5)
+      const steppedExpectedSample = seededRandomDraw(fidelity, expectedDraw)
 
       expect(decodedScalar(coarse.exports[`${prefix}_sample`], fidelity)).toBe(expectedSample)
-      // In Precise mode the established seconds clock retains one 16.16 tick
-      // after two separately rounded 100 ms frames. Measure that existing
-      // arithmetic result instead of adding an epsilon policy to Restart.
+      // The exact clock (#1204) lands each 100 ms frame on the Restart, so
+      // stepped and coarse delivery visit the same Restarts in both modes.
       expect(decodedScalar(stepped.exports[`${prefix}_sample`], fidelity)).toBe(steppedExpectedSample)
       expect(decodedScalar(coarse.exports.__pxlblz_show_elapsed_s, fidelity)).toBeCloseTo(0.02, 4)
       expect(decodedScalar(stepped.exports.__pxlblz_show_elapsed_s, fidelity)).toBeCloseTo(0.02, 3)
       expect(coarse.pixels[0][0]).toBeCloseTo(expectedSample, fidelity === 'fast' ? 12 : 4)
       expect(stepped.pixels[0][0]).toBeCloseTo(steppedExpectedSample, fidelity === 'fast' ? 12 : 4)
+    },
+  )
+
+  // #1204: a Restart at t is crossed when the clock reaches t, landing exactly
+  // included. 1,118 ms is a binary64 tie: the clock reads 1 + 118 / 1000, one
+  // ulp below the literal 1.118. Oracle: on the frame that lands on the event
+  // the member has restarted with no time since (its sample is reset to 0),
+  // and the frame before it is still drawing.
+  it.each((['fast', 'fidelity'] as const).flatMap(fidelity => ([
+    { eventMs: 1_118, deltas: [1_118] },
+    { eventMs: 1_118, deltas: [559, 559] },
+    { eventMs: 1_118, deltas: [1_000, 118] },
+    { eventMs: 1_118, deltas: [...Array(69).fill(16), 14] },
+    { eventMs: 1_600, deltas: Array(32).fill(50) },
+  ].map(row => ({ ...row, fidelity, steps: row.deltas.length })))))(
+    'crosses a Restart the clock lands on exactly at $eventMs ms over $steps frames in $fidelity mode',
+    ({ fidelity, eventMs, deltas }) => {
+      const { artifact, runtime } = reopenedRestartScheduler('continuous', fidelity, [eventMs], false, 2_000)
+      const prefix = artifact.summary.clips[0].prefix
+      let result = runtime.advanceLive(deltas[0])
+      for (const deltaMs of deltas.slice(1, -1)) result = runtime.advanceLive(deltaMs)
+      if (deltas.length > 1) {
+        expect(decodedScalar(result.exports[`${prefix}_sample`], fidelity), 'drawing before the event').not.toBe(0)
+        result = runtime.advanceLive(deltas[deltas.length - 1])
+      }
+      expect(decodedScalar(result.exports.__pxlblz_show_elapsed_s, fidelity))
+        .toBe(decodedScalar(exactShowClock(eventMs, fidelity), fidelity))
+      expect(decodedScalar(result.exports[`${prefix}_sample`], fidelity), 'restarted on the landing frame').toBe(0)
+      // The next frame draws again from the restarted member.
+      expect(decodedScalar(runtime.advanceLive(10).exports[`${prefix}_sample`], fidelity)).not.toBe(0)
     },
   )
 
@@ -2278,8 +2343,9 @@ describe('section restriction beside a whole-output Transition (#1103)', () => {
   })
 
   it('keeps the generated source of a record whose pieces already fit', () => {
-    // Pinned on the code before #1103; re-pinned when track time moved to seconds (#1197).
-    expect(generatedHash(animationRecord())).toBe('593c352ba92800e26ee0a50cb93fd5d35c09c96f4422c0c2c70794eacef40dbd')
+    // Pinned on the code before #1103; re-pinned when track time moved to seconds (#1197),
+    // and when the Show clock advance became exact (#1204: only clock emission changed).
+    expect(generatedHash(animationRecord())).toBe('ea93728a416c406531fa3ca7c46c8fb3c58f1ed1deb0d3c89864cc27044a32bc')
   })
 
   it('keeps compiler vocabulary out of user-facing preparation refusals (#1043)', () => {

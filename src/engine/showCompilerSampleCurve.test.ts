@@ -26,3 +26,19 @@ it.each(['fast', 'fidelity'] as const)('reopened sample descriptor preserves ori
     expect(Math.floor(frame[0] * 255), `display@${time}`).toBe(Math.floor(expected * 255))
   }
 })
+
+it('updates the sample remap from the held clock, after the advance has finished (#1204)', () => {
+  const recipe: ShowRecipe = {
+    clips: ['first', 'second'].map(id => ({ id, source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' })),
+    sceneSequence: { scenes: [{ clipId: 'first', holdMs: 24_300, transitionOut: { kind: 'cut', durationMs: 0 } }, { clipId: 'second', holdMs: 24_300 }] },
+    samplePropertyRamps: { repeatScale: { initial: 1, ramps: [{ atMs: 0, from: 1, to: 2, durationMs: 48_600, easing: { curve: 'linear' } }] } },
+  }
+  const lines = compileShow(recipe, {}).expandedCode.split('\n').map(line => line.trim())
+  const derive = lines.findIndex(line => line.startsWith('__pxlblz_show_elapsed_s = __pxlblz_show_clock_s + __pxlblz_show_clock_ms / 1000'))
+  expect(derive).toBeGreaterThan(0)
+  // The advance's last statement holds the register below the loop point; the
+  // remap must read the held value, so it runs on the next line, not between.
+  expect(lines[derive + 1]).toBe('if (__pxlblz_show_elapsed_s >= 48.6) __pxlblz_show_elapsed_s = 48.6 - 0.0000152587890625')
+  expect(lines[derive + 2]).toBe('__pxlblz_show_update_sample_remap()')
+  expect(lines.filter(line => line === '__pxlblz_show_update_sample_remap()')).toHaveLength(1)
+})

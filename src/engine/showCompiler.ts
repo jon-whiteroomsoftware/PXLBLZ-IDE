@@ -16,7 +16,7 @@ import {
   stepCalendarResetLines,
   type StepCalendarSpec,
 } from './showStepClockEmit'
-import { emitShowClockAdvance, SHOW_CLOCK_MS_DECLARATION, SHOW_CLOCK_POSITION_MS } from './showClockEmit'
+import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_LOOP_HOLD, SHOW_CLOCK_MS_DECLARATION, SHOW_CLOCK_POSITION_MS } from './showClockEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
@@ -5167,8 +5167,14 @@ ${indentBlock(restartMemberResetLines(member).join('\n'), 2)}
 ${indentBlock([...restartMemberResetLines(member), ...memberSlotOwnerResetLines(member)].join('\n'), 2)}
 }`)
     : []
-  const restartCrossingPrelude = restartMembers.length === 0 ? '' : `var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s
-  var __pxlblz_show_restart_path_delta_s = delta / 1000`
+  const restartCrossingPrelude = restartMembers.length === 0 ? '' : 'var __pxlblz_show_restart_previous_s = __pxlblz_show_elapsed_s'
+  // The Restart scan walks the clock's own path (#1204): one pass per loop wrap
+  // the advance counted, then a final pass ending at the advanced register.
+  // Event instants use the register's derivation, so a clock landing exactly on
+  // an event equals it in Fast and Precise alike.
+  const clockWraps = deterministicLoopReset
+    ? '__pxlblz_show_loop_wrapped'
+    : stepCalendars.size > 0 ? '__pxlblz_show_wraps' : '__pxlblz_show_restart_wraps'
   const loopAdvancePrelude = deterministicLoopReset ? `${emitShowClockAdvance({ loopMs: totalMs, wraps: { name: '__pxlblz_show_loop_wrapped', declare: true } })}
   if (__pxlblz_show_loop_wrapped) {
 ${indentBlock(loopResetLines.join('\n'), 4)}
@@ -5177,7 +5183,10 @@ ${indentBlock(loopResetLines.join('\n'), 4)}
 ${continuityMembers.map((member) => `  ${advancedFlag(member)} = 0`).join('\n')}` : ''}`
     : stepCalendars.size > 0
       ? emitStepCalendarLoopPrelude(totalMs, calendarPrefixes)
-      : emitShowClockAdvance({ loopMs: totalMs })
+      : emitShowClockAdvance({
+        loopMs: totalMs,
+        ...(restartMembers.length > 0 ? { wraps: { name: clockWraps, declare: true } } : {}),
+      })
   const hiddenContinuityFunction = continuityMembers.length > 0
     ? `function __pxlblz_show_advance_hidden_instances(delta) {
 ${continuityMembers.map((member) => {
@@ -5361,12 +5370,11 @@ ${segmentBlocks}
     const eventTarget = `${member.prefix}_restart_event_s`
     const scanCursor = `${member.prefix}_restart_scan_cursor_s`
     const advanceCursor = `${member.prefix}_restart_advance_cursor_s`
-    const remaining = `${member.prefix}_restart_path_remaining_s`
+    const wrapsLeft = `${member.prefix}_restart_scan_wraps`
     const pending = `${member.prefix}_restart_pending_s`
-    const distanceToEnd = `${member.prefix}_restart_scan_distance_to_end_s`
-    const passDelta = `${member.prefix}_restart_scan_pass_delta_s`
+    const scanning = `${member.prefix}_restart_scanning`
     const passEnd = `${member.prefix}_restart_scan_pass_end_s`
-    const eventBlocks = events.map(event => `    ${eventTarget} = ${event.atMs / 1_000}
+    const eventBlocks = events.map(event => `    ${eventTarget} = ${emitShowClockInstant(event.atMs)}
     if (${scanCursor} < ${eventTarget} && ${eventTarget} <= ${passEnd}) {
       ${pending} = ${pending} + ${eventTarget} - ${scanCursor}
       ${advanceCursor} = ${member.prefix}_restart_advance_by(${advanceCursor}, ${pending})
@@ -5389,23 +5397,22 @@ ${segmentBlocks}
   var ${scanCursor} = __pxlblz_show_restart_previous_s
   var ${advanceCursor} = __pxlblz_show_restart_previous_s
   var ${member.prefix}_restart_crossed = 0
-${initialZero}  var ${remaining} = __pxlblz_show_restart_path_delta_s
+${initialZero}  var ${wrapsLeft} = ${clockWraps}
   var ${pending} = 0
-  var ${distanceToEnd} = 0
-  var ${passDelta} = 0
+  var ${scanning} = 1
   var ${passEnd} = 0
   var ${eventTarget} = 0
   if (${totalMs / 1_000} > 0) {
     if (${scanCursor} >= ${totalMs / 1_000}) ${scanCursor} = 0
-    while (${remaining} > 0) {
-    ${distanceToEnd} = ${totalMs / 1_000} - ${scanCursor}
-    ${passDelta} = min(${remaining}, ${distanceToEnd})
-    ${passEnd} = ${scanCursor} + ${passDelta}
+    while (${scanning}) {
+    ${passEnd} = __pxlblz_show_elapsed_s
+    if (${wrapsLeft} > 0) ${passEnd} = ${totalMs / 1_000}
+    else ${scanning} = 0
 ${eventBlocks}
     ${pending} = ${pending} + ${passEnd} - ${scanCursor}
     ${scanCursor} = ${passEnd}
-    ${remaining} = ${remaining} - ${passDelta}
-    if (${passDelta} >= ${distanceToEnd}) {
+    if (${wrapsLeft} > 0) {
+      ${wrapsLeft} = ${wrapsLeft} - 1
 ${deterministicLoopReset
     ? `      ${member.prefix}_restart_loop()
       ${advanceCursor} = 0
@@ -10391,7 +10398,12 @@ function injectSampleRemappingUpdate(code: string): string {
   const assignmentStart = secondsAssignmentStart >= 0
     ? secondsAssignmentStart
     : code.indexOf('__pxlblz_show_elapsed_ms =', functionStart)
-  const lineEnd = code.indexOf('\n', assignmentStart)
+  const assignmentEnd = code.indexOf('\n', assignmentStart)
+  // The clock advance ends with its loop-point hold; remap after it (#1204).
+  const nextLineStart = assignmentEnd + 1 + (/^ */.exec(code.slice(assignmentEnd + 1, assignmentEnd + 81))?.[0].length ?? 0)
+  const lineEnd = assignmentEnd >= 0 && code.startsWith(SHOW_CLOCK_LOOP_HOLD, nextLineStart)
+    ? code.indexOf('\n', nextLineStart)
+    : assignmentEnd
   if (functionStart < 0 || assignmentStart < 0 || lineEnd < 0) {
     throw new Error('Show coordinate remapping requires an outer beforeRender scheduler.')
   }

@@ -5,7 +5,7 @@ import { Q } from '../test/showStepCalendarOracle'
 import { bundle } from './bundle'
 import { loadPattern } from './loadPattern'
 import { createFxShim, createShim, planeShimConfig } from './shim'
-import { emitShowClockAdvance, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
+import { emitShowClockAdvance, emitShowClockInstant, SHOW_CLOCK_MS_DECLARATION } from './showClockEmit'
 
 type Mode = 'fast' | 'precise'
 const LEGACY = (loopMs: number) => `__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopMs / 1000}`
@@ -147,5 +147,53 @@ describe('emission', () => {
     expect(text).not.toMatch(/delta \/ 1000/)
     expect(text).toContain('while (__pxlblz_show_clock_s > 48 || (__pxlblz_show_clock_s == 48 && __pxlblz_show_clock_ms >= 600))')
     expect(emitShowClockAdvance({ loopMs: 49_000 })).toContain('while (__pxlblz_show_clock_s >= 49)')
+  })
+})
+
+describe('instants (#1204)', () => {
+  // 1,118 ms is a binary64 tie: s + ms / 1000 is one ulp below the decimal
+  // literal. The others are not; together they cover sub-second, past 32.767 s
+  // and the 48,599 ms #1197 sample.
+  const INSTANTS = [700, 1_118, 1_600, 33_123, 48_599]
+  const instantProgram = (loopMs: number) => program(emitShowClockAdvance({ loopMs })).replace(
+    'export function beforeRender',
+    `${INSTANTS.map((atMs, index) => `function h_instant${index}() { return ${emitShowClockInstant(atMs)} }`).join('\n')}
+export function beforeRender`,
+  )
+
+  it.each(['fast', 'precise'] as const)('equal the register bit for bit when the clock lands on them (%s)', (mode) => {
+    const { handle, fns, enc } = load(mode, instantProgram(49_000))
+    let positionMs = 0
+    INSTANTS.forEach((atMs, index) => {
+      // Whole-ms deliveries of at most 1,000 ms land exactly on the instant.
+      while (positionMs < atMs) {
+        const delta = Math.min(1_000, atMs - positionMs)
+        fns.h_frame(enc(delta))
+        positionMs += delta
+      }
+      const register = (handle.getRuntimeState() as Record<string, number>).__pxlblz_show_elapsed_s
+      expect(register, `${atMs} ms`).toBe(fns[`h_instant${index}`]())
+    })
+  })
+
+  it('differ from the decimal literal on a binary64 tie, which is why they exist', () => {
+    expect(1 + 118 / 1000).not.toBe(1.118)
+    expect(emitShowClockInstant(1_118)).toBe('1 + 118 / 1000')
+    expect(emitShowClockInstant(118)).toBe('118 / 1000')
+    expect(emitShowClockInstant(49_000)).toBe('49')
+  })
+})
+
+describe('loops past the 16.16 range', () => {
+  it('wrap with `if`, because the loop literal itself wraps negative under Precise', () => {
+    expect(emitShowClockAdvance({ loopMs: 32_767_000 })).toContain('while (__pxlblz_show_clock_s >= 32767)')
+    expect(emitShowClockAdvance({ loopMs: 32_768_000 })).toContain('if (__pxlblz_show_clock_s >= 32768)')
+    expect(emitShowClockAdvance({ loopMs: 40_000_500 })).toContain('if (__pxlblz_show_clock_s > 40000 ||')
+  })
+
+  it('terminate a Precise frame for an out-of-range loop', () => {
+    // Values past the 32,767 s horizon are unsupported; the frame must still end.
+    const { fns, enc } = load('precise', program(emitShowClockAdvance({ loopMs: 32_768_000 })))
+    for (let frame = 0; frame < 3; frame++) fns.h_frame(enc(16))
   })
 })
