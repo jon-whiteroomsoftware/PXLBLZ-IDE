@@ -1377,6 +1377,19 @@ have no trailing zero callback; a zero-motion tick still delivers one zero
 callback. Short deliveries retain one callback, and frame-invariant state
 updates once after the complete delivery (#1202).
 
+**Show clock accumulation.** In 16.16, `delta / 1000` rounds to 1/65536 s
+with a bias fixed by the delta, so a clock that adds it each frame drifts
+linearly. Under Precise that clock ran 11.9 ms late per 48.6 s loop at
+60 fps, and at 50 ms frames rolled over 1 ms before the loop point (#1204).
+`showClockEmit.ts` instead keeps whole seconds plus a [0, 1000) ms
+accumulator, carries and wraps by exact comparison, and derives
+`__pxlblz_show_elapsed_s` with one rounding, held one step below the loop
+literal. Every Show clock site and the step-calendar prelude use it. The
+register stays within half a step of the exact sum of delivered deltas
+modulo the loop (1.5 steps on a held frame), with no growth across loops.
+Member private clocks still advance by `scaledDelta / 1000`; see the
+accepted divergences in §31.
+
 Acorn proofs gate the aggressive paths: render purity for output reuse,
 guaranteed output for clear elision, and provable allocation sizes for the
 member census. An unprovable size blocks with a remedy rather than a guess.
@@ -1710,6 +1723,14 @@ The agent diagnostic harness and its baseline suites are described in §28.
 - Sensor Expansion Board globals are inert stubs in preview.
 - Fast is float64; Precise emulates 16.16 without duplicating every firmware
   algorithm.
+- Precise Show time is exact at the Show clock, not downstream of it (#1204).
+  Member private clocks (`scaledDelta / 1000`) and Pattern-authored
+  accumulators such as `timebase = (timebase + delta/1000) % 3600` round each
+  frame, the latter as on firmware. On Property Animation at 48,599 ms they
+  account for 0.027 of a 0.030 max Fast/Precise channel delta; the rest is one
+  frame of 16.16 arithmetic. A Precise Timeline curve sits within 6 LSB of the
+  exact value: the clock contributes at most 0.92 LSB, and the remainder is
+  the curve's own 16.16 literals and divisions, not clock residual.
 - Profile interception understands supported top-level output call shapes,
   not arbitrary dynamic aliases.
 - Personal Pattern sharing is not public; only built-in Gallery slugs exist.
