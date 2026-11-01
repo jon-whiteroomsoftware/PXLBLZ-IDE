@@ -43,7 +43,7 @@ describe('complete session draft', () => {
 
 describe('session-only slow-mo decline', () => {
   it('replaces, drops stale persistence, preserves live values, and resets', async () => {
-    const live = { reason: 'palette-output' as const, message: 'Palette output refused.' }
+    const live = { reason: 'shadowed-builtin' as const, message: 'Shadowed builtin refused.' }
     const store = usePreviewStore.getState()
     store.setSlowMoDeclined({ reason: 'no-renderer', message: 'No renderer.' })
     store.setSlowMoDeclined(live)
@@ -253,7 +253,7 @@ describe('I17: Controller artifact isolation from preview slow-mo', () => {
     const dreamy: SlowMoSettings = { ...slowMoSample, dreamy: 1 }
     for (const slowMo of [null, slowMoSample, dreamy, null]) {
       usePreviewStore.getState().setSlowMo(slowMo)
-      usePreviewStore.getState().setSlowMoDeclined(slowMo ? { reason: 'palette-output', message: 'Preview-only refusal.' } : null)
+      usePreviewStore.getState().setSlowMoDeclined(slowMo ? { reason: 'shadowed-builtin', message: 'Preview-only refusal.' } : null)
       expect(usePreviewStore.getState().slowMo).toEqual(slowMo ?? createSlowMoDraft())
       const currentRecipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
       expect(currentRecipe).toEqual(recipe)

@@ -315,7 +315,6 @@ describe('slow-mo pass integration and scope diagnostics', () => {
   })
 
   it.each([
-    ['palette-output','export function render(i){paint(0)}',3],
     ['no-renderer','export var x=1',3],
     ['shadowed-builtin','var time=0; export function render(i){}',3],
     ['reserved-prefix','var __pxlblz_slowmo_x=0; export function render(i){}',3],

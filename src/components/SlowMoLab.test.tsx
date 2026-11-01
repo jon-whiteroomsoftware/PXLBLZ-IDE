@@ -42,9 +42,9 @@ it('updates the sliders independently and delegates collapse', () => {
   expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false)
 })
 it('keeps refusal visible collapsed and expanded without a Copy action', () => {
-  const view = render(<SlowMoLab {...props({ declined: { reason: 'palette-output', message: 'Palette output refused.' } })} />)
-  expect(screen.getByRole('status')).toHaveTextContent('Palette output refused.')
-  view.rerender(<SlowMoLab {...props({ expanded: true, declined: { reason: 'palette-output', message: 'Palette output refused.' } })} />)
-  expect(screen.getByRole('status')).toHaveTextContent('Palette output refused.')
+  const view = render(<SlowMoLab {...props({ declined: { reason: 'shadowed-builtin', message: 'Shadowed builtin refused.' } })} />)
+  expect(screen.getByRole('status')).toHaveTextContent('Shadowed builtin refused.')
+  view.rerender(<SlowMoLab {...props({ expanded: true, declined: { reason: 'shadowed-builtin', message: 'Shadowed builtin refused.' } })} />)
+  expect(screen.getByRole('status')).toHaveTextContent('Shadowed builtin refused.')
   expect(screen.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
 })

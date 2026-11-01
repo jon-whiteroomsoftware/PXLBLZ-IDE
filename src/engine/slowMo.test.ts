@@ -40,11 +40,10 @@ describe('slow-mo planner', () => {
     })
   })
 
-  it.each(['paint', 'setPalette'])('declines unshadowed %s calls in helpers and beforeRender', (name) => {
+  it.each(['paint', 'setPalette'])('accepts unshadowed %s calls in helpers and beforeRender', (name) => {
     for (const fn of ['helper', 'beforeRender']) {
       expect(planSlowMo(`function ${fn}() { ${name}(0) }\n${renderer}`, settings, 256)).toEqual({
         arrayWords: 2340, renderFns: ['render'],
-        declined: { reason: 'palette-output', message: 'Slow-mo does not capture palette output (paint/setPalette).' },
       })
     }
   })
@@ -113,7 +112,7 @@ describe('slow-mo planner', () => {
     const reserved = 'var __pxlblz_slowmo_value = 0'
     const bindings = 'var hsv24 = 0, hsv = 0, rgb = 0, time = 0'
     expect(planSlowMo(`paint(); ${bindings}; ${reserved}`, settings, 5000).declined).toEqual({
-      reason: 'palette-output', message: 'Slow-mo does not capture palette output (paint/setPalette).',
+      reason: 'no-renderer', message: 'Slow-mo requires render, render2D, or render3D.',
     })
     expect(planSlowMo(`${bindings}; ${reserved}`, settings, 5000).declined).toEqual({
       reason: 'no-renderer', message: 'Slow-mo requires render, render2D, or render3D.',
@@ -144,7 +143,7 @@ describe('slow-mo planner', () => {
     expect(() => emitSlowMoWrapper(renderer, { ...settings, dreamy }, 3)).toThrow(RangeError)
   })
   it('keeps named declines byte-identical', () => {
-    const code = `paint(0); ${renderer}`
+    const code = `var time = 0; ${renderer}`
     expect(emitSlowMoWrapper(code, settings, 3)).toEqual({ code, plan: planSlowMo(code, settings, 3), tunables: {} })
   })
 })

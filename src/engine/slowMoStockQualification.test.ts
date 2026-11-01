@@ -11,7 +11,7 @@ import plainAuroraSphere from '@/test/fixtures/slowMoPlainBlendAuroraSphere.js?r
 
 const settings: SlowMoSettings = { position: 0.5, dreamy: 0 }
 const paletteIds = new Set(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
-const stockFor = (dreamy: number) => Object.entries(DEMOS).sort(([a], [b]) => a.localeCompare(b)).map(([id, source]) => {
+const stockFor = (dreamy: number, position = settings.position) => Object.entries(DEMOS).sort(([a], [b]) => a.localeCompare(b)).map(([id, source]) => {
   const base = bundle(source, LIBRARIES)
   const dimension = nativeDimension(base.metadata.renderFns)
   const points = Array.from({ length: 16 }, (_, i) => ({
@@ -19,7 +19,7 @@ const stockFor = (dreamy: number) => Object.entries(DEMOS).sort(([a], [b]) => a.
       : dimension === 2 ? [(i % 4 + 0.5) / 4, (Math.floor(i / 4) + 0.5) / 4]
         : [(i % 4 + 0.5) / 4, (Math.floor(i / 4) % 2 + 0.5) / 2, (Math.floor(i / 8) + 0.5) / 2],
   }))
-  const wrapped = bundleWithPasses(source, LIBRARIES, [{ kind: 'slowmo', settings: { ...settings, dreamy }, pixelCount: points.length }])
+  const wrapped = bundleWithPasses(source, LIBRARIES, [{ kind: 'slowmo', settings: { position, dreamy }, pixelCount: points.length }])
   return { id, base, wrapped, dimension, points }
 })
 
@@ -69,28 +69,16 @@ describe('dreamy zero preserves plain Blend stock pixels', () => {
 
 describe.each([0, 0.5, 1])('I16 full stock sweep dreamy %s', dreamy => {
   const stock = stockFor(dreamy)
-  it('declines exactly the three palette callers and wraps AuroraSphere despite its paint comment', () => {
-    expect(stock.length).toBeGreaterThan(0)
+  it('wraps all 106 stock Patterns, including the three palette callers', () => {
+    expect(stock).toHaveLength(106)
     const declined = stock.filter(({ wrapped }) => wrapped.summary.passes[0].declined).map(({ id }) => id)
-    expect(declined.sort()).toEqual(['FastPaletteBlending', 'NebulaSphere', 'PlasmaNebula'])
+    expect(declined.sort()).toEqual([])
     const aurora = stock.find(({ id }) => id === 'AuroraSphere')
     expect(aurora).toBeDefined()
     expect(aurora!.wrapped.summary.passes[0].declined).toBeUndefined()
   })
 
-  for (const { id, base, wrapped, dimension, points } of stock) {
-    const decline = wrapped.summary.passes[0].declined
-    if (decline) {
-      it(`${id} declines transparently with palette-output`, () => {
-        expect(paletteIds.has(id), id).toBe(true)
-        expect(decline.reason, id).toBe('palette-output')
-        expect(decline.message.trim().length, id).toBeGreaterThan(0)
-        expect(wrapped.code, id).toBe(base.code)
-        expect(wrapped.fxCode, id).toBe(base.fxCode)
-        expect(wrapped.metadata, id).toEqual(base.metadata)
-      })
-      continue
-    }
+  for (const { id, wrapped, dimension, points } of stock) {
     for (const fidelity of ['fast', 'fidelity'] as const) {
       it(`${id} runs prime + 120 display frames (${fidelity})`, () => {
         const runtime = createFastReplayRuntime({ ...wrapped, dimension }, {
@@ -100,6 +88,29 @@ describe.each([0, 0.5, 1])('I16 full stock sweep dreamy %s', dreamy => {
         for (let frame = 1; frame <= 120; frame++) {
           assertPixels(runtime.advanceLive(16), points.length, `${id}/${fidelity}/frame ${frame}`)
         }
+      })
+    }
+  }
+})
+
+describe('palette stock full-speed native bypass equivalence', () => {
+  for (const { id, base, wrapped, dimension, points } of stockFor(0, 1).filter(({ id }) => paletteIds.has(id))) {
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      it(`${id} matches the native shim within one LED level (${fidelity})`, () => {
+        const trace = (artifact: ReturnType<typeof bundle>) => {
+          const runtime = createFastReplayRuntime({ ...artifact, dimension }, { mapPoints: points, randomSeed: 7, fidelity })
+          return [0, ...Array.from({ length: 120 }, (_, i) => [4, 12, 16, 33, 64, 100, 0][i % 7])]
+            .map(delta => runtime.advanceLive(delta).pixels.map(pixel => [...pixel]))
+        }
+        const expected = trace(base)
+        const actual = trace(wrapped)
+        actual.forEach((pixels, frame) => {
+          assertPixels({ pixels } as FastReplayResult, points.length, `${id}/${fidelity}/${frame}`)
+          pixels.forEach((pixel, i) => pixel.forEach((value, c) => {
+            expect(Math.abs(value - expected[frame][i][c]), `${id}/${fidelity}/${frame}/${i}/${c}`)
+              .toBeLessThanOrEqual(1 / 255)
+          }))
+        })
       })
     }
   }

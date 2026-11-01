@@ -1,4 +1,5 @@
 import * as acorn from 'acorn'
+import { emitPaletteLookup } from './paletteEmit'
 import {
   collectIdentifiers,
   collectTopLevelBindings,
@@ -30,7 +31,7 @@ export interface SlowMoSettings {
 }
 
 export type SlowMoDeclineReason =
-  | 'palette-output' | 'no-renderer' | 'shadowed-builtin'
+  | 'no-renderer' | 'shadowed-builtin'
   | 'reserved-prefix' | 'array-budget'
 
 export interface SlowMoPlan {
@@ -64,20 +65,10 @@ export function planSlowMo(code: string, settings: SlowMoSettings, pixelCount: n
     ...plan, declined: { reason, message },
   })
 
-  let paletteOutput = false
   let programBindings = new Set<string>()
   walkWithScope(ast, null, (node, scope) => {
     if (node.type === 'Program') programBindings = scope.names
-    if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
-      const name = node.callee.name
-      if ((name === 'paint' || name === 'setPalette') && !isNameBound(scope, name)) {
-        paletteOutput = true
-      }
-    }
   })
-  if (paletteOutput) {
-    return decline('palette-output', 'Slow-mo does not capture palette output (paint/setPalette).')
-  }
   if (renderFns.length === 0) {
     return decline('no-renderer', 'Slow-mo requires render, render2D, or render3D.')
   }
@@ -191,7 +182,14 @@ ${['r', 'g', 'b'].map(c => `      ${p}p${c}[index] = ${p}persist(${p}p${c}[index
 }
 
 function emitColorCapture(p: string): string {
-  return `function ${p}hsv24(h,s,v) { if (${p}bypass && ${p}decay == 0) hsv24(h,s,v); ${p}captureHsv(h,s,v) }
+  return `var ${p}palette = 0
+function ${p}setPalette(pal) { ${p}palette = pal; setPalette(pal) }
+function ${p}paint(pos,v) {
+  if (${p}bypass && ${p}decay == 0) paint(pos,v)
+  if (!${p}palette) return
+${emitPaletteLookup(`${p}palette`, `${p}captureRgb`)}
+}
+function ${p}hsv24(h,s,v) { if (${p}bypass && ${p}decay == 0) hsv24(h,s,v); ${p}captureHsv(h,s,v) }
 function ${p}rgb(r,g,b) { if (${p}bypass && ${p}decay == 0) rgb(r,g,b); ${p}captureRgb(r,g,b) }
 function ${p}captureRgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
 function ${p}hsv(h,s,v) { if (${p}bypass && ${p}decay == 0) hsv(h,s,v); ${p}captureHsv(h,s,v) }
@@ -226,7 +224,9 @@ export function slowMoTunables(settings: SlowMoSettings): Record<string, number>
 type Node = Record<string, any>
 
 function rewriteSlowMoSource(code: string, prefix: string): string {
-  const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
+  const tokens: acorn.Token[] = []
+  const ast = acorn.parse(code, { ecmaVersion: 2020, sourceType: 'module', onToken: tokens }) as unknown as Node
+  const previousTokens = new Map(tokens.slice(1).map((token, index) => [token.start, tokens[index].type.label]))
   const parents = new Map<Node, Node>()
   function visitParents(node: Node): void {
     for (const value of Object.values(node)) {
@@ -258,8 +258,14 @@ function rewriteSlowMoSource(code: string, prefix: string): string {
     if (node.type === 'Program') root = scope
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier' && !isNameBound(scope, node.callee.name)) {
       const name = node.callee.name
-      if (['time', 'rgb', 'hsv', 'hsv24'].includes(name)) {
+      if (['time', 'rgb', 'hsv', 'hsv24', 'paint', 'setPalette'].includes(name)) {
         edit(node.callee, `${prefix}${name}`)
+      }
+      // A generated Pixelblaze function needs the builtin's default supplied
+      // explicitly. Insert outside argument parentheses and retain trailing commas.
+      if (name === 'paint' && node.arguments.length === 1) {
+        const close = node.end - 1
+        edit({ start: close, end: close }, `${previousTokens.get(close) === ',' ? '' : ','} 1`)
       }
     }
     if (node.type !== 'Identifier' || !entries.has(node.name)) return

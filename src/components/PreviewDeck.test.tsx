@@ -26,10 +26,10 @@ describe('Preview Slow-Mo section gate', () => {
 
   it('has no generated-code Copy action and preserves the decline reason', () => {
     history.replaceState(null, '', `${location.pathname}?slowmo=1`)
-    usePreviewStore.setState({ slowMoDeclined: { reason: 'palette-output', message: 'Palette output refused.' } })
+    usePreviewStore.setState({ slowMoDeclined: { reason: 'shadowed-builtin', message: 'Shadowed builtin refused.' } })
     render(<SlowMoSection />)
     expect(screen.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Palette output refused.')
+    expect(screen.getByRole('status')).toHaveTextContent('Shadowed builtin refused.')
   })
 
   it.each(['', '?slowmo=0', '?slowmo=true'])('hides the panel with %s despite stale active settings (I18 panel absence only)', (query) => {

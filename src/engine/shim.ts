@@ -491,12 +491,17 @@ export function createFxShim(config: ShimConfig): ShimContext {
 
   // setPalette receives the palette array straight from the pattern, where every
   // entry (positions and r/g/b, all 0..1) is raw int32. fxWrap leaves arrays
-  // untouched, so without this override the float paint() logic would read raw
-  // ints as floats — stops never match and colours blow far past 1.0 (the whole
-  // grid clamps to a single saturated hue). Decode each element raw→float here,
-  // mirroring the arg-decoding fxWrap does for scalar built-ins.
+  // untouched, so the float paint() logic needs decoded entries. Read them
+  // through a view rather than copying: edits to the active array must remain
+  // visible to subsequent paint calls, just as they are in Fast mode.
   fxBuiltins.setPalette = (rawPal: unknown) => {
-    const pal = Array.isArray(rawPal) ? rawPal.map(v => typeof v === 'number' ? fx.toFloat(v) : v) : rawPal
+    const pal = Array.isArray(rawPal) ? new Proxy(rawPal, {
+      get(target, key, receiver) {
+        const value = Reflect.get(target, key, receiver)
+        return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key) && typeof value === 'number'
+          ? fx.toFloat(value) : value
+      },
+    }) : rawPal
     ;(floatBuiltins.setPalette as (p: unknown) => void)(pal)
   }
 
