@@ -1,4 +1,5 @@
 // #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
+// #1204: re-measured for the exact Show clock (only clock emission changed).
 // #645 characterization: moving Mirror's only UI home must not change emitted
 // artifacts. These hashes include compact source, expanded source, and fixed-
 // point source and were recorded before the React implementation changed.
@@ -33,8 +34,8 @@ function artifactDigest(recipe: ShowRecipe): string {
 
 describe('Mirror artifact characterization (#645)', () => {
   it.each([
-    [false, '698cfa4fd3b2e7b66b80b2ec2620cf4c177cb629050f6e7d0173772d82f42ac3'],
-    [true, 'ebfe0b60195370b1dafdb03bc88529f90c32155755bcd46035b9f9aa8b11fec6'],
+    [false, '430567dcbf6d8615830f28443a96da26781d67eb7b82d1d323bded4ba29f8956'],
+    [true, '4a6fca52b9887443a6201c66e628b4b295a9dbcda51fec053c66fb12e61a1d50'],
   ])('keeps Mirror %s byte-identical across the UI-only change', (mirror, expected) => {
     expect(artifactDigest(mirrorRecipe(mirror))).toBe(expected)
   })

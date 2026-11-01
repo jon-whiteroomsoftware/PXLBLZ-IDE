@@ -13,6 +13,7 @@ import { createShowWithOutputContract, showRecordToCompileRecipe } from './showM
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { showClockBlock } from '@/test/showClockBlock'
 
 /**
  * Why a fresh Show keeps `zoneSampleMode: 'independent'` (#1039, decided
@@ -152,9 +153,9 @@ describe('a fresh Show under each Zone sampling mode', () => {
   it('wraps the Show clock under `span` and never wraps under `independent`', () => {
     const span = built(INSTALLATION, 'span')
     const independent = built(INSTALLATION, 'independent')
-    const clock = (source: string) => source.slice(source.indexOf('export function beforeRender')).split('\n')[1].trim()
-    expect(clock(span.artifact.code)).toContain(`% ${SHOW_END_MS / 1_000}`)
-    expect(clock(independent.artifact.code)).not.toContain('%')
+    const wrap = `while (__pxlblz_show_clock_s >= ${SHOW_END_MS / 1_000}) {`
+    expect(showClockBlock(span.artifact.expandedCode)).toContain(wrap)
+    expect(showClockBlock(independent.artifact.expandedCode)).not.toContain(wrap)
 
     const points = stage(INSTALLATION_PIXELS, 1)
     const advance = { stepMs: STEP_MS, forceFullIntermediateRender: true }
@@ -171,13 +172,14 @@ describe('a fresh Show under each Zone sampling mode', () => {
   })
 
   /**
-   * The same wrap, one frame earlier in Precise: the emulated 16.16 Show clock
-   * accumulates about +25 ms over the Show's 3,875 frames, so `span` wraps
-   * before nominal Show End. This is the Precise-mode arithmetic the repository
-   * measures rather than claims away; it is visible only because one route
-   * wraps and the other does not.
+   * The same wrap in Precise, at Show End and not before. Before #1204 the
+   * emulated 16.16 clock gained about 25 ms over the Show's 3,875 frames and
+   * `span` wrapped at 61,984 ms. The clock now advances in whole milliseconds,
+   * so it reads exactly 61.984 s there and wraps on the 62,000 ms frame, as
+   * Fast does. The wrap is visible only because one route wraps and the other
+   * does not.
    */
-  it('reaches that wrap one frame before Show End in Precise', () => {
+  it('does not wrap early in Precise', () => {
     const span = built(INSTALLATION, 'span')
     const independent = built(INSTALLATION, 'independent')
     const points = stage(INSTALLATION_PIXELS, 1)
@@ -186,9 +188,9 @@ describe('a fresh Show under each Zone sampling mode', () => {
     const right = replay(independent, points, 'fidelity')
     left.renderCurrentFrame()
     right.renderCurrentFrame()
-    const held = [left.advanceTo(61_968, advance), right.advanceTo(61_968, advance)] as const
+    const held = [left.advanceTo(61_984, advance), right.advanceTo(61_984, advance)] as const
     expect(Array.from(held[0].frame)).toEqual(Array.from(held[1].frame))
-    const wrapped = [left.advanceTo(61_984, advance), right.advanceTo(61_984, advance)] as const
+    const wrapped = [left.advanceTo(SHOW_END_MS, advance), right.advanceTo(SHOW_END_MS, advance)] as const
     expect(maxChannelDifference(wrapped[0], wrapped[1])).toBeGreaterThan(0)
   })
 

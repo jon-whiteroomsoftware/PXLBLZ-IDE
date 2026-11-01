@@ -1,7 +1,8 @@
 // #570 characterization: the routing-representation refactor must keep the
 // generated output of every representation byte-identical. These hashes were
 // recorded on the pre-refactor compiler; any intentional emission change must
-// be separately documented and re-recorded.
+// be separately documented and re-recorded. #1204 re-recorded all six for the
+// exact Show clock; the census diff showed only clock emission.
 import { createHash } from 'node:crypto'
 import { compileShow, type ShowRecipe } from './showCompiler'
 

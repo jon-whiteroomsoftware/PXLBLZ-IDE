@@ -97,8 +97,9 @@ describe('unused instance animation at v2 compile preparation', () => {
     // Independent dc9d public-adapter baseline, with this same first-use
     // schedule. Intentional compiler changes can requalify these two digests.
     expect(createHash('sha256').update(JSON.stringify(compiled.result.recipe)).digest('hex')).toBe('3f5aa41117ec7aa4d35b18b7b2719f310bd412d536dc3af9e9b94da502f7073c')
-    // re-pinned when track time moved to seconds (#1197)
-    expect(createHash('sha256').update(compiled.code).digest('hex')).toBe('238d71e451caadc687b511c41f48429d6d2608275e0bda2f6da33c2091288c87')
+    // re-pinned when track time moved to seconds (#1197), and for the exact
+    // Show clock (#1204: only clock emission changed)
+    expect(createHash('sha256').update(compiled.code).digest('hex')).toBe('7181a1078a6dba6bb7a7fb6ec3873816895e296e435cec1a18c90e67b8626c5c')
     expect(compiled.code).toContain(compiled.artifact.code)
     expect(Object.values(compiled.result.provenance.runtimeInstanceIdByClipId)).toEqual(['instance', 'unused'])
     expect(compiled.result.recipe.clips.filter(member => !member.compilerOwnedEmpty).map(member => member.id)).toEqual(['instance', 'unused'])

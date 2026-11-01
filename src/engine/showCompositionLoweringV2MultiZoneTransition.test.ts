@@ -8,6 +8,7 @@ import type { ShowRecordV2 } from './showCompositionV2'
 import { validateShowRecordV2 } from './showCompositionV2'
 import { createShowV2WithOutputContract } from './showCreationV2'
 import { editShowZoneV2 } from './showZonesV2'
+import { SHOW_CLOCK_LOOP_HOLD, showClockBlock } from '@/test/showClockBlock'
 import { convertShowRecordV1ToV2 } from './showRecordV1ToV2'
 import { buildShowEpeExportV2 } from './showEpeExportV2'
 import { parseEpe } from './epeImport'
@@ -218,11 +219,14 @@ describe('a fresh Show that gains a second Zone', () => {
     // Accepted v1 behavior arriving with the second Zone, not a new choice: the
     // one-Zone fresh Show holds its last Clip, and both compilers stop doing so
     // the moment a Zone is added.
-    const two = compiledV2(addZone(freshV2(INSTALLATION), SECOND_ZONE)).artifact.code
-    const clock = (source: string) => source.slice(source.indexOf('export function beforeRender')).split('\n')[1]
-    expect(clock(two)).toContain(`% ${SHOW_END_MS / 1_000}`)
-    expect(clock(compiledV1(addShowZone(freshV1(INSTALLATION))).code)).toBe(clock(two))
-    expect(clock(compiledV2(freshV2(INSTALLATION)).artifact.code)).not.toContain('%')
+    const two = compiledV2(addZone(freshV2(INSTALLATION), SECOND_ZONE)).artifact.expandedCode
+    const wrap = `while (__pxlblz_show_clock_s >= ${SHOW_END_MS / 1_000}) {`
+    expect(showClockBlock(two)).toContain(wrap)
+    expect(showClockBlock(two)).toContain(SHOW_CLOCK_LOOP_HOLD)
+    expect(showClockBlock(compiledV1(addShowZone(freshV1(INSTALLATION))).expandedCode)).toBe(showClockBlock(two))
+    const one = showClockBlock(compiledV2(freshV2(INSTALLATION)).artifact.expandedCode)
+    expect(one).not.toContain(wrap)
+    expect(one).not.toContain(SHOW_CLOCK_LOOP_HOLD)
   })
 })
 
