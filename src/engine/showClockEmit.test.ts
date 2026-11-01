@@ -185,10 +185,10 @@ const SWEEP_LOOPS: (number | undefined)[] = [undefined, 1, 700, 999, 1_000, 49_0
 const SWEEP_DELIVERIES = [0, ONE_LSB_MS, 999, 1_000, 31_768, 32_000, MAX_DELIVERY_MS]
 const WRAP_COUNT_MAX = 32_767
 const MAX_16_16_INTEGER_S = 32_767
-/** The largest 16.16 value, 32,767.99998474 s, in ms: a non-looping clock's last exact position. */
-const NONE_HORIZON_MS = (32_768 * 65_536 - 1) / 65_536 * 1000
 /** The largest register's fraction in ms: 1,000 LSB below 1,000 ms, on the 16.16 grid. */
 const LAST_FRACTION_MS = 1000 - 1000 / 65_536
+/** The largest 16.16 value, 32,767.99998474 s, in ms: where a non-looping clock holds. */
+const NONE_HORIZON = new Q(32_768n * 65_536n - 1n, 65_536n).mul(Q.int(1000))
 
 function sweepStates(loopMs: number | undefined): { s: number; ms: number }[] {
   const lastS = loopMs === undefined ? NONE_MAX_S : Math.ceil(loopMs / 1000) - 1
@@ -225,13 +225,13 @@ function sweep(mode: Mode, loopMs: number | undefined): SweepFailure[] {
   const failures: SweepFailure[] = []
   for (const { s, ms } of sweepStates(loopMs)) {
     for (const deltas of sweepSequences()) {
-      // A clock with no loop is defined at or below the largest 16.16 value, 32,767.99998474 s.
-      if (!L && s * 1000 + ms + deltas.reduce((sum, delta) => sum + delta, 0) > NONE_HORIZON_MS) continue
       fns.h_set(enc(s), enc(ms))
       let position = Q.int(s * 1000).add(deliveredMs(mode, ms, enc))
       deltas.forEach((delta, frame) => {
         fns.h_frame(enc(delta))
         position = position.add(deliveredMs(mode, delta, enc))
+        // A clock with no loop holds at the largest 16.16 value, 32,767.99998474 s (decision 10).
+        if (!L && position.gt(NONE_HORIZON)) position = NONE_HORIZON
         const state = handle.getRuntimeState() as Record<string, number>
         const register = registerS(mode, state.__pxlblz_show_elapsed_s)
         const wraps = mode === 'precise' ? state.h_wraps / 65_536 : state.h_wraps
@@ -264,7 +264,7 @@ describe.each(['fast', 'precise'] as const)('domain sweep: the clock equals the 
 })
 
 describe('non-looping horizon', () => {
-  // Decision 10: the non-looping clock is exact at or below the largest register; later positions wrap, as base's did.
+  // Decision 10: the non-looping clock is exact at or below the largest register and holds there after it.
   it.each([
     ['the largest register, delivered nothing', LAST_FRACTION_MS, 0],
     ['the last whole second, delivered up to the largest register', 0, LAST_FRACTION_MS],
@@ -274,6 +274,27 @@ describe('non-looping horizon', () => {
     fns.h_frame(enc(delta))
     const state = handle.getRuntimeState() as Record<string, number>
     expect(state.__pxlblz_show_elapsed_s).toBe(MAX_16_16_INTEGER_S * 65_536 + 65_535)
+  })
+
+  // Base advanced s past 32,767, which wraps negative under 16.16 and reads
+  // 32,768 s or more in Fast. Every later frame must hold, including the
+  // frame after a hold, whose whole seconds derive from the held register.
+  it.each([
+    ['fast', 'one LSB past the largest register', MAX_16_16_INTEGER_S, LAST_FRACTION_MS, [ONE_LSB_MS, 16, 16]],
+    ['precise', 'one LSB past the largest register', MAX_16_16_INTEGER_S, LAST_FRACTION_MS, [ONE_LSB_MS, 16, 16]],
+    ['fast', 'a whole second past it', MAX_16_16_INTEGER_S, 0, [2_000, 0, 1]],
+    ['precise', 'a whole second past it', MAX_16_16_INTEGER_S, 0, [2_000, 0, 1]],
+    ['fast', 'the largest delivery across it, then again', 32_740, 0, [MAX_DELIVERY_MS, MAX_DELIVERY_MS, 999]],
+    ['precise', 'the largest delivery across it, then again', 32_740, 0, [MAX_DELIVERY_MS, MAX_DELIVERY_MS, 999]],
+  ] as const)('%s: %s holds at 32,767 + 65,535/65,536 s', (mode, _label, s, ms, deltas) => {
+    const { handle, fns, enc } = load(mode, sweepProgram(undefined))
+    fns.h_set(enc(s), enc(ms))
+    const registers = deltas.map((delta) => {
+      fns.h_frame(enc(delta))
+      return (handle.getRuntimeState() as Record<string, number>).__pxlblz_show_elapsed_s
+    })
+    const held = mode === 'precise' ? MAX_16_16_INTEGER_S * 65_536 + 65_535 : MAX_16_16_INTEGER_S + 65_535 / 65_536
+    expect(registers).toEqual(deltas.map(() => held))
   })
 })
 

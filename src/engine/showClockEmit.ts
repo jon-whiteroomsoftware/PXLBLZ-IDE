@@ -8,11 +8,12 @@
 // milliseconds is exact in 16.16, carries and loop wraps use exact comparison and
 // subtraction, and the seconds value is derived with one rounding per frame.
 //
-// Domain: any 16.16 delivery in [0, 32,767.99998] ms; no loop, for positions at
-// or below 32,767.99998474 s (the largest register within half a step), or any
-// loop whose literal 16.16 holds (1 ms to 32,767,999 ms; authoring sets no
-// ceiling).
-// Ranges over that domain, L the loop's whole seconds (shift L when L > 0):
+// Domain: any 16.16 delivery in [0, 32,767.99998] ms; no loop, exact for
+// positions at or below 32,767.99998474 s (the largest register within half a
+// step) and holding there after it; or any loop whose literal 16.16 holds (1 ms
+// to 32,767,999 ms; authoring sets no ceiling).
+// Ranges over that domain, L the loop's whole seconds (shift L when L > 0, and
+// 32,767 with no loop, so s - 32,767 + carries is in [-32,767, 32]):
 //   ms - 1000 + delta      [-1000, 31,768)    ms gives up 1,000 before the add
 //   carries per frame      [0, 32]
 //   s - L + carries        [-L, 32]           shifted seconds before the wrap
@@ -28,6 +29,8 @@ const ONE_LSB = '0.0000152587890625'
 const MAX_16_16_INTEGER = 32_767
 /** Largest value a 16.16 register holds. */
 const MAX_16_16 = MAX_16_16_INTEGER + 65_535 / 65_536
+/** The largest register's fraction in ms, 1,000 LSB below 1,000 ms: exact in 16.16. */
+const LAST_FRACTION_MS = 1000 - 1000 / 65_536
 
 export const SHOW_CLOCK_MS = '__pxlblz_show_clock_ms'
 export const SHOW_CLOCK_MS_DECLARATION = `var ${SHOW_CLOCK_MS} = 0`
@@ -57,8 +60,9 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
   const inRange = loopMs === undefined || loopMs / 1000 <= MAX_16_16
   // Whole seconds give up the loop's whole seconds before the carry, as ms gives
   // up 1,000: s - loopS + carries stays in [-loopS, 32], and a borrow follows
-  // s >= 1, so it is at least -loopS.
-  const shift = loopMs !== undefined && inRange && loopS > 0 ? loopS : 0
+  // s >= 1, so it is at least -loopS. With no loop they give up 32,767, so the
+  // carry cannot pass the largest whole value and the hold compares with 0.
+  const shift = loopMs === undefined ? MAX_16_16_INTEGER : inRange && loopS > 0 ? loopS : 0
   const lines = [
     // The register is s + ms / 1000 rounded once, so subtracting the same
     // quotient recovers s exactly; + 0.5 tolerates any sub-half-second write.
@@ -99,8 +103,13 @@ export function emitShowClockAdvance(options: ShowClockAdvanceOptions = {}): str
         '}',
       )
     }
-    if (shift) lines.push(`${s} = ${s} + ${shift}`)
+  } else {
+    // Decision 10: past the largest register the clock holds there, at
+    // 32,767 s plus the largest fraction, which ms / 1000 reads exactly. Held
+    // ms keeps the next frame's derived seconds at 32,767.
+    lines.push(`if (${s} > 0 || (${s} == 0 && ${ms} > ${LAST_FRACTION_MS})) {`, `  ${s} = 0`, `  ${ms} = ${LAST_FRACTION_MS}`, '}')
   }
+  if (shift) lines.push(`${s} = ${s} + ${shift}`)
   lines.push(`__pxlblz_show_elapsed_s = ${s} + ${ms} / 1000`)
   // The one rounding can reach the loop literal (ms / 1000 rounds up to the
   // next second, or to the literal's own rounded fraction). No segment owns the
