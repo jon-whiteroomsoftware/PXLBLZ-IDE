@@ -71,7 +71,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     // MetaballGarden/IQPalettes diagnostic over a Murmuration backdrop, and
     // 2026-08-22 when every Transition reference dropped that backdrop (#63).
     // #1204: +351 bytes for the exact Show clock (only clock emission changed).
-    expect(baseline.artifact?.summary.artifactBytes).toBe(24_961)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(24_998)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

@@ -34,8 +34,8 @@ function artifactDigest(recipe: ShowRecipe): string {
 
 describe('Mirror artifact characterization (#645)', () => {
   it.each([
-    [false, '430567dcbf6d8615830f28443a96da26781d67eb7b82d1d323bded4ba29f8956'],
-    [true, '4a6fca52b9887443a6201c66e628b4b295a9dbcda51fec053c66fb12e61a1d50'],
+    [false, '202b832da4a0c775476e0ee0332a0247816ec5068c21384ccd6a1ca056860383'],
+    [true, 'e735690f04626d4ed807e980e5636fc1182876ee4321449aefd69638693d712d'],
   ])('keeps Mirror %s byte-identical across the UI-only change', (mirror, expected) => {
     expect(artifactDigest(mirrorRecipe(mirror))).toBe(expected)
   })

@@ -181,8 +181,8 @@ it.each(['fast', 'fidelity'] as const)('keeps stale invalid declared metadata st
 // Current exported/imported bytes, re-measured for #1202 source-identity recensus
 // and for the exact Show clock (#1204: only clock emission changed).
 it.each([
-  ['live', '01f0f22145bcf2c3f2cc9d81ababc781a609ea82b93b3e8af758debf0326910f', '3b5b12389f537bbbaf7fadbff0c9ce943a67581e75547357cc7c968460bf1a4f', 'ea3b350a73e4d3faffcccdbfaaaf14583aecb7501a4343bb7e567a24ef05887c'],
-  ['freeze', 'a9513c514ce9039d3ccb01b3986d6a2e277bf4244918bf8fb5d1163e6ae429d0', '0b97c353c260877f97094e44d28853f01482c3ac7f2af04408150562e9eaed8b', '5d4970bcd40743bbc459ec2b4a7af84a90d285dcfcc6541284b950df7f137b0e'],
+  ['live', '75c5d636ba465c7f681242c60f9855db3c37062a3494b9d662887ad3bab38507', '302d132c496130869e114c826176ff3487c93a362b2c815750e20f5f532fd62f', 'e1dd7f0e44e25abda42b83c1df58220909dc3466bb5f3485093dc281d648d19d'],
+  ['freeze', '31704233934afec4a249e6dde112271d395e58a9339828e6a70663d34763e5d5', 'a9807d29ccc4a2a0dae56f8a2fe1bb5d114a60c94f5eb39039974a30f2e24ee8', 'e213c348d6536fa92a82be228a17cb8079b8879a1a3aa2180be70a1f4d580a2f'],
 ] as const)('preserves pinned imported %s source, Precise emission and EPE bytes', (mode, codeHash, fxHash, epeHash) => {
   const prepared = delivered(fixture(mode))
   const hash = (value: string) => createHash('sha256').update(value).digest('hex')

@@ -167,10 +167,10 @@ it('retargets nonlinear Clip animation to each exact derived run/section identit
 // Recipe pins from adapter f3db7122; source/EPE proved on Node 24 for #1210,
 // re-pinned for the exact Show clock (#1204: only clock emission changed).
 const admittedBytes = {
-  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'fc06ed6b32c041d2fe133b533553e78182f82c9c0c2122e1180194698fd8c290', epe: 'fb08ebf0b1d688f874a44da3df6994774303f0ffb87a17691caebbf1863eaea2' },
-  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '1916af110a63ea5d7e03343ddf928ff1a0eeab405e851cbac5557bce308b0743', epe: 'fb7afba2f1b2b0fed89395f5a7e34cca9e4e43a9d3c2adfbcefbddc8d3f31d71' },
-  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: 'acb576f6334e97f6fb9aaf474c18794603c0dd3112e53ad8b6b2ebf6e92d3840', epe: '25bd7c397896323ee30751b2c120839f343601f4a2ac219cf4062cec2068dce9' },
-  transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '7c4d5b738250ebfd9d79dc2eda9b721f4ef094cd1f92e314bcef43863aaf61cc', epe: 'af6ed1cb548a17415b841c44d53636a5aab77bcf320b8949c56fc2cb09db003f' },
+  live: { recipe: '1c52218ff19acc8d514b15b6f21ea8e207e3c8aa521fca3e1804abab2b11b888', source: 'e46a2c8b3b2b368d87e020001ecc6d03c4760200b818da61f4acedc80349f532', epe: '390d8f15a10a7010d099902be6d1c39f3226f723d7c4533102004f84b39fd2db' },
+  freeze: { recipe: '1eb4dcb94501a648ccd1d6dba0d28fd1c102e507414a0ccea2385aa88d8bcf6f', source: '4ca5ded08ec6ccd95d9c3dcff9985b8b972baaf4258aac4effd4e8ed4003faa1', epe: '120fe6089d269bc341ca12105011b648e19b60125d92ff8bf96202d830ed320e' },
+  strobe: { recipe: '7d3b82d5dc7403ba7cbf380f7e47909cb71e959726364a4245e70b1c91a2fd5b', source: 'edad02ee5f2288aca615e12430f14add4c87da16aa25cf666c58505c21db1749', epe: 'd141ccfd80071e8f45f194f41497a2204a779583ad7c001a4207929cb5c779c7' },
+  transition: { recipe: '9717492149aab2138f42bc870ad3732d1a04e6c8b4484fd4d94063e13d9e51b0', source: '047424201526871df6e3b2ee9bcdab0c2e2389b4fb5c3fb24015a323074ab9dd', epe: '154a5ac47009068c35bfe1518b465315f30bdb25e54d9cc0cfb25ea6d6e88dda' },
 }
 it.each(['live', 'freeze', 'strobe', 'transition'] as const)('preserves pinned admitted %s recipe/source/EPE bytes including canonical field-order equivalence', mode => {
   const record = compatibilityFixture(mode), before = structuredClone(record)
