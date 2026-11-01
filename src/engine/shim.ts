@@ -494,7 +494,9 @@ export function createFxShim(config: ShimConfig): ShimContext {
   // untouched, so the float paint() logic needs decoded entries. Read them
   // through a view rather than copying: edits to the active array must remain
   // visible to subsequent paint calls, just as they are in Fast mode.
-  fxBuiltins.setPalette = (rawPal: unknown) => {
+  let rawPalette: number[] = []
+  const setPalette = (rawPal: number[]) => {
+    rawPalette = rawPal
     const pal = Array.isArray(rawPal) ? new Proxy(rawPal, {
       get(target, key, receiver) {
         const value = Reflect.get(target, key, receiver)
@@ -504,6 +506,7 @@ export function createFxShim(config: ShimConfig): ShimContext {
     }) : rawPal
     ;(floatBuiltins.setPalette as (p: unknown) => void)(pal)
   }
+  fxBuiltins.setPalette = setPalette
 
   // ── Arrays are pattern-domain storage ──────────────────────────────────────
   // fxWrap's "number arg raw→float, number result float→raw" rule is wrong for
@@ -558,8 +561,19 @@ export function createFxShim(config: ShimConfig): ShimContext {
 
   return {
     builtins: fxBuiltins,
-    snapshot,
-    restore,
+    // Share the Pattern's raw array in the snapshot clone graph. The decoded
+    // Proxy has a different identity and would detach the retained palette.
+    snapshot: (cloneArray = (source) => source.slice()) => ({
+      ...snapshot(cloneArray),
+      palette: cloneArray(rawPalette),
+    }),
+    restore: (state, restoreArray) => {
+      restore(state, restoreArray)
+      // Reinstall the decoding view and retain its raw target for later snapshots.
+      setPalette(restoreArray
+        ? restoreArray(state.palette, rawPalette)
+        : state.palette.slice())
+    },
     isPatternArray,
     capturedPixel,
     writeCapturedPixel,

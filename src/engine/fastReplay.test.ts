@@ -468,33 +468,59 @@ export function render(index) { rgb(value, 0, 0) }
     expect(restored.checksum).toBe(uninterrupted.checksum)
   })
 
-  it('restores the retained setPalette reference across the Pattern and shim boundary', () => {
+  it.each([
+    { mode: 'Fast', fidelity: undefined, destination: 'fresh' },
+    { mode: 'Fast', fidelity: undefined, destination: 'originating' },
+    { mode: 'Precise', fidelity: 'fidelity' as const, destination: 'fresh' },
+    { mode: 'Precise', fidelity: 'fidelity' as const, destination: 'originating' },
+  ])('restores changing palette RGB frames in $mode into a $destination runtime, including a second snapshot', ({ fidelity, destination }) => {
     const prepared = prepareFastReplay(`
 var initialized = 0
+var frameNumber = 0
 var palette = [0, 1, 0, 0, 1, 0, 0, 1]
 export function beforeRender(delta) {
   if (!initialized) {
     setPalette(palette)
     initialized = 1
-  } else {
-    palette[1] = 0
-    palette[2] = 1
   }
+  frameNumber = frameNumber + 1
+  palette[1] = (frameNumber % 8) / 8
+  palette[2] = ((frameNumber + 2) % 8) / 8
+  palette[3] = ((frameNumber + 4) % 8) / 8
+  palette[5] = ((frameNumber + 1) % 8) / 8
+  palette[6] = ((frameNumber + 3) % 8) / 8
+  palette[7] = ((frameNumber + 5) % 8) / 8
 }
-export function render(index) { paint(0) }
+export function render(index) { paint(index / pixelCount) }
 `, {})
-    const options = { mapPoints: lineMap(1), randomSeed: 841 }
-    const source = createFastReplayRuntime(prepared, options)
-    source.advanceTo(10, { stepMs: 10 })
-    const snapshot = source.snapshot()
-    const uninterrupted = source.advanceTo(20, { stepMs: 10 })
+    const options = { mapPoints: lineMap(4), randomSeed: 841, fidelity }
+    const cold = createFastReplayRuntime(prepared, options)
+    const expected = new Map([30, 40, 50, 60, 70].map(time => [
+      time,
+      cold.advanceTo(time, { stepMs: 10 }).pixels,
+    ]))
+    expect(expected.get(30)).not.toEqual(expected.get(40))
 
-    const restoredRuntime = createFastReplayRuntime(prepared, options)
+    const originating = createFastReplayRuntime(prepared, options)
+    originating.advanceTo(20, { stepMs: 10 })
+    const snapshot = originating.snapshot()
+    originating.advanceTo(70, { stepMs: 10 })
+
+    const restoredRuntime = destination === 'originating'
+      ? originating : createFastReplayRuntime(prepared, options)
     restoredRuntime.restore(snapshot)
-    const restored = restoredRuntime.advanceTo(20, { stepMs: 10 })
+    for (const time of [30, 40, 50]) {
+      expect(restoredRuntime.advanceTo(time, { stepMs: 10 }).pixels).toEqual(expected.get(time))
+    }
 
-    expect(restored.exports.palette).toEqual(uninterrupted.exports.palette)
-    expect(restored.checksum).toBe(uninterrupted.checksum)
+    const secondSnapshot = restoredRuntime.snapshot()
+    restoredRuntime.advanceTo(70, { stepMs: 10 })
+    const secondRestoredRuntime = destination === 'originating'
+      ? restoredRuntime : createFastReplayRuntime(prepared, options)
+    secondRestoredRuntime.restore(secondSnapshot)
+    for (const time of [60, 70]) {
+      expect(secondRestoredRuntime.advanceTo(time, { stepMs: 10 }).pixels).toEqual(expected.get(time))
+    }
   })
 
   it('restores complete replay state into the originating runtime', () => {
