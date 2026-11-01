@@ -1,7 +1,8 @@
 // #1202: compiler-output identities and resources re-measured after bounded stepped callbacks.
 import { describe, expect, it } from 'vitest'
 import { createFastReplayRuntime } from './fastReplay'
-import { nativeDimension } from './loadPattern'
+import { loadPattern, nativeDimension } from './loadPattern'
+import { createFxShim, createShim, planeShimConfig } from './shim'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { prepareShowV2ForCompile } from './showCompositionLoweringV2'
 import type { ShowRecordV2 } from './showCompositionV2'
@@ -152,6 +153,55 @@ describe('table-driven routed Show score emission (#542)', () => {
     expect(landingChecksums(selected, 'fast')).toEqual(landingChecksums(baseline, 'fast'))
     expect(landingChecksums(selected, 'fidelity')).toEqual(landingChecksums(baseline, 'fidelity'))
   }, 60_000)
+
+  it.each(['fast', 'precise'] as const)('starts a Score boundary at 1,118 ms with local time exactly 0 on the first frame past it (%s, #1204 decision 13)', (mode) => {
+    // Decision 13: the first-boundary offset, the start comparison and the
+    // local-time offset all read the clock's own register (decision 12), so the
+    // frame that lands exactly on a tie instant (1,118 ms) starts the
+    // transition with local time 0 in Fast, never one ulp negative. Precise
+    // reads the same register from either literal, so its output is pinned
+    // to the values measured at 98b16b90. The Easing reference's first clip is
+    // cut to 1,118 ms and every later key shifted, keeping its regular cadence.
+    const easing = reference('stock-show-reference-easing')
+    const record = JSON.parse(JSON.stringify(easing)) as ShowRecordV2
+    const shiftMs = 1_118 - record.composition.clips[0]!.durationMs
+    record.composition.clips.forEach((clip, index) => {
+      if (index === 0) {
+        clip.durationMs = 1_118
+        return
+      }
+      clip.startMs += shiftMs
+      for (const key of clip.appearance?.keys ?? []) key.timeMs += shiftMs
+    })
+    record.composition.showEndMs += shiftMs
+    for (const occurrence of record.composition.layoutOccurrences) occurrence.durationMs += shiftMs
+    const { artifact } = compileShowForArtifactV2(record, 'force')
+    expect(artifact.summary.specializations.showScore).toMatchObject({ selected: true, timing: 'regular-cadence' })
+    const config = { ...planeShimConfig({ rows: 8, cols: 8 }), getVirtualTime: () => 0 }
+    const shim = mode === 'precise' ? createFxShim(config) : createShim(config)
+    const handle = loadPattern(mode === 'precise' ? artifact.fxCode : artifact.code, artifact.metadata, shim.builtins)
+    // Frames land at 1,117, 1,118 (the boundary), 1,119 and 2,001 ms.
+    const frames = [1_117, 1, 1, 882].map((deltaMs) => {
+      handle.beforeRender(shim.encodeScalar(deltaMs))
+      const state = handle.getRuntimeState() as Record<string, number>
+      return { mix: state.__pxlblz_show_mix, from: state.__pxlblz_show_c0_elapsed_s, to: state.__pxlblz_show_c1_elapsed_s }
+    })
+    if (mode === 'fast') {
+      expect(frames[0], 'one ms before the boundary').toMatchObject({ mix: 0, to: 0 })
+      // 98b16b90's Fast took the pre-boundary hold here (to: 0), one frame after Precise.
+      expect(frames[1]!.to, 'the incoming member advances on the boundary frame').toBeGreaterThan(0)
+      expect(Object.is(frames[1]!.mix, 0), `mix ${frames[1]!.mix} on the boundary frame`).toBe(true)
+      expect(frames[2]!.mix).toBeGreaterThan(0)
+    } else {
+      // Measured at 98b16b90 (raw 16.16).
+      expect(frames).toEqual([
+        { mix: 0, from: 23_426, to: 0 },
+        { mix: 0, from: 23_447, to: 21 },
+        { mix: 37, from: 23_468, to: 42 },
+        { mix: 32_149, from: 41_965, to: 18_539 },
+      ])
+    }
+  })
 
   it.each([
     'stock-show-reference-blend-fade-transitions',

@@ -6438,8 +6438,10 @@ ${indentBlock(body, 2)}
     return
   }`
     )).join(' ')
+    // `score_position < 0` compares the clock with the first boundary, so it
+    // reads the clock's own register (#1204 decisions 12 and 13).
     const firstBoundarySeconds = scorePlan.cadence.kind === 'regular'
-      ? scorePlan.cadence.firstBoundaryMs / 1_000
+      ? showClockInstantValue(scorePlan.cadence.firstBoundaryMs)
       : 0
     const periodSeconds = scorePlan.cadence.kind === 'regular'
       ? scorePlan.cadence.periodMs / 1_000
