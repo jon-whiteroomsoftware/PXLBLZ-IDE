@@ -20,30 +20,33 @@ describe('Restart Pattern machine-slot qualification (#546)', () => {
     // Re-measured 2026-09-25 (#1042 4-4c): both subjects now convert through the v1 import adapter and compile on the v2 path. The qualification fixture is byte-identical; the 205 fixture drops its two boundary brightness ramps, which v2 does not convert off the flat route (#1091), and its figures are byte-equal to the v1 compile of the same stripped subject.
     // Re-measured for #1202 after member-clock wrapping: source bytes and
     // headroom move in both fixtures; installation cache/globals also shrink.
+    // #1204 exact Show clock recensus: the clock's ms accumulator adds one
+    // persistent global and 427-611 source bytes per fixture; machines and
+    // cache words are unchanged, and both stay inside the artifact budget.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'fixture-property-slot-qualification',
-        baseline: { sourceBytes: 78_392, physicalMachines: 19 },
+        baseline: { sourceBytes: 78_819, physicalMachines: 19 },
         selected: {
-          sourceBytes: 52_075,
+          sourceBytes: 52_509,
           physicalMachines: 7,
           auxiliaryCacheWords: 264,
-          persistentGlobals: 181,
-          remainingArtifactBytes: 16_309,
+          persistentGlobals: 182,
+          remainingArtifactBytes: 15_875,
         },
-        sourceChangePercent: expect.closeTo(-33.57, 1),
+        sourceChangePercent: expect.closeTo(-33.38, 1),
       },
       {
         id: 'fixture-installation-composition',
-        baseline: { sourceBytes: 66_209, physicalMachines: 12 },
+        baseline: { sourceBytes: 66_820, physicalMachines: 12 },
         selected: {
-          sourceBytes: 58_672,
+          sourceBytes: 59_283,
           physicalMachines: 10,
           auxiliaryCacheWords: 204,
-          persistentGlobals: 245,
-          remainingArtifactBytes: 9712,
+          persistentGlobals: 246,
+          remainingArtifactBytes: 9101,
         },
-        sourceChangePercent: expect.closeTo(-11.38, 1),
+        sourceChangePercent: expect.closeTo(-11.28, 1),
       },
     ])
   })

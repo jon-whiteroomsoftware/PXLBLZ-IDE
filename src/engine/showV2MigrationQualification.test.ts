@@ -26,10 +26,11 @@ function migrated(): ShowRecordV2 {
 // the compile step provable: a qualification that skipped compilation, or that
 // compiled a different record, cannot produce these values. A deliberate
 // compiler change re-pins them with an explanation, the way the parity report
-// is re-pinned.
+// is re-pinned. #1204 exact Show clock recensus: both grow 427 B for the
+// clock's ms accumulator and whole-seconds carry.
 it('qualifies a converted stock-sourced record through reopen and compile', async () => {
   await expect(qualifyMigratedShowV2Record(migrated(), assets))
-    .resolves.toEqual({ status: 'qualified', compiled: { hash: '985991b4', codeBytes: 3203 } })
+    .resolves.toEqual({ status: 'qualified', compiled: { hash: 'd47c8196', codeBytes: 3630 } })
 })
 
 it('qualifies a record whose Pattern source is a personal Pattern the assets carry', async () => {
@@ -42,7 +43,7 @@ it('qualifies a record whose Pattern source is a personal Pattern the assets car
   // A different Pattern source compiles to different bytes, so the hash also
   // proves the compiled artifact belongs to this record rather than a constant.
   await expect(qualifyMigratedShowV2Record(record, { ...assets, patterns: [pattern] }))
-    .resolves.toEqual({ status: 'qualified', compiled: { hash: 'bfcf446f', codeBytes: 2693 } })
+    .resolves.toEqual({ status: 'qualified', compiled: { hash: '4dc47f8b', codeBytes: 3120 } })
 })
 
 it('refuses a record whose personal Pattern is missing from the assets', async () => {

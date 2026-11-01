@@ -22,8 +22,8 @@
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 6793,
-          "sourceSha256": "ef1f50fc2496e77c0c6c4f809675c3b911dc79c14d033c82715c8adeccd219a4",
+          "bytes": 7063,
+          "sourceSha256": "121cb3d78ee1e56e060a4271c79a38fb67fe914cb1cc09f5b3c7f309c61f1fdc",
           "stampKind": "show"
         }
       },
@@ -48,8 +48,8 @@
         },
         "epe": {
           "filename": "baseline-personal-show.epe",
-          "bytes": 7724,
-          "sourceSha256": "ac837a0a9cd6681af9f5f705c934250c86dd9ad528e5718dc0e1a69c6e24edee",
+          "bytes": 8154,
+          "sourceSha256": "c47a22e0eb930671752a22575c16cfb4817b481a00675f2f0772b780698d20d1",
           "stampKind": "show"
         },
         "recordSha256": "5b89be8782239d1b9397cc1b1bd9dae0ba8877e8fcbfd6cc1502764f4176c2fb",
@@ -123,8 +123,8 @@
         },
         "epe": {
           "filename": "101-clips-cuts-and-blank-time.epe",
-          "bytes": 12819,
-          "sourceSha256": "04b76ab7b91f8c7a71290e66b7457aea634b1aa283176b37036d9ae96f14c64f",
+          "bytes": 13253,
+          "sourceSha256": "e3060208fe0c82a5371ac5ceb71a1373fb0161f5ff11c90be6b10b2aa9a08f03",
           "stampKind": "show"
         }
       },
@@ -163,8 +163,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 33945,
-          "sourceSha256": "6820c74cd6b947ab0124fbf8550ee6ef4538ac6575103ec5a331f91b79844e09",
+          "bytes": 34403,
+          "sourceSha256": "fe7ce2eef382781371425f47ceee3109187ddbd202267bbebd5f4964edfcb987",
           "stampKind": "show"
         }
       },
@@ -189,8 +189,8 @@
         },
         "epe": {
           "filename": "205-groups-and-linked-reuse.epe",
-          "bytes": 38895,
-          "sourceSha256": "410b4433e1e82d0a065e35c48e0ea8a7621bbb27e9d12180c70487cdaf7d036d",
+          "bytes": 39357,
+          "sourceSha256": "7ac071aacfda379bb39e692d685a128022e29721cdf4a910eca3e19e5f2adae2",
           "stampKind": "show"
         },
         "recordSha256": "8012ca5d09200e4daf52975e7e19def474f8f01bd6d377e5fa908640b2f472ae",
@@ -218,8 +218,8 @@
         },
         "epe": {
           "filename": "property-animation.epe",
-          "bytes": 66174,
-          "sourceSha256": "c6542ba868bc68fd9a65a9f2fd497709fde033a4d69a0944a70f55fe855cc6b6",
+          "bytes": 66809,
+          "sourceSha256": "52a7ad4e0717d0ead9106185ca89544b749520a20a3546fd0fc13aec10e595ab",
           "stampKind": "show"
         }
       },
@@ -258,8 +258,8 @@
         },
         "epe": {
           "filename": "206-changing-zone-layouts.epe",
-          "bytes": 22453,
-          "sourceSha256": "50e55b0f828528cb3e798cb3e2642cdf6584828ceef6b3b0b143ad7c30ec7ea0",
+          "bytes": 22890,
+          "sourceSha256": "79616f7a9ba59d4543c33d353fdd84f57720eb11280dd3f02aaec1dde220ade4",
           "stampKind": "show"
         }
       },
@@ -299,8 +299,8 @@
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 21095,
-          "sourceSha256": "af8dab844ca2fd487cde51b4cedf7bf79a9aee573252bceb5203048bd099ed38",
+          "bytes": 21533,
+          "sourceSha256": "4698d605e41c7249f29ffc53c8b28c7754adabb6a91324f1da2663500b64ecd7",
           "stampKind": "show"
         }
       },
@@ -325,8 +325,8 @@
         },
         "epe": {
           "filename": "baseline-long-timeline.epe",
-          "bytes": 21026,
-          "sourceSha256": "6cdc198f33297fa2bce51239614fcc76ebc36cae2e1a0bf717008753e188c3ce",
+          "bytes": 21464,
+          "sourceSha256": "9e315f5dacfc9bd63b7019654b703774158f862657d926add50dab76f5fff37d",
           "stampKind": "show"
         },
         "recordSha256": "90871bde32c1b8ecc857ba522ba00a28db4026116c1ed16ca3eb93cbb96970af",
