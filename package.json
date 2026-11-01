@@ -56,6 +56,7 @@
     "review:push": "npm run check:node && wrsp-review-push",
     "land": "npm run check:node && wrsp-land",
     "pack:extension": "node scripts/pack-extension.mjs",
+    "extension:dev": "tsx scripts/extension-dev.ts",
     "render": "npm run check:node && tsx scripts/render-pattern.ts",
     "gallery:keyframes": "npm run check:node && tsx scripts/gallery-keyframes.ts",
     "harness": "tsx test/divergence-harness/harness.ts",

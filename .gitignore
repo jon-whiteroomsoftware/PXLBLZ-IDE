@@ -13,7 +13,8 @@ test-results/
 playwright-report/
 e2e/screenshots/
 
-# Packaged extension zips (npm run pack:extension)
+# Packaged extension zips (npm run pack:extension) and the unpublished
+# local dev variant under build/extension-dev/ (npm run extension:dev, #1220)
 /build/
 test/perf-harness/show-runtime-costs.round2.md
 

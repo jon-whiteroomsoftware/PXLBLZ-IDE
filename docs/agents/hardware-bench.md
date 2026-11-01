@@ -84,6 +84,35 @@ verdict — live in `test/perf-harness/codegen-facts.md`
 `test/perf-harness/issue906-shortcircuit.json`. Word counts are a planning
 proxy: a shipped idiom still gets one hardware probe.
 
+## The dev variant on a preview origin
+
+The published Controller Helper injects its content script only on the public
+hosts and on `localhost`/`127.0.0.1` port 5174. On any Agent Mini preview
+(`http://Agent-Mini.local:<port>/PXLBLZ-IDE/`, managed main included) and on
+an issue runtime port, the IDE therefore never detects it. For those origins,
+load the dev variant unpacked (#1220):
+
+```bash
+npm run extension:dev
+```
+
+It writes, under the ignored `build/extension-dev/`, an unpacked folder
+`pxlblz-ide-controller-helper-dev/` and the same files zipped as
+`pxlblz-ide-controller-helper-dev-<version>.zip`. Both are built from the
+tracked `extension/` files. The manifest differs from the published one in
+two ways only:
+- the name gains ` (dev)`, so the two are told apart in `chrome://extensions`;
+- `content_scripts.matches` gains `http://agent-mini.local:*/*`,
+  `http://localhost:*/*` and `http://127.0.0.1:*/*`.
+
+To load it, open `chrome://extensions`, turn on Developer mode, choose
+**Load unpacked**, and select the folder (unzip the zip first when it was
+copied from Agent Mini). Disable the store install while the dev variant is
+loaded; both answer the IDE's handshake. Per-device Controller access is still
+granted on first connect, exactly as in the published extension. Regenerate and
+reload it after any `extension/` change. Never publish the dev variant;
+`npm run pack:extension` stays the only Store upload.
+
 ## Two failures that look like bugs
 
 **A stale extension.** After changing `extension/background.js`, reload the

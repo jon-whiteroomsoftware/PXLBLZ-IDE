@@ -127,6 +127,30 @@ name and console prefix. It then loads a `vite preview` of the build with
 `window.__pxlblzControllerScenario` stays undefined and no scenario line is
 logged.
 
+## The Controller Helper on an issue runtime
+
+The published extension never injects on an issue runtime port or an
+`Agent-Mini.local` origin, so extension-backed checks there use the dev
+variant from `npm run extension:dev` (#1220; contents and Jon's unpacked load
+in `docs/agents/hardware-bench.md`). Load it only into an isolated Playwright
+context, never into anyone's own Chrome:
+
+```bash
+node docs/agents/manual-test-campaigns/harness/driver.mjs \
+  --base http://Agent-Mini.local:<port> --port 9301 --evidence-dir <dir> \
+  --extension "$PWD/build/extension-dev/pxlblz-ide-controller-helper-dev" \
+  [--session <session.json>]
+```
+
+The driver prints the extension's service worker URL once it starts. The IDE
+detects the extension through the `detect`/`detect-ack` page handshake, with no
+Controller involved. Its visible signal is the top-bar Connect dropdown
+(`controller-entry-button`): `Connect a Controller by IP` when detected, and
+`Install the Pixelblaze extension` when not. Opening the dropdown also runs the
+helper's cloud discovery lookup, which lists Controllers but connects to none.
+A fresh context holds no per-device access grant, so it cannot reach a
+Controller until someone approves one.
+
 ## Recording UI proof for the review gate
 
 Ordinary review of a candidate that changes a path named in
