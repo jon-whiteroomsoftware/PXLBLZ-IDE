@@ -205,7 +205,7 @@ const black = (rgb: Rgb) => rgb.every(channel => channel === 0)
  */
 function replay(mode: Mode, fps: number, keepAll: boolean) {
   const step = 1000 / fps
-  const probes = [DRAIN_END + step, 42_125, coda.startMs, codaEndMs - 1, codaEndMs - 0.5].sort((a, b) => a - b)
+  const probes = [42_125, coda.startMs, codaEndMs - 1, codaEndMs - 0.5].sort((a, b) => a - b)
   const runtime = show.runtime(mode)
   const frames: Rgb[][] = []
   const tail: Sample[] = []
@@ -231,9 +231,10 @@ type Episode = {
 
 /**
  * The R coda oracle over consumer pixels (#1200 R rulings). Darkness begins
- * one frame after the drain's 50,625 ms key, at that replay's rate: the drain
- * key lands between frames, so the frame that straddles it may still hold the
- * last of the water (final ruling, #1204). From there every sample is exactly
+ * at the first frame after the drain's 39,625 ms key, at that replay's rate,
+ * in both modes. The earlier one-frame allowance (#1204 final ruling) covered
+ * Precise's accumulated clock lag, 9.7 ms at 60 fps; the exact Show clock
+ * removes it (measured on #1204). From there every sample is exactly
  * black until the first coda light, which comes at least 2.5 s later and not
  * before the Clip opens. Then one to three complete Inner-tube drops fall, at
  * most two at once: each head enters at the top, falls to the bottom without
@@ -242,7 +243,8 @@ type Episode = {
  * tubes are measurements per mode, never a cross-mode equality.
  */
 function expectLastDrops(samples: Sample[], fps: number, label: string) {
-  const darkFrom = DRAIN_END + 1000 / fps
+  const step = 1000 / fps
+  const darkFrom = (Math.floor(DRAIN_END / step) + 1) * step
   expect(samples.some(({ t }) => Math.abs(t - darkFrom) < 1e-6), `${label} samples darkness start`).toBe(true)
   const window = samples.filter(({ t }) => t >= darkFrom - 1e-6)
   const firstLight = window.find(({ pixels }) => !pixels.every(black))
@@ -671,10 +673,11 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     }
   }, SLOW)
 
-  // Darkness starts one frame after the drain key at the replay's rate, per
+  // Darkness starts at the first frame after the drain key at the replay's
+  // rate, per
   // https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1200#issuecomment-6339784729
-  // and #1204; both rates replay continuously from 0.
-  it.each(MODES)('lets one to three last drops fall through the empty dark, dark from one frame after the drain (%s)', (mode) => {
+  // tightened by #1204's exact Show clock; both rates replay continuously from 0.
+  it.each(MODES)('lets one to three last drops fall through the empty dark, dark from the first frame after the drain (%s)', (mode) => {
     performance(mode)
     expectLastDrops(tails.get(mode)!, 30, `${mode} 30fps`)
     expectLastDrops(replay(mode, 60, false).tail, 60, `${mode} 60fps`)
