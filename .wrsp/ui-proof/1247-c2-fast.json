@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1247",
+  "route": "/PXLBLZ-IDE/studio/patterns/PlasmaNebula?capture&slowmo=1",
+  "operation": "Repo Playwright, synthetic issue-1247 user: PlasmaNebula in Fast mode, keyboard speed at 1x and 0.25x, then dreamy 50%. Deterministic rendered captures match flag-off at 1x; slowed and dreamy output are visibly distinct. No Slow-Mo refusal or console errors. Controls also fit at 900px.",
+  "captures": [
+    ".wrsp/ui-proof/1247-c2-fast-1x-1440.png",
+    ".wrsp/ui-proof/1247-c2-fast-slowed-1440.png",
+    ".wrsp/ui-proof/1247-c2-fast-dreamy-1440.png",
+    ".wrsp/ui-proof/1247-c2-fast-dreamy-900.png"
+  ],
+  "capturedAtCommit": "4c485bfb71eccb351bff7440ce55cd801fbcab6d"
+}

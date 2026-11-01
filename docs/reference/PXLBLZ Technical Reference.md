@@ -319,10 +319,17 @@ methods, and dynamically selected sinks are not guessed.
 **Slow-Mo (flagged preview prototype, `?slowmo=1`).** The preview-only
 `slowmo` recipe gives a Pattern a fixed 16 ms clock, captures RGB into A/B
 frames, and linearly blends the latest captures. Scope-aware rewriting redirects
-`time` and captures `rgb`/`hsv`/`hsv24` after bundling, including inlined
-libraries. A declined pass preserves exact `code`/`fxCode` and exposes its
-reason in the summary. Palette output, missing renderers, shadowed builtins,
-reserved names and excess wrapper array use retain their named refusals.
+`time` and captures `rgb`/`hsv`/`hsv24` and builtin `paint` after bundling,
+including inlined libraries. The wrapper retains the latest `setPalette` array
+by reference, so each `paint` samples the current palette, including later
+mutations. Palette lookup wraps the position, interpolates stops and applies
+brightness (default 1) before RGB capture. It shares the Show palette emitter.
+Authored `paint`/`setPalette`/`palette` bindings keep their semantics. Firmware
+lookup parity remains unproved.
+
+A declined pass preserves exact `code`/`fxCode` and exposes its reason in the
+summary. Missing renderers, shadowed clock/color builtins, reserved names and
+excess wrapper array use retain their named refusals.
 
 Two settings control the wrapper: speed position and dreamy, each from 0 to 1.
 Speed follows `2 ** (-4 * (1 - position))`, from 1/16 to full speed. Position
@@ -336,10 +343,10 @@ Decay applies per channel after blending, with immediate rise. Once per display
 frame its coefficient is `1 - exp(-displayDelta / decayMs)`, or 1 at zero
 decay. Three arrays hold shown RGB in LED levels (0–255), snapping to the target
 below 1/64 of a level to close the Precise-mode tail. After priming, zero display
-delta preserves those arrays. Full speed with dreamy 0 uses native color calls;
-positive dreamy continues decay during bypass. The wrapper always allocates
-nine arrays: `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133), excluding
-authored arrays.
+delta preserves those arrays. Full speed with dreamy 0 uses native color calls,
+including `paint`; positive dreamy continues decay during bypass. The wrapper
+always allocates nine arrays: `9N + 36` words (2,340 at 256 pixels; N ≤ 1,133),
+excluding authored arrays.
 
 Outside bypass, the wrapper runs at most four inner `beforeRender(16)` steps
 per display frame, advancing the clock for each, followed by one resulting

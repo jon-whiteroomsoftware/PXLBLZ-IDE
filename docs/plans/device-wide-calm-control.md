@@ -226,9 +226,13 @@ Contract points the skeleton encodes:
 
 `planSlowMo` refuses with one `SlowMoDeclineReason`. The pass then records `declined`, leaves `code` and `fxCode` byte-identical to `bundle()`, the preview keeps running the unwrapped Pattern, and the lab shows the reason.
 
+Palette capture is implemented in #1247: builtin `setPalette`/`paint` output
+wraps in both preview modes, including FastPaletteBlending, NebulaSphere and
+PlasmaNebula. The former `palette-output` refusal is removed. Current behavior
+is described in Technical Reference §6; firmware lookup parity remains open.
+
 | Reason | Condition |
 | --- | --- |
-| `palette-output` | calls `paint(` or `setPalette(` (3 stock Patterns: FastPaletteBlending, NebulaSphere, PlasmaNebula; AuroraSphere names `paint()` only in a comment and calls `rgb()`, so it wraps). Palette capture is a follow-up. |
 | `no-renderer` | defines none of `render`, `render2D`, `render3D`. |
 | `shadowed-builtin` | declares a top-level binding named `time`, `rgb`, `hsv` or `hsv24`. Local shadowing is respected and not rewritten. |
 | `reserved-prefix` | an authored identifier starts with `__pxlblz_slowmo_`. |
