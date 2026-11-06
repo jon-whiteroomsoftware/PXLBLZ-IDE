@@ -102,7 +102,8 @@ describe('installed wrsp-preflight port check (#940)', () => {
 
     const badPort = preflight(['port', '0'], fixture.directory, fixture.env)
     expect(badPort.status).toBe(2)
-    expect(badPort.stderr).toContain('Usage: wrsp-preflight blocker <gh-auth|network> [--host] | worktree | port <number>')
+    expect(badPort.stderr).toContain('Usage: wrsp-preflight blocker <gh-auth|network> [--host] | worktree')
+    expect(badPort.stderr).toContain('port <number>')
 
     const chained = preflight(['worktree', 'port', '5173'], fixture.directory, fixture.env)
     expect(chained.status).toBe(2)

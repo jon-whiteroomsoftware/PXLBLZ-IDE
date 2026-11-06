@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The current release is WRSP 1.5.8 (#1254), pinned in `package.json` and `package-lock.json`;
+The current release is WRSP 1.5.9 (#1260), pinned in `package.json` and `package-lock.json`;
 runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -77,6 +77,28 @@ worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
 
+## WRSP 1.5.9 adoption (#1260)
+
+The executable package advances from 1.5.8 (#1254) to 1.5.9. `wrsp-lead check`
+refuses future-stamped lead-file entries (WRSP #513), and the new
+`wrsp-issue-body` bin checks full issue-body edits before writing (WRSP
+#514/#517). Publication evidence becomes host-bound; legacy single-host
+`runner.json` is unchanged (WRSP #326).
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.9, tag `v1.5.9` |
+| Source | `dfc81f6421c5a4d2b77ef83f6625530f5a1342d2` |
+| Tarball | `vendor/whiteroom-software-process-1.5.9.tgz` |
+| SHA256 | `df720fdc4fb30150af3b6a128402b04053419663ba717f257f407ca7e1fa115f` |
+
+The release also widens staged test selection (WRSP #493), adds
+`lane.sh send --await` (WRSP #515) and provider launch backoff (WRSP #478), and
+declares its own `typescript@^5.5.0` dependency, which npm nests under the
+package beside the project's TypeScript 6. No copied hook or project role policy
+changes. The unreferenced 1.5.8 tarball is removed; its adoption evidence
+remains below.
+
 ## WRSP 1.5.8 adoption (#1254)
 
 The executable package advances from 1.5.7 (#1253) to 1.5.8. Lead files now
@@ -88,7 +110,7 @@ next (WRSP #484). The PXLBLZ eng lead owns that file's migration and render proo
 | --- | --- |
 | Release | `@whiteroom/software-process` 1.5.8, tag `v1.5.8` |
 | Source | `e3238475e8ec409d9abb121f54af41bb52532a3a` |
-| Tarball | `vendor/whiteroom-software-process-1.5.8.tgz` |
+| Tarball | `vendor/whiteroom-software-process-1.5.8.tgz` (removed by #1260) |
 | SHA256 | `ab0315668a5b7381d279a0376cd2fdf500e19f3a048377ab0a4893e0eaf24835` |
 
 The release also adds the OpenTelemetry probe report (WRSP #482). No copied
