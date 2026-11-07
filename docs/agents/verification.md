@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The current release is WRSP 1.5.9 (#1260), pinned in `package.json` and `package-lock.json`;
+The current release is WRSP 1.5.10 (#1261), pinned in `package.json` and `package-lock.json`;
 runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -76,6 +76,26 @@ laptops may export the same names. Authenticated Playwright refuses a Shows
 worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
+
+## WRSP 1.5.10 adoption (#1261)
+
+The executable package advances from 1.5.9 (#1260) to 1.5.10. Its runtime
+TypeScript dependency widens to `>=5.5 <7` (WRSP #539), so npm dedupes it to the
+project's TypeScript 6 instead of nesting `typescript@5.9.3` under the package.
+Runner SSH fails over to Ethernet when the Thunderbolt bridge is down and
+reports it (WRSP #555).
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.10, tag `v1.5.10` |
+| Source | `85b3b54e37afa526dc1ab0c14466dda6f05d9372` |
+| Tarball | `vendor/whiteroom-software-process-1.5.10.tgz` |
+| SHA256 | `ce3630816b3880db68e6ea04edf175416db733aec9d8bc8dc993e5d71879e9c6` |
+
+The release also adds the `wrsp-issue-read` and `wrsp-section` bins
+(WRSP #529, #552). No copied hook, project role policy or consumer-guard
+assertion changes. The unreferenced 1.5.9 tarball is removed; its adoption
+evidence remains below.
 
 ## WRSP 1.5.9 adoption (#1260)
 
