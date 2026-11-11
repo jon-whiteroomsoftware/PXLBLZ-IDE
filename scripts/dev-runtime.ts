@@ -15,6 +15,7 @@ import {
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { parse } from 'acorn'
 import {
   classifyAssignmentPort,
   classifyMainApiHealth,
@@ -26,6 +27,7 @@ import {
   parseRuntimeManifest,
   unownedGroupMembers,
   type MainApiListener,
+  type MainApiAction,
   type ProbeOutcome,
   type PortRange,
   type RuntimeAssignment,
@@ -43,8 +45,8 @@ import {
 export const runtimeListenHost = '0.0.0.0'
 export const runtimeLanHost = 'Agent-Mini.local'
 
-export function managedViteArgs(worktree: string): string[] {
-  return [resolve(worktree, 'node_modules/vite/bin/vite.js'), '--host', runtimeListenHost]
+export function managedViteArgs(worktree: string, forceOptimize = false): string[] {
+  return [resolve(worktree, 'node_modules/vite/bin/vite.js'), '--host', runtimeListenHost, ...(forceOptimize ? ['--force'] : [])]
 }
 
 export function runtimeUiUrl(port: number, basePath: string): string {
@@ -361,12 +363,21 @@ async function printStatus(
   json: boolean,
 ): Promise<void> {
   keepMainWranglerTmpFresh(context)
-  const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
   const apiListeners = listenerPids(manifest.shared.vitePort)
-  const apiProbe = apiListeners.length > 0
-    ? await probeService(apiUrl, serviceProbeTimeoutMs)
-    : 'unresponsive'
-  const apiHealth = classifyMainApiHealth(apiListeners.length, apiProbe)
+  const mainHealth = probeRuntimeHealth(`http://localhost:${manifest.shared.vitePort}${manifest.basePath}`)
+  const assignmentHealth = Promise.all(loadRuntimeRegistry(context.runtimeDirectory).assignments.map(async (assignment) => ({
+    ...assignment,
+    uiUrl: runtimeUiUrl(assignment.uiPort, manifest.basePath),
+    uiState: classifyAssignmentPort(assignment, listenerPids(assignment.uiPort)),
+    apiState: assignment.profile === 'shared'
+      ? (listenerPids(assignment.apiPort).length > 0 ? 'shared' : 'stopped')
+      : assignment.apiPort === assignment.uiPort
+        ? classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
+        : classifyApiPort(assignment),
+    ...await runtimeHealthStatus(issueUrl(assignment, manifest)),
+  })))
+  const [probes, assignments] = await Promise.all([mainHealth, assignmentHealth])
+  const apiHealth = classifyMainApiHealth(apiListeners.length, probes.api)
   const mainStatus = {
     issue: 'main',
     description: 'stable reviewed main',
@@ -378,37 +389,32 @@ async function printStatus(
     apiTarget: `http://localhost:${manifest.shared.vitePort}`,
     uiState: listenerPids(manifest.shared.vitePort).length > 0 ? 'listening' : 'stopped',
     apiState: apiHealth === 'ok' ? 'listening' : apiHealth,
+    health: classifyRuntimeHealth(probes),
+    probes,
   }
-  const assignments = loadRuntimeRegistry(context.runtimeDirectory).assignments.map((assignment) => ({
-    ...assignment,
-    uiUrl: runtimeUiUrl(assignment.uiPort, manifest.basePath),
-    uiState: classifyAssignmentPort(assignment, listenerPids(assignment.uiPort)),
-    apiState: assignment.profile === 'shared'
-      ? (listenerPids(assignment.apiPort).length > 0 ? 'shared' : 'stopped')
-      : assignment.apiPort === assignment.uiPort
-        // Self-targeted single-process runtimes (#900): the API lives in the
-        // UI process, so its state is the UI process's state.
-        ? classifyAssignmentPort(assignment, listenerPids(assignment.uiPort))
-        : classifyApiPort(assignment),
-  }))
   if (json) {
     console.log(JSON.stringify({ main: mainStatus, assignments }, null, 2))
     return
   }
   console.log([
-    `main: ${mainStatus.uiUrl} (${mainStatus.uiState}, API ${mainStatus.apiState})`,
+    `main: ${mainStatus.uiUrl} (${mainStatus.uiState}, API ${mainStatus.apiState}, ${mainStatus.health})`,
     ...assignments.map((assignment) => (
       `${assignment.issue}:${assignment.uiPort} ${assignment.description}`
-      + ` [${assignment.profile}, ${assignment.uiState}]`
+      + ` [${assignment.profile}, ${assignment.uiState}, ${assignment.health}]`
       + ` ${assignment.uiUrl}`
     )),
   ].join('\n'))
 }
 
+async function runtimeHealthStatus(uiUrl: string) {
+  const probes = await probeRuntimeHealth(uiUrl)
+  return { health: classifyRuntimeHealth(probes), probes }
+}
+
 // The stable main runtime is one worker-dev Vite process (#900): the
 // Cloudflare plugin serves the Worker and local D1 from the Vite port.
 // Recovery refuses any process that is not provably ours.
-async function ensureMainRuntime(
+export async function ensureMainRuntime(
   context: RepositoryContext,
   manifest: RuntimeManifest,
 ): Promise<void> {
@@ -422,109 +428,57 @@ async function ensureMainRuntime(
   // Every refusal happens before any signal is sent, so a refused run leaves
   // whatever topology it found intact.
   const uiPids = listenerPids(manifest.shared.vitePort)
-  const apiProbe = uiPids.length > 0
-    ? await probeService(apiUrl, serviceProbeTimeoutMs)
-    : 'unresponsive'
+  const probes: RuntimeHealthProbes = uiPids.length > 0
+    ? await probeRuntimeHealth(uiUrl)
+    : { api: 'unresponsive', ui: 'unresponsive', client: 'unresponsive' }
+  const apiProbe = probes.api
   const uiListeners: MainApiListener[] = uiPids.map((pid) => ({ pid, command: processCommand(pid) }))
-  const runtimeAction = decideMainApiAction(uiListeners, apiProbe, context.mainWorktree)
+  let runtimeAction = decideMainRuntimeAction(uiListeners, probes, context.mainWorktree)
   const uiGroupMembers = uiPids
     .map(processGroupId)
     .filter(Number.isInteger)
     .flatMap((group) => processGroupMembers(group))
   if (runtimeAction === 'unhealthy') {
     throw new Error(
-      `Port ${manifest.shared.vitePort} answers ${apiUrl} with server errors; the process is alive, so`
+      `Port ${manifest.shared.vitePort} serves an unhealthy API or base path (${apiUrl}: ${apiProbe}, ${uiUrl}: ${probes.ui}); the process is alive, so`
       + ' recovery will not terminate it. Inspect the main runtime log and stop it manually if a restart is needed.',
     )
   }
   if (runtimeAction === 'refuse') {
     throw new Error(
-      `Port ${manifest.shared.vitePort} is occupied but ${apiUrl} is unresponsive, and the listener is not this repository's runtime; refusing to terminate it:\n`
+      `Port ${manifest.shared.vitePort} is unhealthy and the listener is not this repository's runtime; refusing to terminate it:\n`
       + uiListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
     )
   }
-  if (uiPids.length > 0) {
-    // A healthy probe does not prove identity: another worktree's healthy
-    // worker-dev on this port must never be reported as reviewed main.
-    const unownedListeners = uiListeners.filter(
-      (listener) => !isRepositoryRuntimeCommand(listener.command, context.mainWorktree),
-    )
-    if (unownedListeners.length > 0) {
-      throw new Error(
-        `Port ${manifest.shared.vitePort} is served by a process that is not the reviewed-main runtime; refusing to adopt or replace it:\n`
-        + unownedListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
-      )
-    }
-    if (runtimeAction === 'none') {
-      // Adoption is stricter than signal authorization: only the Vite entry
-      // point may be reported as the single-process runtime.
-      const nonVite = uiListeners.filter(
-        (listener) => !isRepositoryViteCommand(listener.command, context.mainWorktree),
-      )
-      if (nonVite.length > 0) {
-        throw new Error(
-          `Port ${manifest.shared.vitePort} answers healthily but is not the worker-dev Vite runtime; refusing to adopt it as reviewed main:\n`
-          + nonVite.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
-        )
-      }
-      if (new Set(uiPids.map(processGroupId)).size > 1) {
-        // One runtime means one process group; two owned groups listening on
-        // different interfaces of the same port is an inconsistent state to
-        // refuse, not adopt.
-        throw new Error(
-          `Port ${manifest.shared.vitePort} is served by more than one process group; refusing to adopt it as reviewed main.`,
-        )
-      }
-      if (!groupIndicatesWorkerRuntime(uiGroupMembers)) {
-        // A healthy Vite with no workerd in its group is not the Worker runtime
-        // this coordinator owns: refuse rather than adopt.
-        throw new Error(
-          `Port ${manifest.shared.vitePort} answers healthily but its process group has no Worker runtime; refusing to adopt it as reviewed main.`,
-        )
-      }
-    }
-    if (uiGroupMembers.length === 0) {
-      throw new Error(
-        `Cannot enumerate the process group serving port ${manifest.shared.vitePort}; refusing to proceed.`,
-      )
-    }
-    const unownedMembers = unownedGroupMembers(uiGroupMembers, context.mainWorktree)
-    if (unownedMembers.length > 0) {
-      throw new Error(
-        `The process group serving port ${manifest.shared.vitePort} contains processes that are not this repository's runtime; refusing to proceed:\n`
-        + unownedMembers.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
-      )
-    }
-  }
+  assertMainRuntimeIdentity(uiListeners, uiPids.map(processGroupId), uiGroupMembers, context.mainWorktree, manifest.shared.vitePort, apiProbe === 'ok')
 
   if (runtimeAction === 'recover') {
-    // A wedged worker runtime may have recovered to answering (even with
-    // errors) since the first probe; an answering group is never terminated,
-    // so recheck at the last async boundary before the signal.
-    const recheck = await probeService(apiUrl, serviceProbeTimeoutMs)
-    if (recheck !== 'unresponsive') {
-      throw new Error(
-        `Port ${manifest.shared.vitePort} began answering ${apiUrl} again (${recheck}); refusing to terminate a live worker runtime. Re-run dev:main to re-evaluate.`,
-      )
+    // Re-derive client URLs before authorizing recovery: an optimizer's
+    // transient old hash may already have been replaced by a healthy graph.
+    if (apiProbe === 'ok') {
+      const recheck = await probeRuntimeHealth(uiUrl)
+      const recheckedAction = decideMainRuntimeAction(uiListeners, recheck, context.mainWorktree)
+      if (recheckedAction === 'none') runtimeAction = 'none'
+      else if (recheckedAction !== 'recover' || recheck.api !== 'ok') {
+        throw new Error(`Main runtime health changed during recovery (${JSON.stringify(recheck)}); refusing to terminate it. Re-run dev:main to re-evaluate.`)
+      }
+    } else {
+      // API silence retains the existing stricter rule: any answer cancels
+      // wedge recovery, including an API answer with server errors.
+      const recheck = await probeService(apiUrl, serviceProbeTimeoutMs)
+      if (recheck !== 'unresponsive') {
+        throw new Error(
+          `Port ${manifest.shared.vitePort} began answering ${apiUrl} again (${recheck}); refusing to terminate a live worker runtime. Re-run dev:main to re-evaluate.`,
+        )
+      }
     }
-    await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
-  }
-  if (runtimeAction === 'none') {
-    // A healthy /api does not prove the UI: probe the base path too, and
-    // refuse to report a partially-broken runtime as available.
-    const uiProbe = await probeService(uiUrl, serviceProbeTimeoutMs)
-    if (uiProbe !== 'ok') {
-      throw new Error(
-        `Port ${manifest.shared.vitePort} serves ${apiUrl} but ${uiUrl} is unhealthy;`
-        + ' inspect the main runtime log and stop it manually if a restart is needed.',
-      )
-    }
+    if (runtimeAction === 'recover') await stopWedgedListeners(uiPids, manifest.shared.vitePort, context.mainWorktree)
   }
   prepareD1(context.mainWorktree, resolve(context.mainWorktree, '.wrangler/state'), manifest)
   if (runtimeAction !== 'none') {
     const pid = startDetached(
       process.execPath,
-      managedViteArgs(context.mainWorktree),
+      managedViteArgs(context.mainWorktree, runtimeAction === 'recover'),
       context.mainWorktree,
       join(context.runtimeDirectory, 'logs', 'main-vite.log'),
       {
@@ -534,10 +488,9 @@ async function ensureMainRuntime(
     try {
       await waitForUrl(apiUrl, 60_000)
       await waitForUrl(uiUrl, 30_000)
+      await waitForRuntimeHealth(uiUrl, 30_000)
     } catch (error) {
-      // A runtime that never became healthy must not survive detached: a
-      // later dev:main would see an erroring worker group it refuses to
-      // terminate, leaving manual cleanup as the only recovery.
+      // A runtime that never became healthy must not survive detached.
       await stopStartedProcess(pid, context.mainWorktree, error)
       throw error
     }
@@ -546,6 +499,70 @@ async function ensureMainRuntime(
     `Stable main is available at ${runtimeUiUrl(manifest.shared.vitePort, manifest.basePath)}`
     + ` serving UI and /api from one process.`,
   )
+}
+
+export function assertMainRuntimeIdentity(
+  uiListeners: readonly MainApiListener[],
+  uiGroups: readonly number[],
+  uiGroupMembers: readonly MainApiListener[],
+  mainWorktree: string,
+  port: number,
+  requireVite: boolean,
+): void {
+  if (uiListeners.length > 0) {
+    // A healthy probe does not prove identity: another worktree's healthy
+    // worker-dev on this port must never be reported as reviewed main.
+    const unownedListeners = uiListeners.filter(
+      (listener) => !isRepositoryRuntimeCommand(listener.command, mainWorktree),
+    )
+    if (unownedListeners.length > 0) {
+      throw new Error(
+        `Port ${port} is served by a process that is not the reviewed-main runtime; refusing to adopt or replace it:\n`
+        + unownedListeners.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+    if (requireVite) {
+      // Adoption is stricter than signal authorization: only the Vite entry
+      // point may be reported as the single-process runtime.
+      const nonVite = uiListeners.filter(
+        (listener) => !isRepositoryViteCommand(listener.command, mainWorktree),
+      )
+      if (nonVite.length > 0) {
+        throw new Error(
+          `Port ${port} answers healthily but is not the worker-dev Vite runtime; refusing to adopt it as reviewed main:\n`
+          + nonVite.map((listener) => `  ${listener.pid} ${listener.command || '(unreadable command)'}`).join('\n'),
+        )
+      }
+      if (new Set(uiGroups).size > 1) {
+        // One runtime means one process group; two owned groups listening on
+        // different interfaces of the same port is an inconsistent state to
+        // refuse, not adopt.
+        throw new Error(
+          `Port ${port} is served by more than one process group; refusing to adopt it as reviewed main.`,
+        )
+      }
+      if (!groupIndicatesWorkerRuntime(uiGroupMembers)) {
+        // A healthy Vite with no workerd in its group is not the Worker runtime
+        // this coordinator owns: refuse rather than adopt.
+        throw new Error(
+          `Port ${port} answers healthily but its process group has no Worker runtime; refusing to adopt it as reviewed main.`,
+        )
+      }
+    }
+    if (uiGroupMembers.length === 0) {
+      throw new Error(
+        `Cannot enumerate the process group serving port ${port}; refusing to proceed.`,
+      )
+    }
+    const unownedMembers = unownedGroupMembers(uiGroupMembers, mainWorktree)
+    if (unownedMembers.length > 0) {
+      throw new Error(
+        `The process group serving port ${port} contains processes that are not this repository's runtime; refusing to proceed:\n`
+        + unownedMembers.map((member) => `  ${member.pid} ${member.command || '(unreadable command)'}`).join('\n'),
+      )
+    }
+  }
+
 }
 
 async function requireHealthySharedRuntime(manifest: RuntimeManifest): Promise<void> {
@@ -1146,6 +1163,15 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
   throw new Error(`Timed out waiting for ${url}.`)
 }
 
+async function waitForRuntimeHealth(uiUrl: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (classifyRuntimeHealth(await probeRuntimeHealth(uiUrl)) === 'healthy') return
+    await new Promise((resolveWait) => setTimeout(resolveWait, 250))
+  }
+  throw new Error(`Timed out waiting for healthy client modules at ${uiUrl}.`)
+}
+
 async function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -1156,6 +1182,102 @@ async function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
 }
 
 export const serviceProbeTimeoutMs = 3_000
+
+export interface RuntimeHealthProbes {
+  api: ProbeOutcome
+  ui: ProbeOutcome
+  client: ProbeOutcome
+}
+
+export function classifyRuntimeHealth(probes: RuntimeHealthProbes): 'healthy' | 'unhealthy' {
+  return Object.values(probes).every((probe) => probe === 'ok') ? 'healthy' : 'unhealthy'
+}
+
+export function decideMainRuntimeAction(
+  listeners: readonly MainApiListener[],
+  probes: RuntimeHealthProbes,
+  mainWorktree: string,
+): MainApiAction {
+  const apiAction = decideMainApiAction(listeners, probes.api, mainWorktree)
+  if (apiAction !== 'none') return apiAction
+  if (probes.ui !== 'ok') return 'unhealthy'
+  if (probes.client === 'ok') return 'none'
+  return listeners.every((listener) => isRepositoryRuntimeCommand(listener.command, mainWorktree))
+    ? 'recover'
+    : 'refuse'
+}
+
+// The API retains its existing status semantics (an unauthenticated 401 is
+// alive). The UI chain must serve actual HTML and JavaScript successfully.
+// Its single deadline covers headers, body reads and every discovery hop.
+export async function probeRuntimeHealth(
+  uiUrl: string,
+  timeoutMs = serviceProbeTimeoutMs,
+  fetcher: typeof fetch = fetch,
+): Promise<RuntimeHealthProbes> {
+  const [api, ui] = await Promise.all([
+    probeService(new URL('/api/me', uiUrl).href, timeoutMs, fetcher),
+    probeClientModules(uiUrl, timeoutMs, fetcher),
+  ])
+  return { api, ...ui }
+}
+
+async function probeClientModules(
+  uiUrl: string,
+  timeoutMs: number,
+  fetcher: typeof fetch,
+): Promise<Pick<RuntimeHealthProbes, 'ui' | 'client'>> {
+  const controller = new AbortController()
+  let ui: ProbeOutcome = 'unresponsive'
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<Pick<RuntimeHealthProbes, 'ui' | 'client'>>((resolveTimeout) => {
+    timer = setTimeout(() => {
+      controller.abort()
+      resolveTimeout({ ui, client: 'unresponsive' })
+    }, timeoutMs)
+  })
+  const request = async () => {
+    const get = (url: string) => fetcher(url, { redirect: 'manual', signal: controller.signal })
+    const sameOrigin = (source: string, base: string) => {
+      const url = new URL(source, base)
+      if (url.origin !== new URL(uiUrl).origin) throw new Error('Foreign client module')
+      return url.href
+    }
+    const javascript = (response: Response) => response.ok
+      && /(?:java|ecma)script/i.test(response.headers.get('content-type') ?? '')
+    try {
+      const htmlResponse = await get(uiUrl)
+      ui = htmlResponse.ok ? 'ok' : 'error'
+      if (ui !== 'ok') return { ui, client: 'error' as const }
+      const html = (await htmlResponse.text()).replace(/<!--[^]*?-->/g, '')
+      const scripts = [...html.matchAll(/<script\b(?=[^>]*\btype=["']module["'])[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)]
+      const entry = scripts.map((match) => match[1]).find((source) => !source.includes('/@vite/'))
+      if (!entry) throw new Error('Missing app module')
+      const entryUrl = sameOrigin(entry, uiUrl)
+      const entryResponse = await get(entryUrl)
+      if (!javascript(entryResponse)) throw new Error('App module failed')
+      const module = parse(await entryResponse.text(), { ecmaVersion: 'latest', sourceType: 'module' })
+      const dependency = module.body.find((node) => node.type === 'ImportDeclaration'
+        && typeof node.source.value === 'string' && node.source.value.includes('/node_modules/.vite/'))
+      if (!dependency || dependency.type !== 'ImportDeclaration') throw new Error('Missing optimized dependency')
+      const dependencyUrl = sameOrigin(String(dependency.source.value), entryUrl)
+      const dependencyResponse = await get(dependencyUrl)
+      if (!javascript(dependencyResponse)) throw new Error('Optimized dependency failed')
+      // Consume the body as a browser would; a response that stalls after its
+      // headers must not count as a healthy module.
+      await dependencyResponse.text()
+      return { ui, client: 'ok' as const }
+    } catch {
+      return { ui, client: 'error' as const }
+    }
+  }
+  try {
+    return await Promise.race([request(), timeout])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+    controller.abort()
+  }
+}
 
 // Hard-bounded tri-state probe: a wedged server accepts the TCP connection
 // and then never answers, so the timeout must win even against a fetcher that

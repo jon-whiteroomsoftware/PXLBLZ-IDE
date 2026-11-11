@@ -16,6 +16,17 @@ import { readWorkerCount } from './scripts/worker-count-env.js'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
+
+// Anchor the watcher to this checkout: an ancestor may itself be an agent
+// worktree, and ignoring that ancestor would also disable this app's HMR.
+export function agentRuntimeExclusions(root: string) {
+  const directories = ['.claude', '.wrsp', '.agents', '.codex']
+  const escapedRoot = path.resolve(root).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return {
+    watchIgnored: new RegExp(`^${escapedRoot}/(?:${directories.map((name) => name.replace('.', '\\.')).join('|')})(?:/|$)`),
+    scanEntries: ['**/*.html', '!**/__tests__/**', '!**/coverage/**', ...directories.map((name) => `!${name}/**`)],
+  }
+}
 const vitestWorkerName = 'WRSP_HOST_VITEST_WORKERS'
 const vitestWorkerCount = readWorkerCount(process.env, vitestWorkerName, 4)
 const runnerOutputDirectory = process.env.WRSP_RUNNER_OUTPUT_DIR
@@ -200,6 +211,7 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim()
   const port = Number(env.VITE_PORT ?? 5174)
+  const agentExclusions = agentRuntimeExclusions(__dirname)
 
   // Single-process dev (#899): a bare `vite` serve runs the Worker and local
   // D1 in-process through the Cloudflare plugin instead of proxying /api to a
@@ -245,6 +257,7 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
     ],
     server: {
       port,
+      watch: { ignored: agentExclusions.watchIgnored },
       strictPort: true,
       allowedHosts: true,
       // A worktree may link the checked-out dependency tree during local QA.
@@ -272,6 +285,7 @@ export default defineConfig(async ({ command, mode, isPreview }): Promise<ViteUs
       dedupe: ['react', 'react-dom'],
     },
     optimizeDeps: {
+      entries: agentExclusions.scanEntries,
       // Browser Mode discovers component-test dependencies after its worker has
       // started. Pre-bundle the layout suite's graph so Vite never reloads the
       // browser mid-run and silently drops the product-surface tests (#765).

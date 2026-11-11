@@ -31,6 +31,12 @@ selects the proxy topology instead; shared issue runtimes and the Playwright
 wrappers use it. The plugin never loads for Vitest, `vite build`, or
 `vite preview`.
 
+The dev watcher and dependency scan exclude this checkout's `.claude/`,
+`.wrsp/`, `.agents/`, and `.codex/` trees. Nested agent worktree activity,
+including `tsconfig.json` edits, cannot invalidate the app's module graph or
+trigger reloads. Watcher exclusions are anchored inside the served checkout,
+so an issue runtime inside an agent worktree still hot-reloads its own `src/`.
+
 Most issue work uses the shared profile:
 
 ```bash
@@ -111,6 +117,17 @@ Use the registry instead of guessing ports:
 npm run dev:status
 npm run dev:status -- --json
 ```
+
+Status reports `healthy` only when the API, base HTML, app entry module, and
+an optimized dependency all answer successfully. The client probe discovers
+the entry from the served HTML and its dependency from the entry's current
+imports, preserving Vite's cache-version query. JavaScript probes require a
+2xx response with a JavaScript content type; an HTML fallback or missing target
+is unhealthy. JSON adds `health` and the `api`, `ui`, and `client` outcomes in
+`probes`; process ownership fields retain their existing meaning.
+
+API and client checks run concurrently. The client chain, including body reads,
+shares one 3-second deadline rather than adding a timeout for every module.
 
 Generate a signed session for the assigned synthetic identity with:
 
@@ -207,16 +224,23 @@ so the defenses remain:
 - **Detection.** Health probes are bounded (3s). `npm run dev:status` reports
   the main API as `wedged` when the port listens but does not answer, and a
   shared-profile `dev:issue` fails fast with the same diagnosis and names
-  `npm run dev:main` instead of hanging.
+  `npm run dev:main` instead of hanging. Status also reports `unhealthy` when
+  client modules fail, including Vite's 504 “Outdated Optimize Dep” responses.
 - **Recovery.** `npm run dev:main` recovers unattended: it verifies every
   `5174` listener — and every member of each process group it would signal —
   is this repository's runtime (vite, wrangler, workerd, or the esbuild
   service, by path-normalized executable/script command), terminates those
-  groups (SIGTERM, then SIGKILL), and restarts the single process. Wedged
-  means transport silence only: a server that answers `/api/me` with 5xx
-  errors is alive and is never terminated (`dev:status` reports it as
-  `erroring`). Recovery still refuses, with the offending commands in the
-  error, when any process is not provably ours — that case stays manual.
+  groups (SIGTERM, then SIGKILL), and restarts the single process. Client
+  failure also permits recovery when a fresh probe still fails and both API
+  and base HTML remain healthy. That path requires the same single Vite
+  process group and Worker identity as adoption, then restarts with fresh
+  dependency optimization. A healthy recheck cancels recovery. Startup retries
+  client health for up to 30 seconds before retiring a failed new process.
+  A server answering `/api/me` with 5xx errors remains `erroring` and is never
+  terminated automatically; a broken base path also requires manual inspection.
+  Recovery refuses, with the offending commands in the error, when any process
+  is not provably ours. Shared issue startup retains its API/base-path gate
+  because it serves its own client modules.
 
 If a wedge is suspected anyway, probe directly:
 
