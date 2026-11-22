@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The current release is WRSP 1.5.10 (#1261), pinned in `package.json` and `package-lock.json`;
+The current release is WRSP 1.5.12 (#1264), pinned in `package.json` and `package-lock.json`;
 runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -76,6 +76,31 @@ laptops may export the same names. Authenticated Playwright refuses a Shows
 worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
+
+## WRSP 1.5.12 adoption (#1264)
+
+The executable package advances from 1.5.10 (#1261) to 1.5.12 in one step;
+#1263 (1.5.11) closed as superseded. Fable 5.2 (`claude-fable-5-2`) replaces
+Fable 5.1 in the model catalog and role lists, and Fable 5.1 receipts stay
+valid (WRSP #559). GPT-6.2 Sol and Astra join the catalog and take the OpenAI
+role slots, including the first-ranked reviewer (WRSP #563). Gemini 4 Neon
+lanes and the Google review family are explicit-only, so the default
+reviewer ranking is unchanged (WRSP #566-#569). Bare land requests are kept
+for every lane identity (WRSP #524).
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.12, tag `v1.5.12` |
+| Source | `e4b34c79c954dcc11daa7f7db8b00f8c0632e58b` |
+| Tarball | `vendor/whiteroom-software-process-1.5.12.tgz` |
+| SHA256 | `611894e6351caabee8ed4a0ea93df383356e941e749a6de56c3383e617e1268a` |
+
+The packaged hooks, bins, runtime dependencies and engine range are unchanged
+from 1.5.10, as are the project role policy and consumer-guard assertions.
+The `X-Authored-Model:` example in `AGENTS.md` now names current models. No
+repository doc prescribed the `.wrsp/` work-dir, lead-shell snapshot or
+`bodyFile` Proof workarounds that WRSP #560 and #561 retire. The unreferenced
+1.5.10 tarball is removed; its adoption evidence remains below.
 
 ## WRSP 1.5.10 adoption (#1261)
 

@@ -289,8 +289,8 @@ reviewer, and guard migration evidence; the installed version is pinned in
 `package.json` and the lockfile.
 
 End every agent-authored commit message with an `X-Authored-Model:` trailer
-naming the exact model id (for example `X-Authored-Model: claude-fable-5-1` or
-`X-Authored-Model: gpt-6-sol`), after any other trailers. Candidate review
+naming the exact model id (for example `X-Authored-Model: claude-fable-5-2` or
+`X-Authored-Model: gpt-6.2-sol`), after any other trailers. Candidate review
 routes to the opposite model family based on this trailer (#637): commits
 without it are unsignalled and cannot claim verified cross-family coverage.
 WRSP 1.x reads the ranked reviewers from the installed `reviewer` role in
