@@ -207,7 +207,10 @@ interface Pending {
   timeout: unknown
 }
 
-class RequestTimeoutError extends Error {}
+/** The correlated Controller reply missed its request deadline. */
+export class ControllerRequestTimeoutError extends Error {
+  override name = 'ControllerRequestTimeoutError'
+}
 
 /** The activation deadline expired on a still-open connection without the
  * Controller reporting the requested program active. The program may still
@@ -643,7 +646,7 @@ export class PixelblazeConnection {
         } catch (error) {
           lifetime.signal.throwIfAborted()
           assertConnection()
-          if (!(error instanceof RequestTimeoutError)) throw error
+          if (!(error instanceof ControllerRequestTimeoutError)) throw error
         }
         const remaining = deadline - this._now()
         if (remaining <= 0) break
@@ -725,7 +728,7 @@ export class PixelblazeConnection {
       queue.push(entry)
       this.pending.set(responseKey, queue)
       entry.timeout = this._setTimeout(() => {
-        cancel(new RequestTimeoutError(`Pixelblaze request timed out waiting for "${responseKey}"`))
+        cancel(new ControllerRequestTimeoutError(`Pixelblaze request timed out waiting for "${responseKey}"`))
       }, options.timeoutMs ?? this.opts.requestTimeoutMs)
       options.signal?.addEventListener('abort', abort, { once: true })
       if (options.signal?.aborted) abort()

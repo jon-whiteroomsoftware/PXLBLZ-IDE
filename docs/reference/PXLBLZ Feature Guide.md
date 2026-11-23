@@ -322,6 +322,11 @@ hardware knowledge lives:
   one PXLBLZ did not create warns that there is no recovery copy unless you
   import it first. **Keep Patterns up to date** rewrites managed Patterns and
   Portable Shows after an edit that changes their generated code.
+  During a normal update, further changes are picked up in one follow-up. If the
+  Controller stops responding, the update pauses and retries once after 10
+  seconds. If it still cannot finish, the pane shows **Controller not
+  responding** with **Retry**. Reconnecting or editing settings on the same
+  Controller during this wait leaves the notice in place.
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 

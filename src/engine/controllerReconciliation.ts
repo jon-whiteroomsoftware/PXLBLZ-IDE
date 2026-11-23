@@ -1,8 +1,9 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecords } from './controllerPushRecord'
-import type { ArtifactStampMeta } from './artifactStamp'
+import { artifactHash, type ArtifactStampMeta } from './artifactStamp'
 import { normalizeStoredArtifactSignature } from './controllerProfilePassRecipe'
+import { isReconciliationTimeout } from './controllerReconciliationPolicy'
 
 export interface ReconciliationArtifact {
   bindingKey: string
@@ -43,6 +44,7 @@ export function planControllerReconciliation(input: {
   bindings: BindingStore
   pushRecords: ControllerPushRecords
   artifacts: readonly ReconciliationArtifact[]
+  precedingPatternSources?: ReadonlyMap<string, string>
 }): ControllerReconciliationPlan {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -76,7 +78,12 @@ export function planControllerReconciliation(input: {
     const storedSignature = pushRecord.profileSignature === undefined
       ? undefined
       : normalizeStoredArtifactSignature(pushRecord.profileSignature)
-    if (storedSignature === artifact.profileSignature) {
+    const precedingSource = input.precedingPatternSources?.get(bindingKey)
+    const sourceChanged = precedingSource !== undefined
+      && precedingSource !== artifact.source
+      && pushRecord.sourceHash !== undefined
+      && pushRecord.sourceHash !== artifactHash(artifact.source)
+    if (storedSignature === artifact.profileSignature && !sourceChanged) {
       current.push({ ...artifact, programId: program.id, state: 'current' })
     } else {
       jobs.push({ ...artifact, programId: program.id, state: 'queued' })
@@ -95,16 +102,19 @@ export interface ControllerReconciliationExecutionResult {
   completed: ControllerReconciliationJob[]
   failed: FailedControllerReconciliationJob[]
   stopped: boolean
+  timedOut: boolean
+  deferred: boolean
 }
 
 export async function executeControllerReconciliation(input: {
   jobs: readonly ControllerReconciliationJob[]
   activeProgramId?: string | null
-  overwrite: (job: ControllerReconciliationJob, activate: boolean) => Promise<void>
+  overwrite: (job: ControllerReconciliationJob, activate: boolean) => Promise<void | false | 'defer'>
   shouldContinue?: () => boolean | Promise<boolean>
   onJobStart?: (job: ControllerReconciliationJob) => void
   onJobComplete?: (job: ControllerReconciliationJob) => void
   onJobFailed?: (failure: FailedControllerReconciliationJob) => void
+  onJobDeferred?: (job: ControllerReconciliationJob) => void
 }): Promise<ControllerReconciliationExecutionResult> {
   const active = input.activeProgramId
   const ordered = [
@@ -114,6 +124,8 @@ export async function executeControllerReconciliation(input: {
   const completed: ControllerReconciliationJob[] = []
   const failed: FailedControllerReconciliationJob[] = []
   let stopped = false
+  let timedOut = false
+  let deferred = false
 
   for (const job of ordered) {
     if (input.shouldContinue && !(await input.shouldContinue())) {
@@ -122,10 +134,26 @@ export async function executeControllerReconciliation(input: {
     }
     input.onJobStart?.(job)
     try {
-      await input.overwrite(job, job.programId === active)
+      const written = await input.overwrite(job, job.programId === active)
+      if (written === false) {
+        input.onJobDeferred?.(job)
+        stopped = true
+        break
+      }
+      if (written === 'defer') {
+        input.onJobDeferred?.(job)
+        deferred = true
+        continue
+      }
       completed.push(job)
       input.onJobComplete?.(job)
     } catch (error) {
+      if (isReconciliationTimeout(error)) {
+        input.onJobDeferred?.(job)
+        stopped = true
+        timedOut = true
+        break
+      }
       const failure = {
         job,
         message: error instanceof Error ? error.message : String(error),
@@ -135,5 +163,5 @@ export async function executeControllerReconciliation(input: {
     }
   }
 
-  return { completed, failed, stopped }
+  return { completed, failed, stopped, timedOut, deferred }
 }

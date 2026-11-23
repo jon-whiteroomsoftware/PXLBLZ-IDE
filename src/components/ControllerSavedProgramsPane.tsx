@@ -289,7 +289,21 @@ function ManagedPatternReconciliation({
   const summary = summarizeControllerSavedPatternStatuses(statuses)
   const { current, stale, updating, queued, failed, unmanaged } = summary
   const phase = reconciliation?.phase ?? 'idle'
-  const showProgress = profile.keepPatternsUpToDate && ['pending', 'running', 'attention'].includes(phase)
+  const stalled = profile.keepPatternsUpToDate && phase === 'not-responding'
+  const showProgress = profile.keepPatternsUpToDate
+    && (phase === 'pending' || phase === 'running' || phase === 'attention' || stalled)
+  const retryAt = stalled ? reconciliation?.retryAt : undefined
+  const [retryClock, setRetryClock] = useState(() => Date.now())
+  useEffect(() => {
+    if (retryAt === undefined) return
+    const now = () => setRetryClock(Date.now())
+    const start = setTimeout(now, 0)
+    const tick = setInterval(now, 1_000)
+    return () => {
+      clearTimeout(start)
+      clearInterval(tick)
+    }
+  }, [retryAt])
   const total = Math.max(summary.total, 1)
   const width = (count: number) => ({ width: `${(count / total) * 100}%` })
 
@@ -339,6 +353,24 @@ function ManagedPatternReconciliation({
             >
               Retry failed updates
             </Button>
+          )}
+        </div>
+      )}
+      {stalled && (
+        <div role="status" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-300">
+          <span>Controller not responding</span>
+          {retryAt === undefined ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="h-5 bg-amber-950/30 px-2 text-amber-200 hover:bg-amber-950/60"
+              onClick={onRetry}
+            >
+              Retry
+            </Button>
+          ) : (
+            <span className="text-zinc-400">Retrying in {Math.max(0, Math.ceil((retryAt - retryClock) / 1_000))} s</span>
           )}
         </div>
       )}
@@ -1547,7 +1579,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         profile={profile}
         reconciliation={reconciliation}
         statuses={savedPatternStatuses}
-        onRetry={() => void reconcileControllerProfile(profile.id)}
+        onRetry={() => {
+          void reconcileControllerProfile(profile.id).catch((error: unknown) => {
+            console.error('Managed Pattern reconciliation failed', error)
+          })
+        }}
       />
       <SavedProgramsInventory
         status={readStatus}

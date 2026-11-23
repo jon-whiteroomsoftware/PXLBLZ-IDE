@@ -5,6 +5,8 @@ import {
   type ControllerReconciliationJob,
 } from './controllerReconciliation'
 import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
+import { artifactHash } from './artifactStamp'
+import { ControllerRequestTimeoutError } from './PixelblazeConnection'
 import {
   LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
   LEGACY_SIGNATURE_MAP_DIM,
@@ -23,6 +25,32 @@ function pushRecord(profileSignature?: string) {
 }
 
 describe('planControllerReconciliation', () => {
+  it('rechecks a changed authored Pattern with a comparable record while keeping ordinary and legacy planning', () => {
+    const keys = ['edited', 'foreground-source-differs', 'already-saved', 'legacy', 'show:1']
+    const input = {
+      controllerId: 'ctrl',
+      programs: keys.map((id) => ({ id, name: id })),
+      bindings: { ctrl: Object.fromEntries(keys.map((key) => [key, key])) },
+      pushRecords: { ctrl: Object.fromEntries(keys.map((key) => [key, {
+        ...pushRecord('signature'),
+        sourceHash: key === 'legacy' ? undefined : artifactHash(key === 'already-saved' ? 'new' : 'old'),
+      }])) },
+      artifacts: keys.map((key) => ({
+        bindingKey: key,
+        name: key,
+        source: 'new',
+        profileSignature: 'signature',
+      })),
+    }
+    const precedingPatternSources = new Map([
+      ['edited', 'old'], ['foreground-source-differs', 'new'], ['already-saved', 'old'], ['legacy', 'old'],
+    ])
+    expect(planControllerReconciliation(input).jobs).toEqual([])
+    const plan = planControllerReconciliation({ ...input, precedingPatternSources })
+    expect(plan.jobs.map((job) => job.programId)).toEqual(['edited'])
+    expect(plan.current.map((program) => program.programId)).toEqual(keys.slice(1))
+  })
+
   it('strictly excludes foreign and unmanaged programs from reconciliation jobs', () => {
     const plan = planControllerReconciliation({
       controllerId: 'ctrl-A',
@@ -189,6 +217,35 @@ describe('planControllerReconciliation', () => {
 })
 
 describe('executeControllerReconciliation', () => {
+  it('continues past an ordinary failure and deferred binding, then stops on the first typed timeout', async () => {
+    const jobs: ControllerReconciliationJob[] = ['FAIL', 'DEFER', 'TIMEOUT', 'UNTOUCHED'].map((programId) => ({
+      programId,
+      bindingKey: programId,
+      name: programId,
+      source: 'export function render(index) { hsv(index, 1, 1) }',
+      profileSignature: 'signature',
+      state: 'queued',
+    }))
+    const cyclic = new Error('reply timed out')
+    cyclic.cause = cyclic
+    const overwrite = vi.fn()
+      .mockRejectedValueOnce(cyclic)
+      .mockResolvedValueOnce('defer')
+      .mockRejectedValueOnce(new Error('transport', {
+        cause: new Error('request', { cause: new ControllerRequestTimeoutError('reply') }),
+      }))
+    const deferred = vi.fn()
+    const result = await executeControllerReconciliation({ jobs, overwrite, onJobDeferred: deferred })
+    expect(overwrite.mock.calls.map(([job]) => job.programId)).toEqual(['FAIL', 'DEFER', 'TIMEOUT'])
+    expect(deferred.mock.calls.map(([job]) => job.programId)).toEqual(['DEFER', 'TIMEOUT'])
+    expect(result).toMatchObject({
+      completed: [],
+      failed: [{ job: jobs[0], message: 'reply timed out' }],
+      stopped: true,
+      timedOut: true,
+    })
+  })
+
   it('writes jobs serially, updates the active managed program last, and activates only that program', async () => {
     const jobs: ControllerReconciliationJob[] = ['A', 'ACTIVE', 'B'].map((programId) => ({
       programId,

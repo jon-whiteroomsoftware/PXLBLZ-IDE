@@ -71,7 +71,11 @@ import { encodeMapData } from '@/engine/mapPush'
 import { bakeMapSource } from '@/engine/maps/bake'
 import { mapFingerprintForPoints } from '@/engine/mapFingerprint'
 import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
-import { ControllerActivationTimeoutError } from '@/engine/PixelblazeConnection'
+import {
+  ControllerActivationTimeoutError,
+  ControllerRequestTimeoutError,
+} from '@/engine/PixelblazeConnection'
+import { decodePbp } from '@/engine/pbpEncode'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -384,6 +388,443 @@ function deferred<T>() {
   })
   return { promise, resolve, reject }
 }
+
+describe('managed Controller reconciliation ownership (#1268)', () => {
+  const ip = '10.0.0.5'
+  const deviceId = 'pixelblaze_pb32_managed'
+  const profileId = 'profile-1'
+  const profile = {
+    ...defaultControllerProfile({ id: profileId, deviceId, ip }),
+    keepPatternsUpToDate: true,
+  }
+  const timeout = () => new ControllerRequestTimeoutError('Controller reply overdue')
+  const debounce = 600
+  const retryDelay = 10_000
+  const refresh = vi.fn<(controllerIp?: string) => Promise<boolean>>(async () => true)
+  const reread = vi.fn<(controllerIp: string) => Promise<void>>(async () => {})
+  const source = (factor: number) =>
+    `export function render(index) { hsv(index * ${factor}, 1, 1) }`
+
+  function author(first: number, second: number) {
+    usePatternStore.setState({
+      userPatterns: [first, second].map((factor, index) => ({
+        id: `pat-${index + 1}`,
+        name: `Managed ${index + 1}`,
+        src: source(factor),
+        controls: {},
+        updatedAt: 1,
+      })),
+      patternsLoaded: true,
+    })
+  }
+
+  async function fixture() {
+    setControllerProfiles([{ ...profile, keepPatternsUpToDate: false }])
+    await store().addController({ id: deviceId, address: ip, name: 'Test Controller' })
+    setControllerProfiles([profile])
+    author(11, 12)
+    const fake = created.get(ip)!
+    fake.programs = [
+      { id: 'MANAGED1', name: 'Managed 1' },
+      { id: 'MANAGED2', name: 'Managed 2' },
+    ]
+    await setControllerBindings({ [ip]: { 'pat-1': 'MANAGED1', 'pat-2': 'MANAGED2' } })
+    await setPushRecords({
+      [ip]: Object.fromEntries(fake.programs.map((program, index) => [`pat-${index + 1}`, {
+        name: program.name,
+        profileSignature: 'outdated',
+        artifactHash: 'outdated',
+        stampedAt: '2026-11-23T00:00:00.000Z',
+        transforms: [],
+      }])),
+    })
+    return fake
+  }
+
+  const state = () => store().controllerReconciliations[profileId]
+  const writesFor = (fake: FakeProvider, id: string) => fake.saved
+    .filter(({ opts }) => opts.id === id)
+    .map(({ blob }) => decodePbp(blob)?.sourceCode)
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    vi.setSystemTime(100_000)
+    const original = useControllerPanelStore.getState()
+    refresh.mockClear()
+    reread.mockClear()
+    useControllerPanelStore.setState({
+      seed: () => {},
+      refreshPrograms: refresh,
+      rereadAfterFailedWrite: reread,
+    })
+    onTestFinished(() => {
+      useControllerPanelStore.setState({
+        seed: original.seed,
+        refreshPrograms: original.refreshPrograms,
+        rereadAfterFailedWrite: original.rereadAfterFailedWrite,
+      })
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  function holdSecondJob() {
+    const requested = deferred<void>()
+    const secondJobProfile = deferred<ControllerProfile[]>()
+    let reads = 0
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'hold-reconciliation-profile',
+      listShowDocumentsV2: async () => [],
+      async listControllerProfiles() {
+        if (++reads !== 3) return [profile]
+        requested.resolve()
+        return secondJobProfile.promise
+      },
+    })
+    return { requested, secondJobProfile }
+  }
+
+  it('writes old captured jobs before the coalesced pass writes the latest authored source', async () => {
+    const fake = await fixture()
+    const { requested, secondJobProfile } = holdSecondJob()
+    const first = store().reconcileControllerProfile(profileId)
+    await requested.promise
+    author(21, 22)
+
+    store().scheduleControllerReconciliation(profileId)
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(600)
+    const writesWhilePaused = fake.saved.map(({ opts }) => opts.id)
+
+    secondJobProfile.resolve([profile])
+    await first
+    await vi.advanceTimersByTimeAsync(600)
+    expect(writesWhilePaused).toEqual(['MANAGED1'])
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([
+      expect.stringContaining('index * 12'), expect.stringContaining('index * 22'),
+    ])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+  })
+
+  it.each([false, true])('preserves a newer foreground Save when activation fails = %s', async (fails) => {
+    const fake = await fixture()
+    const { requested, secondJobProfile } = holdSecondJob()
+    const reconciliation = store().reconcileControllerProfile(profileId)
+    await requested.promise
+    usePatternStore.setState({ activePatternId: 'pat-2' })
+    useEditorStore.setState({ previewSource: source(22), previewPatternName: 'Managed 2' })
+    store().setSaveArmed(true)
+    if (fails) fake.pushBytecodeError = new Error('activation failed')
+    await store().pushActivePattern()
+    expect(store().pushResult?.ok).toBe(!fails)
+
+    secondJobProfile.resolve([profile])
+    await reconciliation
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 22')])
+    expect(state()).toMatchObject({
+      phase: 'pending',
+      completedCount: 1,
+      programs: [expect.objectContaining({ state: 'current' }), expect.objectContaining({ state: 'queued' })],
+    })
+  })
+
+  it('does not change a running or completed row on a failed trailing profile read', async () => {
+    const fake = await fixture()
+    fake.programs.splice(1)
+    const entered = deferred<void>()
+    const reply = deferred<void>()
+    const save = fake.saveProgram.bind(fake)
+    fake.saveProgram = async (...args) => {
+      entered.resolve()
+      await reply.promise
+      await save(...args)
+    }
+    const first = store().reconcileControllerProfile(profileId)
+    await entered.promise
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'profile-outage',
+      listControllerProfiles: async () => { throw new Error('profile read unavailable') },
+    })
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(state()).toMatchObject({ phase: 'running', completedCount: 0 })
+    reply.resolve()
+    await first
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(state()).toMatchObject({
+      phase: 'current',
+      completedCount: 1,
+      programs: [expect.objectContaining({ programId: 'MANAGED1', state: 'current' })],
+    })
+    expect(writesFor(fake, 'MANAGED1')).toHaveLength(1)
+  })
+
+  it.each([deviceId, undefined])('serializes profile aliases through the same Controller (device ID %s)', async (aliasId) => {
+    const fake = await fixture()
+    const alias = { ...profile, id: 'alias', deviceId: aliasId }
+    setControllerProfiles([profile, alias])
+    const entered = deferred<void>()
+    const reply = deferred<ProgramListEntry[]>()
+    const list = vi.spyOn(fake, 'listPrograms').mockImplementationOnce(() => {
+      entered.resolve()
+      return reply.promise
+    })
+    const first = store().reconcileControllerProfile(profileId)
+    await entered.promise
+    const second = store().reconcileControllerProfile(alias.id)
+    await vi.advanceTimersByTimeAsync(0)
+    const readsWhileHeld = list.mock.calls.length
+    reply.resolve(fake.programs)
+    await Promise.all([first, second])
+    expect(readsWhileHeld).toBe(1)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(store().controllerReconciliations[alias.id]?.phase).toBe('current')
+  })
+
+  it('coalesces Retry and repeated background triggers behind a held Save', async () => {
+    const fake = await fixture()
+    fake.programs.splice(1)
+    const config = vi.spyOn(fake, 'getConfig')
+    const entered = deferred<void>()
+    const reply = deferred<void>()
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (...args) => {
+      entered.resolve()
+      await reply.promise
+      await save(...args)
+    })
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(debounce)
+    await entered.promise
+    author(21, 22)
+    store().scheduleControllerReconciliation(profileId)
+    const retry = store().reconcileControllerProfile(profileId)
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(config).toHaveBeenCalledTimes(1)
+    reply.resolve()
+    await retry
+    expect(config).toHaveBeenCalledTimes(2)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+  })
+
+  it('holds admission through the first profile read and releases it after a planning error', async () => {
+    const fake = await fixture()
+    const profilesComeBack = deferred<ControllerProfile[]>()
+    let profileReads = 0
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'hold-first-profile-read',
+      listControllerProfiles: async () => ++profileReads === 1 ? profilesComeBack.promise : [profile],
+      listShowDocumentsV2: async () => [],
+    })
+    const list = vi.spyOn(fake, 'listPrograms').mockRejectedValueOnce(new Error('ordinary planning error'))
+    const first = store().reconcileControllerProfile(profileId)
+    const failed = expect(first).rejects.toThrow('ordinary planning error')
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(list).not.toHaveBeenCalled()
+    expect(profileReads).toBe(1)
+    profilesComeBack.resolve([profile])
+    await failed
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+  })
+
+  it('protects a foreground Save whose activation is still pending when the pass starts', async () => {
+    const fake = await fixture()
+    const activation = deferred<void>()
+    const entered = deferred<void>()
+    fake.pushBytecode = () => {
+      entered.resolve()
+      return activation.promise
+    }
+    usePatternStore.setState({ activePatternId: 'pat-1' })
+    useEditorStore.setState({ previewSource: source(21), previewPatternName: 'Managed 1' })
+    store().setSaveArmed(true)
+    const foreground = store().pushActivePattern()
+    await entered.promise
+    const reconciliation = store().reconcileControllerProfile(profileId)
+    await vi.advanceTimersByTimeAsync(0)
+    activation.reject(new Error('activation failed after Save'))
+    await Promise.all([foreground, reconciliation])
+    expect(writesFor(fake, 'MANAGED1')).toEqual([expect.stringContaining('index * 21')])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 12')])
+    expect(state()).toMatchObject({ phase: 'pending', completedCount: 1 })
+  })
+
+  it('stops a captured job when the Controller session changes during compilation', async () => {
+    const fake = await fixture()
+    const compiled = deferred<Uint8Array>()
+    const entered = deferred<void>()
+    vi.spyOn(fake, 'compile').mockImplementationOnce(() => {
+      entered.resolve()
+      return compiled.promise
+    })
+    const reconciliation = store().reconcileControllerProfile(profileId)
+    await entered.promise
+    useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        [ip]: { ...state.controllers[ip], liveEpoch: (state.controllers[ip].liveEpoch ?? 0) + 1 },
+      },
+    }))
+    compiled.resolve(makeReconcilingBytecode())
+    await reconciliation
+    expect(fake.saved).toEqual([])
+    expect(refresh).not.toHaveBeenCalled()
+    expect(state()).toMatchObject({ phase: 'pending', completedCount: 0 })
+  })
+
+  it('stops at the first job timeout, retries exactly once, then waits for manual Retry', async () => {
+    const fake = await fixture()
+    const save = vi.spyOn(fake, 'saveProgram')
+      .mockRejectedValueOnce(new Error('wrapped request', { cause: timeout() }))
+      .mockRejectedValueOnce(timeout())
+    const start = Date.now()
+    await store().reconcileControllerProfile(profileId)
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(refresh).not.toHaveBeenCalled()
+    expect(state()).toMatchObject({
+      phase: 'not-responding',
+      retryAt: start + retryDelay,
+      completedCount: 0,
+      programs: [expect.objectContaining({ state: 'queued' }), expect.objectContaining({ state: 'queued' })],
+    })
+
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(retryDelay - 1)
+    expect(save).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(state().retryAt).toBeUndefined()
+    expect(state().phase).toBe('not-responding')
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(retryDelay * 2)
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(refresh).not.toHaveBeenCalled()
+
+    await Promise.all([
+      store().reconcileControllerProfile(profileId), store().reconcileControllerProfile(profileId),
+    ])
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('reads back the edit to a completed Pattern after a later job timed out', async () => {
+    const fake = await fixture()
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram')
+      .mockImplementationOnce(save)
+      .mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1'])
+    author(21, 22)
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 22')])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+  })
+
+  it('keeps triggers received during an automatic retry suppressed after its success', async () => {
+    const fake = await fixture()
+    const config = vi.spyOn(fake, 'getConfig')
+    vi.spyOn(fake, 'saveProgram').mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    const held = deferred<ProgramListEntry[]>()
+    vi.spyOn(fake, 'listPrograms').mockImplementationOnce(() => held.promise)
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(state().phase).toBe('running')
+    store().scheduleControllerReconciliation(profileId)
+    store().scheduleControllerReconciliation(profileId)
+    held.resolve(fake.programs)
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(config).toHaveBeenCalledTimes(2)
+    expect(state().phase).toBe('current')
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+  })
+
+  it('leaves a replacement Controller untouched by a due retry from the previous Controller', async () => {
+    const fake = await fixture()
+    const config = vi.spyOn(fake, 'getConfig')
+    vi.spyOn(fake, 'saveProgram').mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    await vi.advanceTimersByTimeAsync(retryDelay - 100)
+    const replacement = 'pixelblaze_pb32_replacement'
+    setControllerProfiles([{ ...profile, deviceId: replacement }])
+    useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        [ip]: { ...state.controllers[ip], deviceId: replacement },
+      },
+    }))
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(config).toHaveBeenCalledTimes(1)
+    expect(fake.saved).toEqual([])
+    expect(state().phase).toBe('pending')
+    await vi.advanceTimersByTimeAsync(debounce - 100)
+    expect(config).toHaveBeenCalledTimes(2)
+    expect(state().phase).toBe('current')
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+  })
+
+  it.each(['listPrograms', 'getConfig'] as const)('stalls on a planning timeout from %s', async (read) => {
+    const fake = await fixture()
+    vi.spyOn(fake, read).mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved).toEqual([])
+    expect(refresh).not.toHaveBeenCalled()
+    expect(state()).toMatchObject({
+      phase: 'not-responding',
+      retryAt: Date.now() + retryDelay,
+    })
+  })
+
+  it('keeps an unconfirmed activation on the saved-and-re-read path', async () => {
+    const fake = await fixture()
+    vi.spyOn(fake, 'getConfig').mockResolvedValue({ activeProgramId: 'MANAGED1' })
+    fake.pushBytecodeError = new ControllerActivationTimeoutError('MANAGED1')
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED2', 'MANAGED1'])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+    expect(reread).toHaveBeenCalledExactlyOnceWith(ip)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('consumes the automatic attempt on a profile outage, then clears on opt-out', async () => {
+    const fake = await fixture()
+    vi.spyOn(fake, 'saveProgram').mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'profile-outage',
+      listControllerProfiles: async () => { throw new Error('profile read unavailable') },
+    })
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(state().phase).toBe('not-responding')
+    expect(state().retryAt).toBeUndefined()
+    expect(fake.saved).toEqual([])
+    setControllerProfiles([{ ...profile, keepPatternsUpToDate: false }])
+    store().scheduleControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(state()).toMatchObject({ phase: 'idle', programs: [] })
+  })
+})
 
 beforeEach(async () => {
   localStorage.clear()

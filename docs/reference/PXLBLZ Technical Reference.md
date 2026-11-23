@@ -988,12 +988,30 @@ change the signature, and a retired field is normalized on read rather than
 paid for in device writes.** `normalizeStoredArtifactSignature` re-reads
 stored signatures in today's terms (drop `role`, promote to the version-1
 envelope) and returns unrecognized bytes verbatim - the safe direction, which
-can cost one re-push but can never read stale data as current. Reconciliation
-runs serially through the per-Controller write queue, updates the active
-program last, and stops cleanly on newer edits or disable. Unattended
-reconciliation keeps Patterns and Portable Shows current, while Installation
-Shows are sent only explicitly from the editor, because the Controller's
-installed map cannot be verified atomically at write time (#1129).
+can cost one re-push but can never read stale data as current.
+
+One reconciliation pass owns a Controller from planning through the last job.
+Profiles reaching the same IP or a known identical device ID share that
+ownership. A trigger received during a pass requests one follow-up with fresh
+profile, inventory and source reads. A follow-up or stall recovery also
+compares recorded Pattern source hashes for edits since the preceding plan.
+Each job uses the existing per-Controller write queue and the active program
+runs last. A foreground Save that reaches the write path takes precedence over
+an overlapping captured job for the same binding, including when the Save's
+later activation fails. The pending job remains queued.
+
+The first Controller request timeout stops the pass before any later job or
+inventory refresh. The profile schedules one automatic retry after 10 seconds
+for the same Controller. If it cannot finish, the profile waits for **Retry**.
+Reconnects and edits received during the stall do not start a pass on that
+Controller. Successful reconciliation, Retry, a replacement Controller, or
+opting out clears the stall. When a Save stored the active Pattern and its
+activation deadline leaves activation unconfirmed, the job completes and the
+panel uses the same re-read path as a foreground Save (#1268).
+
+Unattended reconciliation keeps Patterns and Portable Shows current.
+Installation Shows are sent only explicitly from the editor, because the
+Controller's installed map cannot be verified atomically at write time (#1129).
 
 ## 18. Map push, read-back, and fingerprints
 
