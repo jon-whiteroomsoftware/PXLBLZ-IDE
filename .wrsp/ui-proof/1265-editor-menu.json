@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "issue": "1265",
+  "route": "/PXLBLZ-IDE/studio/patterns/e2e-1265-menu-1440",
+  "operation": "Opened the Pattern editor's Pattern actions (⋮) menu on a personal Pattern at 1440x900 and at 800x700 (default splitter, and with the preview widened via the Resize preview pane splitter); every item is fully inside the viewport and topmost at its centre. Driven by the repo Playwright authenticated runner (e2e/authenticated-smoke.auth.spec.ts, #1265 block) against this commit.",
+  "captures": [
+    ".wrsp/ui-proof/1265-editor-menu-1440x900.png",
+    ".wrsp/ui-proof/1265-editor-menu-800x700.png",
+    ".wrsp/ui-proof/1265-editor-menu-800x700-preview-wider.png"
+  ],
+  "capturedAtCommit": "f3d75236911192afbaead83c555050a6d7f68308"
+}
