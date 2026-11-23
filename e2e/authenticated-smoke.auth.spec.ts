@@ -2264,3 +2264,105 @@ test.describe('browser-triggered .epe downloads (#972)', () => {
     expect(JSON.parse(secondText).id).toBe(firstId)
   })
 })
+
+test.describe('Pattern editor actions menu placement (#1265)', () => {
+  const menuLabels = ['Copy code', 'Download .epe', 'Delete pattern']
+
+  async function openPersonalPattern(page: Page, request: import('@playwright/test').APIRequestContext, id: string): Promise<void> {
+    const created = await request.post('/api/patterns', {
+      data: {
+        id,
+        name: `Menu Placement ${id}`,
+        src: 'export function render(index) { hsv(index / pixelCount, 1, 0.5) }',
+        controls: {},
+        updatedAt: Date.now(),
+      },
+    })
+    expect(created.ok(), `POST /api/patterns -> ${created.status()}`).toBe(true)
+    await page.goto(`studio/patterns/${id}`)
+    await expect(page.getByRole('button', { name: 'Pattern actions' })).toBeVisible()
+  }
+
+  async function expectMenuFullyVisible(page: Page, cell: string): Promise<void> {
+    await page.getByRole('button', { name: 'Pattern actions' }).click()
+    const menu = page.getByRole('menu', { name: 'Pattern actions' })
+    await expect(menu.getByRole('menuitem')).toHaveText(menuLabels)
+    const geometry = await menu.evaluate((menuElement) => {
+      const menuBox = menuElement.getBoundingClientRect()
+      return [...menuElement.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((item) => {
+        const box = item.getBoundingClientRect()
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return {
+          label: item.textContent,
+          inViewport: box.width > 0 && box.height > 0 && box.left >= 0 && box.top >= 0
+            && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
+          inMenu: box.left >= menuBox.left - 0.5 && box.right <= menuBox.right + 0.5
+            && box.top >= menuBox.top - 0.5 && box.bottom <= menuBox.bottom + 0.5,
+          topmost: hit !== null && item.contains(hit),
+          hit: hit ? `${hit.tagName}.${String(hit.className).slice(0, 60)}` : 'null',
+        }
+      })
+    })
+    for (const item of geometry) {
+      expect(item, `${cell}: ${item.label}`).toMatchObject({ inViewport: true, inMenu: true, topmost: true })
+    }
+    if (process.env.PXLBLZ_1265_PROOF_DIR) {
+      await page.screenshot({ path: `${process.env.PXLBLZ_1265_PROOF_DIR}/${cell}.png` })
+    }
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+  }
+
+  async function movePreviewSplitter(page: Page, key: 'Shift+ArrowLeft' | 'Shift+ArrowRight'): Promise<void> {
+    const splitter = page.getByRole('separator', { name: 'Resize preview pane' })
+    const before = Number(await splitter.getAttribute('aria-valuenow'))
+    await splitter.focus()
+    for (let step = 0; step < 6; step += 1) await page.keyboard.press(key)
+    const after = Number(await splitter.getAttribute('aria-valuenow'))
+    // ArrowLeft drags the splitter left, widening the preview.
+    if (key === 'Shift+ArrowLeft') expect(after).toBeGreaterThan(before)
+    else expect(after).toBeLessThan(before)
+  }
+
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 800, height: 700 }]) {
+    test(`every item is inside the viewport and topmost at ${viewport.width}x${viewport.height}`, async ({ page, request }) => {
+      await page.setViewportSize(viewport)
+      await openPersonalPattern(page, request, `e2e-1265-menu-${viewport.width}`)
+      const size = `${viewport.width}x${viewport.height}`
+      await expectMenuFullyVisible(page, `${size}-default`)
+      await movePreviewSplitter(page, 'Shift+ArrowLeft')
+      await expectMenuFullyVisible(page, `${size}-preview-wider`)
+      await movePreviewSplitter(page, 'Shift+ArrowRight')
+      await movePreviewSplitter(page, 'Shift+ArrowRight')
+      await expectMenuFullyVisible(page, `${size}-preview-narrower`)
+    })
+  }
+
+  test('keyboard opens with focus on an item, arrows move, Escape returns focus', async ({ page, request }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await openPersonalPattern(page, request, 'e2e-1265-menu-keyboard')
+    const trigger = page.getByRole('button', { name: 'Pattern actions' })
+    const menu = page.getByRole('menu', { name: 'Pattern actions' })
+
+    await trigger.focus()
+    await page.keyboard.press('ArrowDown')
+    await expect(menu.getByRole('menuitem', { name: 'Copy code' })).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(menu.getByRole('menuitem', { name: 'Download .epe' })).toBeFocused()
+    await page.keyboard.press('ArrowUp')
+    await expect(menu.getByRole('menuitem', { name: 'Copy code' })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+
+    await page.keyboard.press('ArrowUp')
+    await expect(menu.getByRole('menuitem', { name: 'Delete pattern' })).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(trigger).toBeFocused()
+
+    await trigger.click()
+    await expect(menu).toBeVisible()
+    await page.mouse.click(5, 5)
+    await expect(menu).toHaveCount(0)
+  })
+})

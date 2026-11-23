@@ -72,5 +72,6 @@ export function PatternActionsMenu({
     separatorBefore: true,
   })
 
-  return <ActionsMenu label="Pattern actions" items={items} density={density} side={side} />
+  // Portaled so the editor pane's overflow clip and the preview pane cannot hide it (#1265).
+  return <ActionsMenu label="Pattern actions" items={items} density={density} side={side} portaled align="right" />
 }

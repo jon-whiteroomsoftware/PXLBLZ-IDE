@@ -20,6 +20,16 @@ describe('placeAnchoredOverlay', () => {
     })
   })
 
+  it('clamps a right-aligned overlay at the left margin (#1265)', () => {
+    expect(placeAnchoredOverlay({
+      anchor: { left: 60, right: 88, top: 40, bottom: 64, width: 28, height: 24 },
+      overlay: { width: 208, height: 100 },
+      viewport,
+      align: 'right',
+      preferredSide: 'bottom',
+    })).toMatchObject({ left: 8, top: 68, side: 'bottom' })
+  })
+
   it('clamps a left-aligned overlay at both viewport edges', () => {
     expect(placeAnchoredOverlay({
       anchor: { ...anchor, left: 990, right: 1010 },

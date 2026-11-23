@@ -19,6 +19,7 @@ export function ActionsMenu({
   density = 'compact',
   side = 'below',
   portaled = false,
+  align = 'left',
   escapeLayerRank,
 }: {
   label: string
@@ -26,6 +27,8 @@ export function ActionsMenu({
   density?: 'compact' | 'regular'
   side?: 'above' | 'below'
   portaled?: boolean
+  /** Portaled menus only: which trigger edge the menu lines up with before viewport clamping. */
+  align?: 'left' | 'right'
   escapeLayerRank?: number
 }) {
   const [open, setOpen] = useState(false)
@@ -38,7 +41,7 @@ export function ActionsMenu({
     ? density === 'regular' ? 'bottom-9' : 'bottom-7'
     : density === 'regular' ? 'top-9' : 'top-7'
   const menuStyle = useAnchoredOverlayPosition(triggerRef, menuRef, open && portaled, {
-    align: 'left',
+    align,
     preferredSide: side === 'above' ? 'top' : 'bottom',
   })
 
@@ -80,12 +83,15 @@ export function ActionsMenu({
     return () => window.removeEventListener('keydown', onKey)
   }, [escapeLayerRank, open])
 
+  // A portaled menu stays visibility: hidden until it is placed, and a hidden
+  // item cannot take focus, so the opening focus waits for placement.
+  const placed = !portaled || menuStyle.visibility === 'visible'
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open || !placed) return
     const enabledItems = menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')
     if (!enabledItems?.length) return
     enabledItems[openingFocusRef.current === 'last' ? enabledItems.length - 1 : 0]?.focus()
-  }, [open])
+  }, [open, placed])
 
   const itemClass =
     'flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:text-zinc-600 disabled:hover:bg-transparent'

@@ -2068,8 +2068,8 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
     const editorPane = within(screen.getByTestId('editor-pane'))
     await userEvent.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
-    expect(editorPane.getByRole('menuitem', { name: 'View in Gallery' })).toBeInTheDocument()
-    expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'View in Gallery' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
   })
 
   it('does not offer a Gallery route for a Studio-only Test Pattern (#785)', async () => {
@@ -2085,8 +2085,8 @@ describe('routing (#308)', () => {
     const editorPane = within(screen.getByTestId('editor-pane'))
     await userEvent.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
 
-    expect(editorPane.queryByRole('menuitem', { name: 'View in Gallery' })).not.toBeInTheDocument()
-    expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: 'View in Gallery' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
   })
 
   it('reports, dismisses, and retries a failed stock Pattern Clone without opening a ghost record', async () => {
@@ -2103,7 +2103,7 @@ describe('routing (#308)', () => {
     const editorPane = within(screen.getByTestId('editor-pane'))
 
     await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
-    await user.click(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Clone into Patterns' }))
 
     let notice = await editorPane.findByRole('alert')
     expect(notice).toHaveTextContent('Could not clone pattern "TestPattern1D".')
@@ -2113,7 +2113,7 @@ describe('routing (#308)', () => {
     expect(editorPane.queryByRole('alert')).not.toBeInTheDocument()
 
     await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
-    await user.click(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Clone into Patterns' }))
     notice = await editorPane.findByRole('alert')
     await user.click(within(notice).getByRole('button', { name: 'Retry clone pattern' }))
 
@@ -2135,7 +2135,7 @@ describe('routing (#308)', () => {
     const editorPane = within(screen.getByTestId('editor-pane'))
 
     await user.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
-    await user.click(editorPane.getByRole('menuitem', { name: 'Delete pattern' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete pattern' }))
     const dialog = screen.getByRole('alertdialog', { name: 'Delete pattern?' })
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
