@@ -1,8 +1,27 @@
 // Pure analysis for the Controller Save probe (#1268). No I/O.
 
+import { FrameFlag, MessageType } from '../../src/engine/PixelblazeConnection'
+
 export interface ProgramKey {
   id: string
   name: string
+}
+
+/** Only the last source frame counts as the end of the upload. */
+export function isFinalSaveFrame(frame: Uint8Array): boolean {
+  return frame.length >= 2 && frame[0] === MessageType.putSourceCode && (frame[1] & FrameFlag.last) !== 0
+}
+
+/** Report the firmware's flash-write reply, including an explicit rejection. */
+export function readSaveAcknowledgement(text: string): boolean | undefined {
+  if (!text.includes('"saveProgramSourceFile"')) return undefined
+  try {
+    const reply = JSON.parse(text) as { saveProgramSourceFile?: unknown } | null
+    const acknowledged = reply?.saveProgramSourceFile
+    return typeof acknowledged === 'boolean' ? acknowledged : undefined
+  } catch {
+    return undefined
+  }
 }
 
 /** The longest stretch in [from, to] with no inbound frame. The window edges

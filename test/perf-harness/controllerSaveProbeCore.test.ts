@@ -1,5 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { compareReadBack, maxInboundGapMs, sourcePadding } from './controllerSaveProbeCore'
+import { encodeBinaryFrames, MessageType } from '../../src/engine/PixelblazeConnection'
+import {
+  compareReadBack,
+  isFinalSaveFrame,
+  maxInboundGapMs,
+  readSaveAcknowledgement,
+  sourcePadding,
+} from './controllerSaveProbeCore'
+
+describe('Save wire events', () => {
+  it('recognizes the final source frame of both single- and multi-frame Saves', () => {
+    const payload = new Uint8Array(3)
+    expect(encodeBinaryFrames(MessageType.putSourceCode, payload).map(isFinalSaveFrame)).toEqual([true])
+    expect(encodeBinaryFrames(MessageType.putSourceCode, payload, 1).map(isFinalSaveFrame)).toEqual([false, false, true])
+    expect(encodeBinaryFrames(MessageType.putByteCode, payload).map(isFinalSaveFrame)).toEqual([false])
+  })
+
+  it('keeps positive and negative Save acknowledgements distinct from other replies', () => {
+    expect(readSaveAcknowledgement('{"saveProgramSourceFile":true}')).toBe(true)
+    expect(readSaveAcknowledgement('{"saveProgramSourceFile":false}')).toBe(false)
+    expect(readSaveAcknowledgement('{"ack":true}')).toBeUndefined()
+    expect(readSaveAcknowledgement('{"saveProgramSourceFile":"true"}')).toBeUndefined()
+    expect(readSaveAcknowledgement('{"saveProgramSourceFile":')).toBeUndefined()
+  })
+})
 
 describe('maxInboundGapMs', () => {
   it('counts silence at both window edges', () => {

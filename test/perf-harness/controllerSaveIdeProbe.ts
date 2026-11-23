@@ -6,6 +6,8 @@
 // it opens the ws://<ip>:81 socket and, like the helper, re-downloads the
 // Controller's compiler for every compile. Every provider status change and every
 // Save outcome is logged with its time, so a drop shows as `connecting`.
+// Logs the final source frame's socket write, the firmware acknowledgement, the
+// provider Save return, the push-record write and the queued editor Save return.
 //
 //   editor     N editor Saves of one Pattern (save, activate), each read back.
 //   reconcile  N Patterns saved back to back with activateOnSave: false, as
@@ -25,8 +27,9 @@
 //              write-queue pause) and queue each Save through the production
 //              device write queue, as the IDE does (#1268 slice 1). Every poll
 //              request's reply time is recorded, with the peak number of poll
-//              requests outstanding at once. The store imports Vite globs, so run
-//              it through Vite's module runner: node test/perf-harness/
+//              requests outstanding at once. Reads back the active id after each
+//              Save, along with its Saved list entry. Run the store's Vite globs
+//              through Vite's module runner: node test/perf-harness/
 //              controllerSaveViteRun.mjs test/perf-harness/controllerSaveIdeProbe.ts ...
 //   --induce failed-after-store:N | unconfirmed:N  (with --panel-store) make
 //              editor Save N (1-based) fail after its PBP frames were sent, or
@@ -42,7 +45,8 @@
 //
 //   PIXELBLAZE_IP=192.168.8.161 npx tsx test/perf-harness/controllerSaveIdeProbe.ts --mode editor --count 10 --manifest /tmp/x.jsonl
 //
-// Fidelity: omits Chrome, the MV3 service worker, the store and the dialog. The
+// Fidelity: uses a Node relay and in-memory push records in place of Chrome,
+// the MV3 service worker, the editor dialog and workspace persistence. The
 // preview JPEG is --preview bytes of random data. HUMAN-IN-THE-LOOP: needs a
 // physical Pixelblaze; never part of a commit gate.
 
@@ -57,13 +61,15 @@ import { pushPattern } from '../../src/engine/pushPattern'
 import { ControllerActivationTimeoutError } from '../../src/engine/PixelblazeConnection'
 import { queueControllerDeviceWrite } from '../../src/engine/controllerDeviceWriteQueue'
 import { setControllerProvider } from '../../src/engine/controllerProviderRegistry'
+import type { ControllerPushRecords } from '../../src/engine/controllerPushRecord'
 import { fetchControllerCompiler, sleep } from './controllerHardware'
-import { compareReadBack, sourcePadding } from './controllerSaveProbeCore'
+import { compareReadBack, isFinalSaveFrame, readSaveAcknowledgement, sourcePadding } from './controllerSaveProbeCore'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const IP = process.env.PIXELBLAZE_IP
 const t0 = performance.now()
-const at = () => Math.round(performance.now() - t0)
+const traceAt = () => performance.now() - t0
+const at = () => Math.round(traceAt())
 const log = (message: string) => console.error(`[+${at()}ms] ${message}`)
 
 /** A stock Pattern name, or a .js path (the #1268 load Pattern). */
@@ -75,27 +81,51 @@ function arg(argv: string[], flag: string, fallback: string): string {
   return index >= 0 && argv[index + 1] ? argv[index + 1] : fallback
 }
 
+type SaveWireEvent =
+  | { kind: 'frames-sent' }
+  | { kind: 'frame-send-error'; error: string }
+  | { kind: 'save-ack'; acknowledged: boolean }
+
 /** Node stand-in for the helper's service worker (extension/background.js). */
 function nodeRelay(ip: string) {
   const listeners = new Set<(message: RelayMessage) => void>()
   const sockets = new Map<string, WebSocket>()
   const counters = { compiles: 0, compileMs: [] as number[], closesByDevice: [] as Array<{ at: number; code: number }> }
+  const saveWire: Array<SaveWireEvent & { at: number; connId: string }> = []
+  const noteSaveWire = (connId: string, event: SaveWireEvent) => {
+    const entry = { at: traceAt(), connId, ...event }
+    saveWire.push(entry)
+    log(`save wire: ${JSON.stringify(entry)}`)
+  }
   const emit = (message: RelayMessage) => listeners.forEach((listener) => listener(message))
   const transport: RelayTransport = {
     post(msg) {
       if (msg.type === 'detect') return void queueMicrotask(() => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'detect-ack' }))
       if (msg.type === 'connect') {
+        if (sockets.size > 0) {
+          const message = 'Previous probe socket has not closed; refusing another connection'
+          log(message)
+          emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'error', connId: msg.connId, message })
+          return
+        }
         const ws = new WebSocket(msg.url)
         ws.binaryType = 'arraybuffer'
         sockets.set(msg.connId, ws)
         ws.on('open', () => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'open', connId: msg.connId }))
-        ws.on('message', (data, isBinary) => emit({
-          source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId: msg.connId,
-          payload: isBinary ? { binary: bytesToBase64(new Uint8Array(data as ArrayBuffer)) } : { text: data.toString() },
-        }))
+        ws.on('message', (data, isBinary) => {
+          const payload = isBinary
+            ? { binary: bytesToBase64(new Uint8Array(data as ArrayBuffer)) }
+            : { text: data.toString() }
+          if (payload.text !== undefined) {
+            const acknowledged = readSaveAcknowledgement(payload.text)
+            if (acknowledged !== undefined) noteSaveWire(msg.connId, { kind: 'save-ack', acknowledged })
+          }
+          emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId: msg.connId, payload })
+        })
         ws.on('close', (code) => {
           sockets.delete(msg.connId)
           counters.closesByDevice.push({ at: at(), code })
+          log(`socket ${msg.connId} closed with code ${code}`)
           emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: msg.connId, code })
         })
         ws.on('error', (error) => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'error', connId: msg.connId, message: error.message }))
@@ -104,7 +134,14 @@ function nodeRelay(ip: string) {
       if (msg.type === 'send') {
         const ws = sockets.get(msg.connId)
         if (ws?.readyState !== WebSocket.OPEN) return
-        ws.send('binary' in msg.payload ? base64ToBytes(msg.payload.binary) : msg.payload.text)
+        const payload = 'binary' in msg.payload ? base64ToBytes(msg.payload.binary) : msg.payload.text
+        if (typeof payload === 'string' || !isFinalSaveFrame(payload)) {
+          ws.send(payload)
+          return
+        }
+        ws.send(payload, (error) => {
+          noteSaveWire(msg.connId, error ? { kind: 'frame-send-error', error: error.message } : { kind: 'frames-sent' })
+        })
         return
       }
       if (msg.type === 'close') {
@@ -140,7 +177,7 @@ function nodeRelay(ip: string) {
     },
   }
   const closeAll = () => sockets.forEach((ws) => ws.close(1000))
-  return { transport, counters, closeAll }
+  return { transport, counters, saveWire, closeAll }
 }
 
 async function main(): Promise<void> {
@@ -233,6 +270,7 @@ async function main(): Promise<void> {
     const config = await provider.getConfig()
     if (config.runSequencer) throw new Error('sequencer running; refusing')
     const startingActive = config.activeProgramId
+    if (mode === 'editor' && !startingActive) throw new Error('starting active Pattern unavailable; refusing')
 
     if (panelStore) {
       // Time the three poll reads. Activation confirmation reads go straight to
@@ -276,7 +314,7 @@ async function main(): Promise<void> {
     }
 
     let bindings = {}
-    let records = {}
+    let records: ControllerPushRecords = {}
     const sources = patterns.map((name) => readPattern(name) + sourcePadding(pad))
     const saves: Array<Record<string, unknown>> = []
     // `attempt` is the 0-based Save number --induce matches; editor mode saves
@@ -296,7 +334,13 @@ async function main(): Promise<void> {
           if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
           created.add(opts.id)
           record.programId = opts.id
+          const payloadBytes = new TextEncoder().encode(opts.id).byteLength + blob.byteLength
+          record.payloadBytes = payloadBytes
+          record.deadlineMs = 10_000 + 100 * Math.ceil(payloadBytes / 1024)
+          record.saveProgramStartedAt = traceAt()
           const completion = await provider.saveProgram(blob, opts)
+          record.saveProgramReturnedAt = traceAt()
+          record.saveProgramResult = completion
           if (induce === 'failed-after-store') throw new Error('induced failure after the PBP Save returned')
           return completion
         },
@@ -328,10 +372,15 @@ async function main(): Promise<void> {
           loadBindings: async () => bindings,
           saveBindings: async (next) => { bindings = next },
           loadPushRecords: async () => records,
-          savePushRecords: async (next) => { records = next },
+          savePushRecords: async (next) => {
+            records = next
+            record.pushRecordedAt = traceAt()
+            record.pushRecord = records[IP]?.[patternId] ?? null
+          },
           mintId: undefined,
           onCompiledArtifact: () => undefined,
         }))
+        record.pushPatternReturnedAt = traceAt()
         if (result.save) record.save = result.save
         if (result.activation) record.activation = result.activation
         if (!created.has(result.programId)) appendFileSync(manifest, `${JSON.stringify({ id: result.programId, name })}\n`)
@@ -399,11 +448,22 @@ async function main(): Promise<void> {
         let listed: boolean | null = null
         try {
           const read = await provider.listPrograms()
-          listed = read.some((program) => program.id === record.programId)
+          const saved = read.find((program) => program.id === record.programId)
+          record.listedName = saved?.name ?? null
+          listed = saved !== undefined && saved.name === record.name
         } catch (error) {
           record.readBackError = (error as Error).message
         }
         record.listed = listed
+        if (panelStore) {
+          try {
+            const active = await provider.getConfig()
+            record.activeReadBackId = active.activeProgramId || null
+            record.activeMatches = !!active.activeProgramId && active.activeProgramId === record.programId
+          } catch (error) {
+            record.activeReadBackError = (error as Error).message
+          }
+        }
         saves.push(record)
         log(`save ${index + 1}: ${JSON.stringify(record)}`)
         const timedOut = [record.error, record.readBackError].some((message) => typeof message === 'string' && /timed? ?out/i.test(message))
@@ -454,11 +514,14 @@ async function main(): Promise<void> {
     console.log(JSON.stringify({
       ip: IP, mode, count, patterns, previewBytes, pad,
       saves,
+      saveWire: relay.saveWire,
       statuses,
       deviceCloses: relay.counters.closesByDevice,
       compiles: relay.counters.compiles,
       compileMs: relay.counters.compileMs,
       readBack,
+      startingActive,
+      restoredActiveId: restoredConfig?.activeProgramId,
       restoredActive: mode !== 'editor' || restoredConfig?.activeProgramId === startingActive,
       afterMatchesStarting: after.length === startingKeys.length && after.every((program) => startingKeys.includes(key(program))),
       panel: panel.polls ? panel : undefined,
