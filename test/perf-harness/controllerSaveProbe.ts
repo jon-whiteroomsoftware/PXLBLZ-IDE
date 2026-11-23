@@ -218,9 +218,13 @@ async function main(): Promise<void> {
       const payload = new Uint8Array(idBytes.length + blob.length)
       payload.set(idBytes, 0)
       payload.set(blob, idBytes.length)
-      for (const frame of encodeBinaryFrames(MessageType.putSourceCode, payload)) {
+      // The firmware acks every frame but the last, which it answers with
+      // saveProgramSourceFile; the completion wait below covers that one.
+      const sendFrames = encodeBinaryFrames(MessageType.putSourceCode, payload)
+      for (const [index, frame] of sendFrames.entries()) {
         const sent = now()
         socket!.send(frame)
+        if (index === sendFrames.length - 1) break
         if (!(await waitFor(sent, 'ack', ACK_TIMEOUT_MS))) throw new Error('chunk ack timed out')
       }
     }

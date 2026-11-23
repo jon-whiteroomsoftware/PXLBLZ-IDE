@@ -288,21 +288,31 @@ async function main(): Promise<void> {
       const induce = panelStore && attempt === induceIndex ? induceKind : ''
       // Always wrapped, so a Save's id reaches the manifest before activation can
       // fail; the induced failures apply only to the --induce Save.
-      const deviceProvider = Object.assign(Object.create(provider) as typeof provider, {
-          saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
-            if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
-            created.add(opts.id)
-            record.programId = opts.id
-            await provider.saveProgram(blob, opts)
-            if (induce === 'failed-after-store') throw new Error('induced failure after the PBP frames were sent')
-          },
-          pushBytecode: async (bytecode: Uint8Array, opts: { id: string; name?: string }) => {
-            if (induce !== 'unconfirmed') return provider.pushBytecode(bytecode, opts)
-            // Send for real, but stop waiting at once: the Controller decides.
-            void provider.pushBytecode(bytecode, opts).catch(() => undefined)
-            throw new ControllerActivationTimeoutError('induced: activation not confirmed')
-          },
-        })
+      // Every other method runs bound to the real provider, so its state (compile
+      // request ids, the known active bytecode) carries from one Save to the next
+      // instead of landing on a per-Save prototype copy.
+      const overrides: Partial<typeof provider> = {
+        saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
+          if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
+          created.add(opts.id)
+          record.programId = opts.id
+          await provider.saveProgram(blob, opts)
+          if (induce === 'failed-after-store') throw new Error('induced failure after the PBP frames were sent')
+        },
+        pushBytecode: async (bytecode: Uint8Array, opts: { id: string; name?: string }) => {
+          if (induce !== 'unconfirmed') return provider.pushBytecode(bytecode, opts)
+          // Send for real, but stop waiting at once: the Controller decides.
+          void provider.pushBytecode(bytecode, opts).catch(() => undefined)
+          throw new ControllerActivationTimeoutError('induced: activation not confirmed')
+        },
+      }
+      const deviceProvider = new Proxy(provider, {
+        get(target, key) {
+          if (Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key as keyof typeof overrides]
+          const value = Reflect.get(target, key, target) as unknown
+          return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value
+        },
+      })
       const run = <T,>(write: () => Promise<T>) => (panelStore ? queueControllerDeviceWrite(IP, write) : write())
       try {
         const result = await run(() => pushPattern({
