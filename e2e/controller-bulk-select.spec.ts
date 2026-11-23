@@ -1,6 +1,6 @@
 import type { Locator } from '@playwright/test'
 import { test, expect } from './fixtures/authenticated'
-import { bulkProfileId, bulkPrograms, fakeControllerMutations, seedBulkSelectFixture } from './fixtures/controllerBulkSelect'
+import { bulkProfileId, bulkPrograms, fakeControllerMutations, releaseFakeControllerProgramLists, seedBulkSelectFixture } from './fixtures/controllerBulkSelect'
 
 test('Controller bulk selection cancels, imports, switches sections, deletes and refreshes (#1218)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 })
@@ -39,7 +39,16 @@ test('Controller bulk selection cancels, imports, switches sections, deletes and
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   expect(await fakeControllerMutations(page)).toEqual(before)
   await pane.getByRole('button', { name: 'Delete', exact: true }).click()
+  const listReads = () => page.evaluate(() => (window as typeof window & {
+    __fakeControllerWrites: Array<Record<string, unknown>>
+  }).__fakeControllerWrites.filter((write) => write.listPrograms).length)
+  const readsBeforeDelete = await listReads()
   await dialog.getByRole('button', { name: 'Delete 3 from Controller', exact: true }).click()
+  // #1266: the batch reads inventory once, sends, then confirms with one final read.
+  await expect(dialog.getByRole('heading')).toHaveText('Deleted 3 Patterns from Bulk fixture Controller')
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  expect(await listReads()).toBe(readsBeforeDelete + 2)
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await expect(pane.getByText('No other Patterns are saved on this Controller.')).toBeVisible()
   expect((await fakeControllerMutations(page)).filter((write) => 'deleteProgram' in write)).toEqual(
@@ -165,4 +174,42 @@ test('profile Run activates transiently through the production transport', async
     ...before,
     { activeProgramId: 'BULKFOREIGN000001', save: false },
   ])
+})
+
+test('bulk delete shows progress, confirms once and names a Pattern the Controller kept (#1266)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const kept = bulkPrograms[4]
+  await seedBulkSelectFixture(page, { ignoredDeleteIds: [kept.id], holdProgramListsAfterDeletes: 3 })
+  const pane = page.getByTestId('controller-saved-programs-pane')
+  await pane.getByRole('button', { name: 'Select Other Patterns' }).click()
+  await pane.getByRole('checkbox', { name: 'Select all Other Patterns', exact: true }).check()
+  await pane.getByRole('button', { name: 'Delete', exact: true }).click()
+  const dialog = page.getByRole('alertdialog')
+  const reads = () => page.evaluate(() => (window as typeof window & {
+    __fakeControllerWrites: Array<Record<string, unknown>>
+  }).__fakeControllerWrites.filter((write) => write.listPrograms).length)
+  const before = await reads()
+  // The fake holds the final read after the third delete, so the in-flight state stays observable.
+  await dialog.getByRole('button', { name: 'Delete 3 from Controller', exact: true }).click()
+  const bar = dialog.getByRole('progressbar', { name: 'Deleting Patterns' })
+  await expect(bar).toHaveAttribute('aria-valuenow', '3')
+  await expect(bar).toHaveAttribute('aria-valuemax', '3')
+  await expect(dialog).toContainText('3 of 3')
+  await expect(dialog.getByRole('button', { name: 'Confirming…', exact: true })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await releaseFakeControllerProgramLists(page)
+  await expect(dialog.getByRole('heading')).toHaveText('Deleted 2 of 3 Patterns from Bulk fixture Controller')
+  await expect(dialog.getByRole('alert')).toHaveText(`${kept.name}: Controller still lists this Pattern after deletion.`)
+  await expect(bar).toHaveCount(0)
+  expect(await reads()).toBe(before + 2)
+  expect((await fakeControllerMutations(page)).filter((write) => 'deleteProgram' in write)).toEqual(
+    bulkPrograms.slice(3).map((program) => ({ deleteProgram: program.id })),
+  )
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  const other = pane.getByRole('table', { name: 'Other Patterns', exact: true })
+  await expect(other).toContainText(kept.name)
+  await expect(other).not.toContainText('Alpha')
+  await expect(other).not.toContainText('Gamma')
 })

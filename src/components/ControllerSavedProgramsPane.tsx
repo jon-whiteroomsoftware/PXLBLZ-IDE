@@ -101,6 +101,13 @@ type PendingProgramImport = {
   decision: SavedProgramImportDecision
 }
 
+type BatchDeleteProgress = { processed: number; total: number; confirming: boolean }
+type BatchDeleteOutcome = {
+  deleted: number
+  total: number
+  failures: string[]
+}
+
 type PendingProgramDelete = {
   program: ControllerSavedProgramRow
   controllerId: string
@@ -397,6 +404,82 @@ function ImportProgramDialog({
             {busy ? 'Saving…' : actionLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialogRoot>
+  )
+}
+
+const patternCount = (count: number) => `${count} Pattern${count === 1 ? '' : 's'}`
+
+/** Bulk delete confirmation (#1218) with determinate progress and a finished
+ * state that names every Pattern the Controller still lists (#1266). */
+function BatchDeleteDialog({
+  targets,
+  busy,
+  progress,
+  outcome,
+  onCancel,
+  onConfirm,
+}: {
+  targets: readonly PendingProgramDelete[]
+  busy: boolean
+  progress: BatchDeleteProgress | null
+  outcome: BatchDeleteOutcome | null
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const controllerName = targets[0].controllerName
+  return (
+    <AlertDialogRoot open onOpenChange={(open) => { if (!open && !busy) onCancel() }}>
+      <AlertDialogContent onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}>
+        {outcome ? (
+          <>
+            <AlertDialogTitle>
+              {outcome.failures.length > 0
+                ? `Deleted ${outcome.deleted} of ${patternCount(outcome.total)} from ${controllerName}`
+                : `Deleted ${patternCount(outcome.deleted)} from ${controllerName}`}
+            </AlertDialogTitle>
+            {outcome.failures.length > 0 && (
+              <ul role="alert" className="mt-3 space-y-1 border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-xs text-red-200">
+                {outcome.failures.map((failure, index) => <li key={index}>{failure}</li>)}
+              </ul>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={onCancel}>Close</AlertDialogAction>
+            </AlertDialogFooter>
+          </>
+        ) : (
+          <>
+            <AlertDialogTitle>Delete {patternCount(targets.length)} from {controllerName}?</AlertDialogTitle>
+            <AlertDialogDescription>{targets[0].program.kind === 'owned'
+              ? 'This removes the saved Patterns from the Controller. The Studio Pattern is not deleted; Save sends it again.'
+              : 'This removes the Patterns from the Controller. PXLBLZ holds no copy of them — Import first if you want to keep the source.'}</AlertDialogDescription>
+            <ul className="my-3 space-y-1 text-xs text-zinc-300">{controllerPatternBatchNames(targets.map(({ program }) => ({ id: program.programId, name: program.name }))).map((name, index) => <li key={index}>{name}</li>)}</ul>
+            {busy && progress && (
+              <div className="mb-3">
+                <div
+                  role="progressbar"
+                  aria-label="Deleting Patterns"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.processed}
+                  aria-valuetext={`${progress.processed} of ${progress.total}`}
+                  className="h-1.5 w-full overflow-hidden bg-zinc-800"
+                >
+                  <div className="h-full bg-red-400 transition-[width] duration-150" style={{ width: `${(progress.processed / progress.total) * 100}%` }} />
+                </div>
+                <div className="mt-1 text-xs tabular-nums text-zinc-400">{progress.processed} of {progress.total}</div>
+              </div>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={busy} onClick={onCancel}>Cancel</AlertDialogCancel>
+              <AlertDialogAction disabled={busy} className="border-red-500/70 text-red-300 hover:bg-red-950/40"
+                onClick={(event) => { event.preventDefault(); onConfirm() }}>
+                {busy ? (progress?.confirming ? 'Confirming…' : 'Deleting…') : `Delete ${targets.length} from Controller`}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </>
+        )}
       </AlertDialogContent>
     </AlertDialogRoot>
   )
@@ -886,6 +969,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const activatingProgramId = useControllerPanelStore((state) => state.activatingProgramId)
   const activateProgram = useControllerPanelStore((state) => state.activateProgram)
   const deleteProgram = useControllerPanelStore((state) => state.deleteProgram)
+  const deletePrograms = useControllerPanelStore((state) => state.deletePrograms)
   const forgetDeletedSavedProgram = useControllerStore((state) => state.forgetDeletedSavedProgram)
   const pushRecordsRevision = useSyncExternalStore(
     subscribeControllerPushRecordsRevision,
@@ -910,6 +994,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const [selection, setSelection] = useState<ControllerPatternSelection>({ section: null, selectedIds: [] })
   const [pendingBatchDelete, setPendingBatchDelete] = useState<PendingProgramDelete[] | null>(null)
   const [batchBusy, setBatchBusy] = useState(false)
+  const [batchDeleteProgress, setBatchDeleteProgress] = useState<BatchDeleteProgress | null>(null)
+  const [batchDeleteOutcome, setBatchDeleteOutcome] = useState<BatchDeleteOutcome | null>(null)
   const batchLock = useRef(false)
   const provider = getControllerProvider()
   const [selectionSession, setSelectionSession] = useState({ liveIp, liveEpoch, profileId: profile.id, provider })
@@ -917,7 +1003,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     || selectionSession.profileId !== profile.id || selectionSession.provider !== provider) {
     setSelectionSession({ liveIp, liveEpoch, profileId: profile.id, provider })
     setSelection({ section: null, selectedIds: [] })
-    setPendingBatchDelete(null)
+    if (!batchBusy) {
+      setPendingBatchDelete(null)
+      setBatchDeleteOutcome(null)
+    }
   }
   const currentDeleteSession = useRef({
     controllerId: liveIp,
@@ -1288,6 +1377,74 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     })
   }
 
+  async function performBatchDelete(targets: readonly PendingProgramDelete[]) {
+    const [first] = targets
+    const total = targets.length
+    const nameOf = (id: string) => targets.find(({ program }) => program.programId === id)?.program.name ?? id
+    const failures: string[] = []
+    const sessionIsCurrent = () => {
+      const current = currentDeleteSession.current
+      const controller = useControllerStore.getState().controllers[first.controllerId]
+      return current.controllerId === first.controllerId
+        && current.liveEpoch === first.liveEpoch
+        && current.profileId === first.profileId
+        && controller?.phase === 'live'
+        && controller.liveEpoch === first.liveEpoch
+        && getControllerProvider() === first.provider
+    }
+    // Panel telemetry refuses a target before any device traffic; the store then
+    // rechecks the running Pattern against the Controller's own config.
+    const panel = useControllerPanelStore.getState()
+    const eligible = targets.filter(({ program }) => {
+      const reason = !sessionIsCurrent()
+        ? 'Controller session changed — close this dialog and choose the Pattern again'
+        : panel.configSourceIp !== first.controllerId || panel.activatingProgramId === program.programId
+          ? 'Waiting to confirm the running Pattern'
+          : panel.activeProgramId === program.programId
+            ? 'Running now — switch to another Pattern first'
+            : null
+      if (reason) failures.push(`${program.name}: ${reason}`)
+      return reason === null
+    })
+    const offset = total - eligible.length
+    setBatchDeleteProgress({ processed: offset, total, confirming: false })
+    let deleted = 0
+    let published = eligible.length === 0
+    if (eligible.length > 0) {
+      const result = await queueControllerDeviceWrite(first.controllerId, () => deletePrograms(
+        eligible.map(({ program, expectedProgramName }) => ({ id: program.programId, expectedName: expectedProgramName })),
+        {
+          expectedControllerId: first.controllerId,
+          expectedProvider: first.provider,
+          sessionIsCurrent,
+          onProgress: (processed, count) => setBatchDeleteProgress({
+            processed: offset + processed, total, confirming: processed === count,
+          }),
+          onConfirmed: async (confirmedIds) => {
+            for (const id of confirmedIds) {
+              const target = eligible.find(({ program }) => program.programId === id)!
+              try {
+                const metadataResult = await removeManagedControllerSavedProgramMetadata({
+                  controllerId: target.controllerId,
+                  bindingKey: target.program.bindingKey,
+                  programId: id,
+                }, { getControllerBindings, setControllerBindings, getPushRecords, setPushRecords })
+                if (metadataResult.removed) forgetDeletedSavedProgram(target.controllerId, metadataResult.bindingKey)
+              } catch (error) {
+                failures.push(`${target.program.name}: deleted from the Controller, but PXLBLZ could not clear its metadata. ${error instanceof Error ? error.message : String(error)}`)
+              }
+            }
+          },
+        },
+      ))
+      deleted = result.confirmedIds.length
+      published = result.published
+      failures.push(...result.failed.map(({ id, reason }) => `${nameOf(id)}: ${reason}`))
+      failures.push(...result.collateral.map((program) => `${program.name}: no longer listed on the Controller, although it was not selected.`))
+    }
+    return { outcome: { deleted, total, failures }, published }
+  }
+
   async function performBatch(operation: 'delete' | 'import') {
     if (batchLock.current) return
     const targets = operation === 'delete' ? pendingBatchDelete : selectedPrograms().flatMap((program) => {
@@ -1299,58 +1456,65 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     setBatchBusy(true)
     setImportError(null)
     setDeleteError(null)
+    let refresh = true
     try {
+      if (operation === 'delete') {
+        try {
+          const { outcome, published } = await performBatchDelete(targets)
+          setBatchDeleteOutcome(outcome)
+          refresh = !published
+        } catch (error) {
+          setBatchDeleteOutcome({
+            deleted: 0, total: targets.length,
+            failures: [error instanceof Error ? error.message : 'Controller deletion failed.'],
+          })
+        }
+        return
+      }
       const result = await runControllerPatternBatch(targets.map(({ program }) => ({ id: program.programId, name: program.name })), async ({ id }) => {
         const target = targets.find(({ program }) => program.programId === id)!
-        if (operation === 'delete') {
-          setDeletingProgramId(id)
-          await executeProgramDelete(target)
-        } else {
-          setImportingProgramId(id)
-          const sessionIsCurrent = () => {
-            const current = currentDeleteSession.current
-            const panel = useControllerPanelStore.getState()
-            return current.profileId === target.profileId && current.controllerId === target.controllerId
-              && current.liveEpoch === target.liveEpoch && getControllerProvider() === target.provider
-              && panel.configSourceIp === target.controllerId && panel.activeProgramId !== id
-              && panel.activatingProgramId !== id
-          }
-          if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
-          const pending = await readProgramImport(target.program)
-          if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
-          await applyProgramImport(pending, false)
+        setImportingProgramId(id)
+        const sessionIsCurrent = () => {
+          const current = currentDeleteSession.current
+          const panel = useControllerPanelStore.getState()
+          return current.profileId === target.profileId && current.controllerId === target.controllerId
+            && current.liveEpoch === target.liveEpoch && getControllerProvider() === target.provider
+            && panel.configSourceIp === target.controllerId && panel.activeProgramId !== id
+            && panel.activatingProgramId !== id
         }
+        if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
+        const pending = await readProgramImport(target.program)
+        if (!sessionIsCurrent()) throw new Error('Controller session or running Pattern changed')
+        await applyProgramImport(pending, false)
       })
       if (result.failed.length) setImportError(result.failed.map(({ pattern, error }) => `${pattern.name}: ${error}`).join('\n'))
     } finally {
-      requestSavedProgramsRefresh(targets[0].profileId)
+      // A published final read already carries the inventory; refresh only when it did not.
+      if (refresh) requestSavedProgramsRefresh(targets[0].profileId)
       setSelection({ section: null, selectedIds: [] })
-      setPendingBatchDelete(null)
       setImportingProgramId(null)
-      setDeletingProgramId(null)
+      setBatchDeleteProgress(null)
       setBatchBusy(false)
       batchLock.current = false
     }
   }
 
+  function closeBatchDelete() {
+    if (batchLock.current) return
+    setPendingBatchDelete(null)
+    setBatchDeleteOutcome(null)
+  }
+
   return (
     <div data-testid="controller-saved-programs-pane" className="h-full min-h-0 overflow-x-hidden overflow-y-auto bg-zinc-950 text-zinc-200">
-      {pendingBatchDelete && <AlertDialogRoot open onOpenChange={(open) => { if (!open && !batchLock.current) setPendingBatchDelete(null) }}>
-        <AlertDialogContent onEscapeKeyDown={(event) => { if (batchBusy) event.preventDefault() }}>
-          <AlertDialogTitle>Delete {pendingBatchDelete.length} Patterns from {pendingBatchDelete[0].controllerName}?</AlertDialogTitle>
-          <AlertDialogDescription>{pendingBatchDelete[0].program.kind === 'owned'
-            ? 'This removes the saved Patterns from the Controller. The Studio Pattern is not deleted; Save sends it again.'
-            : 'This removes the Patterns from the Controller. PXLBLZ holds no copy of them — Import first if you want to keep the source.'}</AlertDialogDescription>
-          <ul className="my-3 space-y-1 text-xs text-zinc-300">{controllerPatternBatchNames(pendingBatchDelete.map(({ program }) => ({ id: program.programId, name: program.name }))).map((name, index) => <li key={index}>{name}</li>)}</ul>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={batchBusy} onClick={() => setPendingBatchDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={batchBusy} className="border-red-500/70 text-red-300 hover:bg-red-950/40"
-              onClick={(event) => { event.preventDefault(); void performBatch('delete') }}>
-              {batchBusy ? 'Deleting…' : `Delete ${pendingBatchDelete.length} from Controller`}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialogRoot>}
+      {pendingBatchDelete && <BatchDeleteDialog
+        targets={pendingBatchDelete}
+        busy={batchBusy}
+        progress={batchDeleteProgress}
+        outcome={batchDeleteOutcome}
+        onCancel={closeBatchDelete}
+        onConfirm={() => void performBatch('delete')}
+      />}
       <ImportProgramDialog
         pending={pendingImport}
         busy={importingProgramId !== null}

@@ -15,6 +15,11 @@ import {
   type LimitingSmoothingState,
 } from '@/engine/limitingSmoothing'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
+import {
+  confirmControllerBatchDelete,
+  planControllerBatchDelete,
+  type ControllerBatchDeleteTarget,
+} from '@/engine/controllerPatternBatch'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 
@@ -60,6 +65,27 @@ interface ControllerProgramDeletionOptions {
   expectedProgramName?: string
   expectedProvider?: ReturnType<typeof getControllerProvider>
   sessionIsCurrent?: () => boolean
+}
+
+interface ControllerProgramBatchDeletionOptions {
+  expectedControllerId?: string
+  expectedProvider?: ReturnType<typeof getControllerProvider>
+  sessionIsCurrent?: () => boolean
+  /** Called after each target is processed (sent, skipped or already absent). */
+  onProgress?: (processed: number, total: number) => void
+  /** Runs after the final read for the confirmed ids, before the inventory is published. */
+  onConfirmed?: (confirmedIds: string[]) => Promise<void>
+}
+
+/** Outcome of one bulk delete (#1266). Every target appears in exactly one of
+ * `confirmedIds` or `failed`; `collateral` lists unsent baseline Patterns the
+ * final read no longer shows unchanged. */
+export interface ControllerProgramBatchDeletionResult {
+  confirmedIds: string[]
+  failed: { id: string; reason: string }[]
+  collateral: ProgramListEntry[]
+  /** True when the final read was published as the Controller inventory. */
+  published: boolean
 }
 
 interface ControllerProgramActivationOptions {
@@ -172,6 +198,12 @@ interface ControllerPanelState {
     programId: string,
     options?: ControllerProgramDeletionOptions,
   ) => Promise<ProgramListEntry[]>
+  /** Delete several saved programs with one inventory read, one config read,
+   * one send per target and one final inventory read that confirms them all. */
+  deletePrograms: (
+    targets: readonly ControllerBatchDeleteTarget[],
+    options?: ControllerProgramBatchDeletionOptions,
+  ) => Promise<ControllerProgramBatchDeletionResult>
 }
 
 export const controllerPanelInitialState = {
@@ -751,5 +783,108 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     publishPrograms(programs)
     verifyDeletion(programs)
     return baseline
+  },
+
+  deletePrograms: async (targets, options = {}) => {
+    const session = panelSession
+    const ip = seededForIp
+    const provider = getControllerProvider()
+    const sessionMatches = () => controllerSessionMatches(session, provider)
+      && (!options.expectedProvider || provider === options.expectedProvider)
+      && (!options.expectedControllerId || ip === options.expectedControllerId)
+      && (!options.sessionIsCurrent || options.sessionIsCurrent())
+    const SESSION_CHANGED_BEFORE = 'Controller session changed before Pattern deletion could start.'
+    const SESSION_CHANGED_DURING = 'Controller session changed before Pattern deletion could be confirmed.'
+    const failAll = (reason: string): ControllerProgramBatchDeletionResult => ({
+      confirmedIds: [], failed: targets.map(({ id }) => ({ id, reason })), collateral: [], published: false,
+    })
+
+    if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
+    let baseline: ProgramListEntry[]
+    try {
+      baseline = await provider.listPrograms()
+    } catch (error) {
+      return failAll(sessionMatches()
+        ? `Could not read Controller inventory before deletion: ${errorMessage(error)}`
+        : SESSION_CHANGED_BEFORE)
+    }
+    if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
+    let config: ControllerConfig
+    try {
+      config = await provider.getConfig()
+    } catch (error) {
+      return failAll(sessionMatches()
+        ? `Could not confirm the running Controller Pattern before deletion: ${errorMessage(error)}`
+        : SESSION_CHANGED_BEFORE)
+    }
+    if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
+    set((state) => configPatch(state, config))
+    const plan = planControllerBatchDelete(baseline, config, targets)
+    if (plan.refusal !== undefined) return failAll(plan.refusal)
+
+    const skipped: { id: string; reason: string }[] = []
+    const processedIds: string[] = []
+    const sentIds: string[] = []
+    const sendErrors = new Map<string, string>()
+    // Everything processed so far is unconfirmed; skipped targets keep their own reason.
+    const unconfirmed = (reason: string): ControllerProgramBatchDeletionResult => ({
+      confirmedIds: [],
+      failed: targets.map(({ id }) => skipped.find((entry) => entry.id === id) ?? { id, reason }),
+      collateral: [],
+      published: false,
+    })
+    for (const [index, step] of plan.steps.entries()) {
+      if (!sessionMatches()) return unconfirmed(SESSION_CHANGED_DURING)
+      if (step.action === 'skip') {
+        skipped.push({ id: step.target.id, reason: step.reason })
+      } else {
+        processedIds.push(step.target.id)
+        if (step.action === 'send') {
+          sentIds.push(step.target.id)
+          try {
+            await provider.deleteProgram(step.target.id)
+          } catch (error) {
+            sendErrors.set(step.target.id, errorMessage(error))
+          }
+        }
+      }
+      options.onProgress?.(index + 1, plan.steps.length)
+    }
+    if (!sessionMatches()) return unconfirmed(SESSION_CHANGED_DURING)
+
+    let finalPrograms: ProgramListEntry[]
+    try {
+      finalPrograms = await provider.listPrograms()
+    } catch (error) {
+      return unconfirmed(sessionMatches()
+        ? `Could not confirm Controller Pattern deletion: ${errorMessage(error)}`
+        : SESSION_CHANGED_DURING)
+    }
+    if (!sessionMatches()) return unconfirmed(SESSION_CHANGED_DURING)
+
+    const confirmation = confirmControllerBatchDelete(baseline, finalPrograms, processedIds, sentIds)
+    let published: boolean
+    try {
+      if (confirmation.confirmedIds.length > 0) await options.onConfirmed?.(confirmation.confirmedIds)
+    } finally {
+      published = sessionMatches()
+      if (published) set((state) => ({
+        programs: finalPrograms,
+        ...(ip
+          ? { programsByController: { ...state.programsByController, [ip]: finalPrograms } }
+          : {}),
+      }))
+    }
+    return {
+      published,
+      confirmedIds: confirmation.confirmedIds,
+      failed: targets.flatMap(({ id }) => {
+        const skip = skipped.find((entry) => entry.id === id)
+        if (skip) return [skip]
+        if (!confirmation.stillListedIds.includes(id)) return []
+        return [{ id, reason: sendErrors.get(id) ?? 'Controller still lists this Pattern after deletion.' }]
+      }),
+      collateral: confirmation.collateral,
+    }
   },
 }))

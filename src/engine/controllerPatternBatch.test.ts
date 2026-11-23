@@ -4,6 +4,7 @@ import {
   toggleAllControllerPatternSelection, reconcileControllerPatternSelection,
   runControllerPatternBatch,
   controllerPatternBatchNames,
+  planControllerBatchDelete, confirmControllerBatchDelete,
 } from './controllerPatternBatch'
 
 describe('Controller Pattern selection', () => {
@@ -65,5 +66,50 @@ describe('Controller Pattern batch', () => {
     expect(await result).toEqual({ succeeded: patterns, failed: [] })
     expect(calls).toEqual(['a', 'b', 'c'])
     expect(await runControllerPatternBatch([], async () => { throw new Error('unreachable') })).toEqual({ succeeded: [], failed: [] })
+  })
+})
+
+describe('Controller bulk delete plan and confirmation (#1266)', () => {
+  const baseline = Object.freeze([
+    { id: 'RUN', name: 'Running' }, { id: 'A', name: 'Alpha' }, { id: 'B', name: 'Beta' },
+    { id: 'C', name: 'Gamma' }, { id: 'KEEP', name: 'Keeper' },
+  ])
+  const target = (id: string, expectedName: string) => ({ id, expectedName })
+
+  it('sends eligible targets in order and classifies running, renamed and absent targets', () => {
+    const plan = planControllerBatchDelete(baseline, { activeProgramId: 'RUN', runSequencer: false }, [
+      target('A', 'Alpha'), target('RUN', 'Running'), target('B', 'Old Beta'), target('GONE', 'Gone'), target('C', 'Gamma'),
+    ])
+    expect(plan).toEqual({ steps: [
+      { target: target('A', 'Alpha'), action: 'send' },
+      { target: target('RUN', 'Running'), action: 'skip', reason: 'Running now — switch to another Pattern first' },
+      { target: target('B', 'Old Beta'), action: 'skip', reason: 'Controller Pattern id B now identifies Beta; choose the Pattern again before deleting.' },
+      { target: target('GONE', 'Gone'), action: 'absent' },
+      { target: target('C', 'Gamma'), action: 'send' },
+    ] })
+  })
+
+  it.each([
+    [{}, 'Controller did not identify its running Pattern; refresh before deleting.'],
+    [{ activeProgramId: '' }, 'Controller did not identify its running Pattern; refresh before deleting.'],
+    [{ activeProgramId: 'RUN', runSequencer: true }, 'Stop the Controller sequencer before deleting saved Patterns.'],
+  ])('refuses the whole batch for config %o', (config, refusal) => {
+    expect(planControllerBatchDelete(baseline, config, [target('A', 'Alpha')])).toEqual({ refusal })
+  })
+
+  it('confirms only processed ids absent from the final read', () => {
+    const final = [{ id: 'RUN', name: 'Running' }, { id: 'B', name: 'Beta' }, { id: 'KEEP', name: 'Keeper' }]
+    expect(confirmControllerBatchDelete(baseline, final, ['A', 'B', 'C', 'GONE'], ['A', 'B', 'C'])).toEqual({
+      confirmedIds: ['A', 'C', 'GONE'], stillListedIds: ['B'], collateral: [],
+    })
+  })
+
+  it('reports unsent baseline Patterns that disappeared or were renamed as collateral', () => {
+    // B was refused (not sent), so it stays protected even though it was selected.
+    const final = [{ id: 'RUN', name: 'Running' }, { id: 'KEEP', name: 'Renamed' }]
+    expect(confirmControllerBatchDelete(baseline, final, ['A', 'C'], ['A', 'C'])).toEqual({
+      confirmedIds: ['A', 'C'], stillListedIds: [],
+      collateral: [{ id: 'B', name: 'Beta' }, { id: 'KEEP', name: 'Keeper' }],
+    })
   })
 })

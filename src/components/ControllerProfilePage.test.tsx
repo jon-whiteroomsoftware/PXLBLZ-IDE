@@ -308,12 +308,120 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(provider.deletedProgramIds).toEqual([])
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const listCalls = provider.listCalls
+    const getConfig = vi.spyOn(provider, 'getConfig')
     fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(await within(screen.getByRole('alertdialog')).findByRole('heading', { name: 'Deleted 3 Patterns from Burner bag' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(provider.deletedProgramIds).toEqual(['A', 'B', 'C'])
     expect(provider.programs).toEqual([{ id: 'ACTIVE', name: 'Running Pattern' }, { id: 'OWN', name: 'Owned' }])
+    await settleProfileAsync()
+    // One inventory read and one final read for the whole batch; no refresh read after it (#1266).
+    expect(provider.listCalls).toBe(listCalls + 2)
+    expect(getConfig).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Other Patterns' })).queryByText('Alpha')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
-    expect(provider.listCalls).toBeGreaterThan(3)
+  })
+
+  it('shows determinate progress, then confirming, then the finished state (#1266)', async () => {
+    const { provider } = bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const holdSecond = deferred<void>()
+    const finalRead = deferred<void>()
+    const original = provider.deleteProgram.bind(provider)
+    provider.deleteProgram = vi.fn(async (id: string) => { if (id === 'B') await holdSecond.promise; await original(id) })
+    const list = provider.listPrograms.bind(provider)
+    let reads = 0
+    provider.listPrograms = () => { reads += 1; return reads === 2 ? finalRead.promise.then(() => list()) : list() }
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    const bar = await within(dialog).findByRole('progressbar', { name: 'Deleting Patterns' })
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '1'))
+    expect(bar).toHaveAttribute('aria-valuemax', '3')
+    expect(dialog).toHaveTextContent('1 of 3')
+    expect(within(dialog).getByRole('button', { name: 'Deleting…' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    await act(async () => holdSecond.resolve())
+    await waitFor(() => expect(bar).toHaveAttribute('aria-valuenow', '3'))
+    expect(dialog).toHaveTextContent('3 of 3')
+    expect(within(dialog).getByRole('button', { name: 'Confirming…' })).toBeDisabled()
+    await act(async () => finalRead.resolve())
+    expect(await within(dialog).findByRole('heading', { name: 'Deleted 3 Patterns from Burner bag' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('progressbar')).not.toBeInTheDocument()
+    await settleProfileAsync()
+  })
+
+  it('names a Pattern the final read still lists and confirms the rest (#1266)', async () => {
+    const { provider } = bulkFixture()
+    const original = provider.deleteProgram.bind(provider)
+    provider.deleteProgram = vi.fn(async (id: string) => {
+      if (id === 'B') { provider.deletedProgramIds.push(id); return } // the Controller kept it
+      return original(id)
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('heading', { name: 'Deleted 2 of 3 Patterns from Burner bag' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Beta: Controller still lists this Pattern after deletion.')
+    expect(within(dialog).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Beta: Controller still lists this Pattern after deletion.',
+    ])
+    expect(provider.programs.map(({ id }) => id)).toEqual(['ACTIVE', 'B', 'OWN'])
+    await settleProfileAsync()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    expect(within(screen.getByRole('table', { name: 'Other Patterns' })).getByText('Beta')).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Other Patterns' })).queryByText('Alpha')).not.toBeInTheDocument()
+  })
+
+  it('clears metadata for each confirmed managed delete only, naming a cleanup failure (#1266)', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'bulk-managed-1266', activeProgramId: 'ACTIVE', configSourceIp: '192.168.8.224',
+      programs: [
+        { id: 'ACTIVE', name: 'Running Pattern' }, { id: 'O1', name: 'Owned one' },
+        { id: 'O2', name: 'Owned two' }, { id: 'O3', name: 'Owned three' },
+      ],
+      bindings: { 'pat-1': 'O1', 'pat-2': 'O2', 'pat-3': 'O3' }, pushRecords: {},
+    })
+    const original = provider.deleteProgram.bind(provider)
+    provider.deleteProgram = vi.fn(async (id: string) => {
+      if (id === 'O2') { provider.deletedProgramIds.push(id); return } // still listed: binding must survive
+      return original(id)
+    })
+    let failNextBindingWrite = true
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'bulk-managed-1266-failing',
+      getControllerBindings: async () => provider.bindings,
+      setControllerBindings: async (next) => {
+        if (failNextBindingWrite) { failNextBindingWrite = false; throw new Error('storage offline') }
+        provider.bindingWrites += 1
+        provider.bindings = next
+      },
+      getPushRecords: async () => provider.pushRecords,
+      setPushRecords: async (next) => { provider.pushRecords = next },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Saved PXLBLZ Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Saved PXLBLZ Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('heading', { name: 'Deleted 2 of 3 Patterns from Burner bag' })).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Owned one: deleted from the Controller, but PXLBLZ could not clear its metadata. storage offline',
+      'Owned two: Controller still lists this Pattern after deletion.',
+    ])
+    // O1's cleanup failed, O3's ran; O2 was not confirmed so its binding stays.
+    expect(provider.bindings).toEqual({ '192.168.8.224': { 'pat-1': 'O1', 'pat-2': 'O2' } })
+    await settleProfileAsync()
   })
 
   it('batch imports two recovered Patterns into Studio without Controller changes or navigation', async () => {
@@ -417,7 +525,7 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(provider.deleteProgram).toHaveBeenCalledTimes(1))
     await act(async () => hold.resolve())
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(await screen.findByRole('heading', { name: 'Deleted 1 Pattern from Burner bag' })).toBeInTheDocument()
     expect(provider.deletedProgramIds).toEqual(['A'])
   })
 

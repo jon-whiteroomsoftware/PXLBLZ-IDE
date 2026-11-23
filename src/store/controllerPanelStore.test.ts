@@ -691,6 +691,159 @@ describe('controllerPanelStore', () => {
     ])
   })
 
+  describe('bulk deletion confirmed by one final read (#1266)', () => {
+    const batch = [
+      { id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }, { id: 'p3', name: 'Three' },
+      { id: 'p4', name: 'Four' }, { id: 'p5', name: 'Five' },
+    ]
+    const targets = (ids: string[]) => ids.map((id) => ({ id, expectedName: batch.find((p) => p.id === id)!.name }))
+    let configCalls = 0
+    beforeEach(() => {
+      provider.programs = [{ id: 'def', name: 'Nebula' }, ...batch]
+      configCalls = 0
+      const config = provider.getConfig.bind(provider)
+      provider.getConfig = () => { configCalls += 1; return config() }
+    })
+
+    it('costs one inventory read, one config read, N ordered sends and one final read', async () => {
+      const progress: Array<[number, number]> = []
+      const confirmed: string[][] = []
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p2', 'p3', 'p4', 'p5']), {
+        onProgress: (processed, total) => progress.push([processed, total]),
+        onConfirmed: async (ids) => { confirmed.push(ids) },
+      })
+
+      expect(provider.listProgramsCalls).toBe(2)
+      expect(configCalls).toBe(1)
+      expect(provider.deletedProgramIds).toEqual(['p1', 'p2', 'p3', 'p4', 'p5'])
+      expect(progress).toEqual([[1, 5], [2, 5], [3, 5], [4, 5], [5, 5]])
+      expect(result).toEqual({ confirmedIds: ['p1', 'p2', 'p3', 'p4', 'p5'], failed: [], collateral: [], published: true })
+      expect(confirmed).toEqual([['p1', 'p2', 'p3', 'p4', 'p5']])
+      expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
+    })
+
+    it('judges each target by the final read, not by its send result', async () => {
+      const original = provider.deleteProgram.bind(provider)
+      provider.deleteProgram = async (id) => {
+        if (id === 'p2') { provider.deletedProgramIds.push(id); throw new Error('send failed but applied') }
+        if (id === 'p3') { provider.deletedProgramIds.push(id); throw new Error('device timed out') }
+        if (id === 'p4') { provider.deletedProgramIds.push(id); return } // resolved but the Controller kept it
+        return original(id)
+      }
+      provider.programs = provider.programs.filter((program) => program.id !== 'p2')
+      const confirmed: string[][] = []
+
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p3', 'p4', 'p5']).concat(
+        { id: 'p2', expectedName: 'Two' }), { onConfirmed: async (ids) => { confirmed.push(ids) } })
+
+      expect(provider.deletedProgramIds).toEqual(['p1', 'p3', 'p4', 'p5'])
+      expect(result).toEqual({
+        confirmedIds: ['p1', 'p5', 'p2'],
+        failed: [
+          { id: 'p3', reason: 'device timed out' },
+          { id: 'p4', reason: 'Controller still lists this Pattern after deletion.' },
+        ],
+        collateral: [],
+        published: true,
+      })
+      expect(confirmed).toEqual([['p1', 'p5', 'p2']])
+    })
+
+    it('confirms an errored send whose Pattern is absent from the final read', async () => {
+      provider.deleteProgram = async (id) => {
+        provider.deletedProgramIds.push(id)
+        provider.programs = provider.programs.filter((program) => program.id !== id)
+        throw new Error('send rejected late')
+      }
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1']))
+      expect(result).toEqual({ confirmedIds: ['p1'], failed: [], collateral: [], published: true })
+    })
+
+    it('skips running and renamed targets and reports unsent Patterns that disappeared', async () => {
+      provider.config = { activeProgramId: 'p1' }
+      const original = provider.deleteProgram.bind(provider)
+      provider.deleteProgram = async (id) => {
+        await original(id)
+        provider.programs = provider.programs.filter((program) => program.id !== 'def')
+      }
+      const progress: number[] = []
+      const result = await useControllerPanelStore.getState().deletePrograms(
+        [{ id: 'p1', expectedName: 'One' }, { id: 'p2', expectedName: 'Old two' }, { id: 'p3', expectedName: 'Three' }],
+        { onProgress: (processed) => progress.push(processed) },
+      )
+      expect(provider.deletedProgramIds).toEqual(['p3'])
+      expect(progress).toEqual([1, 2, 3])
+      expect(result).toEqual({
+        confirmedIds: ['p3'],
+        failed: [
+          { id: 'p1', reason: 'Running now — switch to another Pattern first' },
+          { id: 'p2', reason: 'Controller Pattern id p2 now identifies Two; choose the Pattern again before deleting.' },
+        ],
+        collateral: [{ id: 'def', name: 'Nebula' }],
+        published: true,
+      })
+    })
+
+    it.each([
+      ['an unknown running Pattern', () => { provider.config = {} }, 'Controller did not identify its running Pattern; refresh before deleting.'],
+      ['a running sequencer', () => { provider.config = { activeProgramId: 'def', runSequencer: true } }, 'Stop the Controller sequencer before deleting saved Patterns.'],
+      ['a failed inventory read', () => { provider.listPrograms = () => Promise.reject(new Error('socket closed')) }, 'Could not read Controller inventory before deletion: socket closed'],
+      ['a failed config read', () => { provider.getConfig = () => Promise.reject(new Error('no reply')) }, 'Could not confirm the running Controller Pattern before deletion: no reply'],
+    ])('sends nothing for %s', async (_label, arrange, reason) => {
+      arrange()
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p2']))
+      expect(provider.deletedProgramIds).toEqual([])
+      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false })
+    })
+
+    it('stops sending when the session changes between sends and never reads or publishes', async () => {
+      let current = true
+      const original = provider.deleteProgram.bind(provider)
+      provider.deleteProgram = async (id) => { await original(id); if (id === 'p2') current = false }
+      const published = useControllerPanelStore.getState().programs
+      const confirmed = vi.fn()
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p2', 'p3']), {
+        sessionIsCurrent: () => current, onConfirmed: confirmed,
+      })
+      expect(provider.deletedProgramIds).toEqual(['p1', 'p2'])
+      expect(provider.listProgramsCalls).toBe(1)
+      expect(confirmed).not.toHaveBeenCalled()
+      expect(useControllerPanelStore.getState().programs).toBe(published)
+      const reason = 'Controller session changed before Pattern deletion could be confirmed.'
+      expect(result.failed).toEqual(['p1', 'p2', 'p3'].map((id) => ({ id, reason })))
+      expect(result.confirmedIds).toEqual([])
+      expect(result.published).toBe(false)
+    })
+
+    it('discards a final read that resolves after the provider is replaced', async () => {
+      const finalRead = deferred<ProgramListEntry[]>()
+      let reads = 0
+      provider.listPrograms = () => { reads += 1; return reads === 1 ? Promise.resolve([...provider.programs]) : finalRead.promise }
+      const published = useControllerPanelStore.getState().programs
+      const confirmed = vi.fn()
+      const deletion = useControllerPanelStore.getState().deletePrograms(targets(['p1']), { onConfirmed: confirmed })
+      await vi.waitFor(() => expect(reads).toBe(2))
+      setControllerProvider(new FakeProvider())
+      finalRead.resolve([{ id: 'def', name: 'Nebula' }])
+      const result = await deletion
+      expect(result.failed).toEqual([{ id: 'p1', reason: 'Controller session changed before Pattern deletion could be confirmed.' }])
+      expect(confirmed).not.toHaveBeenCalled()
+      expect(useControllerPanelStore.getState().programs).toBe(published)
+      expect(result.published).toBe(false)
+    })
+
+    it('leaves every sent target unconfirmed when the final read fails on a stable session', async () => {
+      let reads = 0
+      provider.listPrograms = () => { reads += 1; return reads === 1 ? Promise.resolve([...provider.programs]) : Promise.reject(new Error('timeout')) }
+      const confirmed = vi.fn()
+      const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p2']), { onConfirmed: confirmed })
+      expect(provider.deletedProgramIds).toEqual(['p1', 'p2'])
+      expect(confirmed).not.toHaveBeenCalled()
+      const reason = 'Could not confirm Controller Pattern deletion: timeout'
+      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false })
+    })
+  })
+
   it('keeps the last sequencer state when a later config poll omits the fields', async () => {
     provider.config = {
       ...provider.config,

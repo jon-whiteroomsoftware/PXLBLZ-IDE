@@ -16,6 +16,11 @@ export interface FakeControllerHelperOptions {
   savedProgramData?: Record<string, string>
   /** Hold the first permission grant beyond the ordinary socket deadline. */
   permissionDelayMs?: number
+  /** Saved Pattern ids whose delete command is recorded but not applied. */
+  ignoredDeleteIds?: string[]
+  /** After this many delete commands, hold program-list replies until
+   * `__fakeControllerReleaseProgramLists()` runs. */
+  holdProgramListsAfterDeletes?: number
 }
 
 /** Installs a browser-side stand-in for the extension relay and a small slice of
@@ -42,6 +47,16 @@ export async function installFakeControllerHelper(
     Object.defineProperty(window, '__fakeControllerWrites', {
       configurable: true,
       value: writes,
+    })
+    let deleteCommands = 0
+    let releasedProgramLists = false
+    const heldProgramLists: string[] = []
+    Object.defineProperty(window, '__fakeControllerReleaseProgramLists', {
+      configurable: true,
+      value: () => {
+        releasedProgramLists = true
+        for (const connId of heldProgramLists.splice(0)) replyPrograms(connId)
+      },
     })
 
     const bytesToBase64 = (bytes: Uint8Array) => {
@@ -183,8 +198,14 @@ export async function installFakeControllerHelper(
           // Keep the current document's device state even if storage is denied.
         }
       }
-      if (command.listPrograms) replyPrograms(message.connId)
-      if (typeof command.deleteProgram === 'string') {
+      if (command.listPrograms) {
+        const hold = !releasedProgramLists && fixture.holdProgramListsAfterDeletes !== undefined
+          && deleteCommands >= fixture.holdProgramListsAfterDeletes
+        if (hold) heldProgramLists.push(message.connId)
+        else replyPrograms(message.connId)
+      }
+      if (typeof command.deleteProgram === 'string') deleteCommands += 1
+      if (typeof command.deleteProgram === 'string' && !fixture.ignoredDeleteIds?.includes(command.deleteProgram)) {
         programs = programs.filter((program) => program.id !== command.deleteProgram)
       }
       if (command.getControls !== undefined) {

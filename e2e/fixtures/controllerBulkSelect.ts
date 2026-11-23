@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { encodePbp } from '../../src/engine/pbpEncode'
-import { installFakeControllerHelper } from './fakeControllerHelper'
+import { installFakeControllerHelper, type FakeControllerHelperOptions } from './fakeControllerHelper'
 
 export const bulkProfileId = 'bulk-select-1218'
 export const bulkControllerIp = '192.168.8.224'
@@ -14,7 +14,7 @@ export const bulkPrograms = [
 ]
 
 /** Seeds only the authenticated synthetic workspace and the fake relay. */
-export async function seedBulkSelectFixture(page: Page) {
+export async function seedBulkSelectFixture(page: Page, fake: Pick<FakeControllerHelperOptions, 'ignoredDeleteIds' | 'holdProgramListsAfterDeletes'> = {}) {
   const request = page.context().request
   const check = async (response: Awaited<ReturnType<typeof request.post>>) => {
     if (!response.ok()) throw new Error(`Bulk fixture seed failed: ${response.status()} ${await response.text()}`)
@@ -28,6 +28,7 @@ export async function seedBulkSelectFixture(page: Page) {
     deviceName: 'Bulk fixture Controller', boardType: 'pb32',
     mac: '11:22:33:44:55:00', pixelCount: 100, sequencerMode: 0, runSequencer: false,
     savedProgramData,
+    ...fake,
   })
   await check(await request.post('/api/controllers', { data: {
     id: bulkProfileId, name: 'Bulk fixture Controller', deviceId: 'pixelblaze_pb32_005544332211',
@@ -55,4 +56,11 @@ export async function fakeControllerMutations(page: Page) {
   }).__fakeControllerWrites).filter((write) =>
     'deleteProgram' in write || 'save' in write || 'activeProgramId' in write || 'setCode' in write || 'name' in write,
   ))
+}
+
+/** Releases program-list replies held by `holdProgramListsAfterDeletes`. */
+export async function releaseFakeControllerProgramLists(page: Page) {
+  await page.evaluate(() => (window as typeof window & {
+    __fakeControllerReleaseProgramLists: () => void
+  }).__fakeControllerReleaseProgramLists())
 }
