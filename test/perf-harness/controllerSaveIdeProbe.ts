@@ -25,8 +25,9 @@
 //              write-queue pause) and queue each Save through the production
 //              device write queue, as the IDE does (#1268 slice 1). Every poll
 //              request's reply time is recorded, with the peak number of poll
-//              requests outstanding at once. Needs vite-node (the store imports
-//              Vite globs): npx vite-node test/perf-harness/controllerSaveIdeProbe.ts -- ...
+//              requests outstanding at once. The store imports Vite globs, so run
+//              it through Vite's module runner: node test/perf-harness/
+//              controllerSaveViteRun.mjs test/perf-harness/controllerSaveIdeProbe.ts ...
 //   --induce failed-after-store:N | unconfirmed:N  (with --panel-store) make
 //              editor Save N (1-based) fail after its PBP frames were sent, or
 //              report activation unconfirmed right after its bytecode was sent.
@@ -220,6 +221,9 @@ async function main(): Promise<void> {
     outstanding: 0,
     peakOutstanding: 0,
     replies: [] as Array<{ at: number; method: string; ms: number; error?: string }>,
+    // Every listPrograms reply (store refreshes and the probe's own reads), so a
+    // re-read whose list read failed is told apart from a stale one.
+    lists: [] as Array<{ at: number; ms: number; error?: string }>,
   }
   let panelStoreModule: typeof import('../../src/store/controllerPanelStore') | null = null
   try {
@@ -234,6 +238,18 @@ async function main(): Promise<void> {
       // Time the three poll reads. Activation confirmation reads go straight to
       // the connection and the probe's own reads use listPrograms, so these
       // counters see the panel poll and the store's re-read only.
+      const originalList = provider.listPrograms.bind(provider)
+      provider.listPrograms = async () => {
+        const sent = performance.now()
+        try {
+          const programs = await originalList()
+          storePoll.lists.push({ at: at(), ms: Math.round(performance.now() - sent) })
+          return programs
+        } catch (error) {
+          storePoll.lists.push({ at: at(), ms: Math.round(performance.now() - sent), error: (error as Error).message.replace(/[0-9]+ms/g, 'Nms') })
+          throw error
+        }
+      }
       for (const method of ['getConfig', 'getTelemetry', 'getVars'] as const) {
         const original = (provider[method] as () => Promise<unknown>).bind(provider)
         ;(provider as unknown as Record<string, () => Promise<unknown>>)[method] = async () => {
@@ -263,11 +279,13 @@ async function main(): Promise<void> {
     let records = {}
     const sources = patterns.map((name) => readPattern(name) + sourcePadding(pad))
     const saves: Array<Record<string, unknown>> = []
-    const save = async (index: number, patternId: string, activate: boolean) => {
+    // `attempt` is the 0-based Save number --induce matches; editor mode saves
+    // the same Pattern (index 0) every time.
+    const save = async (index: number, patternId: string, activate: boolean, attempt = index) => {
       const name = `${prefix}${String(index + 1).padStart(2, '0')}`
       const started = performance.now()
       const record: Record<string, unknown> = { name, startedAt: at() }
-      const induce = panelStore && index === induceIndex ? induceKind : ''
+      const induce = panelStore && attempt === induceIndex ? induceKind : ''
       const deviceProvider = induce
         ? Object.assign(Object.create(provider) as typeof provider, {
           saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
@@ -318,7 +336,9 @@ async function main(): Promise<void> {
         // compare what the panel shows with a direct read of the Controller.
         const panelState = () => panelStoreModule!.useControllerPanelStore.getState()
         const before = { active: panelState().activeProgramId, ids: panelState().programs.map((program) => program.id).sort() }
+        const listsBefore = storePoll.lists.length
         await panelStoreModule.useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+        const rereadLists = storePoll.lists.slice(listsBefore)
         const after = { active: panelState().activeProgramId, ids: panelState().programs.map((program) => program.id).sort() }
         const direct = {
           active: (await provider.getConfig().catch(() => null))?.activeProgramId,
@@ -328,6 +348,7 @@ async function main(): Promise<void> {
           before,
           after,
           direct,
+          rereadLists,
           activeMatches: after.active === direct.active,
           listMatches: JSON.stringify(after.ids) === JSON.stringify(direct.ids),
         }
@@ -359,7 +380,7 @@ async function main(): Promise<void> {
       }
     } else if (mode === 'editor') {
       for (let index = 0; index < count; index += 1) {
-        const record = await save(0, 'ide-probe-pattern-1', true)
+        const record = await save(0, 'ide-probe-pattern-1', true, index)
         let listed: boolean | null = null
         try {
           const read = await provider.listPrograms()
@@ -432,6 +453,7 @@ async function main(): Promise<void> {
         timeouts: storePoll.replies.filter((reply) => reply.error).length,
         maxReplyMs: Math.max(0, ...storePoll.replies.map((reply) => reply.ms)),
         replies: storePoll.replies,
+        lists: storePoll.lists,
       } : undefined,
       listTimings,
       stoppedAt,
