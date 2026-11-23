@@ -87,10 +87,9 @@ proxy: a shipped idiom still gets one hardware probe.
 ## The dev variant on a preview origin
 
 The published Controller Helper injects its content script only on the public
-hosts and on `localhost`/`127.0.0.1` port 5174. On any Agent Mini preview
-(`http://Agent-Mini.local:<port>/PXLBLZ-IDE/`, managed main included) and on
-an issue runtime port, the IDE therefore never detects it. For those origins,
-load the dev variant unpacked (#1220):
+hosts and on `localhost`/`127.0.0.1` port 5174. For LAN previews on the host
+reported by `npm run dev:status` or for issue runtime ports, use the unpacked
+dev variant on an origin listed in its generated manifest (#1220).
 
 ```bash
 npm run extension:dev

@@ -129,15 +129,15 @@ logged.
 
 ## The Controller Helper on an issue runtime
 
-The published extension never injects on an issue runtime port or an
-`Agent-Mini.local` origin, so extension-backed checks there use the dev
-variant from `npm run extension:dev` (#1220; contents and Jon's unpacked load
-in `docs/agents/hardware-bench.md`). Load it only into an isolated Playwright
-context, never into anyone's own Chrome:
+For extension-backed checks on an issue runtime port or LAN origin, use the
+dev variant from `npm run extension:dev` (#1220). Check its supported origins
+in `docs/agents/hardware-bench.md`. Load it into an isolated Playwright context.
+For `--base`, use the scheme, host, and port of the preview URL printed by
+`npm run dev:issue`.
 
 ```bash
 node docs/agents/manual-test-campaigns/harness/driver.mjs \
-  --base http://Agent-Mini.local:<port> --port 9301 --evidence-dir <dir> \
+  --base http://<preview-host>:<port> --port 9301 --evidence-dir <dir> \
   --extension "$PWD/build/extension-dev/pxlblz-ide-controller-helper-dev" \
   [--session <session.json>]
 ```

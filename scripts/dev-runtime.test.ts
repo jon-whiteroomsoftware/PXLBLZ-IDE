@@ -3,7 +3,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { createServer } from 'node:net'
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ensureSharedDevVarsLink,
@@ -174,6 +174,11 @@ vi.mock('node:child_process', async (importOriginal) => {
   return { ...actual, execFileSync: vi.fn(actual.execFileSync), spawn: vi.fn(actual.spawn) }
 })
 
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>()
+  return { ...actual, hostname: vi.fn(actual.hostname) }
+})
+
 describe('main coordinator client recovery', () => {
   it.each(['persistent', 'transient', 'api-error', 'foreign'] as const)(
     '%s failure takes the guarded action without accessing a real process', async (scenario) => {
@@ -189,6 +194,7 @@ describe('main coordinator client recovery', () => {
       let restarted = false
       let probes = 0
       const vite = scenario === 'foreign' ? 'node /foreign/server.js' : `node ${root}/node_modules/vite/bin/vite.js`
+      vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', 'Lab-Preview.local')
       vi.mocked(execFileSync).mockImplementation(((command: string, args: string[]) => {
         if (command === 'lsof') return running ? '101\n' : ''
         if (command === 'ps' && args.includes('pgid=')) return '101'
@@ -208,7 +214,7 @@ describe('main coordinator client recovery', () => {
         restarted = true; running = true
         return { pid: 202, unref() {} }
       }) as unknown as typeof spawn)
-      vi.stubGlobal('fetch', vi.fn(async (input: unknown) => {
+      const fetcher = vi.fn(async (input: unknown) => {
         const url = String(input)
         if (url.endsWith('/api/me')) return new Response('{}', { status: scenario === 'api-error' && probes > 0 ? 500 : 401 })
         if (url.endsWith('/PXLBLZ-IDE/')) {
@@ -217,13 +223,22 @@ describe('main coordinator client recovery', () => {
         }
         if (url.includes('/src/main.tsx')) return new Response('import ReactDOM from "/PXLBLZ-IDE/node_modules/.vite/deps/react-dom_client.js?v=actual"', { headers: { 'content-type': 'text/javascript' } })
         return new Response('', { status: restarted || (scenario === 'transient' && probes > 1) ? 200 : 504, headers: { 'content-type': 'text/javascript' } })
-      }))
+      })
+      vi.stubGlobal('fetch', fetcher)
       const log = vi.spyOn(console, 'log').mockImplementation(() => {})
       try {
         const result = ensureMainRuntime({ worktree: root, mainWorktree: root, branch: 'main', gitCommonDirectory: join(root, '.git'), runtimeDirectory: join(root, 'runtime') }, manifest)
         if (scenario === 'foreign' || scenario === 'api-error') {
           await expect(result).rejects.toThrow(/refusing/)
-        } else await result
+        } else {
+          await result
+          expect(log).toHaveBeenCalledWith(
+            'Stable main is available at http://Lab-Preview.local:5202/PXLBLZ-IDE/ serving UI and /api from one process.',
+          )
+        }
+        expect(fetcher).toHaveBeenCalled()
+        expect(new Set(fetcher.mock.calls.map(([url]) => new URL(String(url)).origin)))
+          .toEqual(new Set(['http://localhost:5202']))
         if (scenario === 'persistent') {
           expect(kill).toHaveBeenCalledWith(-101, 'SIGTERM')
           expect(spawn).toHaveBeenCalledWith(process.execPath, expect.arrayContaining(['--force']), expect.objectContaining({ cwd: root }))
@@ -233,7 +248,7 @@ describe('main coordinator client recovery', () => {
           expect(spawn).not.toHaveBeenCalled()
         }
       } finally {
-        kill.mockRestore(); log.mockRestore(); vi.unstubAllGlobals()
+        kill.mockRestore(); log.mockRestore(); vi.unstubAllGlobals(); vi.unstubAllEnvs()
         vi.mocked(execFileSync).mockReset(); vi.mocked(spawn).mockReset()
         rmSync(root, { recursive: true, force: true })
       }
@@ -241,19 +256,80 @@ describe('main coordinator client recovery', () => {
   )
 })
 
-describe('development runtime command', () => {
-  it.each(['/tmp/main', '/tmp/issue-1208'])('binds the managed Vite launch for %s to all IPv4 interfaces', (worktree) => {
-    expect(managedViteArgs(worktree)).toEqual([
-      `${worktree}/node_modules/vite/bin/vite.js`, '--host', '0.0.0.0',
-    ])
+describe('advertised preview URLs', () => {
+  beforeEach(() => {
+    vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', undefined)
+    vi.mocked(execFileSync).mockReset().mockReturnValue('Lab-Preview\n')
+    vi.mocked(hostname).mockReset().mockReturnValue('fallback.example.test')
   })
 
-  it.each([5174, 5175, 5201])('advertises the LAN UI URL for port %i', (port) => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.mocked(execFileSync).mockReset()
+    vi.mocked(hostname).mockReset()
+  })
+
+  it.each([5174, 5175, 5201])('keeps the original Agent-Mini URL for port %i', (port) => {
+    vi.mocked(execFileSync).mockReturnValue('Agent-Mini\n')
     expect(runtimeUiUrl(port, '/PXLBLZ-IDE/')).toBe(`http://Agent-Mini.local:${port}/PXLBLZ-IDE/`)
   })
 
-  it('preserves a custom UI base path', () => {
-    expect(runtimeUiUrl(5175, '/custom/editor/')).toBe('http://Agent-Mini.local:5175/custom/editor/')
+  it.each(['Lab-Preview', 'Agent-mini'])('uses the Bonjour label %s and preserves the custom base path', (name) => {
+    vi.mocked(execFileSync).mockReturnValue(`${name}\n`)
+    expect(runtimeUiUrl(5175, '/custom/editor/')).toBe(`http://${name}.local:5175/custom/editor/`)
+    expect(execFileSync).toHaveBeenCalledWith(
+      '/usr/sbin/scutil', ['--get', 'LocalHostName'], expect.objectContaining({ encoding: 'utf8' }),
+    )
+  })
+
+  it.each(['  Preview.Example.test  ', '192.168.8.25'])('uses override %s for URLs and cookies without discovery', (override) => {
+    vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', override)
+    const host = override.trim()
+    expect(runtimeUiUrl(5175, '/custom/editor/')).toBe(`http://${host}:5175/custom/editor/`)
+    expect(runtimeSessionCookies('pxlblz_session', 'synthetic-token').map(({ domain }) => domain))
+      .toEqual(['localhost', host.toLowerCase()])
+    expect(execFileSync).not.toHaveBeenCalled()
+    expect(hostname).not.toHaveBeenCalled()
+  })
+
+  it('uses discovery when the override is blank', () => {
+    vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', '  ')
+    expect(runtimeUiUrl(5174, '/PXLBLZ-IDE/')).toBe('http://Lab-Preview.local:5174/PXLBLZ-IDE/')
+  })
+
+  it.each(['http://preview.example.test', 'preview.example.test:5174', 'preview.example.test/path'])(
+    'reports a malformed preview host override %s',
+    (host) => {
+      vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', host)
+      expect(() => runtimeUiUrl(5174, '/PXLBLZ-IDE/')).toThrow('PXLBLZ_DEV_PREVIEW_HOST must be a hostname or IPv4 address')
+      expect(execFileSync).not.toHaveBeenCalled()
+    },
+  )
+
+  it('falls back to the OS hostname when Bonjour lookup throws', () => {
+    vi.mocked(execFileSync).mockImplementation(() => { throw new Error('scutil unavailable') })
+    expect(runtimeUiUrl(5175, '/custom/editor/')).toBe('http://fallback.example.test:5175/custom/editor/')
+  })
+
+  it.each(['\n', 'unusable.name\n'])('falls back to the OS hostname for unusable Bonjour output %j', (name) => {
+    vi.mocked(execFileSync).mockReturnValue(name)
+    vi.mocked(hostname).mockReturnValue('fallback-host')
+    expect(runtimeUiUrl(5174, '/PXLBLZ-IDE/')).toBe('http://fallback-host:5174/PXLBLZ-IDE/')
+  })
+
+  it.each(['', 'localhost', 'localhost.localdomain', '127.0.0.1'])(
+    'names the override setting when the OS hostname %j cannot serve as a default',
+    (host) => {
+      vi.mocked(execFileSync).mockReturnValue('')
+      vi.mocked(hostname).mockReturnValue(host)
+      expect(() => runtimeUiUrl(5174, '/PXLBLZ-IDE/')).toThrow('Cannot derive a preview host. Set PXLBLZ_DEV_PREVIEW_HOST')
+    },
+  )
+
+  it('keeps one localhost cookie for an explicit localhost override', () => {
+    vi.stubEnv('PXLBLZ_DEV_PREVIEW_HOST', 'LOCALHOST')
+    expect(runtimeSessionCookies('pxlblz_session', 'synthetic-token').map(({ domain }) => domain))
+      .toEqual(['localhost'])
   })
 
   it.each(['shared', 'isolated'] as const)('prints the LAN UI and localhost API for a %s assignment', (profile) => {
@@ -276,7 +352,7 @@ describe('development runtime command', () => {
       createdAt: '2026-10-22T00:00:00.000Z', updatedAt: '2026-10-22T00:00:00.000Z',
     }
     expect(runtimeStartSummary(assignment, manifest)).toBe([
-      `Issue 1208 runtime: http://Agent-Mini.local:${uiPort}/PXLBLZ-IDE/`,
+      `Issue 1208 runtime: http://Lab-Preview.local:${uiPort}/PXLBLZ-IDE/`,
       `API: http://localhost:${apiPort} (${profile})`,
       'Local identity: github:local-agent-01',
       `Task title: 1208:${uiPort} - LAN managed runtimes`,
@@ -288,7 +364,15 @@ describe('development runtime command', () => {
   ])('serializes %s for localhost and LAN browser contexts', (name, value) => {
     expect(runtimeSessionCookies(name, value)).toEqual([
       { name, value, domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
-      { name, value, domain: 'agent-mini.local', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
+      { name, value, domain: 'lab-preview.local', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
+    ])
+  })
+})
+
+describe('development runtime command', () => {
+  it.each(['/tmp/main', '/tmp/issue-1208'])('binds the managed Vite launch for %s to all IPv4 interfaces', (worktree) => {
+    expect(managedViteArgs(worktree)).toEqual([
+      `${worktree}/node_modules/vite/bin/vite.js`, '--host', '0.0.0.0',
     ])
   })
 

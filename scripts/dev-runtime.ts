@@ -13,6 +13,7 @@ import {
   utimesSync,
 } from 'node:fs'
 import { createServer } from 'node:net'
+import { hostname } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parse } from 'acorn'
@@ -43,18 +44,51 @@ import {
 } from './dev-runtime-store'
 
 export const runtimeListenHost = '0.0.0.0'
-export const runtimeLanHost = 'Agent-Mini.local'
+
+function isPreviewHost(host: string): boolean {
+  return host.length <= 253
+    && host.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+    && URL.parse(`http://${host}`)?.hostname === host.toLowerCase()
+}
+
+function resolvePreviewHost(): string {
+  const override = process.env.PXLBLZ_DEV_PREVIEW_HOST?.trim()
+  if (override) {
+    if (!isPreviewHost(override)) {
+      throw new Error('PXLBLZ_DEV_PREVIEW_HOST must be a hostname or IPv4 address without a scheme, port, or path.')
+    }
+    return override
+  }
+
+  try {
+    const localName = execFileSync('/usr/sbin/scutil', ['--get', 'LocalHostName'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 1_000,
+    }).trim()
+    const bonjourHost = `${localName}.local`
+    if (!localName.includes('.') && isPreviewHost(bonjourHost)) return bonjourHost
+  } catch {
+    // Use the OS hostname when Bonjour discovery is unavailable.
+  }
+
+  const systemHost = hostname().trim()
+  const isLoopbackOrWildcard = /^(?:localhost(?:\.|$)|127\.|0\.0\.0\.0$)|\.localhost$/i.test(systemHost)
+  if (isPreviewHost(systemHost) && !isLoopbackOrWildcard) return systemHost
+  throw new Error('Cannot derive a preview host. Set PXLBLZ_DEV_PREVIEW_HOST to a LAN hostname or IPv4 address.')
+}
 
 export function managedViteArgs(worktree: string, forceOptimize = false): string[] {
   return [resolve(worktree, 'node_modules/vite/bin/vite.js'), '--host', runtimeListenHost, ...(forceOptimize ? ['--force'] : [])]
 }
 
-export function runtimeUiUrl(port: number, basePath: string): string {
-  return `http://${runtimeLanHost}:${port}${basePath}`
+export function runtimeUiUrl(port: number, basePath: string, previewHost = resolvePreviewHost()): string {
+  return `http://${previewHost}:${port}${basePath}`
 }
 
 export function runtimeSessionCookies(name: string, value: string) {
-  return ['localhost', runtimeLanHost.toLowerCase()].map((domain) => ({
+  const domains = new Set(['localhost', resolvePreviewHost().toLowerCase()])
+  return Array.from(domains, (domain) => ({
     name,
     value,
     domain,
@@ -155,6 +189,7 @@ async function startIssueRuntime(
   manifest: RuntimeManifest,
   args: Extract<DevRuntimeArgs, { command: 'start' }>,
 ): Promise<void> {
+  const previewHost = resolvePreviewHost()
   keepMainWranglerTmpFresh(context)
   ensureSharedDevVarsLink(context)
   if (args.profile === 'shared') {
@@ -285,7 +320,7 @@ async function startIssueRuntime(
       await waitForUrl(issueUrl(assignment, manifest), 30_000)
     }
   }
-  console.log(runtimeStartSummary(assignment, manifest))
+  console.log(runtimeStartSummary(assignment, manifest, previewHost))
 }
 
 // Stops an assignment's owned UI process (its proxy or worker-dev Vite)
@@ -362,12 +397,13 @@ async function printStatus(
   manifest: RuntimeManifest,
   json: boolean,
 ): Promise<void> {
+  const previewHost = resolvePreviewHost()
   keepMainWranglerTmpFresh(context)
   const apiListeners = listenerPids(manifest.shared.vitePort)
   const mainHealth = probeRuntimeHealth(`http://localhost:${manifest.shared.vitePort}${manifest.basePath}`)
   const assignmentHealth = Promise.all(loadRuntimeRegistry(context.runtimeDirectory).assignments.map(async (assignment) => ({
     ...assignment,
-    uiUrl: runtimeUiUrl(assignment.uiPort, manifest.basePath),
+    uiUrl: runtimeUiUrl(assignment.uiPort, manifest.basePath, previewHost),
     uiState: classifyAssignmentPort(assignment, listenerPids(assignment.uiPort)),
     apiState: assignment.profile === 'shared'
       ? (listenerPids(assignment.apiPort).length > 0 ? 'shared' : 'stopped')
@@ -385,7 +421,7 @@ async function printStatus(
     branch: 'main',
     profile: 'shared',
     uiPort: manifest.shared.vitePort,
-    uiUrl: runtimeUiUrl(manifest.shared.vitePort, manifest.basePath),
+    uiUrl: runtimeUiUrl(manifest.shared.vitePort, manifest.basePath, previewHost),
     apiTarget: `http://localhost:${manifest.shared.vitePort}`,
     uiState: listenerPids(manifest.shared.vitePort).length > 0 ? 'listening' : 'stopped',
     apiState: apiHealth === 'ok' ? 'listening' : apiHealth,
@@ -421,6 +457,7 @@ export async function ensureMainRuntime(
   if (!existsSync(join(context.mainWorktree, '.dev.vars'))) {
     throw new Error(`Shared main .dev.vars is required: ${join(context.mainWorktree, '.dev.vars')}`)
   }
+  const previewHost = resolvePreviewHost()
   keepMainWranglerTmpFresh(context)
   const uiUrl = `http://localhost:${manifest.shared.vitePort}${manifest.basePath}`
   const apiUrl = `http://localhost:${manifest.shared.vitePort}/api/me`
@@ -496,7 +533,7 @@ export async function ensureMainRuntime(
     }
   }
   console.log(
-    `Stable main is available at ${runtimeUiUrl(manifest.shared.vitePort, manifest.basePath)}`
+    `Stable main is available at ${runtimeUiUrl(manifest.shared.vitePort, manifest.basePath, previewHost)}`
     + ` serving UI and /api from one process.`,
   )
 }
@@ -1314,9 +1351,10 @@ function issueUrl(assignment: RuntimeAssignment, manifest: RuntimeManifest): str
 export function runtimeStartSummary(
   assignment: RuntimeAssignment,
   manifest: RuntimeManifest,
+  previewHost?: string,
 ): string {
   return [
-    `Issue ${assignment.issue} runtime: ${runtimeUiUrl(assignment.uiPort, manifest.basePath)}`,
+    `Issue ${assignment.issue} runtime: ${runtimeUiUrl(assignment.uiPort, manifest.basePath, previewHost)}`,
     `API: ${assignment.apiTarget} (${assignment.profile})`,
     `Local identity: ${assignment.userId}`,
     `Task title: ${assignment.issue}:${assignment.uiPort} - ${assignment.description}`,

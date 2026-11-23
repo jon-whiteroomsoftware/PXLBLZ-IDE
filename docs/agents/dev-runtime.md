@@ -15,9 +15,15 @@ and local D1 inside the Vite process, so UI and `/api` share the single port.
 identities, and starts that process when it is absent.
 
 Managed main `5174` and every shared or isolated issue listener bind all IPv4
-interfaces (`0.0.0.0`). Previews live at
-`http://Agent-Mini.local:<port>/PXLBLZ-IDE/`; localhost still works. Health checks
-and proxy traffic stay on localhost.
+interfaces (`0.0.0.0`). Open the preview URL printed by `npm run dev:status` or
+`npm run dev:issue`. Health checks, proxy traffic, and same-machine access use
+localhost.
+
+The preview host defaults to the machine's Bonjour name with `.local` appended.
+If Bonjour lookup is unavailable, the runtime uses the OS hostname as reported.
+Provide `PXLBLZ_DEV_PREVIEW_HOST` when the default is missing or unreachable on
+your LAN. Set it to a hostname or IPv4 address without a scheme, port, or path.
+Use the same setting with `dev:session` to prepare cookies for that host.
 
 Existing healthy runtimes adopt this binding only after an owner-coordinated
 restart. Status URLs advertise the preview location; they do not prove an old
@@ -137,8 +143,9 @@ npm run dev:session -- --issue 627 --json
 ```
 
 The JSON form includes `user`, the legacy localhost `cookie`, and `cookies` for
-both `localhost` and `agent-mini.local`, in that order. Both cookies use the same
-session token and attributes. Install them in a separate automated browser context:
+`localhost` followed by the advertised preview host, when distinct. Both
+domains use the same session token and attributes. Install the cookies in a
+separate automated browser context:
 
 ```ts
 await context.addCookies(session.cookies)
