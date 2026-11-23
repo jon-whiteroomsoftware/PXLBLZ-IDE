@@ -153,7 +153,14 @@ The saved-Pattern protocol uses two fire-and-forget JSON commands:
   not save Pattern bytes, which already exist on the Controller.
 - `{"deleteProgram": id}` removes one saved Pattern. The command has no
   acknowledgement, so PXLBLZ re-lists the complete inventory before treating a
-  deletion as confirmed.
+  deletion as confirmed. Back-to-back deletes on one socket are applied in
+  order before a following `listPrograms` answers: on 2026-11-23 the test Controller at
+  192.168.8.161 took 20 sends in under 1 ms, then answered the next list in
+  2.8 s with all 20 gone, and a list 3 s later agreed. Bulk delete therefore
+  confirms a whole batch with one final read (#1266). The same 20 deletes
+  through the per-delete check (list, getConfig, send, list) took 24.6 s.
+  Back-to-back `putSourceCode` uploads are not safe the same way: 20 sent
+  without pause left the next list unanswered for 15 s and two uploads missing.
 
 [ElectroMage's WebSockets API documentation](https://electromage.com/docs/websockets-api)
 describes active-Pattern changes as persisted across a restart, without documenting

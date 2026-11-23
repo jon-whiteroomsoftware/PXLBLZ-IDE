@@ -330,9 +330,15 @@ hardware knowledge lives:
   Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
   offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
   sections clears the previous selection. Batch Delete confirms the selected
-  names once, then checks safety for each deletion. Both batch operations run
-  sequentially, continue after individual failures, name failed Patterns, and
-  leave selection mode when finished. Import preserves Studio identity and
+  names once, reads the Controller's inventory and running Pattern once, sends
+  each deletion, and then confirms them all with one final inventory read. The
+  dialog shows a progress bar with "n of N" while deletions are sent and
+  **Confirming…** during the final read. It finishes with the number deleted
+  and names every Pattern the Controller still lists or refused, such as the
+  running Pattern; **Close** dismisses it. Single-Pattern Delete still confirms
+  each deletion against the Controller on its own. Batch Import runs
+  sequentially, continues after individual failures and names failed Patterns.
+  Both batch operations leave selection mode when finished. Import preserves Studio identity and
   recovered source without switching the Studio view or changing the Controller.
   The page-header **Refresh** rereads settings, the installed map, and both
   Pattern inventories.
