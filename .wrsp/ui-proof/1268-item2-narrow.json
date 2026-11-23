@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1268",
+  "route": "/PXLBLZ-IDE/studio/controllers/c800a395-7e4b-44d8-9bc0-ccbce0317a8f",
+  "operation": "At 700 px, enabled managed Pattern refresh on a synthetic Controller with program-list timeouts and observed the countdown and manual Retry without notice overflow. At 390 px, verified the Controller pill's attention indicator, then returned to 700 px, restored replies, and pressed Retry with the keyboard to clear the stall.",
+  "captures": [
+    ".wrsp/ui-proof/1268-item2-narrow-countdown.png",
+    ".wrsp/ui-proof/1268-item2-narrow-retry.png",
+    ".wrsp/ui-proof/1268-item2-phone-attention.png",
+    ".wrsp/ui-proof/1268-item2-narrow-cleared.png"
+  ],
+  "capturedAtCommit": "8b7891e1ade0afb14c3b1e62b0d737ecf2d227c7"
+}
