@@ -431,7 +431,7 @@ function BatchDeleteDialog({
   const controllerName = targets[0].controllerName
   return (
     <AlertDialogRoot open onOpenChange={(open) => { if (!open && !busy) onCancel() }}>
-      <AlertDialogContent onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}>
+      <AlertDialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col" onEscapeKeyDown={(event) => { if (busy) event.preventDefault() }}>
         {outcome ? (
           <>
             <AlertDialogTitle>
@@ -440,7 +440,7 @@ function BatchDeleteDialog({
                 : `Deleted ${patternCount(outcome.deleted)} from ${controllerName}`}
             </AlertDialogTitle>
             {outcome.failures.length > 0 && (
-              <ul role="alert" className="mt-3 space-y-1 border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-xs text-red-200">
+              <ul role="alert" className="mt-3 min-h-0 space-y-1 overflow-y-auto border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-xs text-red-200">
                 {outcome.failures.map((failure, index) => <li key={index}>{failure}</li>)}
               </ul>
             )}
