@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1266",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-select-1218",
+  "operation": "Selected all three Other Patterns on a fake Controller and confirmed Delete 3 from Controller. The fake held the final program-list read so the mid-run dialog shows a full bar, 3 of 3 and the disabled Confirming… button. After release, the finished dialog reads Deleted 2 of 3 and names Beta, the Pattern the fake kept, as still listed. Driven by the repo Playwright authenticated runner (e2e/controller-bulk-select.spec.ts, #1266 test) against this commit. Two page.screenshot calls and a wait for the bar's 150 ms width transition were added locally for the capture and then removed.",
+  "captures": [
+    ".wrsp/ui-proof/1266-bulk-delete-confirming.png",
+    ".wrsp/ui-proof/1266-bulk-delete-finished.png"
+  ],
+  "capturedAtCommit": "5fb201835d53cfcf55f88a27625e17b48f8a0ee3"
+}
