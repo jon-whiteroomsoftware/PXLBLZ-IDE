@@ -114,6 +114,10 @@ export interface PushPatternDeps {
    * mutation. Reads and compilation may await; a stale session must never cross
    * the final write boundary. */
   assertDeviceSession?: () => void
+  /** Called after the session check and immediately before each device mutation
+   * (drain, Save, activation). Compiles, reads and metadata writes never call it,
+   * so a caller can tell whether a failure could have changed the Controller. */
+  onDeviceWrite?: () => void
   /** Observe the validated full serialized artifact before any drain or upload.
    * Awaited observers must retain the caller's device-session validity. */
   onCompiledArtifact?: (compiled: { source: string; byteLength: number }) => void | Promise<void>
@@ -131,6 +135,12 @@ export interface PushPatternResult {
   activation?: 'unconfirmed'
 }
 
+/** Revalidate the caller's session, then mark the device write about to start. */
+function beginDeviceWrite(deps: PushPatternDeps): void {
+  deps.assertDeviceSession?.()
+  deps.onDeviceWrite?.()
+}
+
 async function drainBeforeUnsafeActivation(
   deps: PushPatternDeps,
   incomingBytecodeBytes: number,
@@ -142,7 +152,7 @@ async function drainBeforeUnsafeActivation(
   if (!bytecodeHeaderReconciles(drainBytecode)) {
     throw new Error('Compiled drain bytecode failed its header sanity check; not pushing')
   }
-  deps.assertDeviceSession?.()
+  beginDeviceWrite(deps)
   try {
     await deps.provider.pushBytecode(drainBytecode, {
       id: (deps.mintDrainId ?? makeProgramId)(),
@@ -159,7 +169,7 @@ async function activateTarget(
   bytecode: Uint8Array,
   opts: { id: string; name: string },
 ): Promise<void> {
-  deps.assertDeviceSession?.()
+  beginDeviceWrite(deps)
   try {
     await deps.provider.pushBytecode(bytecode, opts)
   } catch (error) {
@@ -236,7 +246,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   if (deps.activateOnSave !== false) {
     await drainBeforeUnsafeActivation(deps, bytecode.length)
   }
-  deps.assertDeviceSession?.()
+  beginDeviceWrite(deps)
   await deps.provider.saveProgram(blob, { id: programId })
 
   // Once persistence succeeds, this id owns the saved artifact even if the

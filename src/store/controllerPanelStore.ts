@@ -499,8 +499,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     // reply requested before the failed write cannot overwrite this read.
     panelSession += 1
     const session = panelSession
+    const listing = get().refreshPrograms(controllerIp)
+    // refreshPrograms claims its version synchronously; remember it.
+    const listVersion = programRefreshVersions.get(controllerIp)
     const [listed] = await Promise.all([
-      get().refreshPrograms(controllerIp),
+      listing,
       provider.getConfig().then((config) => {
         if (controllerSessionMatches(session, provider)) set((state) => configPatch(state, config))
       }, () => {}),
@@ -508,9 +511,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     if (listed) return
     // A loaded Controller can time out this list read and leave the Saved list
     // stale (#1268, 1 fps on .161). Retry it once, after any write queued
-    // meanwhile, if the panel still shows this Controller.
+    // meanwhile, if the panel still shows this Controller and no newer refresh
+    // owns the list: retrying would supersede that refresh and drop its result.
     await whenControllerDeviceWritesIdle(controllerIp)
     if (seededForIp !== controllerIp || getControllerProvider() !== provider) return
+    if (programRefreshVersions.get(controllerIp) !== listVersion) return
     await get().refreshPrograms(controllerIp)
   },
 

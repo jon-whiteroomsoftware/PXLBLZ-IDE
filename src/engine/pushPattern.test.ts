@@ -185,6 +185,52 @@ describe('pushPattern — run-only (default)', () => {
     expect(a.programId).not.toBe(b.programId)
   })
 
+  // The caller re-reads the Controller only after a failure that could have
+  // changed it, so the hook marks each device mutation and nothing earlier (#1268).
+  it('calls onDeviceWrite just before each device mutation, after the session check', async () => {
+    const log: string[] = []
+    const compile = vi.fn()
+      .mockImplementationOnce(async () => { log.push('compile'); return goodBytecode(40_518) })
+      .mockImplementationOnce(async () => { log.push('compile drain'); return goodBytecode(153) })
+    const provider = makeProvider({
+      compile,
+      getActiveProgramBytecodeSize: vi.fn(async () => { log.push('size'); return 49_426 }),
+      listPrograms: vi.fn(async () => { log.push('list'); return [] }),
+      pushBytecode: vi.fn(async (_b: Uint8Array, opts: { id: string }) => { log.push(`push ${opts.id}`) }),
+      saveProgram: vi.fn(async () => { log.push('save') }),
+    })
+    const { deps } = makeDeps({
+      provider,
+      persist: true,
+      mintDrainId: () => 'DRAIN',
+      assertDeviceSession: () => { log.push('assert') },
+      onDeviceWrite: () => { log.push('write') },
+    })
+    await pushPattern(deps)
+    expect(log).toEqual([
+      'compile', 'list', 'size', 'compile drain',
+      'assert', 'write', 'push DRAIN',
+      'assert', 'write', 'save',
+      'assert', 'write', 'push MINTED00000000000',
+    ])
+  })
+
+  it.each(['compile', 'session'] as const)('does not call onDeviceWrite when the %s check refuses', async (refusal) => {
+    const onDeviceWrite = vi.fn()
+    const provider = makeProvider(refusal === 'compile'
+      ? { compile: vi.fn().mockRejectedValue(new Error('compile failed')) }
+      : {})
+    const { deps } = makeDeps({
+      provider,
+      persist: true,
+      onDeviceWrite,
+      ...(refusal === 'session' ? { assertDeviceSession: () => { throw new Error('stale') } } : {}),
+    })
+    await expect(pushPattern(deps)).rejects.toThrow()
+    expect(onDeviceWrite).not.toHaveBeenCalled()
+    expect(provider.saveProgram).not.toHaveBeenCalled()
+  })
+
   it('runs the black drain under a separate throwaway id before an unsafe large replacement', async () => {
     const targetBytecode = goodBytecode(40_518)
     const drainBytecode = goodBytecode(153)

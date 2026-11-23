@@ -645,7 +645,8 @@ Controller is queued or running (`hasPendingControllerDeviceWrites`), and
 resumes on the first tick after the write queue drains, whether the write
 succeeded or failed. A loaded Controller answers roughly one request per frame,
 so overlapping or concurrent polls queue ahead of a Save and time it out
-(#1268). After a Save or Run whose queued device write started and then failed,
+(#1268). After a Save or Run that failed after `pushPattern` began its first
+device write (drain, Save or activation, marked by its `onDeviceWrite` hook),
 or whose activation is unconfirmed, `controllerStore` calls
 `rereadAfterFailedWrite`. It waits for the Controller's write queue to go idle
 (`whenControllerDeviceWritesIdle`), skips the read if the panel moved to another
@@ -653,9 +654,12 @@ Controller or provider meanwhile, advances the panel read generation, then
 reads the program list and the active Pattern once, so the IDE shows the
 Controller's state instead of its own expectation. If that list read fails (a
 loaded Controller can time it out), the re-read waits for the queue to go idle
-again and, if the panel still shows the same Controller and provider, retries
-the list read once; a second failure keeps the last-known list. A failure before the queued
-write starts (compile, connection) re-reads nothing.
+again and, if the panel still shows the same Controller and provider and no
+newer list refresh has started since, retries the list read once; a second
+failure keeps the last-known list. A newer refresh owns the list, so the retry
+never supersedes it. A failure before the first device write (a compile
+rejection, a list or size read inside the queued Save, a connection failure)
+re-reads nothing.
 `ControllerPanelTitlePicker` derives the Saved Patterns gate from the active IP's own
 `programsByController` entry. A missing key means the inventory has not been
 read; a present empty array means the read succeeded and the Controller has no

@@ -1448,8 +1448,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (!controllerId || artifact.source.length === 0) return
 
           const mode: SendMode = artifact.persist ? 'save' : 'run'
-          // Set once the queued device write starts: only then can a failure leave
-          // the Controller in a state the IDE did not observe (#1268).
+          // Set by pushPattern just before its first device write (drain, Save or
+          // activation): only then can a failure leave the Controller in a state the
+          // IDE did not observe. A compile or read failure leaves it unset (#1268).
           let deviceWriteEntered = false
           set({ pushing: true, pushResult: null, artifactPushResult: null })
           invalidateRendererState(controllerId)
@@ -1515,7 +1516,6 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const { created, programId, activation } = await queueControllerDeviceWrite(
               controllerId,
               () => {
-                deviceWriteEntered = true
                 const provider = getControllerProvider()
                 const status = provider.getStatus()
                 const liveEpoch = get().controllers[controllerId]?.liveEpoch
@@ -1555,6 +1555,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
                   ...(assertDeviceSession ? { assertDeviceSession } : {}),
+                  onDeviceWrite: () => { deviceWriteEntered = true },
                   onCompiledArtifact: async (compiled) => {
                     let sourceSha256: string
                     try {
@@ -1906,7 +1907,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // in the matching map (run vs save are tracked separately).
           const persist = get().saveArmed
           const mode: SendMode = persist ? 'save' : 'run'
-          // Set once the queued device write starts (#1268); see pushGeneratedArtifact.
+          // Set before the first device write (#1268); see pushGeneratedArtifact.
           let deviceWriteEntered = false
 
           set({ pushing: true, pushResult: null, artifactPushResult: null })
@@ -1991,26 +1992,24 @@ export const useControllerStore = create<ControllerConnectionState>()(
             assertDeviceSession()
             const { created, programId, activation } = await queueControllerDeviceWrite(
               controllerId,
-              () => {
-              deviceWriteEntered = true
-              return pushPattern({
-              provider,
-              controllerId,
-              patternId,
-              source: code,
-              sourceHash: artifactHash(previewSource),
-              name: previewPatternName,
-              persist,
-              previewImage,
-              transforms: artifactTransformIds(bundled.summary.passes),
-              profileSignature,
-              loadBindings: getControllerBindings,
-              saveBindings: setControllerBindings,
-              loadPushRecords: getPushRecords,
-              savePushRecords: setPushRecords,
-              assertDeviceSession,
-              })
-              },
+              () => pushPattern({
+                provider,
+                controllerId,
+                patternId,
+                source: code,
+                sourceHash: artifactHash(previewSource),
+                name: previewPatternName,
+                persist,
+                previewImage,
+                transforms: artifactTransformIds(bundled.summary.passes),
+                profileSignature,
+                loadBindings: getControllerBindings,
+                saveBindings: setControllerBindings,
+                loadPushRecords: getPushRecords,
+                savePushRecords: setPushRecords,
+                assertDeviceSession,
+                onDeviceWrite: () => { deviceWriteEntered = true },
+              }),
             )
             assertDeviceSession()
             const activationUnconfirmed = activation === 'unconfirmed'

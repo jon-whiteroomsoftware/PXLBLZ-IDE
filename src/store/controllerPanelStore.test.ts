@@ -1566,6 +1566,55 @@ describe('controllerPanelStore', () => {
       expect(useControllerPanelStore.getState().programsByController[IP]).toEqual(expected)
     })
 
+    // The retry must not supersede a refresh that started after the failed read:
+    // the older-version guard would drop that refresh's result (#1268, B18 review).
+    it.each([
+      'while the failed read is in flight',
+      'after the failed read, before the retry',
+    ] as const)('sends no retry when a newer refresh starts %s', async (when) => {
+      provider.programs = [{ id: 'stale', name: 'Old list' }]
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      await useControllerPanelStore.getState().refreshPrograms(IP)
+      const reads: Array<ReturnType<typeof deferred<ProgramListEntry[]>>> = []
+      provider.listPrograms = () => {
+        const read = deferred<ProgramListEntry[]>()
+        reads.push(read)
+        // A stray retry answers at once, so it would win over the held newer read.
+        if (reads.length > 2) read.resolve([{ id: 'retry', name: 'Retry list' }])
+        return read.promise
+      }
+      const a = heldWrite()
+      const reread = useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+      a.gate.reject(new Error('save failed'))
+      await flush()
+      expect(reads).toHaveLength(1)
+
+      let newer: Promise<boolean>
+      if (when === 'while the failed read is in flight') {
+        newer = useControllerPanelStore.getState().refreshPrograms(IP)
+        reads[0].reject(new Error('Pixelblaze request timed out waiting for "__programList"'))
+        await reread
+      } else {
+        // A queued write holds the retry; the newer refresh starts meanwhile.
+        const b = heldWrite()
+        reads[0].reject(new Error('Pixelblaze request timed out waiting for "__programList"'))
+        await flush()
+        newer = useControllerPanelStore.getState().refreshPrograms(IP)
+        b.gate.resolve()
+        await reread
+      }
+      expect(reads).toHaveLength(2)
+
+      const fresh = [{ id: 'device-truth', name: 'On Controller' }]
+      reads[1].resolve(fresh)
+      await newer
+      await flush()
+      expect(reads).toHaveLength(2)
+      expect(useControllerPanelStore.getState().programs).toEqual(fresh)
+      expect(useControllerPanelStore.getState().programsByController[IP]).toEqual(fresh)
+    })
+
     it.each(['ip', 'provider'] as const)('skips the re-read when the %s changed before idle', async (changed) => {
       useControllerPanelStore.getState().start(IP)
       await flush()

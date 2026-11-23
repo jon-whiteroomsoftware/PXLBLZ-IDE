@@ -1895,6 +1895,33 @@ describe('controllerStore (keyed)', () => {
           expect(store().rendererStates[IP]?.assumedPlaying).not.toBe(true)
         })
 
+        // Only a failure after pushPattern's first device write re-reads: a compiler
+        // rejection or a failed read inside the queued Save left the Controller as
+        // it was (#1268, lead ruling on B18 review).
+        it.each([
+          ['a compiler rejection', 0],
+          ['a failed list read before any write', 0],
+          ['a failed upload after the first write', 1],
+        ] as const)('re-reads %s %i times', async (failure, rereads) => {
+          const { provider } = await connectWithTruth()
+          const reread = vi.fn(async () => {})
+          const original = useControllerPanelStore.getState().rereadAfterFailedWrite
+          onTestFinished(() => useControllerPanelStore.setState({ rereadAfterFailedWrite: original }))
+          useControllerPanelStore.setState({ rereadAfterFailedWrite: reread })
+          if (failure === 'a compiler rejection') provider.compileError = new Error('compile failed')
+          else if (failure === 'a failed list read before any write') {
+            provider.listPrograms = () => Promise.reject(new Error('list timed out'))
+          } else provider.saveProgram = () => Promise.reject(new Error('upload failed'))
+
+          const result = await entryPoints[entry]()
+          await settle()
+
+          expect(result).toMatchObject({ ok: false })
+          expect(provider.compiledSources.length).toBeGreaterThan(0)
+          expect(reread).toHaveBeenCalledTimes(rereads)
+          if (rereads) expect(reread).toHaveBeenCalledWith(IP)
+        })
+
         it('keeps the confirmed Save path: one ordinary list refresh and no re-read', async () => {
           const { provider, reads } = await connectWithTruth()
           const start = { ...reads }
