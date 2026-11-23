@@ -381,6 +381,25 @@ describe('ControllerProfilePage', () => {
     expect(within(screen.getByRole('table', { name: 'Other Patterns' })).queryByText('Alpha')).not.toBeInTheDocument()
   })
 
+  it('names an unselected Pattern the Controller renamed during the batch (#1266)', async () => {
+    const { provider } = bulkFixture()
+    const original = provider.deleteProgram.bind(provider)
+    provider.deleteProgram = vi.fn(async (id: string) => {
+      await original(id)
+      if (id === 'C') provider.programs = provider.programs.map((program) => program.id === 'OWN' ? { ...program, name: 'Owned v2' } : program)
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('heading', { name: 'Deleted 3 of 3 Patterns from Burner bag' })).toBeInTheDocument()
+    expect(within(dialog).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'Owned: not deleted by this batch, but the Controller no longer lists it under this name.',
+    ])
+    await settleProfileAsync()
+  })
+
   it('clears metadata for each confirmed managed delete only, naming a cleanup failure (#1266)', async () => {
     const profile = seedProfile()
     const provider = renderLiveProgramInventory(profile, {
@@ -421,6 +440,46 @@ describe('ControllerProfilePage', () => {
     ])
     // O1's cleanup failed, O3's ran; O2 was not confirmed so its binding stays.
     expect(provider.bindings).toEqual({ '192.168.8.224': { 'pat-1': 'O1', 'pat-2': 'O2' } })
+    await settleProfileAsync()
+  })
+
+  it('finishes metadata cleanup for confirmed deletes after a session change, without publishing or refreshing (#1266)', async () => {
+    const profile = seedProfile()
+    const provider = renderLiveProgramInventory(profile, {
+      storageId: 'bulk-managed-session-1266', activeProgramId: 'ACTIVE', configSourceIp: '192.168.8.224',
+      programs: [{ id: 'ACTIVE', name: 'Running Pattern' }, { id: 'O1', name: 'Owned one' }, { id: 'O2', name: 'Owned two' }],
+      bindings: { 'pat-1': 'O1', 'pat-2': 'O2' }, pushRecords: {},
+    })
+    const firstRead = deferred<void>()
+    const firstReadStarted = deferred<void>()
+    let bindingReads = 0
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'bulk-managed-session-1266-held',
+      getControllerBindings: async () => {
+        bindingReads += 1
+        if (bindingReads === 1) { firstReadStarted.resolve(); await firstRead.promise }
+        return provider.bindings
+      },
+      setControllerBindings: async (next) => { provider.bindingWrites += 1; provider.bindings = next },
+      getPushRecords: async () => provider.pushRecords,
+      setPushRecords: async (next) => { provider.pushRecords = next },
+    })
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Saved PXLBLZ Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Saved PXLBLZ Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 2 from Controller' }))
+    await act(async () => firstReadStarted.promise)
+    const refreshes = useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[profile.id] ?? 0
+    act(() => useControllerStore.setState((state) => ({
+      controllers: { ...state.controllers, '192.168.8.224': { ...state.controllers['192.168.8.224'], liveEpoch: 2 } },
+    })))
+    await act(async () => firstRead.resolve())
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('heading', { name: 'Deleted 2 Patterns from Burner bag' })).toBeInTheDocument()
+    // Both deletions were confirmed before the change, so both bindings are cleared.
+    expect(provider.bindings).toEqual({ '192.168.8.224': {} })
+    expect(useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[profile.id] ?? 0).toBe(refreshes)
     await settleProfileAsync()
   })
 

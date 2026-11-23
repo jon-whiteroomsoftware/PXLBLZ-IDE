@@ -1420,6 +1420,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
           onProgress: (processed, count) => setBatchDeleteProgress({
             processed: offset + processed, total, confirming: processed === count,
           }),
+          // The final read confirmed these deletions on the Controller, so their
+          // metadata is cleared even if the session changes meanwhile, as a
+          // single delete does after its own confirmation (#870).
           onConfirmed: async (confirmedIds) => {
             for (const id of confirmedIds) {
               const target = eligible.find(({ program }) => program.programId === id)!
@@ -1440,9 +1443,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       deleted = result.confirmedIds.length
       published = result.published
       failures.push(...result.failed.map(({ id, reason }) => `${nameOf(id)}: ${reason}`))
-      failures.push(...result.collateral.map((program) => `${program.name}: no longer listed on the Controller, although it was not selected.`))
+      failures.push(...result.collateral.map((program) => `${program.name}: not deleted by this batch, but the Controller no longer lists it under this name.`))
     }
-    return { outcome: { deleted, total, failures }, published }
+    return { outcome: { deleted, total, failures }, published, sessionCurrent: sessionIsCurrent() }
   }
 
   async function performBatch(operation: 'delete' | 'import') {
@@ -1460,9 +1463,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     try {
       if (operation === 'delete') {
         try {
-          const { outcome, published } = await performBatchDelete(targets)
+          const { outcome, published, sessionCurrent } = await performBatchDelete(targets)
           setBatchDeleteOutcome(outcome)
-          refresh = !published
+          // An abandoned session's batch must not start a read on its successor.
+          refresh = !published && sessionCurrent
         } catch (error) {
           setBatchDeleteOutcome({
             deleted: 0, total: targets.length,

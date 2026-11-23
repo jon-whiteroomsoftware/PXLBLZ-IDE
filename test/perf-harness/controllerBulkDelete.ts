@@ -9,17 +9,21 @@
 //               one final list that confirms them all.
 //
 // After the sequence it reads the list again after a pause, independently of
-// the timed read, and checks every Pattern it did not upload survives with its
-// name. It refuses to start when the Controller already lists a Pattern with the
-// prefix, and it deletes only ids it uploaded in this run.
+// the timed read, and checks that both reads hold exactly the starting list.
+// It refuses to start when the Controller already lists a Pattern with the
+// prefix, and it deletes only ids it uploaded in this run. Each upload's id and
+// name is appended to --manifest before it is sent; `cleanup` deletes only
+// manifest entries the Controller still lists under the recorded name.
 //
-//   PIXELBLAZE_IP=192.168.8.161 npx tsx test/perf-harness/controllerBulkDelete.ts --mode batch --count 20
+//   PIXELBLAZE_IP=192.168.8.161 npx tsx test/perf-harness/controllerBulkDelete.ts --mode batch --count 20 --manifest /tmp/run.jsonl
+//   PIXELBLAZE_IP=192.168.8.161 npx tsx test/perf-harness/controllerBulkDelete.ts --mode cleanup --manifest /tmp/run.jsonl
 //
 // Fidelity: this talks to the Controller directly over PixelblazeConnection. It
 // omits the app's extension relay, store and managed metadata cleanup, so it
 // measures the wire sequence, not the dialog. HUMAN-IN-THE-LOOP, OUT-OF-BAND:
 // needs a physical Pixelblaze on the LAN; never part of a commit gate.
 
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import WebSocket from 'ws'
 import {
   PixelblazeConnection,
@@ -45,7 +49,10 @@ function parseArgs(argv: string[]) {
   if (mode !== 'per-delete' && mode !== 'batch' && mode !== 'cleanup') throw new Error('--mode per-delete|batch|cleanup is required')
   const count = Number(value('--count', '20'))
   if (!Number.isInteger(count) || count < 1 || count > 40) throw new Error('--count must be 1..40')
-  return { mode, count, prefix: value('--prefix', 'zz-1266-tmp-'), settleMs: Number(value('--settle', '3000')) }
+  const manifest = value('--manifest', '')
+  if (!manifest) throw new Error('--manifest <path> is required')
+  if (mode !== 'cleanup' && existsSync(manifest)) throw new Error(`--manifest ${manifest} already exists; use a new path`)
+  return { mode, count, manifest, prefix: value('--prefix', 'zz-1266-tmp-'), settleMs: Number(value('--settle', '3000')) }
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -61,7 +68,7 @@ async function timed<T>(log: { step: string; ms: number }[], step: string, run: 
 
 async function main(): Promise<void> {
   if (!IP) throw new Error('set PIXELBLAZE_IP to the test Controller')
-  const { mode, count, prefix, settleMs } = parseArgs(process.argv.slice(2))
+  const { mode, count, manifest, prefix, settleMs } = parseArgs(process.argv.slice(2))
   const compile = makeDeviceCompiler(await fetchWebUI(IP))
   const byteCode = compile(SOURCE)
 
@@ -80,15 +87,18 @@ async function main(): Promise<void> {
     const starting = await conn.listPrograms()
     progress(`starting list: ${starting.length} Patterns`)
     if (mode === 'cleanup') {
-      // Removes leftovers of an interrupted run, one confirmed delete at a time.
-      for (const program of starting.filter(({ name }) => name.startsWith(prefix))) {
+      // Removes leftovers of an interrupted run: only uploads its manifest recorded.
+      const recorded = new Set(readFileSync(manifest, 'utf8').split('\n').filter(Boolean)
+        .map((line) => key(JSON.parse(line) as ProgramListEntry)))
+      const leftovers = starting.filter((program) => recorded.has(key(program)))
+      for (const program of leftovers) {
         conn.deleteProgram(program.id)
         progress(`cleanup sent ${program.name}`)
         await sleep(500)
       }
       await sleep(settleMs)
       const after = await conn.listPrograms()
-      const expected = starting.filter(({ name }) => !name.startsWith(prefix)).map(key)
+      const expected = starting.filter((program) => !leftovers.includes(program)).map(key)
       console.log(JSON.stringify({
         ip: IP, mode, before: starting.map(key), after: after.map(key),
         matchesExpected: after.length === expected.length && after.every((program) => expected.includes(key(program))),
@@ -107,6 +117,7 @@ async function main(): Promise<void> {
     // Uploads are paced one at a time; they are setup, not the measurement.
     let listed: ProgramListEntry[] = []
     for (const pattern of uploaded) {
+      appendFileSync(manifest, `${JSON.stringify(pattern)}\n`)
       conn.saveProgram(pattern.id, encodePbp({ ...pattern, sourceCode: SOURCE, byteCode }))
       await sleep(300)
       for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -148,9 +159,18 @@ async function main(): Promise<void> {
     const stillListedImmediately = uploaded.filter(({ id }) => finalRead.some((program) => program.id === id))
     const stillListedLater = uploaded.filter(({ id }) => later.some((program) => program.id === id))
     const startingKeys = new Set(starting.map(key))
-    const laterKeys = new Set(later.filter(({ id }) => !uploadedIds.has(id)).map(key))
-    const untouchedMissing = starting.filter((program) => !laterKeys.has(key(program)))
-    const unexpected = later.filter((program) => !uploadedIds.has(program.id) && !startingKeys.has(key(program)))
+    // Each read, timed and delayed, must hold exactly the starting list.
+    const compare = (read: ProgramListEntry[]) => {
+      const keys = new Set(read.filter(({ id }) => !uploadedIds.has(id)).map(key))
+      return {
+        untouchedMissing: starting.filter((program) => !keys.has(key(program))),
+        unexpected: read.filter((program) => !uploadedIds.has(program.id) && !startingKeys.has(key(program))),
+      }
+    }
+    const immediate = compare(finalRead)
+    const delayed = compare(later)
+    const matches = (stillListed: unknown[], diff: ReturnType<typeof compare>) =>
+      stillListed.length === 0 && diff.untouchedMissing.length === 0 && diff.unexpected.length === 0
 
     const byStep = new Map<string, number[]>()
     for (const { step, ms } of steps) byStep.set(step, [...(byStep.get(step) ?? []), ms])
@@ -164,8 +184,9 @@ async function main(): Promise<void> {
       }])),
       stillListedImmediately: stillListedImmediately.map(({ name }) => name),
       stillListedLater: stillListedLater.map(({ name }) => name),
-      untouchedMissing, unexpected,
-      finalMatchesStarting: stillListedLater.length === 0 && untouchedMissing.length === 0 && unexpected.length === 0,
+      immediate, delayed,
+      immediateMatchesStarting: matches(stillListedImmediately, immediate),
+      delayedMatchesStarting: matches(stillListedLater, delayed),
     }, null, 2))
   } finally {
     ;(socket as WebSocket | null)?.close(1000, 'done')
