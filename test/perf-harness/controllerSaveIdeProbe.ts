@@ -20,6 +20,19 @@
 //              getConfig, getTelemetry and getVars every 1000 ms with no
 //              in-flight guard (controllerPanelStore CONTROLLER_POLL_INTERVAL_MS),
 //              reporting failures, latency and the active ids it saw.
+//   --panel-store  instead of --panel-poll, run the production controllerPanelStore
+//              (start(ip): its 1000 ms poll with the in-flight guard and the
+//              write-queue pause) and queue each Save through the production
+//              device write queue, as the IDE does (#1268 slice 1). Every poll
+//              request's reply time is recorded, with the peak number of poll
+//              requests outstanding at once. Needs vite-node (the store imports
+//              Vite globs): npx vite-node test/perf-harness/controllerSaveIdeProbe.ts -- ...
+//   --induce failed-after-store:N | unconfirmed:N  (with --panel-store) make
+//              editor Save N (1-based) fail after its PBP frames were sent, or
+//              report activation unconfirmed right after its bytecode was sent.
+//              The failed Save then runs the store's rereadAfterFailedWrite and
+//              compares the panel's Saved list and active Pattern with a direct
+//              read of the Controller.
 //
 // Safety: refuses when the prefix is already listed or the sequencer runs;
 // appends each created program id to --manifest; restores the starting active
@@ -40,6 +53,9 @@ import WebSocket from 'ws'
 import { ExtensionControllerProvider } from '../../src/engine/ExtensionControllerProvider'
 import { RELAY_SOURCE, base64ToBytes, bytesToBase64, type RelayMessage, type RelayTransport } from '../../src/engine/RelayWebSocket'
 import { pushPattern } from '../../src/engine/pushPattern'
+import { ControllerActivationTimeoutError } from '../../src/engine/PixelblazeConnection'
+import { queueControllerDeviceWrite } from '../../src/engine/controllerDeviceWriteQueue'
+import { setControllerProvider } from '../../src/engine/controllerProviderRegistry'
 import { fetchControllerCompiler, sleep } from './controllerHardware'
 import { compareReadBack, sourcePadding } from './controllerSaveProbeCore'
 
@@ -142,6 +158,12 @@ async function main(): Promise<void> {
   const patterns = arg(argv, '--patterns', 'LumaSpiral').split(',')
   // Trailing-comment padding (no bytecode change) to model large Show artifacts.
   const pad = Number(arg(argv, '--pad', '0'))
+  const panelStore = argv.includes('--panel-store')
+  if (panelStore && (argv.includes('--panel-poll') || mode !== 'editor')) throw new Error('--panel-store needs --mode editor and no --panel-poll')
+  const [induceKind, induceAt] = arg(argv, '--induce', ':').split(':')
+  const induceIndex = induceAt ? Number(induceAt) - 1 : -1
+  if (induceKind && induceKind !== 'failed-after-store' && induceKind !== 'unconfirmed') throw new Error('--induce failed-after-store:N|unconfirmed:N')
+  if (induceKind && !panelStore) throw new Error('--induce needs --panel-store')
 
   // Refuse before any upload when a chosen Pattern does not compile on this Controller.
   const precompile = await fetchControllerCompiler(IP)
@@ -149,7 +171,7 @@ async function main(): Promise<void> {
     try {
       precompile(readPattern(name))
     } catch (error) {
-      throw new Error(`${name} does not compile on this Controller: ${(error as Error).message}`)
+      throw new Error(`${name} does not compile on this Controller: ${(error as Error).message}`, { cause: error })
     }
   }
 
@@ -192,6 +214,14 @@ async function main(): Promise<void> {
       void provider.getVars().catch(failed('getVars'))
     }, 1000)
     : null
+  // The production panel store, polling through the production provider (#1268).
+  const storePoll = {
+    requests: 0,
+    outstanding: 0,
+    peakOutstanding: 0,
+    replies: [] as Array<{ at: number; method: string; ms: number; error?: string }>,
+  }
+  let panelStoreModule: typeof import('../../src/store/controllerPanelStore') | null = null
   try {
     const starting = await provider.listPrograms()
     log(`starting list: ${starting.length}`)
@@ -199,6 +229,35 @@ async function main(): Promise<void> {
     const config = await provider.getConfig()
     if (config.runSequencer) throw new Error('sequencer running; refusing')
     const startingActive = config.activeProgramId
+
+    if (panelStore) {
+      // Time the three poll reads. Activation confirmation reads go straight to
+      // the connection and the probe's own reads use listPrograms, so these
+      // counters see the panel poll and the store's re-read only.
+      for (const method of ['getConfig', 'getTelemetry', 'getVars'] as const) {
+        const original = (provider[method] as () => Promise<unknown>).bind(provider)
+        ;(provider as unknown as Record<string, () => Promise<unknown>>)[method] = async () => {
+          storePoll.requests += 1
+          storePoll.outstanding += 1
+          storePoll.peakOutstanding = Math.max(storePoll.peakOutstanding, storePoll.outstanding)
+          const sent = performance.now()
+          try {
+            const value = await original()
+            storePoll.replies.push({ at: at(), method, ms: Math.round(performance.now() - sent) })
+            return value
+          } catch (error) {
+            storePoll.replies.push({ at: at(), method, ms: Math.round(performance.now() - sent), error: (error as Error).message.replace(/[0-9]+ms/g, 'Nms') })
+            throw error
+          } finally {
+            storePoll.outstanding -= 1
+          }
+        }
+      }
+      setControllerProvider(provider)
+      panelStoreModule = await import('../../src/store/controllerPanelStore')
+      panelStoreModule.useControllerPanelStore.getState().start(IP)
+      log('panel store started (production poll)')
+    }
 
     let bindings = {}
     let records = {}
@@ -208,9 +267,28 @@ async function main(): Promise<void> {
       const name = `${prefix}${String(index + 1).padStart(2, '0')}`
       const started = performance.now()
       const record: Record<string, unknown> = { name, startedAt: at() }
+      const induce = panelStore && index === induceIndex ? induceKind : ''
+      const deviceProvider = induce
+        ? Object.assign(Object.create(provider) as typeof provider, {
+          saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
+            if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
+            created.add(opts.id)
+            record.programId = opts.id
+            await provider.saveProgram(blob, opts)
+            if (induce === 'failed-after-store') throw new Error('induced failure after the PBP frames were sent')
+          },
+          pushBytecode: async (bytecode: Uint8Array, opts: { id: string; name?: string }) => {
+            if (induce !== 'unconfirmed') return provider.pushBytecode(bytecode, opts)
+            // Send for real, but stop waiting at once: the Controller decides.
+            void provider.pushBytecode(bytecode, opts).catch(() => undefined)
+            throw new ControllerActivationTimeoutError('induced: activation not confirmed')
+          },
+        })
+        : provider
+      const run = <T,>(write: () => Promise<T>) => (panelStore ? queueControllerDeviceWrite(IP, write) : write())
       try {
-        const result = await pushPattern({
-          provider,
+        const result = await run(() => pushPattern({
+          provider: deviceProvider,
           controllerId: IP,
           patternId,
           source: sources[index % sources.length],
@@ -224,7 +302,8 @@ async function main(): Promise<void> {
           savePushRecords: async (next) => { records = next },
           mintId: undefined,
           onCompiledArtifact: () => undefined,
-        })
+        }))
+        if (result.activation) record.activation = result.activation
         if (!created.has(result.programId)) appendFileSync(manifest, `${JSON.stringify({ id: result.programId, name })}\n`)
         created.add(result.programId)
         record.programId = result.programId
@@ -234,6 +313,25 @@ async function main(): Promise<void> {
         record.error = (error as Error).message
       }
       record.ms = Math.round(performance.now() - started)
+      if (panelStoreModule && (record.ok === false || record.activation === 'unconfirmed')) {
+        // The IDE's failure path (#1268): one re-read once the queue is idle, then
+        // compare what the panel shows with a direct read of the Controller.
+        const panelState = () => panelStoreModule!.useControllerPanelStore.getState()
+        const before = { active: panelState().activeProgramId, ids: panelState().programs.map((program) => program.id).sort() }
+        await panelStoreModule.useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+        const after = { active: panelState().activeProgramId, ids: panelState().programs.map((program) => program.id).sort() }
+        const direct = {
+          active: (await provider.getConfig().catch(() => null))?.activeProgramId,
+          ids: (await provider.listPrograms().catch(() => [])).map((program) => program.id).sort(),
+        }
+        record.reread = {
+          before,
+          after,
+          direct,
+          activeMatches: after.active === direct.active,
+          listMatches: JSON.stringify(after.ids) === JSON.stringify(direct.ids),
+        }
+      }
       return record
     }
 
@@ -295,6 +393,7 @@ async function main(): Promise<void> {
       }
     }
 
+    panelStoreModule?.useControllerPanelStore.getState().stop()
     await sleep(3000)
     let finalRead = null
     for (let attempt = 0; attempt < 6 && !finalRead; attempt += 1) {
@@ -327,12 +426,20 @@ async function main(): Promise<void> {
       restoredActive: mode !== 'editor' || restoredConfig?.activeProgramId === startingActive,
       afterMatchesStarting: after.length === startingKeys.length && after.every((program) => startingKeys.includes(key(program))),
       panel: panel.polls ? panel : undefined,
+      panelStore: panelStore ? {
+        requests: storePoll.requests,
+        peakOutstanding: storePoll.peakOutstanding,
+        timeouts: storePoll.replies.filter((reply) => reply.error).length,
+        maxReplyMs: Math.max(0, ...storePoll.replies.map((reply) => reply.ms)),
+        replies: storePoll.replies,
+      } : undefined,
       listTimings,
       stoppedAt,
       recoveredAt,
     }, null, 2))
   } finally {
     if (pollTimer) clearInterval(pollTimer)
+    panelStoreModule?.useControllerPanelStore.getState().stop()
     await provider.disconnect()
     relay.closeAll()
   }

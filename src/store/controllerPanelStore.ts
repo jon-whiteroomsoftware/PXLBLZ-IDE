@@ -3,6 +3,10 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { throttleTrailing } from '@/engine/throttleTrailing'
 import { getProgramLabels } from '@/engine/controllerMetadataStorage'
+import {
+  hasPendingControllerDeviceWrites,
+  whenControllerDeviceWritesIdle,
+} from '@/engine/controllerDeviceWriteQueue'
 import type { ControllerConfig } from '@/engine/ControllerProvider'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import {
@@ -166,8 +170,14 @@ interface ControllerPanelState {
    *  immediately while a fresh poll refreshes them; stale values from a *different*
    *  device are cleared by `seed()`, not here. */
   stop: () => void
-  /** One poll tick: read config + telemetry + vars, tolerating transient failures. */
+  /** One poll tick: read config + telemetry + vars, tolerating transient failures.
+   *  Skipped while the previous tick of this panel session is still waiting, and
+   *  while a device write to the seeded Controller is queued or running (#1268). */
   poll: () => Promise<void>
+  /** After a failed or unconfirmed Save/Run, wait until the Controller's write
+   *  queue is idle, then read its program list and active Pattern once. Skipped
+   *  when the panel moved to another Controller or provider meanwhile (#1268). */
+  rereadAfterFailedWrite: (controllerIp: string) => Promise<void>
   /** Re-fetch the device's program list into `programs`. Called after a save-mode push
    *  (#238) so the freshly-saved id is in the list and the panel resolves it via the list
    *  tier → the `unsaved` marker clears. Tolerates transient failure. */
@@ -266,6 +276,10 @@ let seededForIp: string | undefined
 // slice after the new device has populated it.
 let panelSession = 0
 let activationInFlight: symbol | null = null
+// The outstanding poll tick, if any. A slow Controller answers about one request
+// per frame, so overlapping ticks pile up behind each other and starve Saves
+// (#1268). Cleared by stop() so a reopened panel never waits on the old session.
+let pollInFlight: symbol | null = null
 const programRefreshVersions = new Map<string, number>()
 const panelSnapshots = new Map<string, ControllerPanelSnapshot>()
 
@@ -427,6 +441,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   stop: () => {
     panelPollingActive = false
+    pollInFlight = null
     if (pollTimer !== null) {
       clearInterval(pollTimer)
       pollTimer = null
@@ -447,21 +462,48 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   poll: async () => {
+    if (pollInFlight !== null) return
+    if (seededForIp && hasPendingControllerDeviceWrites(seededForIp)) return
+    const tick = Symbol('poll')
+    pollInFlight = tick
     const session = panelSession
     const acceptsFps = panelPollingActive
     const fpsSourceIp = acceptsFps ? seededForIp ?? null : null
     const provider = getControllerProvider()
-    const [config, telemetry, vars] = await Promise.all([
-      provider.getConfig().catch(() => null),
-      provider.getTelemetry().catch(() => null),
-      provider.getVars().catch(() => null),
-    ])
+    let config: ControllerConfig | null
+    let telemetry: Awaited<ReturnType<typeof provider.getTelemetry>> | null
+    let vars: Record<string, number> | null
+    try {
+      ;[config, telemetry, vars] = await Promise.all([
+        provider.getConfig().catch(() => null),
+        provider.getTelemetry().catch(() => null),
+        provider.getVars().catch(() => null),
+      ])
+    } finally {
+      if (pollInFlight === tick) pollInFlight = null
+    }
     if (session !== panelSession) return
     if (config) {
       set((state) => configPatch(state, config))
     }
     if (telemetry && acceptsFps) set({ fps: telemetry.fps, fpsSourceIp })
     if (vars) set((state) => varsPollPatch(state, vars))
+  },
+
+  rereadAfterFailedWrite: async (controllerIp) => {
+    const provider = getControllerProvider()
+    await whenControllerDeviceWritesIdle(controllerIp)
+    if (seededForIp !== controllerIp || getControllerProvider() !== provider) return
+    // Advance the read generation, as a confirmed activation does, so a poll
+    // reply requested before the failed write cannot overwrite this read.
+    panelSession += 1
+    const session = panelSession
+    await Promise.all([
+      get().refreshPrograms(controllerIp),
+      provider.getConfig().then((config) => {
+        if (controllerSessionMatches(session, provider)) set((state) => configPatch(state, config))
+      }, () => {}),
+    ])
   },
 
   refreshPrograms: async (ip = seededForIp) => {

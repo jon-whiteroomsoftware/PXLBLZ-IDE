@@ -71,6 +71,7 @@ import { encodeMapData } from '@/engine/mapPush'
 import { bakeMapSource } from '@/engine/maps/bake'
 import { mapFingerprintForPoints } from '@/engine/mapFingerprint'
 import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
+import { ControllerActivationTimeoutError } from '@/engine/PixelblazeConnection'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -1804,6 +1805,125 @@ describe('controllerStore (keyed)', () => {
       await store().pushGeneratedArtifact({ ...pricingArtifact, persist: true })
       expect(store().artifactPushResult).toMatchObject({ ok: false })
       expect(store().lastShowArtifactCompilation).toMatchObject({ byteLength: 16 })
+    })
+
+    describe('Controller re-read after a failed or unconfirmed Save (#1268)', () => {
+      const IP = '10.0.0.5'
+      const DEVICE_LIST = [{ id: 'DEVICE1', name: 'On Controller' }]
+      const settle = async () => {
+        for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+
+      async function connectWithTruth() {
+        await store().addController(IP)
+        const provider = created.get(IP)!
+        await settle()
+        const reads = { list: 0, config: 0 }
+        provider.programs = DEVICE_LIST
+        const list = provider.listPrograms.bind(provider)
+        provider.listPrograms = () => { reads.list += 1; return list() }
+        provider.getConfig = () => {
+          reads.config += 1
+          return Promise.resolve({ name: provider.name, activeProgramId: 'DEVICE1' })
+        }
+        return { provider, reads }
+      }
+
+      function hold() {
+        const gate = deferred<void>()
+        const done = queueControllerDeviceWrite(IP, () => gate.promise)
+        done.catch(() => {})
+        return gate
+      }
+
+      const entryPoints = {
+        pushActivePattern: async () => {
+          usePatternStore.setState({ activePatternId: 'pat-1' })
+          useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+          store().setSaveArmed(true)
+          await store().pushActivePattern()
+          return store().pushResult
+        },
+        pushGeneratedArtifact: async () => {
+          await store().pushGeneratedArtifact({ ...pricingArtifact, persist: true })
+          return store().artifactPushResult
+        },
+      } as const
+
+      describe.each(Object.keys(entryPoints) as Array<keyof typeof entryPoints>)('%s', (entry) => {
+        it('re-reads once, after the queue is idle, when the Save fails on the device', async () => {
+          const { provider, reads } = await connectWithTruth()
+          // A following write queues while the failing Save is still running.
+          let after: ReturnType<typeof hold> | undefined
+          provider.saveProgram = async () => {
+            after = hold()
+            throw new Error('upload failed')
+          }
+          const result = await entryPoints[entry]()
+          expect(result).toMatchObject({ ok: false, message: 'upload failed' })
+
+          const fromSettle = { ...reads }
+          await settle()
+          expect(reads).toEqual(fromSettle)
+
+          after!.resolve()
+          await settle()
+          expect(reads).toEqual({ list: fromSettle.list + 1, config: fromSettle.config + 1 })
+          const panel = useControllerPanelStore.getState()
+          expect(panel.activeProgramId).toBe('DEVICE1')
+          expect(panel.programs).toEqual(DEVICE_LIST)
+          // The named failure survives the re-read.
+          expect(entry === 'pushActivePattern' ? store().pushResult : store().artifactPushResult)
+            .toMatchObject({ ok: false, message: 'upload failed' })
+        })
+
+        it('reports an activation deadline after a stored Save as saved and re-reads once', async () => {
+          const { provider, reads } = await connectWithTruth()
+          provider.pushBytecodeError = new ControllerActivationTimeoutError(
+            'Controller program X did not activate within 15000ms (active program: DEVICE1)',
+          )
+          const start = { ...reads }
+
+          const result = await entryPoints[entry]()
+          await settle()
+
+          expect(result).toMatchObject({ ok: true, created: true })
+          expect(provider.saved).toHaveLength(1)
+          // pushPattern's own list read, then exactly one re-read: no ordinary refresh.
+          expect(reads).toEqual({ list: start.list + 2, config: start.config + 1 })
+          expect(useControllerPanelStore.getState().activeProgramId).toBe('DEVICE1')
+          expect(store().rendererStates[IP]?.assumedPlaying).not.toBe(true)
+        })
+
+        it('keeps the confirmed Save path: one ordinary list refresh and no re-read', async () => {
+          const { provider, reads } = await connectWithTruth()
+          const start = { ...reads }
+
+          const result = await entryPoints[entry]()
+          await settle()
+
+          expect(result).toMatchObject({ ok: true, created: true })
+          expect(reads).toEqual({ list: start.list + 2, config: start.config })
+          expect(useControllerPanelStore.getState().activeProgramId).toBe(provider.saved[0].opts.id)
+          expect(store().rendererStates[IP]?.assumedPlaying).toBe(true)
+        })
+      })
+
+      it('does not re-read after a failure before any device write', async () => {
+        const { reads } = await connectWithTruth()
+        // Compile pressure blocks the Save before it reaches the device queue.
+        const reread = vi.fn(async () => {})
+        useControllerPanelStore.setState({ rereadAfterFailedWrite: reread })
+        await store().pushGeneratedArtifact({
+          ...pricingArtifact,
+          persist: true,
+          compilePressure: { budgetBytes: 1, worstInstantRenderersPerPixel: 1_000 },
+        })
+        await settle()
+        expect(store().artifactPushResult).toMatchObject({ ok: false })
+        expect(reread).not.toHaveBeenCalled()
+        expect(reads.config).toBe(0)
+      })
     })
 
     it('compiles + pushes the active pattern and records a created binding', async () => {

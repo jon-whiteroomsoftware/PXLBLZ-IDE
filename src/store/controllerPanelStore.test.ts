@@ -12,6 +12,10 @@ import {
 } from './controllerPanelStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
+  __resetControllerDeviceWriteQueue,
+  queueControllerDeviceWrite,
+} from '@/engine/controllerDeviceWriteQueue'
+import {
   NullControllerProvider,
   type ControllerConfig,
   type ControllerTelemetry,
@@ -1366,5 +1370,221 @@ describe('controllerPanelStore', () => {
     useControllerPanelStore.getState().start()
     await expect(flush()).resolves.not.toThrow()
     expect(useControllerPanelStore.getState().fps).toBe(30)
+  })
+
+  describe('poll pacing and re-read after a failed write (#1268)', () => {
+    const IP = '192.168.8.161'
+
+    type Method = 'getConfig' | 'getTelemetry' | 'getVars'
+    /** Count every read and hold the named one open until released. */
+    function instrument(held?: Method) {
+      const calls = { getConfig: 0, getTelemetry: 0, getVars: 0, listPrograms: 0 }
+      const gates: Array<ReturnType<typeof deferred<void>>> = []
+      for (const method of ['getConfig', 'getTelemetry', 'getVars'] as const) {
+        const original = provider[method].bind(provider) as () => Promise<unknown>
+        ;(provider as unknown as Record<Method, () => Promise<unknown>>)[method] = () => {
+          calls[method] += 1
+          if (method !== held) return original()
+          const gate = deferred<void>()
+          gates.push(gate)
+          return gate.promise.then(original)
+        }
+      }
+      const list = provider.listPrograms.bind(provider)
+      provider.listPrograms = () => {
+        calls.listPrograms += 1
+        return list()
+      }
+      return { calls, gates }
+    }
+
+    function heldWrite() {
+      const gate = deferred<void>()
+      const done = queueControllerDeviceWrite(IP, () => gate.promise)
+      done.catch(() => {})
+      return { gate, done }
+    }
+
+    beforeEach(() => __resetControllerDeviceWriteQueue())
+
+    describe.each(['getConfig', 'getTelemetry', 'getVars'] as const)('with %s answering last', (held) => {
+      it.each(['resolves', 'rejects'] as const)(
+        'sends no poll while one is outstanding and polls on the first tick after it %s',
+        async (outcome) => {
+          const { calls, gates } = instrument(held)
+          useControllerPanelStore.getState().start(IP)
+          await flush()
+          expect(calls.getConfig).toBe(1)
+
+          await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 4)
+          expect(calls).toMatchObject({ getConfig: 1, getTelemetry: 1, getVars: 1 })
+
+          if (outcome === 'resolves') gates[0].resolve()
+          else gates[0].reject(new Error('request timed out'))
+          await flush()
+          expect(calls.getConfig).toBe(1)
+          await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+          expect(calls).toMatchObject({ getConfig: 2, getTelemetry: 2, getVars: 2 })
+        },
+      )
+    })
+
+    it.each(['succeeds', 'fails'] as const)(
+      'pauses polling while writes are queued or running and resumes after the last %s',
+      async (outcome) => {
+        useControllerPanelStore.getState().start(IP)
+        await flush()
+        const { calls } = instrument()
+        const a = heldWrite()
+        const b = heldWrite()
+
+        await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 3)
+        expect(calls).toMatchObject({ getConfig: 0, getTelemetry: 0, getVars: 0 })
+
+        a.gate.resolve()
+        await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 2)
+        expect(calls.getConfig).toBe(0)
+
+        if (outcome === 'succeeds') b.gate.resolve()
+        else b.gate.reject(new Error('save failed'))
+        await flush()
+        expect(calls.getConfig).toBe(0)
+        await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+        expect(calls).toMatchObject({ getConfig: 1, getTelemetry: 1, getVars: 1 })
+      },
+    )
+
+    it('pauses only for writes to the seeded Controller', async () => {
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      const { calls } = instrument()
+      queueControllerDeviceWrite('192.168.8.196', () => new Promise<void>(() => {})).catch(() => {})
+      await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+      expect(calls.getConfig).toBe(1)
+    })
+
+    it.each(['same provider', 'replacement provider'] as const)(
+      'lets a reopened panel poll at once while an old poll is outstanding (%s)',
+      async (variant) => {
+        provider.config = { brightness: 0.5, activeProgramId: 'old-session' }
+        const { gates } = instrument('getVars')
+        useControllerPanelStore.getState().start(IP)
+        await flush()
+        useControllerPanelStore.getState().stop()
+
+        let next = provider
+        if (variant === 'replacement provider') {
+          next = new FakeProvider()
+          setControllerProvider(next)
+        }
+        next.config = { brightness: 0.5, activeProgramId: 'new-session' }
+        let reads = 0
+        const original = next.getConfig.bind(next)
+        next.getConfig = () => {
+          reads += 1
+          return original()
+        }
+        useControllerPanelStore.getState().start(IP)
+        await flush()
+        expect(reads).toBe(1)
+
+        // The old poll settles first: it must not patch state, and must not
+        // release the guard owned by the new session's poll.
+        gates[0].resolve()
+        await flush()
+        expect(useControllerPanelStore.getState().activeProgramId).not.toBe('old-session')
+        if (variant === 'same provider') {
+          await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 2)
+          expect(reads).toBe(1)
+          gates[1].resolve()
+          await flush()
+        }
+        expect(useControllerPanelStore.getState().activeProgramId).toBe('new-session')
+      },
+    )
+
+    it('re-reads once after the queue is idle and its result replaces older replies', async () => {
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      // An old poll is held on vars and an old list read is held open.
+      const { calls, gates } = instrument('getVars')
+      provider.config = { brightness: 0.5, activeProgramId: 'stale' }
+      const oldPoll = useControllerPanelStore.getState().poll()
+      const oldList = deferred<ProgramListEntry[]>()
+      const list = provider.listPrograms
+      provider.listPrograms = () => oldList.promise
+      const oldRefresh = useControllerPanelStore.getState().refreshPrograms(IP)
+      provider.listPrograms = list
+
+      const a = heldWrite()
+      const reread = useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+      const b = heldWrite()
+      a.gate.reject(new Error('save failed'))
+      await flush()
+      expect(calls.listPrograms).toBe(0)
+      b.gate.resolve()
+
+      provider.config = { brightness: 0.5, activeProgramId: 'device-truth' }
+      provider.programs = [{ id: 'device-truth', name: 'On Controller' }]
+      await reread
+      expect(calls.listPrograms).toBe(1)
+
+      gates[0].resolve()
+      oldList.resolve([{ id: 'stale', name: 'Old list' }])
+      await oldPoll
+      await oldRefresh
+      const state = useControllerPanelStore.getState()
+      expect(state.activeProgramId).toBe('device-truth')
+      expect(state.programs).toEqual([{ id: 'device-truth', name: 'On Controller' }])
+      expect(state.programsByController[IP]).toEqual([{ id: 'device-truth', name: 'On Controller' }])
+    })
+
+    it.each(['ip', 'provider'] as const)('skips the re-read when the %s changed before idle', async (changed) => {
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      const { calls } = instrument()
+      const a = heldWrite()
+      const reread = useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+      if (changed === 'ip') useControllerPanelStore.getState().seed('192.168.8.196')
+      else setControllerProvider(new FakeProvider())
+      const before = { ...calls }
+      a.gate.reject(new Error('save failed'))
+      await reread
+      expect(calls.listPrograms).toBe(before.listPrograms)
+      expect(calls.getConfig).toBe(before.getConfig)
+    })
+
+    it('lets a queued activation confirm while periodic reads stay paused', async () => {
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      let confirmations = 0
+      const pending = deferred<void>()
+      provider.getConfig = async () => {
+        confirmations += 1
+        if (confirmations === 1) {
+          await pending.promise
+          return { ...provider.config, activeProgramId: 'def' }
+        }
+        return provider.config
+      }
+      const { calls } = instrument()
+      const activation = queueControllerDeviceWrite(IP, () => (
+        useControllerPanelStore.getState().activateProgram('abc')
+      ))
+      await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 2)
+      // Only the activation's own confirmation read has gone out.
+      expect(calls).toMatchObject({ getConfig: 1, getTelemetry: 0, getVars: 0 })
+      useControllerPanelStore.getState().setBrightness(0.3)
+      await vi.advanceTimersByTimeAsync(BRIGHTNESS_SEND_INTERVAL_MS)
+      expect(provider.brightnessWrites[provider.brightnessWrites.length - 1]).toMatchObject({ value: 0.3 })
+
+      pending.resolve()
+      await vi.advanceTimersByTimeAsync(ACTIVATION_CONFIRMATION_RETRY_MS)
+      await activation
+      expect(useControllerPanelStore.getState().activeProgramId).toBe('abc')
+      expect(calls.getTelemetry).toBe(0)
+      await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+      expect(calls.getTelemetry).toBe(1)
+    })
   })
 })

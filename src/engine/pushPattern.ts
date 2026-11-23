@@ -29,6 +29,7 @@ import type { ControllerProvider } from './ControllerProvider'
 import { parsePxlblzBanner, stampArtifact, type ArtifactStampMeta } from './artifactStamp'
 import { bytecodeHeaderReconciles, makeProgramId } from './bytecodePush'
 import { encodePbp } from './pbpEncode'
+import { ControllerActivationTimeoutError } from './PixelblazeConnection'
 import { resolvePushTarget, withBinding, type BindingStore } from './controllerBinding'
 import {
   withPushRecord,
@@ -124,6 +125,10 @@ export interface PushPatternResult {
   /** True when this push created a new program (run-only always mints; save mode on a
    *  first push or silent re-create); false when save mode overwrote a bound program. */
   created: boolean
+  /** Present only when a Save stored the Pattern but the Controller did not report
+   *  it active before the activation deadline on the same open connection. The
+   *  Save is reported as done; the caller re-reads the Controller (#1268). */
+  activation?: 'unconfirmed'
 }
 
 async function drainBeforeUnsafeActivation(
@@ -258,8 +263,18 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   // stock IDE's save-and-run and is robust whether or not firmware auto-activates on
   // putSourceCode. Unlike run-only, the run carries the real name — S is a real saved
   // program, so its setCode name is no phantom.
+  // A slow Controller can store the Pattern and still miss the activation
+  // deadline. That is "saved, activation unconfirmed", not a failed Save (#1268).
+  // Only the typed same-connection deadline qualifies; closes, replacements,
+  // send failures and session changes stay failures.
+  let activationUnconfirmed = false
   if (deps.activateOnSave !== false) {
-    await activateTarget(deps, bytecode, { id: programId, name: deps.name ?? '' })
+    try {
+      await activateTarget(deps, bytecode, { id: programId, name: deps.name ?? '' })
+    } catch (error) {
+      if (!(error instanceof Error && error.cause instanceof ControllerActivationTimeoutError)) throw error
+      activationUnconfirmed = true
+    }
   }
 
   if (retryBindingAfterActivation) {
@@ -276,5 +291,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     ...(stamp.showOutputContract ? { showOutputContract: stamp.showOutputContract } : {}),
   }))
 
-  return { programId, created: isNew }
+  return activationUnconfirmed
+    ? { programId, created: isNew, activation: 'unconfirmed' }
+    : { programId, created: isNew }
 }

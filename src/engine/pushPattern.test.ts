@@ -9,6 +9,7 @@ import {
 import { decodePbp } from './pbpEncode'
 import { parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from './artifactStamp'
 import type { BindingStore } from './controllerBinding'
+import { ControllerActivationTimeoutError } from './PixelblazeConnection'
 
 // A reconciling bytecode blob: header declares 0 opcode + 0 export bytes, len 8.
 function goodBytecode(byteLength = 8): Uint8Array {
@@ -381,6 +382,99 @@ describe('pushPattern — save mode (persist: true)', () => {
     })
     expect(saveBindings).toHaveBeenCalledTimes(2)
     expect(pushRecords).toEqual([])
+  })
+
+  describe('activation outcome after a stored Save (#1268)', () => {
+    const timeout = () => new ControllerActivationTimeoutError(
+      'Controller program MINTED00000000000 did not activate within 15000ms (active program: OLD)',
+    )
+
+    it('reports a same-connection activation deadline as saved with activation unconfirmed', async () => {
+      const { deps, saved, pushRecords } = makeDeps({
+        persist: true,
+        provider: makeProvider({ pushBytecode: vi.fn().mockRejectedValue(timeout()) }),
+      })
+
+      const result = await pushPattern(deps)
+
+      expect(result).toEqual({ programId: 'MINTED00000000000', created: true, activation: 'unconfirmed' })
+      expect(deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+      expect(saved).toEqual([{ 'ctrl-A': { 'pat-1': 'MINTED00000000000' } }])
+      expect(pushRecords).toHaveLength(1)
+      expect(pushRecords[0]).toMatchObject({ 'ctrl-A': { 'pat-1': { name: 'My Pattern' } } })
+    })
+
+    it.each([
+      ['a closed connection', new Error('Pixelblaze connection closed')],
+      ['a replaced connection', new Error('Controller connection changed during program activation')],
+      ['a send failure', new Error('socket write failed')],
+    ])('keeps %s during activation a failure', async (_label, error) => {
+      const { deps, pushRecords } = makeDeps({
+        persist: true,
+        provider: makeProvider({ pushBytecode: vi.fn().mockRejectedValue(error) }),
+      })
+
+      await expect(pushPattern(deps)).rejects.toThrow(`Controller target activation failed: ${error.message}`)
+      expect(pushRecords).toEqual([])
+    })
+
+    it('keeps a failed store a failure even when activation would time out', async () => {
+      const { deps, pushRecords } = makeDeps({
+        persist: true,
+        provider: makeProvider({
+          saveProgram: vi.fn().mockRejectedValue(new Error('save frames rejected')),
+          pushBytecode: vi.fn().mockRejectedValue(timeout()),
+        }),
+      })
+
+      await expect(pushPattern(deps)).rejects.toThrow('save frames rejected')
+      expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+      expect(pushRecords).toEqual([])
+    })
+
+    it('keeps a session change before activation a failure', async () => {
+      let checks = 0
+      const { deps } = makeDeps({
+        persist: true,
+        provider: makeProvider({ pushBytecode: vi.fn().mockRejectedValue(timeout()) }),
+        // Compile, capture and save pass; the check before target activation fails.
+        assertDeviceSession: () => {
+          checks += 1
+          if (checks >= 2) throw new Error('Controller session changed')
+        },
+      })
+
+      await expect(pushPattern(deps)).rejects.toThrow('Controller session changed')
+      expect(deps.provider.saveProgram).toHaveBeenCalledTimes(1)
+      expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+    })
+
+    it('still fails when the deferred binding retry fails after an unconfirmed activation', async () => {
+      const saveBindings = vi.fn().mockRejectedValue(new Error('metadata offline'))
+      const { deps, pushRecords } = makeDeps({
+        persist: true,
+        saveBindings,
+        provider: makeProvider({ pushBytecode: vi.fn().mockRejectedValue(timeout()) }),
+      })
+
+      await expect(pushPattern(deps)).rejects.toThrow('metadata offline')
+      expect(saveBindings).toHaveBeenCalledTimes(2)
+      expect(pushRecords).toEqual([])
+    })
+
+    it('keeps a run-only activation deadline a failure: nothing was stored', async () => {
+      const { deps } = makeDeps({
+        provider: makeProvider({ pushBytecode: vi.fn().mockRejectedValue(timeout()) }),
+      })
+
+      await expect(pushPattern(deps)).rejects.toThrow('Controller target activation failed')
+    })
+
+    it('reports a confirmed Save without an activation flag', async () => {
+      const { deps } = makeDeps({ persist: true })
+
+      await expect(pushPattern(deps)).resolves.toEqual({ programId: 'MINTED00000000000', created: true })
+    })
   })
 
   it('can overwrite a managed saved program without activating it', async () => {

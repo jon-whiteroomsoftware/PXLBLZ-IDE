@@ -209,6 +209,16 @@ interface Pending {
 
 class RequestTimeoutError extends Error {}
 
+/** The activation deadline expired on a still-open connection without the
+ * Controller reporting the requested program active. The program may still
+ * activate later; a Save treats this as "activation unconfirmed" (#1268). */
+export class ControllerActivationTimeoutError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ControllerActivationTimeoutError'
+  }
+}
+
 export class PixelblazeConnection {
   private readonly opts: Required<
     Pick<
@@ -646,7 +656,11 @@ export class PixelblazeConnection {
           lifetime.signal.addEventListener('abort', abort, { once: true })
         })
       }
-      throw new Error(
+      // Only a deadline on the same still-open connection is a timeout; a close
+      // or replacement keeps its own rejection.
+      lifetime.signal.throwIfAborted()
+      assertConnection()
+      throw new ControllerActivationTimeoutError(
         `Controller program ${opts.id} did not activate within ${this.opts.activationTimeoutMs}ms`
         + ` (active program: ${activeProgramId ?? 'unknown'})`,
       )

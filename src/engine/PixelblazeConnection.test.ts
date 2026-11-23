@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import LZString from 'lz-string'
 import {
   PixelblazeConnection,
+  ControllerActivationTimeoutError,
   MessageType,
   FrameFlag,
   encodeBinaryFrames,
@@ -786,8 +787,10 @@ describe('PixelblazeConnection', () => {
       const { conn } = await connected()
       const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
       const rejection = expect(activation).rejects.toThrow('Pixelblaze connection closed')
+      const notTimeout = expect(activation).rejects.not.toBeInstanceOf(ControllerActivationTimeoutError)
       conn.close()
       await rejection
+      await notTimeout
     })
 
     it('does not accept expected-program evidence from a replacement socket (#999)', async () => {
@@ -849,9 +852,13 @@ describe('PixelblazeConnection', () => {
         const { conn, socket } = await connected({ requestTimeoutMs: 50, activationPollMs: 10, activationTimeoutMs: 85 })
         const activation = conn.pushByteCodeAndWait(new Uint8Array([1]), { id: 'TARGET_PROGRAM' })
         const rejection = expect(activation).rejects.toThrow('did not activate within 85ms (active program: unknown)')
+        // Deadline expiry on a still-open connection is typed: a Save can report
+        // it as "activation unconfirmed" rather than a failure (#1268).
+        const typed = expect(activation).rejects.toBeInstanceOf(ControllerActivationTimeoutError)
         socket.simulateMessage({ brightness: 0.5 })
         await vi.advanceTimersByTimeAsync(85)
         await rejection
+        await typed
         expect(socket.sent.filter(frame => frame === '{"getConfig":true}')).toHaveLength(2)
         conn.close()
       } finally {

@@ -628,6 +628,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
         })
       }
 
+      // After a failed or unconfirmed Save/Run whose device write started, read the
+      // Controller's list and active Pattern once the write queue is idle, so the
+      // IDE shows the Controller's state rather than its own guess (#1268).
+      const rereadController = (ip: string) => {
+        void useControllerPanelStore.getState().rereadAfterFailedWrite(ip)
+      }
+
       const assumeRendererPlaying = (ip: string) => {
         set((s) => {
           if (!s.controllers[ip]) return s
@@ -1441,6 +1448,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (!controllerId || artifact.source.length === 0) return
 
           const mode: SendMode = artifact.persist ? 'save' : 'run'
+          // Set once the queued device write starts: only then can a failure leave
+          // the Controller in a state the IDE did not observe (#1268).
+          let deviceWriteEntered = false
           set({ pushing: true, pushResult: null, artifactPushResult: null })
           invalidateRendererState(controllerId)
           retainRendererResumeRecovery(controllerId)
@@ -1502,9 +1512,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...transforms,
               ])],
             }
-            const { created, programId } = await queueControllerDeviceWrite(
+            const { created, programId, activation } = await queueControllerDeviceWrite(
               controllerId,
               () => {
+                deviceWriteEntered = true
                 const provider = getControllerProvider()
                 const status = provider.getStatus()
                 const liveEpoch = get().controllers[controllerId]?.liveEpoch
@@ -1564,8 +1575,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 })
               },
             )
-            assumeRendererPlaying(controllerId)
-            useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
+            const activationUnconfirmed = activation === 'unconfirmed'
+            if (!activationUnconfirmed) {
+              assumeRendererPlaying(controllerId)
+              useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
+            }
 
             if (artifact.name) {
               const labels = withProgramLabel(
@@ -1577,7 +1591,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
               await setProgramLabels(labels)
               useControllerPanelStore.getState().noteProgramLabel(programId, artifact.name)
             }
-            if (artifact.persist) void useControllerPanelStore.getState().refreshPrograms()
+            // Saved, activation unconfirmed: the re-read replaces the ordinary refresh
+            // and reports whichever Pattern the Controller is actually running.
+            if (activationUnconfirmed) rereadController(controllerId)
+            else if (artifact.persist) void useControllerPanelStore.getState().refreshPrograms()
 
             const recordKey = artifact.persist ? 'lastSavedSource' : 'lastPushedSource'
             const profileRecordKey = artifact.persist
@@ -1631,6 +1648,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 mode,
               },
             })
+            if (deviceWriteEntered) rereadController(controllerId)
           }
         },
 
@@ -1888,6 +1906,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // in the matching map (run vs save are tracked separately).
           const persist = get().saveArmed
           const mode: SendMode = persist ? 'save' : 'run'
+          // Set once the queued device write starts (#1268); see pushGeneratedArtifact.
+          let deviceWriteEntered = false
 
           set({ pushing: true, pushResult: null, artifactPushResult: null })
           invalidateRendererState(controllerId)
@@ -1969,9 +1989,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ? (await buildPreviewJpeg(bundled)) ?? undefined
               : undefined
             assertDeviceSession()
-            const { created, programId } = await queueControllerDeviceWrite(
+            const { created, programId, activation } = await queueControllerDeviceWrite(
               controllerId,
-              () => pushPattern({
+              () => {
+              deviceWriteEntered = true
+              return pushPattern({
               provider,
               controllerId,
               patternId,
@@ -1987,11 +2009,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
               loadPushRecords: getPushRecords,
               savePushRecords: setPushRecords,
               assertDeviceSession,
-              }),
+              })
+              },
             )
             assertDeviceSession()
-            assumeRendererPlaying(controllerId)
-            useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
+            const activationUnconfirmed = activation === 'unconfirmed'
+            if (!activationUnconfirmed) {
+              assumeRendererPlaying(controllerId)
+              useControllerPanelStore.getState().noteProgramActivated(programId, controllerId)
+            }
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's
             // program list — to the pattern's name instead of the raw generated id.
@@ -2010,7 +2036,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // the panel's `programs` list was last fetched on seed and so is stale —
             // refresh it so the freshly-saved id resolves via the list tier and the
             // `unsaved` marker clears. Run-only pushes never enter the list, so skip.
-            if (persist) {
+            // Saved, activation unconfirmed (#1268): the re-read replaces this refresh
+            // and reports whichever Pattern the Controller is actually running.
+            if (activationUnconfirmed) {
+              rereadController(controllerId)
+            } else if (persist) {
               void useControllerPanelStore.getState().refreshPrograms()
             }
             // Remember the clean artifact. Run also records the exact transient program
@@ -2077,6 +2107,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 mode,
               },
             })
+            if (deviceWriteEntered) rereadController(controllerId)
           }
         },
       }
