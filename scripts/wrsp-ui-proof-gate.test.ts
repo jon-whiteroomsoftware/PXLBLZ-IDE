@@ -55,7 +55,14 @@ function writeRecord(
 }
 
 function check(fixture: GitFixture, base: string, tip: string) {
-  return runInstalledGuard('check-ui-proof', [base, tip], { cwd: fixture.directory, env: fixture.env })
+  const result = runInstalledGuard('check-ui-proof', [base, tip], { cwd: fixture.directory, env: fixture.env })
+  // WRSP 1.5.7 keeps terminal output bounded and names the lossless report.
+  expect(Buffer.byteLength(result.output)).toBeLessThanOrEqual(3_072)
+  const reportLine = result.output.match(/^Full UI proof report: (.+)$/m)
+  expect(reportLine).not.toBeNull()
+  const reportPath = reportLine![1]
+  expect(reportPath).toMatch(/[/\\]wrsp-ui-proof-[^/\\]+[/\\]report\.log$/)
+  return { ...result, report: readFileSync(reportPath, 'utf8') }
 }
 
 describe('installed wrsp-check-ui-proof under the repository policy (#940)', () => {
@@ -86,7 +93,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const fakeSha = fixture.commitAll('fake proof')
     const fake = check(fixture, fixture.baseSha, fakeSha)
     expect(fake.status).toBe(1)
-    expect(fake.output).toContain('✗ .wrsp/ui-proof/fake.json: unrecognized-capture')
+    expect(fake.report).toContain('✗ .wrsp/ui-proof/fake.json: unrecognized-capture')
     expect(fake.output).toContain('UI PROOF BLOCKED')
 
     // Missing file: the record names a capture that is not in the tip.
@@ -103,7 +110,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const absentSha = fixture.commitAll('record without its capture')
     const absent = check(fixture, fixture.baseSha, absentSha)
     expect(absent.status).toBe(1)
-    expect(absent.output).toContain(
+    expect(absent.report).toContain(
       '✗ .wrsp/ui-proof/absent.json: missing-capture (capture .wrsp/ui-proof/absent.jpg does not exist',
     )
     expect(absent.output).toContain('UI PROOF BLOCKED')
@@ -123,7 +130,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const emptySha = fixture.commitAll('empty capture')
     const empty = check(fixture, fixture.baseSha, emptySha)
     expect(empty.status).toBe(1)
-    expect(empty.output).toContain(
+    expect(empty.report).toContain(
       '✗ .wrsp/ui-proof/empty.json: empty-capture (capture .wrsp/ui-proof/empty.jpg is empty)',
     )
     expect(empty.output).toContain('UI PROOF BLOCKED')
@@ -144,7 +151,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const malformedSha = fixture.commitAll('malformed proof')
     const malformed = check(fixture, fixture.baseSha, malformedSha)
     expect(malformed.status).toBe(1)
-    expect(malformed.output).toContain('✗ .wrsp/ui-proof/redline.json: malformed (capturedAtCommit must be a full lowercase commit id')
+    expect(malformed.report).toContain('✗ .wrsp/ui-proof/redline.json: malformed (capturedAtCommit must be a full lowercase commit id')
 
     // Valid: the real Zone properties capture bytes, recorded at the UI
     // commit they were taken from; only record files changed since.
@@ -159,7 +166,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const validSha = fixture.commitAll('valid proof')
     const valid = check(fixture, fixture.baseSha, validSha)
     expect(valid.status).toBe(0)
-    expect(valid.output).toContain(
+    expect(valid.report).toContain(
       `✓ .wrsp/ui-proof/redline.json: ${realRecord.route} — ${realRecord.operation} [.wrsp/ui-proof/redline.jpg] at ${uiSha.slice(0, 12)}`,
     )
     expect(valid.output).not.toContain('UI PROOF BLOCKED')
@@ -169,7 +176,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
     const staleSha = fixture.commitAll('touch ShowEditor again')
     const stale = check(fixture, fixture.baseSha, staleSha)
     expect(stale.status).toBe(1)
-    expect(stale.output).toContain('✗ .wrsp/ui-proof/redline.json: stale (UI paths changed after the capture: src/components/ShowEditor.tsx')
+    expect(stale.report).toContain('✗ .wrsp/ui-proof/redline.json: stale (UI paths changed after the capture: src/components/ShowEditor.tsx')
     expect(stale.output).toContain('UI PROOF BLOCKED')
   })
 
@@ -204,7 +211,7 @@ describe('installed wrsp-check-ui-proof under the repository policy (#940)', () 
 
     const result = check(fixture, baseSha, tipSha)
     expect(result.status).toBe(0)
-    expect(result.output).toContain('✓ .wrsp/ui-proof/940-redline-zone-properties.json:')
+    expect(result.report).toContain('✓ .wrsp/ui-proof/940-redline-zone-properties.json:')
     expect(realRecord.version).toBe(1)
     expect(realRecord.issue).toBe('940')
     expect(realRecord.captures).toEqual(['.wrsp/ui-proof/940-redline-zone-properties.jpg'])
