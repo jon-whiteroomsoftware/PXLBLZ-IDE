@@ -215,6 +215,27 @@ describe('pushPattern — run-only (default)', () => {
     ])
   })
 
+  // B19 review P3: a drain-id failure is not a device write.
+  it('does not call onDeviceWrite when minting the drain id throws', async () => {
+    const onDeviceWrite = vi.fn()
+    const provider = makeProvider({
+      compile: vi.fn()
+        .mockResolvedValueOnce(goodBytecode(40_518))
+        .mockResolvedValueOnce(goodBytecode(153)),
+      getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(49_426),
+    })
+    const { deps } = makeDeps({
+      provider,
+      persist: true,
+      onDeviceWrite,
+      mintDrainId: () => { throw new Error('no drain id') },
+    })
+    await expect(pushPattern(deps)).rejects.toThrow('no drain id')
+    expect(onDeviceWrite).not.toHaveBeenCalled()
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+    expect(provider.saveProgram).not.toHaveBeenCalled()
+  })
+
   it.each(['compile', 'session'] as const)('does not call onDeviceWrite when the %s check refuses', async (refusal) => {
     const onDeviceWrite = vi.fn()
     const provider = makeProvider(refusal === 'compile'

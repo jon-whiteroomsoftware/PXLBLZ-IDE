@@ -152,12 +152,11 @@ async function drainBeforeUnsafeActivation(
   if (!bytecodeHeaderReconciles(drainBytecode)) {
     throw new Error('Compiled drain bytecode failed its header sanity check; not pushing')
   }
+  // Mint first: the write marker must immediately precede the provider call.
+  const drainId = (deps.mintDrainId ?? makeProgramId)()
   beginDeviceWrite(deps)
   try {
-    await deps.provider.pushBytecode(drainBytecode, {
-      id: (deps.mintDrainId ?? makeProgramId)(),
-      name: '',
-    })
+    await deps.provider.pushBytecode(drainBytecode, { id: drainId, name: '' })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(`Controller drain activation failed: ${message}`, { cause: error })
