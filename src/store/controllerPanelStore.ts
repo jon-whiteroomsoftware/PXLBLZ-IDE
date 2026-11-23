@@ -326,6 +326,11 @@ function configPatch(
   }
 }
 
+function sequencerBlocksDeletion(state: Pick<ControllerPanelState, 'runSequencer'>): boolean {
+  // configPatch keeps the last sequencer flag when the reply omits it.
+  return state.runSequencer === true
+}
+
 function varsPollPatch(
   state: ControllerPanelState,
   vars: Record<string, number>,
@@ -799,7 +804,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       verifyDeletion(currentPrograms)
       return baseline
     }
-    if (config.runSequencer) {
+    if (sequencerBlocksDeletion(get())) {
       throw new ControllerProgramDeletionError(
         'Stop the Controller sequencer before deleting a saved Pattern.',
         baseline,
@@ -881,10 +886,9 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
     if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
     set((state) => configPatch(state, config))
-    // A config reply may omit runSequencer; refuse on the state configPatch keeps.
     const plan = planControllerBatchDelete(baseline, {
       activeProgramId: config.activeProgramId,
-      runSequencer: get().runSequencer === true,
+      runSequencer: sequencerBlocksDeletion(get()),
     }, targets)
     if (plan.refusal !== undefined) return failAll(plan.refusal)
 

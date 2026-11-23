@@ -474,6 +474,66 @@ describe('controllerPanelStore', () => {
     expect(provider.deletedProgramIds).toEqual([])
   })
 
+  describe.each([
+    { label: 'running, reply omits flag', prior: true, reply: {}, kept: true },
+    { label: 'running, reply stops sequencer', prior: true, reply: { runSequencer: false }, kept: false },
+    { label: 'unknown, reply omits flag', prior: null, reply: {}, kept: null },
+    { label: 'stopped, reply starts sequencer', prior: false, reply: { runSequencer: true }, kept: true },
+  ])('sequencer state at the delete boundary ($label)', ({ prior, reply, kept }) => {
+    const target = { id: 'abc', name: 'Aurora' }
+    const active = { id: 'def', name: 'Nebula' }
+
+    beforeEach(() => {
+      provider.programs = [target, active]
+      useControllerPanelStore.setState({ runSequencer: prior })
+      provider.config = { activeProgramId: active.id, ...reply }
+    })
+
+    it('uses the kept state for single delete', async () => {
+      const deletion = useControllerPanelStore.getState().deleteProgram(target.id)
+
+      if (kept === true) {
+        await expect(deletion).rejects.toMatchObject({
+          message: 'Stop the Controller sequencer before deleting a saved Pattern.',
+        })
+        expect(provider.deletedProgramIds).toEqual([])
+      } else {
+        await expect(deletion).resolves.toEqual([target, active])
+        expect(provider.deletedProgramIds).toEqual([target.id])
+        expect(useControllerPanelStore.getState().programs).toEqual([active])
+      }
+      expect(useControllerPanelStore.getState().runSequencer).toBe(kept)
+    })
+
+    it('uses the kept state for bulk delete', async () => {
+      const result = await useControllerPanelStore.getState().deletePrograms([
+        { id: target.id, expectedName: target.name },
+      ])
+
+      if (kept === true) {
+        expect(result).toEqual({
+          confirmedIds: [],
+          failed: [{ id: target.id, reason: 'Stop the Controller sequencer before deleting saved Patterns.' }],
+          collateral: [],
+          published: false,
+          sessionCurrent: true,
+        })
+        expect(provider.deletedProgramIds).toEqual([])
+      } else {
+        expect(result).toEqual({
+          confirmedIds: [target.id],
+          failed: [],
+          collateral: [],
+          published: true,
+          sessionCurrent: true,
+        })
+        expect(provider.deletedProgramIds).toEqual([target.id])
+        expect(useControllerPanelStore.getState().programs).toEqual([active])
+      }
+      expect(useControllerPanelStore.getState().runSequencer).toBe(kept)
+    })
+  })
+
   it('revalidates the authorizing session immediately before the delete command', async () => {
     let sessionIsCurrent = true
     provider.getConfig = async () => {
