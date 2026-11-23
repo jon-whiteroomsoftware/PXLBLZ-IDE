@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1266",
+  "route": "/PXLBLZ-IDE/studio/controllers/bulk-select-1218",
+  "operation": "Selected all three Other Patterns on a fake Controller that ignores every delete and confirmed Delete 3 from Controller. With the finished dialog (Deleted 0 of 3, three failures) open, the viewport was shrunk to 1440x200 and the failure list scrolled to its end: the dialog stays inside the viewport, the list scrolls to Gamma, the last failure, and Close is fully visible. Driven by the repo Playwright authenticated runner (e2e/controller-bulk-select.spec.ts, '#1266 keeps Close reachable' test) against this commit. A page.screenshot call and a 200 ms settle wait were added locally for the capture and then removed.",
+  "captures": [".wrsp/ui-proof/1266-bulk-delete-short-viewport.png"],
+  "capturedAtCommit": "d13b650d57fbba74350933182023df3a4f2fba71"
+}
