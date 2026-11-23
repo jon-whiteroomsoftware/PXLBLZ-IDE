@@ -478,7 +478,7 @@ const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const reconciliationRetryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const reconciliationStalls = new Map<string, ReconciliationStall>()
 const reconciliationQueue = new ControllerReconciliationQueue()
-const lastReconciliationPlans = new Map<string, {
+const reconciliationPatternSources = new Map<string, {
   target: ReconciliationTarget
   patternSources: ReadonlyMap<string, string>
 }>()
@@ -834,20 +834,35 @@ export const useControllerStore = create<ControllerConnectionState>()(
             ),
           })),
         ]
-        const precedingPlan = lastReconciliationPlans.get(live.ip)
-        lastReconciliationPlans.set(live.ip, {
-          target: live,
-          patternSources: new Map(patterns.map(({ bindingKey, source }) => [bindingKey, source])),
-        })
+        const preceding = reconciliationPatternSources.get(live.ip)
+        const precedingPatternSources = preceding && sameReconciliationTarget(live, preceding.target)
+          ? preceding.patternSources
+          : undefined
         const plan = planControllerReconciliation({
           controllerId: live.ip,
           programs,
           bindings,
           pushRecords,
           artifacts: [...patterns, ...showArtifacts],
-          precedingPatternSources: recheckPatternSources && precedingPlan
-            && sameReconciliationTarget(live, precedingPlan.target) ? precedingPlan.patternSources : undefined,
+          precedingPatternSources: recheckPatternSources ? precedingPatternSources : undefined,
         })
+        const patternSources = new Map(patterns.map(({ bindingKey, source }) => [bindingKey, source]))
+        const preserveEdits = recheckPatternSources || [...reconciliationStalls.values()].some(
+          (stall) => sameReconciliationTarget(live, stall.target),
+        )
+        // An interrupted recheck or an ordinary alias pass during a stall
+        // must leave the preceding source available until the edit is saved.
+        if (preserveEdits && precedingPatternSources) {
+          const records = pushRecords[live.ip]
+          for (const [bindingKey, source] of patternSources) {
+            const previous = precedingPatternSources.get(bindingKey)
+            if (previous !== undefined && previous !== source
+              && records?.[bindingKey]?.sourceHash !== artifactHash(source)) {
+              patternSources.set(bindingKey, previous)
+            }
+          }
+        }
+        reconciliationPatternSources.set(live.ip, { target: live, patternSources })
         const initialPrograms: ControllerReconciliationProgram[] = [
           ...plan.current.map((artifact) => ({
             programId: artifact.programId,
@@ -879,6 +894,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
         const compiledLibraries = compileLibraries(LIBRARIES, libraryState.userLibraries)
         const reconciliationSignature = controllerProfileReconciliationSignature(profile)
         let activationUnconfirmed = false
+        const rememberPatternSource = (job: ControllerReconciliationJob) => {
+          if (patternSources.has(job.bindingKey)) patternSources.set(job.bindingKey, job.source)
+        }
         const updateProgram = (
           job: ControllerReconciliationJob,
           patch: Partial<ControllerReconciliationProgram>,
@@ -908,7 +926,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
             )
           },
           onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
-          onJobComplete: (job) => updateProgram(job, { state: 'current' }, 1),
+          onJobComplete: (job) => {
+            rememberPatternSource(job)
+            updateProgram(job, { state: 'current' }, 1)
+          },
           onJobFailed: ({ job, message }) => updateProgram(job, { state: 'failed', message }),
           onJobDeferred: (job) => updateProgram(job, { state: 'queued' }),
           overwrite: async (job, activate) => {
@@ -980,7 +1001,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
               else if (activate) assumeRendererPlaying(live.ip)
             } catch (error) {
               if (!isCurrentSession()) return false
-              if (error instanceof ReconciliationWriteCancelled) return 'defer' as const
+              if (error instanceof ReconciliationWriteCancelled) {
+                // Preserve precedence for the overlapping foreground Save.
+                rememberPatternSource(job)
+                return 'defer' as const
+              }
               throw error
             }
           },
@@ -2326,6 +2351,6 @@ export function __resetControllerProviders(): void {
   reconciliationTimers.clear()
   reconciliationRetryTimers.clear()
   reconciliationStalls.clear()
-  lastReconciliationPlans.clear()
+  reconciliationPatternSources.clear()
   reconciliationQueue.reset()
 }

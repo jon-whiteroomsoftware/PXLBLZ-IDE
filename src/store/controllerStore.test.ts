@@ -740,6 +740,81 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
   })
 
+  async function stallThenEditFirstPattern(fake: FakeProvider) {
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce(save).mockRejectedValueOnce(timeout())
+    await store().reconcileControllerProfile(profileId)
+    expect(state()).toMatchObject({ phase: 'not-responding', completedCount: 1 })
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1'])
+    author(21, 12)
+  }
+
+  it('saves the edit on manual Retry after interrupted automatic recovery', async () => {
+    const fake = await fixture()
+    await stallThenEditFirstPattern(fake)
+    const compiled = deferred<Uint8Array>()
+    const compile = vi.spyOn(fake, 'compile').mockImplementationOnce(() => compiled.promise)
+
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(compile).toHaveBeenCalledTimes(1)
+    expect(state()).toMatchObject({
+      phase: 'running',
+      programs: expect.arrayContaining([expect.objectContaining({ programId: 'MANAGED1', state: 'updating' })]),
+    })
+    useControllerStore.setState((state) => ({
+      controllers: {
+        ...state.controllers,
+        [ip]: { ...state.controllers[ip], liveEpoch: (state.controllers[ip].liveEpoch ?? 0) + 1 },
+      },
+    }))
+    compiled.resolve(makeReconcilingBytecode())
+    await vi.advanceTimersByTimeAsync(0)
+    expect(state()).toMatchObject({ phase: 'not-responding', retryAt: undefined })
+    expect(writesFor(fake, 'MANAGED1')).toEqual([expect.stringContaining('index * 11')])
+
+    await store().reconcileControllerProfile(profileId)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 12')])
+    expect(state()).toMatchObject({
+      phase: 'current',
+      completedCount: 2,
+      programs: expect.arrayContaining([
+        expect.objectContaining({ programId: 'MANAGED1', state: 'current' }),
+        expect.objectContaining({ programId: 'MANAGED2', state: 'current' }),
+      ]),
+    })
+  })
+
+  it('saves the pending edit after an alias pass during a stall', async () => {
+    const fake = await fixture()
+    const alias = { ...profile, id: 'alias', deviceId: undefined }
+    setControllerProfiles([profile, alias])
+    await stallThenEditFirstPattern(fake)
+    const retryAt = state().retryAt
+
+    await store().reconcileControllerProfile(alias.id)
+    expect(store().controllerReconciliations[alias.id]).toMatchObject({ phase: 'current', completedCount: 2 })
+    expect(writesFor(fake, 'MANAGED1')).toEqual([expect.stringContaining('index * 11')])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 12')])
+    expect(state()).toMatchObject({ phase: 'not-responding', retryAt })
+
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 12')])
+    expect(state()).toMatchObject({
+      phase: 'current',
+      completedCount: 2,
+      programs: expect.arrayContaining([
+        expect.objectContaining({ programId: 'MANAGED1', state: 'current' }),
+        expect.objectContaining({ programId: 'MANAGED2', state: 'current' }),
+      ]),
+    })
+  })
+
   it('keeps triggers received during an automatic retry suppressed after its success', async () => {
     const fake = await fixture()
     const config = vi.spyOn(fake, 'getConfig')

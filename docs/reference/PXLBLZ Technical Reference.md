@@ -995,6 +995,8 @@ Profiles reaching the same IP or a known identical device ID share that
 ownership. A trigger received during a pass requests one follow-up with fresh
 profile, inventory and source reads. A follow-up or stall recovery also
 compares recorded Pattern source hashes for edits since the preceding plan.
+An interrupted recheck or a pass from another profile of the stalled
+Controller preserves the source comparison for edits still awaiting a Save.
 Each job uses the existing per-Controller write queue and the active program
 runs last. A foreground Save that reaches the write path takes precedence over
 an overlapping captured job for the same binding, including when the Save's
