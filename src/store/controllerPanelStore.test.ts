@@ -1539,6 +1539,33 @@ describe('controllerPanelStore', () => {
       expect(state.programsByController[IP]).toEqual([{ id: 'device-truth', name: 'On Controller' }])
     })
 
+    // A loaded Controller can time out the re-read's list read; one retry after
+    // the queue is idle again replaces the stale Saved list (#1268, B18 hardware).
+    it.each([
+      ['succeeds', [true, false], [{ id: 'device-truth', name: 'On Controller' }]],
+      ['also times out', [true, true], [{ id: 'stale', name: 'Old list' }]],
+    ] as const)('retries a timed-out list read once; the retry %s', async (_label, failures, expected) => {
+      provider.programs = [{ id: 'stale', name: 'Old list' }]
+      useControllerPanelStore.getState().start(IP)
+      await flush()
+      await useControllerPanelStore.getState().refreshPrograms(IP)
+      provider.programs = [{ id: 'device-truth', name: 'On Controller' }]
+      let lists = 0
+      const list = provider.listPrograms.bind(provider)
+      provider.listPrograms = async () => {
+        lists += 1
+        if (failures[lists - 1]) throw new Error('Pixelblaze request timed out waiting for "__programList"')
+        return list()
+      }
+      const a = heldWrite()
+      const reread = useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
+      a.gate.reject(new Error('save failed'))
+      await reread
+      expect(lists).toBe(2)
+      expect(useControllerPanelStore.getState().programs).toEqual(expected)
+      expect(useControllerPanelStore.getState().programsByController[IP]).toEqual(expected)
+    })
+
     it.each(['ip', 'provider'] as const)('skips the re-read when the %s changed before idle', async (changed) => {
       useControllerPanelStore.getState().start(IP)
       await flush()

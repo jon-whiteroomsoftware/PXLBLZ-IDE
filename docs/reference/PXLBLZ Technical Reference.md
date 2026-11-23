@@ -651,7 +651,10 @@ or whose activation is unconfirmed, `controllerStore` calls
 (`whenControllerDeviceWritesIdle`), skips the read if the panel moved to another
 Controller or provider meanwhile, advances the panel read generation, then
 reads the program list and the active Pattern once, so the IDE shows the
-Controller's state instead of its own expectation. A failure before the queued
+Controller's state instead of its own expectation. If that list read fails (a
+loaded Controller can time it out), the re-read waits for the queue to go idle
+again and, if the panel still shows the same Controller and provider, retries
+the list read once; a second failure keeps the last-known list. A failure before the queued
 write starts (compile, connection) re-reads nothing.
 `ControllerPanelTitlePicker` derives the Saved Patterns gate from the active IP's own
 `programsByController` entry. A missing key means the inventory has not been

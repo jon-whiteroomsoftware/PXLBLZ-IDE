@@ -286,8 +286,9 @@ async function main(): Promise<void> {
       const started = performance.now()
       const record: Record<string, unknown> = { name, startedAt: at() }
       const induce = panelStore && attempt === induceIndex ? induceKind : ''
-      const deviceProvider = induce
-        ? Object.assign(Object.create(provider) as typeof provider, {
+      // Always wrapped, so a Save's id reaches the manifest before activation can
+      // fail; the induced failures apply only to the --induce Save.
+      const deviceProvider = Object.assign(Object.create(provider) as typeof provider, {
           saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
             if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
             created.add(opts.id)
@@ -302,7 +303,6 @@ async function main(): Promise<void> {
             throw new ControllerActivationTimeoutError('induced: activation not confirmed')
           },
         })
-        : provider
       const run = <T,>(write: () => Promise<T>) => (panelStore ? queueControllerDeviceWrite(IP, write) : write())
       try {
         const result = await run(() => pushPattern({
@@ -340,17 +340,20 @@ async function main(): Promise<void> {
         await panelStoreModule.useControllerPanelStore.getState().rereadAfterFailedWrite(IP)
         const rereadLists = storePoll.lists.slice(listsBefore)
         const after = { active: panelState().activeProgramId, ids: panelState().programs.map((program) => program.id).sort() }
+        // A failed direct read is recorded as unavailable and never counts as a match.
+        const directConfig = await provider.getConfig().catch(() => null)
+        const directList = await provider.listPrograms().catch(() => null)
         const direct = {
-          active: (await provider.getConfig().catch(() => null))?.activeProgramId,
-          ids: (await provider.listPrograms().catch(() => [])).map((program) => program.id).sort(),
+          active: directConfig ? directConfig.activeProgramId : 'unavailable',
+          ids: directList ? directList.map((program) => program.id).sort() : 'unavailable',
         }
         record.reread = {
           before,
           after,
           direct,
           rereadLists,
-          activeMatches: after.active === direct.active,
-          listMatches: JSON.stringify(after.ids) === JSON.stringify(direct.ids),
+          activeMatches: directConfig !== null && after.active === direct.active,
+          listMatches: directList !== null && JSON.stringify(after.ids) === JSON.stringify(direct.ids),
         }
       }
       return record

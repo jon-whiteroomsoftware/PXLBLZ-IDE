@@ -180,8 +180,9 @@ interface ControllerPanelState {
   rereadAfterFailedWrite: (controllerIp: string) => Promise<void>
   /** Re-fetch the device's program list into `programs`. Called after a save-mode push
    *  (#238) so the freshly-saved id is in the list and the panel resolves it via the list
-   *  tier → the `unsaved` marker clears. Tolerates transient failure. */
-  refreshPrograms: (ip?: string) => Promise<void>
+   *  tier → the `unsaved` marker clears. Tolerates transient failure: resolves false
+   *  when the list read failed and the last-known list was kept. */
+  refreshPrograms: (ip?: string) => Promise<boolean>
   /** Set brightness on the device — volatile, never `save:true`. Optimistic local. */
   setBrightness: (value: number) => void
   /** Set the device's pixel count — persisted (`save:true`), since it is wiring
@@ -498,12 +499,19 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     // reply requested before the failed write cannot overwrite this read.
     panelSession += 1
     const session = panelSession
-    await Promise.all([
+    const [listed] = await Promise.all([
       get().refreshPrograms(controllerIp),
       provider.getConfig().then((config) => {
         if (controllerSessionMatches(session, provider)) set((state) => configPatch(state, config))
       }, () => {}),
     ])
+    if (listed) return
+    // A loaded Controller can time out this list read and leave the Saved list
+    // stale (#1268, 1 fps on .161). Retry it once, after any write queued
+    // meanwhile, if the panel still shows this Controller.
+    await whenControllerDeviceWritesIdle(controllerIp)
+    if (seededForIp !== controllerIp || getControllerProvider() !== provider) return
+    await get().refreshPrograms(controllerIp)
   },
 
   refreshPrograms: async (ip = seededForIp) => {
@@ -514,7 +522,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     programRefreshVersions.set(requestKey, requestVersion)
     try {
       const programs = await provider.listPrograms()
-      if (programRefreshVersions.get(requestKey) !== requestVersion) return
+      // A newer refresh owns the list; this read itself did not fail.
+      if (programRefreshVersions.get(requestKey) !== requestVersion) return true
       set((state) => ({
         ...(controllerSessionMatches(session, provider) && (!ip || ip === seededForIp)
           ? { programs }
@@ -523,8 +532,10 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
           ? { programsByController: { ...state.programsByController, [ip]: programs } }
           : {}),
       }))
+      return true
     } catch {
       // Transient — keep the last-known list.
+      return false
     }
   },
 
