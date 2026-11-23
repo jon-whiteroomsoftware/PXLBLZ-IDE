@@ -668,9 +668,11 @@ confirmations are scoped to the provider/session that sent the command.
 `deletePrograms` (bulk delete, #1266) reads inventory and config once, sends
 every eligible delete, and judges the whole batch with one final inventory
 read: ids it no longer lists are confirmed, and unsent baseline entries that
-went missing or were renamed are reported as collateral. A session change
-before that judgement confirms nothing and publishes nothing; metadata cleanup
-for already-confirmed ids still completes.
+went missing or were renamed are reported as collateral. It sends nothing
+while the sequencer runs, using the last known state when a config reply omits
+`runSequencer`. A session change, including a stopped panel session, before
+that judgement confirms nothing, publishes nothing and starts no refresh read;
+metadata cleanup for already-confirmed ids still completes.
 Per-Controller snapshots include the sequencer fields, so reopening one
 Controller cannot inherit another's mode.
 The open Controller popover presents an amber shuffle or playlist indicator
