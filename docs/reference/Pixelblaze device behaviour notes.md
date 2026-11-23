@@ -161,6 +161,68 @@ The saved-Pattern protocol uses two fire-and-forget JSON commands:
   through the per-delete check (list, getConfig, send, list) took 24.6 s.
   Back-to-back `putSourceCode` uploads are not safe the same way: 20 sent
   without pause left the next list unanswered for 15 s and two uploads missing.
+  PXLBLZ's Save lists before every upload, which paces it; see the next section.
+
+## A saved-Pattern upload holds JSON replies until its flash write ends
+
+Measured on 2026-11-23 on the test Controller at 192.168.8.161, freshly
+rebooted, with two saved Patterns (#1268; raw runs in the issue).
+
+- The Controller acks every 1280-byte `putSourceCode` chunk except the last.
+  The last chunk is answered by `{"saveProgramSourceFile": true}` once the
+  write ends.
+- The write time grows with the upload: about 1.6-2.0 s for an 11.5 KB PBP,
+  4.0 s for 48 KB and 7.9 s for 109 KB.
+- During the write, pings are still acked and the fps frame still arrives
+  about once a second. The longest inbound gap across 75 probe uploads was
+  1.17 s, and 139 Saves through the production provider never tripped its
+  4000 ms liveness watchdog.
+- JSON requests (`listPrograms`, `getConfig`) are answered only after the
+  write ends. A list sent right after an 11.5 KB upload took about 2.1 s. A
+  list sent 3 s after a 109 KB upload timed out at the IDE's 5000 ms request
+  timeout, and the retry succeeded.
+- The compiler download (`/index.html.gz`) took 1.5-2.0 s idle and 3.1-8.6 s
+  while a write was in flight.
+- Twenty uploads, each preceded by a list, read back complete, both
+  fire-and-forget and completion-paced. So did 100 IDE-path reconciliation
+  Saves in five cycles, with no drift in Save time.
+
+## A slow-rendering Pattern slows config replies, and a 1 Hz poll can wedge the socket
+
+Measured on 2026-11-23 on the test Controller at 192.168.8.161 (pb32, firmware
+3.70, 256 pixels), with a throwaway load Pattern that spins in `render()` (#1268;
+raw runs in the issue).
+
+- A `beforeRender` that runs longer than about 360 ms is aborted: the stats
+  frame reports `vmerr: 7` and fps stays near 2.8 however much more work is
+  added. Load spread across per-pixel `render()` calls is not aborted, and
+  reached 4.9, 1.0 and 0.39 fps.
+- Pings are still acked during a slow frame. The longest inbound gap was
+  0.8 s at 4.9 fps and 2.0 s at 1.0 fps, under the IDE's 4000 ms watchdog.
+  At 1 fps the stats frame arrives once per rendered frame.
+- `getConfig` takes about one frame: 40 ms at 118 fps, 100 ms at 4.9 fps,
+  930 ms at 1.0 fps. `listPrograms` stayed near 390 ms. Activation (setCode
+  until `getConfig` reports the new id) took 2.3 s at 4.9 fps and 5.7-7.8 s at
+  1.0 fps. A Save's flash write was unchanged by load (1.3-1.6 s for 7.7 KB).
+- At 1.0 fps, 10 activating Saves, a 20-upload burst and 20 reconciliation
+  Saves all read back complete. The same 10 editor Saves with the open panel's
+  poll added (`getConfig` and `getVars` every second) did not: the first Save
+  took 21 s, every later `listPrograms` timed out, 9 of 10 Saves failed, and
+  then the Controller's WebSocket server refused every new connection
+  (ECONNRESET at once) for at least 9 minutes while HTTP still answered.
+  A second client (a PXLBLZ tab) was connected to the Controller during
+  that run, and only a power cycle cleared it.
+- With no other client, the poll alone is harmless at full frame rate: 226
+  polls over 215 s at 118 fps, none failed, `getConfig` at most 406 ms,
+  `listPrograms` at most 456 ms. At 1.0 fps the poll alone still overloads
+  the Controller: 12 of 25 polls had a reply time out (5000 ms), the first
+  editor Save took 19 s, and its read-back `listPrograms` timed out. Once the
+  poll stopped, the same socket answered a list within 4.3 s, and the list
+  and active Pattern restored with no power cycle. So each unanswered
+  request still costs a frame, and a poll that does not wait for its replies
+  outruns a slow Controller.
+- At 0.39 fps without the poll, 5 Saves each completed their flash write in
+  1.4-1.6 s and read back. The inbound gap reached 2.5 s, still under 4000 ms.
 
 [ElectroMage's WebSockets API documentation](https://electromage.com/docs/websockets-api)
 describes active-Pattern changes as persisted across a restart, without documenting
