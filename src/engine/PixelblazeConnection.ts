@@ -197,6 +197,10 @@ export interface PixelblazeConnectionOptions {
 
 // readyState values, per the WebSocket spec (shared by browser and `ws`).
 const OPEN = 1
+const SAVE_COMPLETION = 'saveProgramSourceFile'
+const PROGRAM_LIST = '__programList'
+
+export type ControllerSaveResult = 'confirmed' | 'unconfirmed'
 
 /** A request awaiting a reply, keyed by the response field that fulfils it
  *  (e.g. `getVars` waits for `vars`, `ping` waits for `ack`). Pixelblaze has no
@@ -239,6 +243,11 @@ export class PixelblazeConnection {
   private ws: WebSocketLike | null = null
   private pingHandle: unknown = null
   private readonly pending = new Map<string, Pending[]>()
+  // Untagged replies can arrive after their local waiters have expired. A list
+  // requested after a Save deadline fences older completions on the same socket.
+  private saveCompletionsOwed = 0
+  private programListsOwed = 0
+  private programListsBeforeSaveDeadline = 0
   private readonly listeners = new Map<ConnectionEvent, Set<EventListener>>()
   // In-flight binary reassembly buffers, keyed by message type. A device may
   // interleave types, so each accumulates independently until its `last` frame.
@@ -436,7 +445,7 @@ export class PixelblazeConnection {
    *  reply is one or more binary (type-7) frames whose reassembled body is
    *  newline-separated `id\tname` text. Resolves with the decoded entries. */
   listPrograms(): Promise<ProgramListEntry[]> {
-    return this.request('__programList', { listPrograms: true }).then(
+    return this.request(PROGRAM_LIST, { listPrograms: true }).then(
       (payload) => decodeProgramList(payload as Uint8Array),
     )
   }
@@ -568,7 +577,7 @@ export class PixelblazeConnection {
    *  the reference client's `PBP.toPixelblaze`:
    *  https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L3126
    *
-   *  Fire-and-forget at the protocol level: resolves once every frame is sent. */
+   *  Raw frame sender for protocol probes. IDE Saves use `saveProgramAndWait`. */
   saveProgram(id: string, pbpBlob: Uint8Array): void {
     const idBytes = new TextEncoder().encode(id)
     const payload = new Uint8Array(idBytes.length + pbpBlob.length)
@@ -577,6 +586,37 @@ export class PixelblazeConnection {
     for (const frame of encodeBinaryFrames(MessageType.putSourceCode, payload)) {
       this.sendBinary(frame)
     }
+  }
+
+  /** Send the same frames and wait for the firmware's final flash-write reply. */
+  async saveProgramAndWait(id: string, pbpBlob: Uint8Array): Promise<ControllerSaveResult> {
+    const socket = this.ws
+    if (!socket || !this.isConnected) throw new Error('Cannot send: Pixelblaze connection is not open')
+    if (this.pending.has(SAVE_COMPLETION)) throw new Error('Controller Save already in progress')
+
+    // #1268: measured writes took 1.6–7.9 s at 11.5–109 KB. Allow a
+    // larger per-KiB cost and a fixed margin for relay and Controller load.
+    const payloadBytes = new TextEncoder().encode(id).byteLength + pbpBlob.byteLength
+    const timeoutMs = 10_000 + 100 * Math.ceil(payloadBytes / 1024)
+    const pending = this.enqueue(SAVE_COMPLETION, { timeoutMs })
+    try {
+      this.saveProgram(id, pbpBlob)
+    } catch (error) {
+      pending.cancel(error as Error)
+    }
+
+    const completion = await pending.promise.catch((error: unknown) => {
+      if (!(error instanceof ControllerRequestTimeoutError)) throw error
+      return undefined
+    })
+    if (this.ws !== socket || !this.isConnected) throw new Error('Pixelblaze connection closed')
+    if (completion === undefined) {
+      this.saveCompletionsOwed += 1
+      this.programListsBeforeSaveDeadline = this.programListsOwed
+      return 'unconfirmed'
+    }
+    if (completion === false) throw new Error('Controller rejected Save')
+    return 'confirmed'
   }
 
   /** Push compiled bytecode to the device as the save-and-run sequence (H10,
@@ -743,10 +783,13 @@ export class PixelblazeConnection {
     options: { timeoutMs?: number; signal?: AbortSignal } = {},
   ): Promise<unknown> {
     const pending = this.enqueue(responseKey, options)
+    const isProgramList = responseKey === PROGRAM_LIST
+    if (isProgramList) this.programListsOwed += 1
     try {
       options.signal?.throwIfAborted()
       this.sendJson(frame)
     } catch (err) {
+      if (isProgramList) this.programListsOwed = Math.max(0, this.programListsOwed - 1)
       pending.cancel(err as Error)
     }
     return pending.promise
@@ -827,6 +870,11 @@ export class PixelblazeConnection {
     // Resolve the first matching pending request by response field.
     if ('vars' in msg) this.fulfil('vars', msg.vars)
     if ('ack' in msg) this.fulfil('ack', msg.ack)
+    const saveCompletion = msg[SAVE_COMPLETION]
+    if (typeof saveCompletion === 'boolean') {
+      if (this.saveCompletionsOwed > 0) this.saveCompletionsOwed -= 1
+      else this.fulfil(SAVE_COMPLETION, saveCompletion)
+    }
     // getControls reply carries a `controls` object; we resolve with the whole msg.
     if ('controls' in msg) this.fulfil('controls', msg)
     // getConfig replies as two packets: settings (top-level `brightness`) and
@@ -855,7 +903,12 @@ export class PixelblazeConnection {
       this.binaryBuffers.delete(type)
       const complete = Uint8Array.from(buf)
       if (type === MessageType.getProgramList) {
-        this.fulfil('__programList', complete)
+        if (this.programListsOwed > 0) {
+          this.programListsOwed -= 1
+          if (this.programListsBeforeSaveDeadline > 0) this.programListsBeforeSaveDeadline -= 1
+          else this.saveCompletionsOwed = 0
+        }
+        this.fulfil(PROGRAM_LIST, complete)
       }
     }
   }
@@ -906,6 +959,9 @@ export class PixelblazeConnection {
 
   private handleClose(detail?: unknown): void {
     this.stopPing()
+    this.saveCompletionsOwed = 0
+    this.programListsOwed = 0
+    this.programListsBeforeSaveDeadline = 0
     // Reject everything still waiting — the reply can never arrive now.
     for (const queue of this.pending.values()) {
       for (const entry of queue) {

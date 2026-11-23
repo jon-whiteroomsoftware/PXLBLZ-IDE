@@ -647,7 +647,7 @@ succeeded or failed. A loaded Controller answers roughly one request per frame,
 so overlapping or concurrent polls queue ahead of a Save and time it out
 (#1268). After a Save or Run that failed after `pushPattern` began its first
 device write (drain, Save or activation, marked by its `onDeviceWrite` hook),
-or whose activation is unconfirmed, `controllerStore` calls
+or whose flash write or activation is unconfirmed, `controllerStore` calls
 `rereadAfterFailedWrite`. It waits for the Controller's write queue to go idle
 (`whenControllerDeviceWritesIdle`), skips the read if the panel moved to another
 Controller or provider meanwhile, advances the panel read generation, then
@@ -848,12 +848,27 @@ Controller operations cannot borrow that alert.
 
 **Run** pushes transient bytecode under a fresh id — no Saved Patterns entry,
 binding, banner, or push record. **Save** stamps source, encodes a PBP (name,
-optional JPEG, bytecode, compressed source), writes the saved program, and
-activates the same id. Overwrite bindings key (Controller, Studio Pattern) to
-program id; repeated saves reuse the id. A successful Save writes a push
-record from the exact embedded banner — artifact hash, transform ids,
-timestamp, optional Show output contract — making transform freshness locally
-computable.
+optional JPEG, bytecode, compressed source), and sends the type-1 frames in
+one burst. The Controller confirms the flash write with
+`saveProgramSourceFile: true`. The confirmation window is 10 seconds plus
+100 ms per started KiB of the payload. Keepalive and the connection watchdog
+run during that wait. Completion replies carry no request id. The connection
+discards replies owed to expired waits until an ordered inventory response
+puts those writes behind it.
+
+After flash confirmation, Save can activate the same id. The completed Save
+writes a push record from the exact embedded banner, including artifact hash,
+transform ids, timestamp, and any Show output contract. The editor separately
+records that source and profile signature for its Save action. An expired
+flash confirmation on an open connection leaves both records as they were,
+ends the Save before target activation, and takes the Controller re-read.
+A socket close, send failure, or explicit rejection is an error.
+
+Overwrite bindings key (Controller, Studio Pattern) to program id. A first
+Save can reserve the new id even if the flash write is unconfirmed, so an
+explicit retry reuses the slot if the Controller lists it. When a previous
+push record exists for a missing slot, moving its binding requires a confirmed
+write to the replacement slot.
 
 **Transient replacement fit.** Steady-state fit and replacement fit are
 different questions: a Pattern can pass every steady-state limit and still
@@ -1007,9 +1022,12 @@ inventory refresh. The profile schedules one automatic retry after 10 seconds
 for the same Controller. If it cannot finish, the profile waits for **Retry**.
 Reconnects and edits received during the stall do not start a pass on that
 Controller. Successful reconciliation, Retry, a replacement Controller, or
-opting out clears the stall. When a Save stored the active Pattern and its
-activation deadline leaves activation unconfirmed, the job completes and the
-panel uses the same re-read path as a foreground Save (#1268).
+opting out clears the stall. If the flash confirmation deadline expires, the
+pass ends with that row queued and takes the queue-idle re-read. The next
+triggered pass reattempts an eligible unconfirmed saved slot, including
+source-only updates on the same Controller. When a Save stored the active
+Pattern and its activation deadline leaves activation unconfirmed, the job
+completes and the panel uses the same re-read path as a foreground Save (#1268).
 
 Unattended reconciliation keeps Patterns and Portable Shows current.
 Installation Shows are sent only explicitly from the editor, because the

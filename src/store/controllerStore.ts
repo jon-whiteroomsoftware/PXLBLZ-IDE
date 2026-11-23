@@ -31,7 +31,7 @@ import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
-import { pushPattern } from '@/engine/pushPattern'
+import { pushPattern, type PushPatternResult } from '@/engine/pushPattern'
 import { sha256CompleteCompileInput, type ShowArtifactCompilationRecord } from '@/engine/showArtifactPricing'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
@@ -482,6 +482,30 @@ const reconciliationPatternSources = new Map<string, {
   target: ReconciliationTarget
   patternSources: ReadonlyMap<string, string>
 }>()
+const unconfirmedSaves = new Map<string, {
+  target: ReconciliationTarget
+  programIds: Set<string>
+}>()
+
+function unconfirmedProgramsFor(target: ReconciliationTarget): Set<string> | undefined {
+  const entry = unconfirmedSaves.get(target.ip)
+  return entry && sameReconciliationTarget(entry.target, target) ? entry.programIds : undefined
+}
+
+/** Keep source-only retries eligible even when the next pass has a matching
+ * profile signature and no earlier plan to compare with. */
+function rememberSaveOutcome(target: ReconciliationTarget, delivery: PushPatternResult): void {
+  const previous = unconfirmedProgramsFor(target)
+  if (delivery.save === 'unconfirmed' && !delivery.created) {
+    const programIds = previous ?? new Set<string>()
+    programIds.add(delivery.programId)
+    unconfirmedSaves.set(target.ip, { target, programIds })
+  } else if (previous) {
+    previous.delete(delivery.programId)
+    if (!previous.size) unconfirmedSaves.delete(target.ip)
+  }
+}
+
 type ReconciliationOutcome = Parameters<typeof stallAfterReconciliation>[2]
 class ReconciliationWriteCancelled extends Error {}
 
@@ -705,19 +729,23 @@ export const useControllerStore = create<ControllerConnectionState>()(
         retryAt?: number,
       ) => setReconciliation(profileId, (state) => ({ ...state, phase, retryAt }))
 
-      const queueForegroundPush = <T,>(
+      const queueForegroundPush = (
         ip: string,
         binding: string,
         persist: boolean,
-        push: (mark: () => void) => Promise<T>,
-      ): Promise<T> => queueControllerDeviceWrite(ip, async () => {
+        push: (mark: () => void) => Promise<PushPatternResult>,
+      ): Promise<PushPatternResult> => queueControllerDeviceWrite(ip, async () => {
         let finishSave: (() => void) | undefined
+        let savedTarget: ReconciliationTarget | undefined
         try {
-          return await push(() => {
+          const delivery = await push(() => {
             if (persist && !finishSave) {
-              finishSave = reconciliationQueue.beginForegroundSave(get().controllers[ip] ?? { ip }, binding)
+              savedTarget = get().controllers[ip] ?? { ip }
+              finishSave = reconciliationQueue.beginForegroundSave(savedTarget, binding)
             }
           })
+          if (savedTarget) rememberSaveOutcome(savedTarget, delivery)
+          return delivery
         } finally {
           finishSave?.()
         }
@@ -845,6 +873,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           pushRecords,
           artifacts: [...patterns, ...showArtifacts],
           precedingPatternSources: recheckPatternSources ? precedingPatternSources : undefined,
+          unconfirmedProgramIds: unconfirmedProgramsFor(live),
         })
         const patternSources = new Map(patterns.map(({ bindingKey, source }) => [bindingKey, source]))
         const preserveEdits = recheckPatternSources || [...reconciliationStalls.values()].some(
@@ -893,7 +922,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         const compiledLibraries = compileLibraries(LIBRARIES, libraryState.userLibraries)
         const reconciliationSignature = controllerProfileReconciliationSignature(profile)
-        let activationUnconfirmed = false
+        let rereadNeeded = false
         const rememberPatternSource = (job: ControllerReconciliationJob) => {
           if (patternSources.has(job.bindingKey)) patternSources.set(job.bindingKey, job.source)
         }
@@ -969,11 +998,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }
             }
             try {
-              const delivery = await queueControllerDeviceWrite(live.ip, () => {
+              const delivery = await queueControllerDeviceWrite(live.ip, async () => {
                 assertWriteAllowed()
                 invalidateRendererState(live.ip)
                 if (activate) retainRendererResumeRecovery(live.ip)
-                return pushPattern({
+                const result = await pushPattern({
                   provider,
                   controllerId: live.ip,
                   patternId: job.bindingKey,
@@ -995,9 +1024,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   savePushRecords: setPushRecords,
                   assertDeviceSession: assertWriteAllowed,
                 })
+                rememberSaveOutcome(live, result)
+                return result
               })
               if (!isCurrentSession()) return false
-              if (delivery.activation === 'unconfirmed') activationUnconfirmed = true
+              if (delivery.save === 'unconfirmed') {
+                rereadNeeded = true
+                return false
+              }
+              if (delivery.activation === 'unconfirmed') rereadNeeded = true
               else if (activate) assumeRendererPlaying(live.ip)
             } catch (error) {
               if (!isCurrentSession()) return false
@@ -1011,14 +1046,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
           },
         })
         if (result.timedOut) return 'timeout'
+        if (rereadNeeded) rereadController(live.ip)
         if (result.stopped) {
           setReconciliationPhase(profileId, 'pending')
           return 'interrupted'
         }
 
         setReconciliationPhase(profileId, result.failed.length ? 'attention' : result.deferred ? 'pending' : 'current')
-        if (activationUnconfirmed) rereadController(live.ip)
-        else if (get().activeIp === live.ip && isCurrentSession()) {
+        if (!rereadNeeded && get().activeIp === live.ip && isCurrentSession()) {
           await useControllerPanelStore.getState().refreshPrograms(live.ip)
         }
         return 'finished'
@@ -1717,7 +1752,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...transforms,
               ])],
             }
-            const { created, programId, activation } = await queueForegroundPush(
+            const { created, programId, activation, save } = await queueForegroundPush(
               controllerId,
               artifact.artifactId,
               artifact.persist,
@@ -1785,6 +1820,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 })
               },
             )
+            if (save === 'unconfirmed') {
+              set({ pushing: false })
+              rereadController(controllerId)
+              return
+            }
             const activationUnconfirmed = activation === 'unconfirmed'
             if (!activationUnconfirmed) {
               assumeRendererPlaying(controllerId)
@@ -2199,7 +2239,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ? (await buildPreviewJpeg(bundled)) ?? undefined
               : undefined
             assertDeviceSession()
-            const { created, programId, activation } = await queueForegroundPush(
+            const { created, programId, activation, save } = await queueForegroundPush(
               controllerId,
               patternId,
               persist,
@@ -2226,6 +2266,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }),
             )
             assertDeviceSession()
+            if (save === 'unconfirmed') {
+              set({ pushing: false })
+              rereadController(controllerId)
+              return
+            }
             const activationUnconfirmed = activation === 'unconfirmed'
             if (!activationUnconfirmed) {
               assumeRendererPlaying(controllerId)
@@ -2352,5 +2397,6 @@ export function __resetControllerProviders(): void {
   reconciliationRetryTimers.clear()
   reconciliationStalls.clear()
   reconciliationPatternSources.clear()
+  unconfirmedSaves.clear()
   reconciliationQueue.reset()
 }

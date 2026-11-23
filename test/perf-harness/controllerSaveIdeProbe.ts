@@ -296,8 +296,9 @@ async function main(): Promise<void> {
           if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
           created.add(opts.id)
           record.programId = opts.id
-          await provider.saveProgram(blob, opts)
-          if (induce === 'failed-after-store') throw new Error('induced failure after the PBP frames were sent')
+          const completion = await provider.saveProgram(blob, opts)
+          if (induce === 'failed-after-store') throw new Error('induced failure after the PBP Save returned')
+          return completion
         },
         pushBytecode: async (bytecode: Uint8Array, opts: { id: string; name?: string }) => {
           if (induce !== 'unconfirmed') return provider.pushBytecode(bytecode, opts)
@@ -331,6 +332,7 @@ async function main(): Promise<void> {
           mintId: undefined,
           onCompiledArtifact: () => undefined,
         }))
+        if (result.save) record.save = result.save
         if (result.activation) record.activation = result.activation
         if (!created.has(result.programId)) appendFileSync(manifest, `${JSON.stringify({ id: result.programId, name })}\n`)
         created.add(result.programId)
@@ -341,7 +343,7 @@ async function main(): Promise<void> {
         record.error = (error as Error).message
       }
       record.ms = Math.round(performance.now() - started)
-      if (panelStoreModule && (record.ok === false || record.activation === 'unconfirmed')) {
+      if (panelStoreModule && (record.ok === false || record.save === 'unconfirmed' || record.activation === 'unconfirmed')) {
         // The IDE's failure path (#1268): one re-read once the queue is idle, then
         // compare what the panel shows with a direct read of the Controller.
         const panelState = () => panelStoreModule!.useControllerPanelStore.getState()

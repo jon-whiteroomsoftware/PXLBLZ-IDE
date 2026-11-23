@@ -566,6 +566,125 @@ describe('ExtensionControllerProvider', () => {
     })
   })
 
+  describe('Save confirmation (#1268)', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    async function connectForSave() {
+      const device = makeDeviceTransport()
+      const provider = new ExtensionControllerProvider({
+        transport: device.transport,
+        pingIntervalMs: 0,
+        maxReconnectAttempts: 0,
+      })
+      await provider.connect(TARGET)
+      return { device, provider }
+    }
+
+    const id = 'pxb0123456789abcd'
+    const smallBlob = new Uint8Array([20, 30, 40])
+    const smallDeadline = 10_100
+
+    it('sends every frame immediately and resolves only on the final completion', async () => {
+      const { device, provider } = await connectForSave()
+      const blob = new Uint8Array(2800).fill(0xff)
+      const settled = vi.fn()
+      const save = provider.saveProgram(blob, { id })
+      void save.then(settled, settled)
+      const idBytes = new TextEncoder().encode(id)
+      const payload = new Uint8Array(idBytes.length + blob.length)
+      payload.set(idBytes)
+      payload.set(blob, idBytes.length)
+      expect(device.binaryWrites).toEqual(encodeBinaryFrames(MessageType.putSourceCode, payload))
+
+      device.pushFrame({ ack: 1 })
+      device.pushFrame({ ack: 1 })
+      device.pushFrame({ saveProgramSourceFile: 'true' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).not.toHaveBeenCalled()
+
+      device.pushFrame({ saveProgramSourceFile: true })
+      await expect(save).resolves.toBe('confirmed')
+    })
+
+    it.each([
+      [smallBlob, smallDeadline],
+      [new Uint8Array(109 * 1024), 21_000],
+    ])('returns unconfirmed at the size-based deadline (%#) on an open socket', async (blob, deadline) => {
+      const { device, provider } = await connectForSave()
+      const settled = vi.fn()
+      const save = provider.saveProgram(blob, { id })
+      void save.then(settled, settled)
+
+      await vi.advanceTimersByTimeAsync(deadline - 1)
+      expect(settled).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(save).resolves.toBe('unconfirmed')
+      expect(device.isOpen()).toBe(true)
+      expect(provider.getStatus().kind).toBe('connected')
+    })
+
+    it('discards an expired Save completion while a later Save waits', async () => {
+      const { device, provider } = await connectForSave()
+      const first = provider.saveProgram(smallBlob, { id })
+      await vi.advanceTimersByTimeAsync(smallDeadline)
+      await expect(first).resolves.toBe('unconfirmed')
+
+      const settled = vi.fn()
+      const second = provider.saveProgram(smallBlob, { id: 'pxb0123456789abce' })
+      void second.then(settled, settled)
+      device.pushFrame({ saveProgramSourceFile: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(settled).not.toHaveBeenCalled()
+      device.pushFrame({ saveProgramSourceFile: true })
+      await expect(second).resolves.toBe('confirmed')
+    })
+
+    it('can confirm a later Save after the inventory read when a completion was lost', async () => {
+      const { device, provider } = await connectForSave()
+      const first = provider.saveProgram(smallBlob, { id })
+      await vi.advanceTimersByTimeAsync(smallDeadline)
+      await expect(first).resolves.toBe('unconfirmed')
+      await provider.listPrograms()
+
+      const second = provider.saveProgram(smallBlob, { id })
+      device.pushFrame({ saveProgramSourceFile: true })
+      await expect(second).resolves.toBe('confirmed')
+    })
+
+    it('rejects a closed socket while awaiting completion', async () => {
+      const { device, provider } = await connectForSave()
+      const save = provider.saveProgram(smallBlob, { id })
+      const closed = expect(save).rejects.toThrow('Pixelblaze connection closed')
+      device.dropSocket()
+      await closed
+    })
+
+    it('rejects a watchdog close while awaiting completion', async () => {
+      const device = makeDeviceTransport()
+      const provider = new ExtensionControllerProvider({
+        transport: device.transport,
+        pingIntervalMs: 1000,
+        livenessTimeoutMs: 2500,
+        maxReconnectAttempts: 0,
+      })
+      await provider.connect(TARGET)
+      const save = provider.saveProgram(smallBlob, { id })
+      const closed = expect(save).rejects.toThrow('Pixelblaze connection closed')
+      device.goSilent()
+      await vi.advanceTimersByTimeAsync(3000)
+      await closed
+    })
+
+    it('rejects a negative Save completion', async () => {
+      const { device, provider } = await connectForSave()
+      const save = provider.saveProgram(smallBlob, { id })
+      const rejected = expect(save).rejects.toThrow('Controller rejected Save')
+      device.pushFrame({ saveProgramSourceFile: false })
+      await rejected
+    })
+  })
+
   describe('auto-discovery (H14, #206)', () => {
     it('round-trips a reqId-keyed discover and maps localIp → address', async () => {
       const d = makeDeviceTransport({

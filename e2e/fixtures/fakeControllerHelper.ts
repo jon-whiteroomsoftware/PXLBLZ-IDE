@@ -163,8 +163,12 @@ export async function installFakeControllerHelper(
       if (message.type !== 'send') return
       const payload = message.payload as { text?: string; binary?: string } | undefined
       if (payload?.binary && typeof message.connId === 'string') {
-        // Type 1 is putSourceCode: the saved PBP carrying the source.
-        if (atob(payload.binary).charCodeAt(0) === 1) writes.push({ save: true })
+        const frame = atob(payload.binary)
+        // Type 1 carries the saved PBP. Firmware confirms on the last frame (flag 4).
+        if (frame.charCodeAt(0) === 1) {
+          writes.push({ save: true })
+          if (frame.charCodeAt(1) & 4) reply(message.connId, { saveProgramSourceFile: true })
+        }
         return
       }
       if (!payload?.text || typeof message.connId !== 'string') return

@@ -11,6 +11,7 @@ import {
 import {
   ControllerPermissionDeniedError,
   NullControllerProvider,
+  type ControllerSaveResult,
   type ControllerStatus,
   type ControllerTarget,
   type ControllerConfig,
@@ -209,9 +210,9 @@ class FakeProvider extends NullControllerProvider {
       : Promise.resolve()
   }
   saved: { blob: Uint8Array; opts: { id: string } }[] = []
-  saveProgram(blob: Uint8Array, opts: { id: string }): Promise<void> {
+  saveProgram(blob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult> {
     this.saved.push({ blob, opts })
-    return Promise.resolve()
+    return Promise.resolve('confirmed')
   }
 
   // ── map push surface (#204) ─────────────────────────────────────────────────
@@ -543,7 +544,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     fake.saveProgram = async (...args) => {
       entered.resolve()
       await reply.promise
-      await save(...args)
+      return save(...args)
     }
     const first = store().reconcileControllerProfile(profileId)
     await entered.promise
@@ -598,7 +599,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (...args) => {
       entered.resolve()
       await reply.promise
-      await save(...args)
+      return save(...args)
     })
     store().scheduleControllerReconciliation(profileId)
     await vi.advanceTimersByTimeAsync(debounce)
@@ -722,6 +723,44 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('leaves an unconfirmed Save pending and re-pushes it on the next reconciliation', async () => {
+    const fake = await fixture()
+    const previousRecords = await getPushRecords()
+    const entered = deferred<void>()
+    const completion = deferred<'unconfirmed'>()
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (...args) => {
+      await save(...args)
+      entered.resolve()
+      return completion.promise
+    })
+    const reconciliation = store().reconcileControllerProfile(profileId)
+    await entered.promise
+    expect(await getPushRecords()).toEqual(previousRecords)
+    expect(state()).toMatchObject({ phase: 'running', completedCount: 0 })
+
+    completion.resolve('unconfirmed')
+    await reconciliation
+    expect(await getPushRecords()).toEqual(previousRecords)
+    expect(state()).toMatchObject({ phase: 'pending', completedCount: 0, retryAt: undefined })
+    expect(state().programs.map(({ state }) => state)).toEqual(['queued', 'queued'])
+    expect(reread).toHaveBeenCalledExactlyOnceWith(ip)
+    expect(refresh).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(retryDelay)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1'])
+
+    author(21, 12)
+    await store().reconcileControllerProfile(profileId)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+    expect(writesFor(fake, 'MANAGED2')).toEqual([expect.stringContaining('index * 12')])
+    expect((await getPushRecords())[ip]['pat-1'].artifactHash).not.toBe('outdated')
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved).toHaveLength(3)
+  })
+
   it('reads back the edit to a completed Pattern after a later job timed out', async () => {
     const fake = await fixture()
     const save = fake.saveProgram.bind(fake)
@@ -748,6 +787,30 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1'])
     author(21, 12)
   }
+
+  it('retries an unconfirmed source-only reconciliation Save after the stall has cleared', async () => {
+    const fake = await fixture()
+    await stallThenEditFirstPattern(fake)
+    const firstRecord = (await getPushRecords())[ip]['pat-1']
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (...args) => {
+      await save(...args)
+      return 'unconfirmed'
+    })
+
+    await store().reconcileControllerProfile(profileId)
+    expect(state()).toMatchObject({ phase: 'pending', retryAt: undefined })
+    expect((await getPushRecords())[ip]['pat-1']).toEqual(firstRecord)
+
+    await store().reconcileControllerProfile(profileId)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'),
+      expect.stringContaining('index * 21'),
+      expect.stringContaining('index * 21'),
+    ])
+    expect((await getPushRecords())[ip]['pat-1'].sourceHash).not.toBe(firstRecord.sourceHash)
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+  })
 
   it('saves the edit on manual Retry after interrupted automatic recovery', async () => {
     const fake = await fixture()
@@ -2367,6 +2430,43 @@ describe('controllerStore (keyed)', () => {
       } as const
 
       describe.each(Object.keys(entryPoints) as Array<keyof typeof entryPoints>)('%s', (entry) => {
+        it('leaves an unconfirmed Save ready to retry and re-reads after the queue drains', async () => {
+          const { provider, reads } = await connectWithTruth()
+          const previousRecords = await getPushRecords()
+          const previousSource = store().lastSavedSource
+          const previousSignature = store().lastSavedProfileSignature
+          const started = deferred<void>()
+          const completion = deferred<'unconfirmed'>()
+          provider.saveProgram = async () => {
+            started.resolve()
+            return completion.promise
+          }
+          const push = entryPoints[entry]()
+          await started.promise
+          expect(store().pushing).toBe(true)
+          expect(await getPushRecords()).toEqual(previousRecords)
+          const nextWrite = hold()
+          completion.resolve('unconfirmed')
+
+          expect(await push).toBeNull()
+          expect(store().pushing).toBe(false)
+          expect(store().lastSavedSource).toEqual(previousSource)
+          expect(store().lastSavedProfileSignature).toEqual(previousSignature)
+          expect(await getPushRecords()).toEqual(previousRecords)
+          expect(provider.pushed).toEqual([])
+          const beforeReread = { ...reads }
+          await settle()
+          expect(reads).toEqual(beforeReread)
+
+          nextWrite.resolve()
+          await settle()
+          expect(reads).toEqual({ list: beforeReread.list + 1, config: beforeReread.config + 1 })
+          const panel = useControllerPanelStore.getState()
+          expect(panel.activeProgramId).toBe('DEVICE1')
+          expect(panel.programs).toEqual(DEVICE_LIST)
+          expect(store().rendererStates[IP]?.assumedPlaying).not.toBe(true)
+        })
+
         it('re-reads once, after the queue is idle, when the Save fails on the device', async () => {
           const { provider, reads } = await connectWithTruth()
           // A following write queues while the failing Save is still running.

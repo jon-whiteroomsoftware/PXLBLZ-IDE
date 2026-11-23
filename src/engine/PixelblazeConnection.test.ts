@@ -1002,6 +1002,51 @@ describe('PixelblazeConnection', () => {
       expect([...body.subarray(0, 17)]).toEqual([...new TextEncoder().encode(id)])
       expect([...body.subarray(17)]).toEqual([10, 20, 30])
     })
+
+    it('keeps a frame-send error and releases the Save waiter for a retry', async () => {
+      const { conn, socket } = await connected()
+      const send = vi.spyOn(socket, 'send').mockImplementationOnce(() => {
+        throw new Error('save frame rejected')
+      })
+      const blob = new Uint8Array([10, 20, 30])
+      await expect(conn.saveProgramAndWait('PROG1', blob)).rejects.toThrow('save frame rejected')
+
+      send.mockRestore()
+      const retry = conn.saveProgramAndWait('PROG1', blob)
+      socket.simulateMessage({ saveProgramSourceFile: true })
+      await expect(retry).resolves.toBe('confirmed')
+    })
+
+    it.each([false, true])('keeps the expired confirmation fenced when an earlier list replies (list expired: %s)', async (listExpired) => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected({ requestTimeoutMs: listExpired ? 5000 : 30_000 })
+        const blob = new Uint8Array([1])
+        const earlierList = conn.listPrograms()
+        const earlierOutcome = earlierList.catch((error: Error) => error.message)
+        const first = conn.saveProgramAndWait('PROG1', blob)
+        await vi.advanceTimersByTimeAsync(10_100)
+        await expect(first).resolves.toBe('unconfirmed')
+
+        // An older list reply can match the newer list's waiter after the
+        // older one timed out. It still predates the expired Save.
+        const list = listExpired ? conn.listPrograms() : earlierList
+        socket.simulateBinary(encodeBinaryFrames(MessageType.getProgramList, new Uint8Array())[0])
+        await expect(list).resolves.toEqual([])
+        if (listExpired) expect(await earlierOutcome).toMatch(/timed out/)
+
+        const settled = vi.fn()
+        const second = conn.saveProgramAndWait('PROG2', blob)
+        void second.then(settled, settled)
+        socket.simulateMessage({ saveProgramSourceFile: true })
+        await vi.advanceTimersByTimeAsync(0)
+        expect(settled).not.toHaveBeenCalled()
+        socket.simulateMessage({ saveProgramSourceFile: true })
+        await expect(second).resolves.toBe('confirmed')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('putPixelMap', () => {

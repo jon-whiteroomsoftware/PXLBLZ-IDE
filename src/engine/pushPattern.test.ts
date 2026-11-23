@@ -31,7 +31,7 @@ function makeProvider(overrides: Partial<PushPatternDeps['provider']> = {}) {
     getActiveProgramBytecodeSize: vi.fn().mockResolvedValue(0),
     listPrograms: vi.fn().mockResolvedValue([]),
     pushBytecode: vi.fn().mockResolvedValue(undefined),
-    saveProgram: vi.fn().mockResolvedValue(undefined),
+    saveProgram: vi.fn().mockResolvedValue('confirmed'),
     ...overrides,
   }
 }
@@ -197,7 +197,10 @@ describe('pushPattern — run-only (default)', () => {
       getActiveProgramBytecodeSize: vi.fn(async () => { log.push('size'); return 49_426 }),
       listPrograms: vi.fn(async () => { log.push('list'); return [] }),
       pushBytecode: vi.fn(async (_b: Uint8Array, opts: { id: string }) => { log.push(`push ${opts.id}`) }),
-      saveProgram: vi.fn(async () => { log.push('save') }),
+      saveProgram: vi.fn(async () => {
+        log.push('save')
+        return 'confirmed' as const
+      }),
     })
     const { deps } = makeDeps({
       provider,
@@ -303,6 +306,64 @@ describe('pushPattern — run-only (default)', () => {
 })
 
 describe('pushPattern — save mode (persist: true)', () => {
+  it('records the push only after the Save is confirmed', async () => {
+    const saveProgram = vi.fn()
+    let confirm!: (result: 'confirmed') => void
+    const saveSent = new Promise<void>((resolve) => {
+      saveProgram.mockImplementation(() => {
+        resolve()
+        return new Promise<'confirmed'>((finish) => { confirm = finish })
+      })
+    })
+    const provider = makeProvider({ saveProgram })
+    const { deps, pushRecords } = makeDeps({ persist: true, provider })
+    const push = pushPattern(deps)
+
+    await saveSent
+    expect(pushRecords).toEqual([])
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+    confirm('confirmed')
+    await expect(push).resolves.toEqual({ programId: 'MINTED00000000000', created: true })
+    expect(pushRecords).toHaveLength(1)
+  })
+
+  it('returns an unconfirmed Save without activation or a push record', async () => {
+    const provider = makeProvider({ saveProgram: vi.fn().mockResolvedValue('unconfirmed') })
+    const { deps, saved, pushRecords } = makeDeps({ persist: true, provider })
+
+    await expect(pushPattern(deps)).resolves.toEqual({
+      programId: 'MINTED00000000000',
+      created: true,
+      save: 'unconfirmed',
+    })
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
+    expect(pushRecords).toEqual([])
+    expect(saved).toEqual([{ 'ctrl-A': { 'pat-1': 'MINTED00000000000' } }])
+
+    deps.loadBindings = async () => saved[0]
+    vi.mocked(provider.listPrograms).mockResolvedValue([{ id: 'MINTED00000000000', name: 'My Pattern' }])
+    vi.mocked(provider.saveProgram).mockResolvedValue('confirmed')
+    await expect(pushPattern(deps)).resolves.toEqual({ programId: 'MINTED00000000000', created: false })
+    expect(pushRecords).toHaveLength(1)
+  })
+
+  it('keeps an old push record attached to its old slot when the replacement Save is unconfirmed', async () => {
+    const { deps, saved, pushRecords } = makeDeps({
+      persist: true,
+      provider: makeProvider({ saveProgram: vi.fn().mockResolvedValue('unconfirmed') }),
+      loadBindings: async () => ({ 'ctrl-A': { 'pat-1': 'DELETED' } }),
+      loadPushRecords: async () => ({
+        'ctrl-A': {
+          'pat-1': { artifactHash: 'old', name: 'Old', transforms: [], stampedAt: '2026-07-09T12:34:56.000Z' },
+        },
+      }),
+    })
+
+    await expect(pushPattern(deps)).resolves.toMatchObject({ created: true, save: 'unconfirmed' })
+    expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+  })
+
   it('mints + binds + saves a PBP record on the first save for a pattern', async () => {
     const { deps, saved } = makeDeps({ persist: true })
     const result = await pushPattern(deps)

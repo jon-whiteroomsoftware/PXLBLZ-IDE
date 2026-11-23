@@ -45,6 +45,7 @@ export function planControllerReconciliation(input: {
   pushRecords: ControllerPushRecords
   artifacts: readonly ReconciliationArtifact[]
   precedingPatternSources?: ReadonlyMap<string, string>
+  unconfirmedProgramIds?: ReadonlySet<string>
 }): ControllerReconciliationPlan {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -83,7 +84,8 @@ export function planControllerReconciliation(input: {
       && precedingSource !== artifact.source
       && pushRecord.sourceHash !== undefined
       && pushRecord.sourceHash !== artifactHash(artifact.source)
-    if (storedSignature === artifact.profileSignature && !sourceChanged) {
+    if (storedSignature === artifact.profileSignature && !sourceChanged
+      && !input.unconfirmedProgramIds?.has(program.id)) {
       current.push({ ...artifact, programId: program.id, state: 'current' })
     } else {
       jobs.push({ ...artifact, programId: program.id, state: 'queued' })

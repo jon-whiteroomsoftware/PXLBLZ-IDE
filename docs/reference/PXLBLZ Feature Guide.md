@@ -322,9 +322,10 @@ hardware knowledge lives:
   one PXLBLZ did not create warns that there is no recovery copy unless you
   import it first. **Keep Patterns up to date** rewrites managed Patterns and
   Portable Shows after an edit that changes their generated code.
-  During a normal update, further changes are picked up in one follow-up. If the
-  Controller stops responding, the update pauses and retries once after 10
-  seconds. If it still cannot finish, the pane shows **Controller not
+  During a normal update, further changes are picked up in one follow-up. If a
+  Save goes unconfirmed, its row stays queued for the next update. If the
+  Controller stops responding to a request, the update pauses and retries once
+  after 10 seconds. If it still cannot finish, the pane shows **Controller not
   responding** with **Retry**. Reconnecting or editing settings on the same
   Controller during this wait leaves the notice in place.
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
@@ -367,9 +368,11 @@ such as a map that suits the Pattern better or a Show that does not fit this
 Controller, it says so, and canceling sends nothing.
 
 **Run** compiles with the Controller's own compiler and loads transient
-bytecode; **Save** writes a durable Pattern and activates it. The two track
-changes separately, so a clean Run does not pretend you saved, and failures
-appear below the capsule as visible alerts with a reason. The running title's
+bytecode. **Save** waits for the Controller to confirm that it stored the
+Pattern before activating it. If that confirmation takes too long, the IDE
+re-reads Saved Patterns and the running Pattern, and the edit can be saved
+again. Run and Save track changes separately, and failures appear below the
+capsule as alerts with a reason. The running title's
 **Saved Patterns** picker acts on the Controller's saved inventory, runs the
 pick without changing the startup Pattern, and leaves the open Studio subject
 and its Run/Save records alone.

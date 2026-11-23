@@ -13,11 +13,11 @@
 // Pure TypeScript, zero React, zero transport specifics. See
 // docs/reference/PXLBLZ Technical Reference.md §13.
 
-import type { ProgramListEntry } from './PixelblazeConnection'
+import type { ControllerSaveResult, ProgramListEntry } from './PixelblazeConnection'
 import type { RecoveredSavedProgram } from './controllerSavedProgramRead'
 import type { FirmwareUpdateState } from './firmwareUpdate'
 
-export type { ProgramListEntry }
+export type { ControllerSaveResult, ProgramListEntry }
 
 /** Where to reach a Controller. Backend-neutral: the extension provider treats
  *  `address` as a LAN IP it relays to; a bridge provider could treat it the same.
@@ -278,9 +278,10 @@ export interface ControllerProvider {
    *  runs a pattern but persists nothing. `pbpBlob` is the encoded Pixelblaze Binary
    *  Pattern (header + name/jpeg/bytecode/source sections, see `encodePbp`); the
    *  backend frames it over `putSourceCode` (type 1) with the program `id`. Reuse the
-   *  bound id to overwrite a saved pattern in place, mint one to create. Resolves once
-   *  the frames are sent. */
-  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void>
+   *  bound id to overwrite a saved pattern in place, mint one to create. Resolves
+   *  on flash-write confirmation or with an unconfirmed outcome at the deadline.
+   *  A transport or explicit device failure rejects. */
+  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult>
 
   /** Switch to a program already saved on the Controller. Callers must explicitly
    *  choose whether `save` persists the selection as the boot program. */
@@ -405,7 +406,7 @@ export class NullControllerProvider implements ControllerProvider {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 
-  saveProgram(_pbpBlob: Uint8Array, _opts: { id: string }): Promise<void> {
+  saveProgram(_pbpBlob: Uint8Array, _opts: { id: string }): Promise<ControllerSaveResult> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

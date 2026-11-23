@@ -129,6 +129,9 @@ export interface PushPatternResult {
   /** True when this push created a new program (run-only always mints; save mode on a
    *  first push or silent re-create); false when save mode overwrote a bound program. */
   created: boolean
+  /** The flash-write deadline elapsed on the open connection. The caller
+   * re-reads the Controller and leaves the artifact eligible for retry. */
+  save?: 'unconfirmed'
   /** Present only when a Save stored the Pattern but the Controller did not report
    *  it active before the activation deadline on the same open connection. The
    *  Save is reported as done; the caller re-reads the Controller (#1268). */
@@ -246,7 +249,15 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     await drainBeforeUnsafeActivation(deps, bytecode.length)
   }
   beginDeviceWrite(deps)
-  await deps.provider.saveProgram(blob, { id: programId })
+  const save = await deps.provider.saveProgram(blob, { id: programId })
+  if (save === 'unconfirmed') {
+    // Reserve a first Save's slot so a Retry can reuse it if it did reach flash.
+    // A record for a previous slot must stay paired with its original binding.
+    if (isNew && !pushRecords[deps.controllerId]?.[deps.patternId]) {
+      await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
+    }
+    return { programId, created: isNew, save }
+  }
 
   // Once persistence succeeds, this id owns the saved artifact even if the
   // following activation fails. Try to record a new overwrite binding now so

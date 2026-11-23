@@ -17,6 +17,7 @@
 import {
   ControllerPermissionDeniedError,
   type ControllerProvider,
+  type ControllerSaveResult,
   type ControllerCapabilities,
   type ControllerStatus,
   type ControllerTarget,
@@ -779,11 +780,9 @@ export class ExtensionControllerProvider implements ControllerProvider {
     })
   }
 
-  /** Save a pattern as a persisted PBP record over the live connection (#236) — it
-   *  appears in the device's Saved Patterns list, unlike a run-only bytecode push.
-   *  Fire-and-forget at the protocol level. */
-  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<void> {
-    return this.fireAndForget((conn) => conn.saveProgram(opts.id, pbpBlob))
+  /** Write a saved PBP and wait for the Controller's flash-write completion. */
+  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult> {
+    return this.withConn((conn) => conn.saveProgramAndWait(opts.id, pbpBlob))
   }
 
   setActiveProgram(programId: string, opts: { save: boolean }): Promise<void> {
