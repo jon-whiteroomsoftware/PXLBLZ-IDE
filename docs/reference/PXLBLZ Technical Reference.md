@@ -637,6 +637,22 @@ to roll back an already-confirmed physical rename.
 `controllerStore` owns connection phase, discovery, active selection, push
 state, and the installed-map observation. `controllerPanelStore` polls the
 active Controller for config, telemetry, vars, controls, programs, and FPS.
+The poll keeps at most one tick outstanding: a tick fires only after the
+previous tick's config, telemetry and vars reads settle, and `stop()` clears
+the guard so a reopened panel never waits on the old session. The poll also
+skips every tick while a device write (Save, activation, delete) to the seeded
+Controller is queued or running (`hasPendingControllerDeviceWrites`), and
+resumes on the first tick after the write queue drains, whether the write
+succeeded or failed. A loaded Controller answers roughly one request per frame,
+so overlapping or concurrent polls queue ahead of a Save and time it out
+(#1268). After a Save or Run whose queued device write started and then failed,
+or whose activation is unconfirmed, `controllerStore` calls
+`rereadAfterFailedWrite`. It waits for the Controller's write queue to go idle
+(`whenControllerDeviceWritesIdle`), skips the read if the panel moved to another
+Controller or provider meanwhile, advances the panel read generation, then
+reads the program list and the active Pattern once, so the IDE shows the
+Controller's state instead of its own expectation. A failure before the queued
+write starts (compile, connection) re-reads nothing.
 `ControllerPanelTitlePicker` derives the Saved Patterns gate from the active IP's own
 `programsByController` entry. A missing key means the inventory has not been
 read; a present empty array means the read succeeded and the Controller has no
@@ -857,8 +873,17 @@ reads with longer deadlines. This is same-connection, post-query
 program-identity evidence under the firmware's ordered reply protocol, not a
 bytecode digest or a request-token guarantee: firmware replies carry no request
 ids. Cached pre-push observations and saved-file existence are never consulted.
-A failed activation leaves successful flash writes intact; it does not publish
-successful saved-delivery bookkeeping or claim a physical rollback.
+Only the 15-second deadline itself, rechecked on the same still-open
+connection, rejects with the typed `ControllerActivationTimeoutError`; closes,
+replacements and send failures keep their own errors. In a Save, that typed
+deadline after `saveProgram` stored the Pattern means "saved, activation
+unconfirmed" (#1268): `pushPattern` returns `activation: 'unconfirmed'`, the
+bindings and push records are written, and the store neither assumes the
+renderer is playing nor publishes the id as active. It re-reads the
+Controller instead (see the panel poll above). Every other activation failure,
+and any failure of a run-only push, leaves successful flash writes intact but
+does not publish successful saved-delivery bookkeeping or claim a physical
+rollback.
 
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
