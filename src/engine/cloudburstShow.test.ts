@@ -595,7 +595,12 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     expect(maxRed).toBeGreaterThan(0.3)
   }, SLOW)
 
-  it.each(MODES)('cruises, darts three times and releases to a slow gold cruise (%s)', mode => {
+  // One test per (mode, fps) (#1267): the single per-mode test took 46.1 s of
+  // its 60 s limit in fidelity mode and timed out under load. The candidate is
+  // the unmodified delivered Show, identical for every pulse, so it is stepped
+  // once per (mode, fps) in lockstep with each pulse's own counterfactual and
+  // fault runtimes instead of once per pulse.
+  describe.each(MODES)('cruises, darts three times and releases to a slow gold cruise (%s)', mode => {
     const middle = zoneIndices(1)
     const appendAngle = (angles: number[], pixels: Rgb[], t: number) => {
       let x = 0, z = 0, weight = 0
@@ -613,7 +618,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
     const assertDart = (dartRate: number, cruiseRate: number, direction: number) => {
       expect(dartRate * direction).toBeGreaterThanOrEqual(3 * cruiseRate * direction)
     }
-    for (const fps of [30, 60]) {
+    it.each([30, 60])('%i fps', fps => {
       const stepMs = 1000 / fps
       const index = (t: number) => Math.round(t / stepMs)
       const time = (n: number) => n * stepMs
@@ -623,7 +628,7 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
         const distance = angles[b - first] - angles[a - first]
         return { startMs: time(a), endMs: time(b), distance, rate: distance / ((time(b) - time(a)) / 1000) }
       }
-      for (const start of [31_000, 34_000, 37_000]) {
+      const pulses = [31_000, 34_000, 37_000].map(start => {
         // Same history, seed and cadence; only this pulse's two boost values
         // change. Earlier pulses, easing, activation and all other records stay.
         const cruiseRecord = structuredClone(record)
@@ -636,26 +641,33 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
         expect(track.keyframes.flatMap((key, i) => key.value === originalTrack.keyframes[i].value ? [] : [
           [key.timeMs, originalTrack.keyframes[i].value, key.value],
         ])).toEqual([[start + 80, 4, 0.5], [start + 250, 4, 0.5]])
-        const candidate = show.runtime(mode)
-        const counterfactual = deliver(cruiseRecord).runtime(mode)
-        // Fault injection at the same exported/rendered boundary: the candidate
-        // also loses the current boost, so the unchanged >=3x oracle must fail.
-        const fault = deliver(structuredClone(cruiseRecord)).runtime(mode)
-        const angles: number[] = [], cruiseAngles: number[] = [], faultAngles: number[] = []
-        let prefixDelta = 0, faultDelta = 0
-        for (let n = 0; n <= last; n++) {
-          const options = { stepMs, forceFullIntermediateRender: true }
-          const full = candidate.advanceTo(time(n), options).pixels
-          const cruise = counterfactual.advanceTo(time(n), options).pixels
-          const faulty = fault.advanceTo(time(n), options).pixels
-          if (time(n) < start) prefixDelta = Math.max(prefixDelta, maxDelta(full, cruise))
-          faultDelta = Math.max(faultDelta, maxDelta(cruise, faulty))
+        return {
+          start,
+          counterfactual: deliver(cruiseRecord).runtime(mode),
+          // Fault injection at the same exported/rendered boundary: the candidate
+          // also loses the current boost, so the unchanged >=3x oracle must fail.
+          fault: deliver(structuredClone(cruiseRecord)).runtime(mode),
+          angles: [] as number[], cruiseAngles: [] as number[], faultAngles: [] as number[],
+          prefixDelta: 0, faultDelta: 0,
+        }
+      })
+      const candidate = show.runtime(mode)
+      for (let n = 0; n <= last; n++) {
+        const options = { stepMs, forceFullIntermediateRender: true }
+        const full = candidate.advanceTo(time(n), options).pixels
+        for (const pulse of pulses) {
+          const cruise = pulse.counterfactual.advanceTo(time(n), options).pixels
+          const faulty = pulse.fault.advanceTo(time(n), options).pixels
+          if (time(n) < pulse.start) pulse.prefixDelta = Math.max(pulse.prefixDelta, maxDelta(full, cruise))
+          pulse.faultDelta = Math.max(pulse.faultDelta, maxDelta(cruise, faulty))
           if (n >= first) {
-            appendAngle(angles, full, time(n))
-            appendAngle(cruiseAngles, cruise, time(n))
-            appendAngle(faultAngles, faulty, time(n))
+            appendAngle(pulse.angles, full, time(n))
+            appendAngle(pulse.cruiseAngles, cruise, time(n))
+            appendAngle(pulse.faultAngles, faulty, time(n))
           }
         }
+      }
+      for (const { start, angles, cruiseAngles, faultAngles, prefixDelta, faultDelta } of pulses) {
         expect(prefixDelta, `${mode}/${fps} identical prefix before ${start}`).toBe(0)
         expect(faultDelta).toBe(0)
         const quiet = [[30_000, 30_500], [32_000, 33_000], [35_000, 36_000], [38_000, 38_500]].map(([a, b]) => window(angles, a, b))
@@ -670,8 +682,8 @@ describe('Cloudburst delivered Installation Show (#1200)', () => {
         expect(() => assertDart(faulty.rate, cruise.rate, direction)).toThrow()
         assertDart(dart.rate, cruise.rate, direction)
       }
-    }
-  }, SLOW)
+    }, SLOW)
+  })
 
   // Darkness starts at the first frame after the drain key at the replay's
   // rate, per
