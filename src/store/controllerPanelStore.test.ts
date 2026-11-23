@@ -717,7 +717,7 @@ describe('controllerPanelStore', () => {
       expect(configCalls).toBe(1)
       expect(provider.deletedProgramIds).toEqual(['p1', 'p2', 'p3', 'p4', 'p5'])
       expect(progress).toEqual([[1, 5], [2, 5], [3, 5], [4, 5], [5, 5]])
-      expect(result).toEqual({ confirmedIds: ['p1', 'p2', 'p3', 'p4', 'p5'], failed: [], collateral: [], published: true })
+      expect(result).toEqual({ confirmedIds: ['p1', 'p2', 'p3', 'p4', 'p5'], failed: [], collateral: [], published: true, sessionCurrent: true })
       expect(confirmed).toEqual([['p1', 'p2', 'p3', 'p4', 'p5']])
       expect(useControllerPanelStore.getState().programs).toEqual([{ id: 'def', name: 'Nebula' }])
     })
@@ -745,6 +745,7 @@ describe('controllerPanelStore', () => {
         ],
         collateral: [],
         published: true,
+        sessionCurrent: true,
       })
       expect(confirmed).toEqual([['p1', 'p5', 'p2']])
     })
@@ -756,7 +757,7 @@ describe('controllerPanelStore', () => {
         throw new Error('send rejected late')
       }
       const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1']))
-      expect(result).toEqual({ confirmedIds: ['p1'], failed: [], collateral: [], published: true })
+      expect(result).toEqual({ confirmedIds: ['p1'], failed: [], collateral: [], published: true, sessionCurrent: true })
     })
 
     it('skips running and renamed targets and reports unsent Patterns that disappeared', async () => {
@@ -781,19 +782,24 @@ describe('controllerPanelStore', () => {
         ],
         collateral: [{ id: 'def', name: 'Nebula' }],
         published: true,
+        sessionCurrent: true,
       })
     })
 
     it.each([
       ['an unknown running Pattern', () => { provider.config = {} }, 'Controller did not identify its running Pattern; refresh before deleting.'],
       ['a running sequencer', () => { provider.config = { activeProgramId: 'def', runSequencer: true } }, 'Stop the Controller sequencer before deleting saved Patterns.'],
+      ['a known running sequencer the config reply omits', () => {
+        useControllerPanelStore.setState({ runSequencer: true })
+        provider.config = { activeProgramId: 'def' }
+      }, 'Stop the Controller sequencer before deleting saved Patterns.'],
       ['a failed inventory read', () => { provider.listPrograms = () => Promise.reject(new Error('socket closed')) }, 'Could not read Controller inventory before deletion: socket closed'],
       ['a failed config read', () => { provider.getConfig = () => Promise.reject(new Error('no reply')) }, 'Could not confirm the running Controller Pattern before deletion: no reply'],
     ])('sends nothing for %s', async (_label, arrange, reason) => {
       arrange()
       const result = await useControllerPanelStore.getState().deletePrograms(targets(['p1', 'p2']))
       expect(provider.deletedProgramIds).toEqual([])
-      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false })
+      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false, sessionCurrent: true })
     })
 
     it('stops sending when the session changes between sends and never reads or publishes', async () => {
@@ -813,6 +819,7 @@ describe('controllerPanelStore', () => {
       expect(result.failed).toEqual(['p1', 'p2', 'p3'].map((id) => ({ id, reason })))
       expect(result.confirmedIds).toEqual([])
       expect(result.published).toBe(false)
+      expect(result.sessionCurrent).toBe(false)
     })
 
     it('discards a final read that resolves after the provider is replaced', async () => {
@@ -830,6 +837,7 @@ describe('controllerPanelStore', () => {
       expect(confirmed).not.toHaveBeenCalled()
       expect(useControllerPanelStore.getState().programs).toBe(published)
       expect(result.published).toBe(false)
+      expect(result.sessionCurrent).toBe(false)
     })
 
     it('leaves every sent target unconfirmed when the final read fails on a stable session', async () => {
@@ -840,7 +848,7 @@ describe('controllerPanelStore', () => {
       expect(provider.deletedProgramIds).toEqual(['p1', 'p2'])
       expect(confirmed).not.toHaveBeenCalled()
       const reason = 'Could not confirm Controller Pattern deletion: timeout'
-      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false })
+      expect(result).toEqual({ confirmedIds: [], failed: [{ id: 'p1', reason }, { id: 'p2', reason }], collateral: [], published: false, sessionCurrent: true })
     })
   })
 

@@ -1410,6 +1410,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     setBatchDeleteProgress({ processed: offset, total, confirming: false })
     let deleted = 0
     let published = eligible.length === 0
+    let storeSessionCurrent = true
     if (eligible.length > 0) {
       const result = await queueControllerDeviceWrite(first.controllerId, () => deletePrograms(
         eligible.map(({ program, expectedProgramName }) => ({ id: program.programId, expectedName: expectedProgramName })),
@@ -1442,10 +1443,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       ))
       deleted = result.confirmedIds.length
       published = result.published
+      storeSessionCurrent = result.sessionCurrent
       failures.push(...result.failed.map(({ id, reason }) => `${nameOf(id)}: ${reason}`))
       failures.push(...result.collateral.map((program) => `${program.name}: not deleted by this batch, but the Controller no longer lists it under this name.`))
     }
-    return { outcome: { deleted, total, failures }, published, sessionCurrent: sessionIsCurrent() }
+    // The store's verdict also covers a stopped panel session, which this pane cannot see.
+    return { outcome: { deleted, total, failures }, published, sessionCurrent: storeSessionCurrent && sessionIsCurrent() }
   }
 
   async function performBatch(operation: 'delete' | 'import') {

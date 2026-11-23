@@ -357,6 +357,34 @@ describe('ControllerProfilePage', () => {
     await settleProfileAsync()
   })
 
+  it('requests no refresh when the panel stops while the final read is held (#1266)', async () => {
+    const { profile, provider } = bulkFixture()
+    fireEvent.click(await screen.findByRole('button', { name: 'Select Other Patterns' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all Other Patterns' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    const finalRead = deferred<void>()
+    const finalReadStarted = deferred<void>()
+    const list = provider.listPrograms.bind(provider)
+    let reads = 0
+    provider.listPrograms = () => {
+      reads += 1
+      if (reads !== 2) return list()
+      finalReadStarted.resolve()
+      return finalRead.promise.then(() => list())
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Delete 3 from Controller' }))
+    await act(async () => finalReadStarted.promise)
+    const refreshes = useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[profile.id] ?? 0
+    // Stopping the panel ends the store's session; Controller, epoch, profile and provider all still match.
+    act(() => useControllerPanelStore.getState().stop())
+    await act(async () => finalRead.resolve())
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findAllByText(/Controller session changed before Pattern deletion could be confirmed\./)).toHaveLength(3)
+    await settleProfileAsync()
+    expect(reads).toBe(2)
+    expect(useControllerSavedProgramsLiveStore.getState().refreshGenerationsByProfile[profile.id] ?? 0).toBe(refreshes)
+  })
+
   it('names a Pattern the final read still lists and confirms the rest (#1266)', async () => {
     const { provider } = bulkFixture()
     const original = provider.deleteProgram.bind(provider)

@@ -86,6 +86,9 @@ export interface ControllerProgramBatchDeletionResult {
   collateral: ProgramListEntry[]
   /** True when the final read was published as the Controller inventory. */
   published: boolean
+  /** False when the store's own session (panel session, provider or Controller)
+   * changed; the caller must not start a read on its behalf. */
+  sessionCurrent: boolean
 }
 
 interface ControllerProgramActivationOptions {
@@ -797,6 +800,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     const SESSION_CHANGED_DURING = 'Controller session changed before Pattern deletion could be confirmed.'
     const failAll = (reason: string): ControllerProgramBatchDeletionResult => ({
       confirmedIds: [], failed: targets.map(({ id }) => ({ id, reason })), collateral: [], published: false,
+      sessionCurrent: sessionMatches(),
     })
 
     if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
@@ -819,7 +823,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
     if (!sessionMatches()) return failAll(SESSION_CHANGED_BEFORE)
     set((state) => configPatch(state, config))
-    const plan = planControllerBatchDelete(baseline, config, targets)
+    // A config reply may omit runSequencer; refuse on the state configPatch keeps.
+    const plan = planControllerBatchDelete(baseline, {
+      activeProgramId: config.activeProgramId,
+      runSequencer: get().runSequencer === true,
+    }, targets)
     if (plan.refusal !== undefined) return failAll(plan.refusal)
 
     const skipped: { id: string; reason: string }[] = []
@@ -832,6 +840,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       failed: targets.map(({ id }) => skipped.find((entry) => entry.id === id) ?? { id, reason }),
       collateral: [],
       published: false,
+      sessionCurrent: sessionMatches(),
     })
     for (const [index, step] of plan.steps.entries()) {
       if (!sessionMatches()) return unconfirmed(SESSION_CHANGED_DURING)
@@ -877,6 +886,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
     return {
       published,
+      sessionCurrent: published,
       confirmedIds: confirmation.confirmedIds,
       failed: targets.flatMap(({ id }) => {
         const skip = skipped.find((entry) => entry.id === id)
