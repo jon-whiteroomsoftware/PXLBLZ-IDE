@@ -17,6 +17,7 @@
 import {
   ControllerPermissionDeniedError,
   type ControllerProvider,
+  type ControllerSaveOptions,
   type ControllerSaveResult,
   type ControllerCapabilities,
   type ControllerStatus,
@@ -781,8 +782,8 @@ export class ExtensionControllerProvider implements ControllerProvider {
   }
 
   /** Write a saved PBP and wait for the Controller's flash-write completion. */
-  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult> {
-    return this.withConn((conn) => conn.saveProgramAndWait(opts.id, pbpBlob))
+  saveProgram(pbpBlob: Uint8Array, opts: ControllerSaveOptions): Promise<ControllerSaveResult> {
+    return this.withConn((conn) => conn.saveProgramAndWait(opts.id, pbpBlob, opts.onLateConfirmation))
   }
 
   setActiveProgram(programId: string, opts: { save: boolean }): Promise<void> {

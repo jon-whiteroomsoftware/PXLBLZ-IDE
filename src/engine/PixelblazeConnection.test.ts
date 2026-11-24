@@ -1025,7 +1025,7 @@ describe('PixelblazeConnection', () => {
         const earlierList = conn.listPrograms()
         const earlierOutcome = earlierList.catch((error: Error) => error.message)
         const first = conn.saveProgramAndWait('PROG1', blob)
-        await vi.advanceTimersByTimeAsync(10_100)
+        await vi.advanceTimersByTimeAsync(10_250)
         await expect(first).resolves.toBe('unconfirmed')
 
         // An older list reply can match the newer list's waiter after the

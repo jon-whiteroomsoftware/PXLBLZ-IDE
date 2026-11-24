@@ -31,7 +31,7 @@ import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
-import { pushPattern, type PushPatternResult } from '@/engine/pushPattern'
+import { pushPattern, type LateSaveConfirmationHandler, type PushPatternResult } from '@/engine/pushPattern'
 import { sha256CompleteCompileInput, type ShowArtifactCompilationRecord } from '@/engine/showArtifactPricing'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import { artifactHash, type ArtifactStampMeta } from '@/engine/artifactStamp'
@@ -487,6 +487,41 @@ const unconfirmedSaves = new Map<string, {
   programIds: Set<string>
 }>()
 
+interface LateSaveConfirmation {
+  programId: string
+  profileSignature: string
+  recorded: Promise<boolean>
+}
+
+interface SaveAttempt {
+  ip: string
+  bindingKey: string
+  source: string
+  foreground: boolean
+  confirmation?: LateSaveConfirmation
+}
+
+const saveAttempts = new Map<string, Map<string, SaveAttempt>>()
+
+function beginSaveAttempt(ip: string, bindingKey: string, source: string, foreground: boolean): SaveAttempt {
+  const attempt = { ip, bindingKey, source, foreground }
+  const byBinding = saveAttempts.get(ip) ?? new Map<string, SaveAttempt>()
+  byBinding.set(bindingKey, attempt)
+  saveAttempts.set(ip, byBinding)
+  return attempt
+}
+
+function isLatestSaveAttempt(attempt: SaveAttempt): boolean {
+  return saveAttempts.get(attempt.ip)?.get(attempt.bindingKey) === attempt
+}
+
+function forgetSaveAttempt(attempt: SaveAttempt | undefined): void {
+  if (!attempt || !isLatestSaveAttempt(attempt)) return
+  const byBinding = saveAttempts.get(attempt.ip)!
+  byBinding.delete(attempt.bindingKey)
+  if (!byBinding.size) saveAttempts.delete(attempt.ip)
+}
+
 function unconfirmedProgramsFor(target: ReconciliationTarget): Set<string> | undefined {
   const entry = unconfirmedSaves.get(target.ip)
   return entry && sameReconciliationTarget(entry.target, target) ? entry.programIds : undefined
@@ -691,6 +726,31 @@ export const useControllerStore = create<ControllerConnectionState>()(
         void useControllerPanelStore.getState().rereadAfterFailedWrite(ip)
       }
 
+      const recordLateSave = (
+        attempt: SaveAttempt,
+        target: ControllerEntry,
+        profileSignature: string,
+        checkSession: () => boolean,
+      ): LateSaveConfirmationHandler => (delivery, record) => {
+        const isCurrent = () => {
+          const current = get().controllers[attempt.ip]
+          if (!isLatestSaveAttempt(attempt) || current?.phase !== 'live'
+            || current.liveEpoch !== target.liveEpoch || !sameReconciliationTarget(current, target)) return false
+          try {
+            return checkSession()
+          } catch {
+            return false
+          }
+        }
+        if (!isCurrent()) return
+        const recorded = queueControllerDeviceWrite(attempt.ip, async () => {
+          if (!isCurrent() || !await record(isCurrent)) return false
+          if (isCurrent()) rememberSaveOutcome(target, delivery)
+          return true
+        }).catch(() => false)
+        attempt.confirmation = { programId: delivery.programId, profileSignature, recorded }
+      }
+
       const assumeRendererPlaying = (ip: string) => {
         set((s) => {
           if (!s.controllers[ip]) return s
@@ -777,6 +837,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
           return null
         })
         if (!isCurrentSession()) return 'interrupted'
+
+        // Read the metadata after any late publications already in progress.
+        // A later acknowledgement can still satisfy a captured job before it starts.
+        const confirmationsAtRead = new Set(
+          [...(saveAttempts.get(live.ip)?.values() ?? [])].flatMap(
+            ({ confirmation }) => confirmation ? [confirmation] : [],
+          ),
+        )
+        if (confirmationsAtRead.size) {
+          await Promise.all([...confirmationsAtRead].map(({ recorded }) => recorded))
+          if (!isCurrentSession()) return 'interrupted'
+        }
 
         // A failed Show list rejects the reconciliation with the other
         // reads: planning on a partial set would unmanage its Shows (#1129).
@@ -962,6 +1034,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
           onJobFailed: ({ job, message }) => updateProgram(job, { state: 'failed', message }),
           onJobDeferred: (job) => updateProgram(job, { state: 'queued' }),
           overwrite: async (job, activate) => {
+            const previous = saveAttempts.get(live.ip)?.get(job.bindingKey)
+            const confirmation = previous?.confirmation
+            if (previous && confirmation && !confirmationsAtRead.has(confirmation)
+              && confirmation.programId === job.programId
+              && confirmation.profileSignature === job.profileSignature
+              && previous.source === job.source
+              && await confirmation.recorded && isLatestSaveAttempt(previous) && isCurrentSession()) return
+            const attempt = beginSaveAttempt(live.ip, job.bindingKey, job.source, false)
             const recipe = controllerProfilePassRecipe(profile, job.source, job.bindingKey)
             if (live.mapDim && job.artifactStamp?.kind !== 'show') {
               recipe.push({ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: live.mapDim })
@@ -1023,8 +1103,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
                   assertDeviceSession: assertWriteAllowed,
+                  onLateSaveConfirmation: recordLateSave(attempt, live, job.profileSignature, isCurrentSession),
                 })
                 rememberSaveOutcome(live, result)
+                if (result.save !== 'unconfirmed') forgetSaveAttempt(attempt)
                 return result
               })
               if (!isCurrentSession()) return false
@@ -1035,6 +1117,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               if (delivery.activation === 'unconfirmed') rereadNeeded = true
               else if (activate) assumeRendererPlaying(live.ip)
             } catch (error) {
+              forgetSaveAttempt(attempt)
               if (!isCurrentSession()) return false
               if (error instanceof ReconciliationWriteCancelled) {
                 // Preserve precedence for the overlapping foreground Save.
@@ -1687,6 +1770,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (!controllerId || artifact.source.length === 0) return
 
           const mode: SendMode = artifact.persist ? 'save' : 'run'
+          const attempt = artifact.persist
+            ? beginSaveAttempt(controllerId, artifact.artifactId, artifact.source, true)
+            : undefined
           // Set by pushPattern just before its first device write (drain, Save or
           // activation): only then can a failure leave the Controller in a state the
           // IDE did not observe. A compile or read failure leaves it unset (#1268).
@@ -1796,6 +1882,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
                   ...(assertDeviceSession ? { assertDeviceSession } : {}),
+                  ...(attempt && activeController && assertDeviceSession && {
+                    onLateSaveConfirmation: recordLateSave(attempt, activeController, profileSignature, () => {
+                      assertDeviceSession()
+                      return true
+                    }),
+                  }),
                   onDeviceWrite: () => {
                     deviceWriteEntered = true
                     markSave()
@@ -1825,6 +1917,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               rereadController(controllerId)
               return
             }
+            forgetSaveAttempt(attempt)
             const activationUnconfirmed = activation === 'unconfirmed'
             if (!activationUnconfirmed) {
               assumeRendererPlaying(controllerId)
@@ -1887,6 +1980,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 : {}),
             }))
           } catch (error) {
+            forgetSaveAttempt(attempt)
             const message = error instanceof Error ? error.message : String(error)
             set({
               pushing: false,
@@ -2156,6 +2250,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // in the matching map (run vs save are tracked separately).
           const persist = get().saveArmed
           const mode: SendMode = persist ? 'save' : 'run'
+          const attempt = persist
+            ? beginSaveAttempt(controllerId, patternId, previewSource, true)
+            : undefined
           // Set before the first device write (#1268); see pushGeneratedArtifact.
           let deviceWriteEntered = false
 
@@ -2259,6 +2356,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 loadPushRecords: getPushRecords,
                 savePushRecords: setPushRecords,
                 assertDeviceSession,
+                ...(attempt && activeController && {
+                  onLateSaveConfirmation: recordLateSave(attempt, activeController, profileSignature, () => {
+                    assertDeviceSession()
+                    return true
+                  }),
+                }),
                 onDeviceWrite: () => {
                   deviceWriteEntered = true
                   markSave()
@@ -2271,6 +2374,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               rereadController(controllerId)
               return
             }
+            forgetSaveAttempt(attempt)
             const activationUnconfirmed = activation === 'unconfirmed'
             if (!activationUnconfirmed) {
               assumeRendererPlaying(controllerId)
@@ -2354,6 +2458,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ),
             }))
           } catch (err) {
+            forgetSaveAttempt(attempt)
             const message = err instanceof Error ? err.message : String(err)
             set({
               pushing: false,
@@ -2382,6 +2487,36 @@ export const useControllerStore = create<ControllerConnectionState>()(
   ),
 )
 
+// A raw edit supersedes a Save before the preview compiles or autosave settles.
+// Opening another buffer uses setSource and does not count as an edit.
+useEditorStore.subscribe((state, previous) => {
+  if (!state.bufferEdited || state.source === previous.source) return
+  const bindingKey = activePushKey(usePatternStore.getState())
+  if (!bindingKey) return
+  for (const byBinding of saveAttempts.values()) forgetSaveAttempt(byBinding.get(bindingKey))
+})
+
+usePatternStore.subscribe((state, previous) => {
+  if (state.userPatterns === previous.userPatterns) return
+  for (const byBinding of saveAttempts.values()) {
+    for (const attempt of byBinding.values()) {
+      const before = previous.userPatterns.find(({ id }) => id === attempt.bindingKey)
+      const after = state.userPatterns.find(({ id }) => id === attempt.bindingKey)
+      if (before?.name !== after?.name || (before?.src !== after?.src && after?.src !== attempt.source)) {
+        forgetSaveAttempt(attempt)
+      }
+    }
+  }
+})
+
+useControllerStore.subscribe((state, previous) => {
+  if (state.activeIp === previous.activeIp || !previous.activeIp) return
+  const attempts = saveAttempts.get(previous.activeIp)
+  for (const attempt of attempts?.values() ?? []) {
+    if (attempt.foreground) forgetSaveAttempt(attempt)
+  }
+})
+
 /** Test-only: drop all live providers + subscriptions (no persistence touch). */
 export function __resetControllerProviders(): void {
   installedMapReads.clear()
@@ -2398,5 +2533,6 @@ export function __resetControllerProviders(): void {
   reconciliationStalls.clear()
   reconciliationPatternSources.clear()
   unconfirmedSaves.clear()
+  saveAttempts.clear()
   reconciliationQueue.reset()
 }

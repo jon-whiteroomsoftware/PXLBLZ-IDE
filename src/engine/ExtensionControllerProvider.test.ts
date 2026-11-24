@@ -583,7 +583,7 @@ describe('ExtensionControllerProvider', () => {
 
     const id = 'pxb0123456789abcd'
     const smallBlob = new Uint8Array([20, 30, 40])
-    const smallDeadline = 10_100
+    const smallDeadline = 10_250
 
     it('sends every frame immediately and resolves only on the final completion', async () => {
       const { device, provider } = await connectForSave()
@@ -609,7 +609,9 @@ describe('ExtensionControllerProvider', () => {
 
     it.each([
       [smallBlob, smallDeadline],
-      [new Uint8Array(109 * 1024), 21_000],
+      [new Uint8Array(1024 - id.length), smallDeadline],
+      [new Uint8Array(1025 - id.length), 10_500],
+      [new Uint8Array(110_036 - id.length), 37_000],
     ])('returns unconfirmed at the size-based deadline (%#) on an open socket', async (blob, deadline) => {
       const { device, provider } = await connectForSave()
       const settled = vi.fn()
@@ -624,9 +626,57 @@ describe('ExtensionControllerProvider', () => {
       expect(provider.getStatus().kind).toBe('connected')
     })
 
+    it.each([false, true])('reports a single late success on its sending socket (list already returned: %s)', async (listReturned) => {
+      const { device, provider } = await connectForSave()
+      const onLateConfirmation = vi.fn()
+      const save = provider.saveProgram(smallBlob, { id, onLateConfirmation })
+      await vi.advanceTimersByTimeAsync(smallDeadline)
+      await expect(save).resolves.toBe('unconfirmed')
+      if (listReturned) await provider.listPrograms()
+      device.pushFrame({ saveProgramSourceFile: 'true' })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onLateConfirmation).not.toHaveBeenCalled()
+      device.pushFrame({ saveProgramSourceFile: true })
+      device.pushFrame({ saveProgramSourceFile: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onLateConfirmation).toHaveBeenCalledTimes(1)
+    })
+
+    it('discards a negative late completion and keeps later on-time confirmation separate', async () => {
+      const { device, provider } = await connectForSave()
+      const onLateConfirmation = vi.fn()
+      const expired = provider.saveProgram(smallBlob, { id, onLateConfirmation })
+      await vi.advanceTimersByTimeAsync(smallDeadline)
+      await expect(expired).resolves.toBe('unconfirmed')
+      device.pushFrame({ saveProgramSourceFile: false })
+      await vi.advanceTimersByTimeAsync(0)
+      const next = provider.saveProgram(smallBlob, { id, onLateConfirmation })
+      device.pushFrame({ saveProgramSourceFile: true })
+      await expect(next).resolves.toBe('confirmed')
+      expect(onLateConfirmation).not.toHaveBeenCalled()
+    })
+
+    it('drops late confirmation when the sending socket closes', async () => {
+      const { device, provider } = await connectForSave()
+      const onLateConfirmation = vi.fn()
+      const save = provider.saveProgram(smallBlob, { id, onLateConfirmation })
+      await vi.advanceTimersByTimeAsync(smallDeadline)
+      await expect(save).resolves.toBe('unconfirmed')
+      device.dropSocket()
+      await vi.advanceTimersByTimeAsync(0)
+      await provider.connect(TARGET)
+      device.pushFrame({ saveProgramSourceFile: true })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onLateConfirmation).not.toHaveBeenCalled()
+      const next = provider.saveProgram(smallBlob, { id })
+      device.pushFrame({ saveProgramSourceFile: true })
+      await expect(next).resolves.toBe('confirmed')
+    })
+
     it('discards an expired Save completion while a later Save waits', async () => {
       const { device, provider } = await connectForSave()
-      const first = provider.saveProgram(smallBlob, { id })
+      const onLateConfirmation = vi.fn()
+      const first = provider.saveProgram(smallBlob, { id, onLateConfirmation })
       await vi.advanceTimersByTimeAsync(smallDeadline)
       await expect(first).resolves.toBe('unconfirmed')
 
@@ -636,6 +686,7 @@ describe('ExtensionControllerProvider', () => {
       device.pushFrame({ saveProgramSourceFile: true })
       await vi.advanceTimersByTimeAsync(0)
       expect(settled).not.toHaveBeenCalled()
+      expect(onLateConfirmation).not.toHaveBeenCalled()
       device.pushFrame({ saveProgramSourceFile: true })
       await expect(second).resolves.toBe('confirmed')
     })

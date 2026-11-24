@@ -11,6 +11,7 @@ import {
 import {
   ControllerPermissionDeniedError,
   NullControllerProvider,
+  type ControllerSaveOptions,
   type ControllerSaveResult,
   type ControllerStatus,
   type ControllerTarget,
@@ -26,6 +27,7 @@ import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useControllerPanelStore, controllerPanelInitialState } from '@/store/controllerPanelStore'
 import {
   getControllerBindings,
+  getControllerMetadataStorage,
   getPushRecords,
   setControllerBindings,
   setPushRecords,
@@ -58,7 +60,7 @@ import {
 import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { isAlreadyPushed } from '@/engine/sendToController'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
-import { stampArtifact } from '@/engine/artifactStamp'
+import { artifactHash, parsePxlblzBanner, stampArtifact } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import {
@@ -75,7 +77,12 @@ import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import {
   ControllerActivationTimeoutError,
   ControllerRequestTimeoutError,
+  controllerSaveDeadlineMs,
+  FrameFlag,
+  MessageType,
 } from '@/engine/PixelblazeConnection'
+import { ExtensionControllerProvider } from '@/engine/ExtensionControllerProvider'
+import { base64ToBytes, RELAY_SOURCE, type RelayMessage, type RelayTransport } from '@/engine/RelayWebSocket'
 import { decodePbp } from '@/engine/pbpEncode'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
@@ -209,8 +216,8 @@ class FakeProvider extends NullControllerProvider {
       ? Promise.reject(this.pushBytecodeError)
       : Promise.resolve()
   }
-  saved: { blob: Uint8Array; opts: { id: string } }[] = []
-  saveProgram(blob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult> {
+  saved: { blob: Uint8Array; opts: ControllerSaveOptions }[] = []
+  saveProgram(blob: Uint8Array, opts: ControllerSaveOptions): Promise<ControllerSaveResult> {
     this.saved.push({ blob, opts })
     return Promise.resolve('confirmed')
   }
@@ -759,6 +766,207 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
     await store().reconcileControllerProfile(profileId)
     expect(fake.saved).toHaveLength(3)
+  })
+
+  function deferSaveCompletion(fake: FakeProvider) {
+    const entered = deferred<ControllerSaveOptions>()
+    const completion = deferred<ControllerSaveResult>()
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (blob, opts) => {
+      await save(blob, opts)
+      entered.resolve(opts)
+      return completion.promise
+    })
+    return { entered: entered.promise, completion }
+  }
+
+  it.each([true, false])('reconciles the store after a deferred production-relay reply of %s', async (positive) => {
+    const fake = await fixture()
+    const listeners = new Set<(message: RelayMessage) => void>()
+    const emit = (message: RelayMessage) => queueMicrotask(() => listeners.forEach((listener) => listener(message)))
+    let connId = ''
+    let saveBursts = 0
+    const transport: RelayTransport = {
+      subscribe(listener) {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+      post(message) {
+        switch (message.type) {
+          case 'detect':
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'detect-ack' })
+            break
+          case 'connect':
+            connId = message.connId
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'open', connId })
+            break
+          case 'send':
+            if ('binary' in message.payload) {
+              const frame = base64ToBytes(message.payload.binary)
+              if (frame[0] === MessageType.putSourceCode && (frame[1] & FrameFlag.last)) saveBursts += 1
+            }
+            break
+        }
+      },
+    }
+    const provider = new ExtensionControllerProvider({ transport, pingIntervalMs: 0, maxReconnectAttempts: 0 })
+    await provider.connect({ address: ip, deviceId })
+    onTestFinished(() => provider.disconnect())
+    const entered = deferred<{ confirmation: Promise<ControllerSaveResult>; deadline: number }>()
+    const save = fake.saveProgram.bind(fake)
+    vi.spyOn(fake, 'saveProgram').mockImplementationOnce((blob, opts) => {
+      void save(blob, opts)
+      const confirmation = provider.saveProgram(blob, opts)
+      const deadline = controllerSaveDeadlineMs(blob.byteLength + opts.id.length)
+      entered.resolve({ confirmation, deadline })
+      return confirmation
+    })
+
+    const prior = await getPushRecords()
+    const pass = store().reconcileControllerProfile(profileId)
+    const { confirmation, deadline } = await entered.promise
+    await vi.advanceTimersByTimeAsync(deadline)
+    await expect(confirmation).resolves.toBe('unconfirmed')
+    await pass
+    expect(saveBursts).toBe(1)
+    expect(await getPushRecords()).toEqual(prior)
+    expect(reread).toHaveBeenCalledExactlyOnceWith(ip)
+
+    const persisted = deferred<void>()
+    if (positive) {
+      const metadata = getControllerMetadataStorage()
+      const write = metadata.setPushRecords.bind(metadata)
+      vi.spyOn(metadata, 'setPushRecords').mockImplementationOnce(async (records) => {
+        await write(records)
+        persisted.resolve()
+      })
+    }
+    emit({
+      source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId,
+      payload: { text: JSON.stringify({ saveProgramSourceFile: positive }) },
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    if (positive) await Promise.race([persisted.promise, vi.advanceTimersByTimeAsync(0)])
+    expect((await getPushRecords())[ip]['pat-1'].artifactHash).toBe(
+      positive ? parsePxlblzBanner(writesFor(fake, 'MANAGED1')[0]!)?.hash : 'outdated',
+    )
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(
+      positive ? ['MANAGED1', 'MANAGED2'] : ['MANAGED1', 'MANAGED1', 'MANAGED2'],
+    )
+  })
+
+  async function expireReconciliationSave(fake: FakeProvider) {
+    const { entered, completion } = deferSaveCompletion(fake)
+    const pass = store().reconcileControllerProfile(profileId)
+    const save = await entered
+    completion.resolve('unconfirmed')
+    await pass
+    return () => save.onLateConfirmation?.()
+  }
+
+  it('records a late Save and does not repeat it while reconciling the remaining jobs', async () => {
+    const fake = await fixture()
+    const prior = await getPushRecords()
+    const acknowledge = await expireReconciliationSave(fake)
+    expect(await getPushRecords()).toEqual(prior)
+    expect(state()).toMatchObject({ phase: 'pending', completedCount: 0 })
+    expect(reread).toHaveBeenCalledExactlyOnceWith(ip)
+
+    // An unrelated record written after the Save started must survive the late merge.
+    const unrelated = { ...prior[ip]['pat-2'], name: 'Other Controller Pattern' }
+    await setPushRecords({ ...prior, '10.0.0.9': { other: unrelated } })
+    const request = deferred<void>()
+    const release = deferred<void>()
+    const metadata = getControllerMetadataStorage()
+    const saveRecords = metadata.setPushRecords.bind(metadata)
+    vi.spyOn(metadata, 'setPushRecords').mockImplementationOnce(async (records) => {
+      request.resolve()
+      await release.promise
+      await saveRecords(records)
+    })
+    acknowledge()
+    const nextPass = store().reconcileControllerProfile(profileId)
+    await Promise.race([request.promise, nextPass])
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1'])
+    release.resolve()
+    await nextPass
+
+    const savedArtifact = writesFor(fake, 'MANAGED1')[0]!
+    const stamp = parsePxlblzBanner(savedArtifact)!
+    expect(await getPushRecords()).toMatchObject({
+      [ip]: { 'pat-1': {
+        artifactHash: stamp.hash,
+        sourceHash: artifactHash(source(11)),
+        profileSignature: controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 2 }),
+      } },
+      '10.0.0.9': { other: unrelated },
+    })
+    expect(await getControllerBindings()).toEqual({ [ip]: { 'pat-1': 'MANAGED1', 'pat-2': 'MANAGED2' } })
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(state().phase).toBe('current')
+  })
+
+  it('skips a captured retry when its Save was confirmed during the push-record read', async () => {
+    const fake = await fixture()
+    const prior = await getPushRecords()
+    const acknowledge = await expireReconciliationSave(fake)
+    const entered = deferred<void>()
+    const released = deferred<void>()
+    vi.spyOn(getControllerMetadataStorage(), 'getPushRecords').mockImplementationOnce(async () => {
+      entered.resolve()
+      await released.promise
+      return prior
+    })
+    const nextPass = store().reconcileControllerProfile(profileId)
+    await entered.promise
+    acknowledge()
+    released.resolve()
+    await nextPass
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(state().programs[0].state).toBe('current')
+  })
+
+  it('leaves an earlier Save pending after an authored edit instead of recording it late', async () => {
+    const fake = await fixture()
+    const prior = await getPushRecords()
+    const acknowledge = await expireReconciliationSave(fake)
+    author(21, 12)
+    acknowledge()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await getPushRecords()).toEqual(prior)
+    await store().reconcileControllerProfile(profileId)
+    expect(writesFor(fake, 'MANAGED1')).toEqual([
+      expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+    ])
+  })
+
+  it.each([false, true])('ignores a prior late Save across a live epoch change (during metadata read: %s)', async (duringRead) => {
+    const fake = await fixture()
+    const prior = await getPushRecords()
+    const acknowledge = await expireReconciliationSave(fake)
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    if (duringRead) {
+      vi.spyOn(getControllerMetadataStorage(), 'getPushRecords').mockImplementationOnce(async () => {
+        entered.resolve()
+        await release.promise
+        return prior
+      })
+      acknowledge()
+      const waiting = vi.fn()
+      void entered.promise.then(waiting)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(waiting).toHaveBeenCalledOnce()
+    }
+    useControllerStore.setState((s) => ({
+      controllers: { ...s.controllers, [ip]: { ...s.controllers[ip], liveEpoch: 999 } },
+    }))
+    if (!duringRead) acknowledge()
+    release.resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await getPushRecords()).toEqual(prior)
+    expect(state().programs[0].state).toBe('queued')
   })
 
   it('reads back the edit to a completed Pattern after a later job timed out', async () => {
@@ -2466,6 +2674,87 @@ describe('controllerStore (keyed)', () => {
           expect(panel.programs).toEqual(DEVICE_LIST)
           expect(store().rendererStates[IP]?.assumedPlaying).not.toBe(true)
         })
+
+        it('records a late flash confirmation without activating or re-reading again', async () => {
+          const { provider } = await connectWithTruth()
+          await setControllerBindings({ [IP]: { 'pat-1': 'DEVICE1' } })
+          const started = deferred<ControllerSaveOptions>()
+          provider.saveProgram = async (_blob, opts) => {
+            started.resolve(opts)
+            return 'unconfirmed'
+          }
+          const reread = vi.spyOn(useControllerPanelStore.getState(), 'rereadAfterFailedWrite').mockClear()
+          await entryPoints[entry]()
+          const opts = await started.promise
+          expect(await getPushRecords()).toEqual({})
+          const written = deferred<void>()
+          const metadata = getControllerMetadataStorage()
+          const writeRecords = metadata.setPushRecords.bind(metadata)
+          vi.spyOn(metadata, 'setPushRecords').mockImplementationOnce(async (next) => {
+            await writeRecords(next)
+            written.resolve()
+          })
+          opts.onLateConfirmation?.()
+          await Promise.race([written.promise, settle()])
+          expect(Object.values((await getPushRecords())[IP] ?? {})).toHaveLength(1)
+          expect(provider.pushed).toEqual([])
+          expect(reread).toHaveBeenCalledExactlyOnceWith(IP)
+        })
+
+        it('ignores a late confirmation as soon as a newer Save for the same artifact starts', async () => {
+          const { provider } = await connectWithTruth()
+          const started = deferred<ControllerSaveOptions>()
+          const latest = deferred<ControllerSaveResult>()
+          vi.spyOn(provider, 'saveProgram')
+            .mockImplementationOnce(async (_blob, opts) => {
+              started.resolve(opts)
+              return 'unconfirmed'
+            })
+            .mockImplementationOnce(() => latest.promise)
+          await entryPoints[entry]()
+          const opts = await started.promise
+          const next = entryPoints[entry]()
+          opts.onLateConfirmation?.()
+          latest.resolve('unconfirmed')
+          await next
+          await settle()
+          expect(await getPushRecords()).toEqual({})
+        })
+
+        if (entry === 'pushActivePattern') {
+          it('does not accept a late confirmation after a raw edit and undo before preview changes', async () => {
+            const { provider } = await connectWithTruth()
+            useEditorStore.getState().setSource(PATTERN_SRC)
+            const started = deferred<ControllerSaveOptions>()
+            provider.saveProgram = async (_blob, opts) => {
+              started.resolve(opts)
+              return 'unconfirmed'
+            }
+            await entryPoints[entry]()
+            const opts = await started.promise
+            useEditorStore.getState().setEditedSource(PATTERN_SRC + '\n// edit')
+            useEditorStore.getState().setEditedSource(PATTERN_SRC)
+            opts.onLateConfirmation?.()
+            await settle()
+            expect(await getPushRecords()).toEqual({})
+          })
+
+          it('drops the prior late reply after switching Controllers away and back', async () => {
+            const { provider } = await connectWithTruth()
+            const started = deferred<ControllerSaveOptions>()
+            provider.saveProgram = async (_blob, opts) => {
+              started.resolve(opts)
+              return 'unconfirmed'
+            }
+            await entryPoints[entry]()
+            useControllerStore.setState({ activeIp: '10.0.0.9' })
+            useControllerStore.setState({ activeIp: IP })
+            const opts = await started.promise
+            opts.onLateConfirmation?.()
+            await settle()
+            expect(await getPushRecords()).toEqual({})
+          })
+        }
 
         it('re-reads once, after the queue is idle, when the Save fails on the device', async () => {
           const { provider, reads } = await connectWithTruth()

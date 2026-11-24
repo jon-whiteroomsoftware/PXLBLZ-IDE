@@ -853,18 +853,20 @@ binding, banner, or push record. **Save** stamps source, encodes a PBP (name,
 optional JPEG, bytecode, compressed source), and sends the type-1 frames in
 one burst. The Controller confirms the flash write with
 `saveProgramSourceFile: true`. The confirmation window is 10 seconds plus
-100 ms per started KiB of the payload. Keepalive and the connection watchdog
-run during that wait. Completion replies carry no request id. The connection
-discards replies owed to expired waits until an ordered inventory response
-puts those writes behind it.
+250 ms per started KiB of the payload, including the program id. Keepalive and
+the connection watchdog run during that wait. Completion replies carry no
+request id. The connection tracks replies owed to expired waits in order
+until an ordered inventory response puts those writes behind it.
 
 After flash confirmation, Save can activate the same id. The completed Save
 writes a push record from the exact embedded banner, including artifact hash,
 transform ids, timestamp, and any Show output contract. The editor separately
-records that source and profile signature for its Save action. An expired
-flash confirmation on an open connection leaves both records as they were,
-ends the Save before target activation, and takes the Controller re-read.
-A socket close, send failure, or explicit rejection is an error.
+records that source and profile signature for its Save action. When the
+deadline expires on an open connection, the Save ends before target activation
+and takes the Controller re-read. A late positive reply that still identifies
+that Save on the same socket writes its push record and any needed binding.
+A newer Save or Pattern edit supersedes it. The late path sends no activation.
+A socket close, send failure, or explicit rejection during the wait is an error.
 
 Overwrite bindings key (Controller, Studio Pattern) to program id. A first
 Save can reserve the new id even if the flash write is unconfirmed, so an
@@ -1026,7 +1028,8 @@ Reconnects and edits received during the stall do not start a pass on that
 Controller. Successful reconciliation, Retry, a replacement Controller, or
 opting out clears the stall. If the flash confirmation deadline expires, the
 pass ends with that row queued and takes the queue-idle re-read. The next
-triggered pass reattempts an eligible unconfirmed saved slot, including
+triggered pass skips a Save whose late confirmation recorded the current
+artifact. It reattempts an eligible slot that remains unconfirmed, including
 source-only updates on the same Controller. When a Save stored the active
 Pattern and its activation deadline leaves activation unconfirmed, the job
 completes and the panel uses the same re-read path as a foreground Save (#1268).

@@ -33,6 +33,7 @@ import { ControllerActivationTimeoutError } from './PixelblazeConnection'
 import { resolvePushTarget, withBinding, type BindingStore } from './controllerBinding'
 import {
   withPushRecord,
+  type ControllerPushRecord,
   type ControllerPushRecords,
 } from './controllerPushRecord'
 
@@ -57,6 +58,11 @@ export function requiresControllerDrain(
   return incomingBytecodeBytes + outgoingBytecodeBytes
     > CONTROLLER_REPLACEMENT_OVERLAP_BUDGET_BYTES
 }
+
+export type LateSaveConfirmationHandler = (
+  delivery: PushPatternResult,
+  record: (isCurrent: () => boolean) => Promise<boolean>,
+) => void
 
 export interface PushPatternDeps {
   /** The connected backend — only the push-relevant surface is needed. */
@@ -121,6 +127,9 @@ export interface PushPatternDeps {
   /** Observe the validated full serialized artifact before any drain or upload.
    * Awaited observers must retain the caller's device-session validity. */
   onCompiledArtifact?: (compiled: { source: string; byteLength: number }) => void | Promise<void>
+  /** Schedule the metadata write for a confirmed late Save. The caller
+   * serializes it with other writes and supplies the session/attempt check. */
+  onLateSaveConfirmation?: LateSaveConfirmationHandler
 }
 
 export interface PushPatternResult {
@@ -237,6 +246,15 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   })
   const stamp = parsePxlblzBanner(stampedSource)
   if (!stamp) throw new Error('Generated artifact stamp could not be read back')
+  const record: ControllerPushRecord = {
+    transforms: stamp.transforms,
+    ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),
+    ...(deps.sourceHash ? { sourceHash: deps.sourceHash } : {}),
+    artifactHash: stamp.hash,
+    stampedAt: stamp.stamped,
+    name: deps.name ?? '',
+    ...(stamp.showOutputContract ? { showOutputContract: stamp.showOutputContract } : {}),
+  }
 
   const blob = encodePbp({
     id: programId,
@@ -249,7 +267,28 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     await drainBeforeUnsafeActivation(deps, bytecode.length)
   }
   beginDeviceWrite(deps)
-  const save = await deps.provider.saveProgram(blob, { id: programId })
+  const onLateSaveConfirmation = deps.onLateSaveConfirmation
+  const save = await deps.provider.saveProgram(blob, {
+    id: programId,
+    ...(onLateSaveConfirmation && {
+      onLateConfirmation: () => {
+        onLateSaveConfirmation({ programId, created: isNew }, async (isCurrent) => {
+          const [currentBindings, currentRecords] = await Promise.all([
+            deps.loadBindings(), deps.loadPushRecords(),
+          ])
+          if (!isCurrent()) return false
+          const currentId = currentBindings[deps.controllerId]?.[deps.patternId]
+          if (currentId !== programId) {
+            const originalId = bindings[deps.controllerId]?.[deps.patternId]
+            if (!isNew || currentId !== originalId) return false
+            await deps.saveBindings(withBinding(currentBindings, deps.controllerId, deps.patternId, programId))
+          }
+          await deps.savePushRecords(withPushRecord(currentRecords, deps.controllerId, deps.patternId, record))
+          return true
+        })
+      },
+    }),
+  })
   if (save === 'unconfirmed') {
     // Reserve a first Save's slot so a Retry can reuse it if it did reach flash.
     // A record for a previous slot must stay paired with its original binding.
@@ -301,15 +340,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
   }
 
-  await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {
-    transforms: stamp.transforms,
-    ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),
-    ...(deps.sourceHash ? { sourceHash: deps.sourceHash } : {}),
-    artifactHash: stamp.hash,
-    stampedAt: stamp.stamped,
-    name: deps.name ?? '',
-    ...(stamp.showOutputContract ? { showOutputContract: stamp.showOutputContract } : {}),
-  }))
+  await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, record))
 
   return activationUnconfirmed
     ? { programId, created: isNew, activation: 'unconfirmed' }

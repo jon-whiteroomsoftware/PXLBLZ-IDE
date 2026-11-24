@@ -19,6 +19,13 @@ import type { FirmwareUpdateState } from './firmwareUpdate'
 
 export type { ControllerSaveResult, ProgramListEntry }
 
+export interface ControllerSaveOptions {
+  id: string
+  /** Called once if an attributable positive reply arrives on the sending
+   * connection after the Save returned unconfirmed. */
+  onLateConfirmation?: () => void
+}
+
 /** Where to reach a Controller. Backend-neutral: the extension provider treats
  *  `address` as a LAN IP it relays to; a bridge provider could treat it the same.
  *  No port here — Pixelblaze only speaks ws:// on 81; a backend may still default
@@ -281,7 +288,7 @@ export interface ControllerProvider {
    *  bound id to overwrite a saved pattern in place, mint one to create. Resolves
    *  on flash-write confirmation or with an unconfirmed outcome at the deadline.
    *  A transport or explicit device failure rejects. */
-  saveProgram(pbpBlob: Uint8Array, opts: { id: string }): Promise<ControllerSaveResult>
+  saveProgram(pbpBlob: Uint8Array, opts: ControllerSaveOptions): Promise<ControllerSaveResult>
 
   /** Switch to a program already saved on the Controller. Callers must explicitly
    *  choose whether `save` persists the selection as the boot program. */
@@ -406,7 +413,7 @@ export class NullControllerProvider implements ControllerProvider {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 
-  saveProgram(_pbpBlob: Uint8Array, _opts: { id: string }): Promise<ControllerSaveResult> {
+  saveProgram(_pbpBlob: Uint8Array, _opts: ControllerSaveOptions): Promise<ControllerSaveResult> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

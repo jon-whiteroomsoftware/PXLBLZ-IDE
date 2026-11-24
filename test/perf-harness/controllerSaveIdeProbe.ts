@@ -55,10 +55,11 @@ import { randomBytes } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import WebSocket from 'ws'
+import type { ControllerSaveOptions } from '../../src/engine/ControllerProvider'
 import { ExtensionControllerProvider } from '../../src/engine/ExtensionControllerProvider'
 import { RELAY_SOURCE, base64ToBytes, bytesToBase64, type RelayMessage, type RelayTransport } from '../../src/engine/RelayWebSocket'
 import { pushPattern } from '../../src/engine/pushPattern'
-import { ControllerActivationTimeoutError } from '../../src/engine/PixelblazeConnection'
+import { controllerSaveDeadlineMs, ControllerActivationTimeoutError } from '../../src/engine/PixelblazeConnection'
 import { queueControllerDeviceWrite } from '../../src/engine/controllerDeviceWriteQueue'
 import { setControllerProvider } from '../../src/engine/controllerProviderRegistry'
 import type { ControllerPushRecords } from '../../src/engine/controllerPushRecord'
@@ -317,12 +318,14 @@ async function main(): Promise<void> {
     let records: ControllerPushRecords = {}
     const sources = patterns.map((name) => readPattern(name) + sourcePadding(pad))
     const saves: Array<Record<string, unknown>> = []
+    const latestSaves = new Map<string, Record<string, unknown>>()
     // `attempt` is the 0-based Save number --induce matches; editor mode saves
     // the same Pattern (index 0) every time.
     const save = async (index: number, patternId: string, activate: boolean, attempt = index) => {
       const name = `${prefix}${String(index + 1).padStart(2, '0')}`
       const started = performance.now()
       const record: Record<string, unknown> = { name, startedAt: at() }
+      latestSaves.set(patternId, record)
       const induce = panelStore && attempt === induceIndex ? induceKind : ''
       // Always wrapped, so a Save's id reaches the manifest before activation can
       // fail; the induced failures apply only to the --induce Save.
@@ -330,13 +333,13 @@ async function main(): Promise<void> {
       // request ids, the known active bytecode) carries from one Save to the next
       // instead of landing on a per-Save prototype copy.
       const overrides: Partial<typeof provider> = {
-        saveProgram: async (blob: Uint8Array, opts: { id: string }) => {
+        saveProgram: async (blob: Uint8Array, opts: ControllerSaveOptions) => {
           if (!created.has(opts.id)) appendFileSync(manifest, `${JSON.stringify({ id: opts.id, name })}\n`)
           created.add(opts.id)
           record.programId = opts.id
           const payloadBytes = new TextEncoder().encode(opts.id).byteLength + blob.byteLength
           record.payloadBytes = payloadBytes
-          record.deadlineMs = 10_000 + 100 * Math.ceil(payloadBytes / 1024)
+          record.deadlineMs = controllerSaveDeadlineMs(payloadBytes)
           record.saveProgramStartedAt = traceAt()
           const completion = await provider.saveProgram(blob, opts)
           record.saveProgramReturnedAt = traceAt()
@@ -359,6 +362,12 @@ async function main(): Promise<void> {
         },
       })
       const run = <T,>(write: () => Promise<T>) => (panelStore ? queueControllerDeviceWrite(IP, write) : write())
+      const status = provider.getStatus()
+      const isCurrentSave = () => {
+        const current = provider.getStatus()
+        return latestSaves.get(patternId) === record && status.kind === 'connected'
+          && current.kind === 'connected' && current.connectionGeneration === status.connectionGeneration
+      }
       try {
         const result = await run(() => pushPattern({
           provider: deviceProvider,
@@ -379,6 +388,12 @@ async function main(): Promise<void> {
           },
           mintId: undefined,
           onCompiledArtifact: () => undefined,
+          onLateSaveConfirmation: (_delivery, publish) => {
+            record.lateConfirmationAt = traceAt()
+            void run(() => publish(isCurrentSave)).catch((error: Error) => {
+              record.lateRecordError = error.message
+            })
+          },
         }))
         record.pushPatternReturnedAt = traceAt()
         if (result.save) record.save = result.save
@@ -515,6 +530,7 @@ async function main(): Promise<void> {
       ip: IP, mode, count, patterns, previewBytes, pad,
       saves,
       saveWire: relay.saveWire,
+      saveFrameBursts: relay.saveWire.filter(({ kind }) => kind === 'frames-sent').length,
       statuses,
       deviceCloses: relay.counters.closesByDevice,
       compiles: relay.counters.compiles,

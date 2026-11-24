@@ -9,6 +9,7 @@ import {
 import { decodePbp } from './pbpEncode'
 import { parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from './artifactStamp'
 import type { BindingStore } from './controllerBinding'
+import type { ControllerPushRecords } from './controllerPushRecord'
 import { ControllerActivationTimeoutError } from './PixelblazeConnection'
 
 // A reconciling bytecode blob: header declares 0 opcode + 0 export bytes, len 8.
@@ -362,6 +363,41 @@ describe('pushPattern — save mode (persist: true)', () => {
     await expect(pushPattern(deps)).resolves.toMatchObject({ created: true, save: 'unconfirmed' })
     expect(saved).toEqual([])
     expect(pushRecords).toEqual([])
+  })
+
+  it.each([undefined, 'DELETED', 'REBOUND'])('records a late new-slot Save only with a compatible binding (%s)', async (currentBinding) => {
+    let bindings: BindingStore = currentBinding === undefined ? {} : { 'ctrl-A': { 'pat-1': 'DELETED' } }
+    const old = { artifactHash: 'old', name: 'Old', transforms: [], stampedAt: '2026-07-09T12:34:56.000Z' }
+    const oldRecords: ControllerPushRecords = currentBinding === undefined ? {} : { 'ctrl-A': { 'pat-1': old } }
+    const provider = makeProvider({ saveProgram: vi.fn().mockResolvedValue('unconfirmed') })
+    let recorded: Promise<boolean> | undefined
+    const { deps, pushRecords } = makeDeps({
+      persist: true,
+      provider,
+      loadBindings: async () => bindings,
+      saveBindings: async (next) => { bindings = next },
+      loadPushRecords: async () => oldRecords,
+      onLateSaveConfirmation: (_delivery, record) => { recorded = record(() => true) },
+    })
+    await expect(pushPattern(deps)).resolves.toEqual({
+      created: true, programId: 'MINTED00000000000', save: 'unconfirmed',
+    })
+    expect(pushRecords).toEqual([])
+    if (currentBinding !== undefined) bindings = { 'ctrl-A': { 'pat-1': currentBinding } }
+    const [, opts] = vi.mocked(provider.saveProgram).mock.calls[0]
+    opts.onLateConfirmation?.()
+    await expect(recorded).resolves.toBe(currentBinding !== 'REBOUND')
+    if (currentBinding === 'REBOUND') {
+      expect(bindings).toEqual({ 'ctrl-A': { 'pat-1': 'REBOUND' } })
+      expect(pushRecords).toEqual([])
+    } else {
+      expect(bindings).toEqual({ 'ctrl-A': { 'pat-1': 'MINTED00000000000' } })
+      const stamp = parsePxlblzBanner(decodePbp(vi.mocked(provider.saveProgram).mock.calls[0][0])!.sourceCode!)!
+      expect(pushRecords).toEqual([{ 'ctrl-A': { 'pat-1': {
+        artifactHash: stamp.hash, stampedAt: stamp.stamped, transforms: [], name: deps.name,
+      } } }])
+    }
+    expect(provider.pushBytecode).not.toHaveBeenCalled()
   })
 
   it('mints + binds + saves a PBP record on the first save for a pattern', async () => {

@@ -202,6 +202,13 @@ const PROGRAM_LIST = '__programList'
 
 export type ControllerSaveResult = 'confirmed' | 'unconfirmed'
 
+/** Flash confirmation budget for the type-1 payload (program ID and PBP). */
+export function controllerSaveDeadlineMs(payloadBytes: number): number {
+  // #1268: earlier writes took 1.6–7.9 s. Three ~109 KB Saves under IDE
+  // load took 8.9, 22.4 and 17.7 s from the final frame to confirmation.
+  return 10_000 + 250 * Math.ceil(payloadBytes / 1024)
+}
+
 /** A request awaiting a reply, keyed by the response field that fulfils it
  *  (e.g. `getVars` waits for `vars`, `ping` waits for `ack`). Pixelblaze has no
  *  request IDs, so correlation is by response type, FIFO within each type. */
@@ -246,6 +253,7 @@ export class PixelblazeConnection {
   // Untagged replies can arrive after their local waiters have expired. A list
   // requested after a Save deadline fences older completions on the same socket.
   private saveCompletionsOwed = 0
+  private confirmLateSave: (() => void) | undefined
   private programListsOwed = 0
   private programListsBeforeSaveDeadline = 0
   private readonly listeners = new Map<ConnectionEvent, Set<EventListener>>()
@@ -375,7 +383,9 @@ export class PixelblazeConnection {
         this.emit('open')
         resolve()
       }
-      ws.onmessage = (ev) => this.handleMessage(ev.data)
+      ws.onmessage = (ev) => {
+        if (this.ws === ws && ws.readyState === OPEN) this.handleMessage(ev.data)
+      }
       ws.onerror = (ev) => {
         // Emit to subscribers UNCONDITIONALLY — deliberately outside the `settled`
         // latch. The latch guards only the one-shot connect() promise (resolve/
@@ -589,15 +599,20 @@ export class PixelblazeConnection {
   }
 
   /** Send the same frames and wait for the firmware's final flash-write reply. */
-  async saveProgramAndWait(id: string, pbpBlob: Uint8Array): Promise<ControllerSaveResult> {
+  async saveProgramAndWait(
+    id: string,
+    pbpBlob: Uint8Array,
+    onLateConfirmation?: () => void,
+  ): Promise<ControllerSaveResult> {
     const socket = this.ws
     if (!socket || !this.isConnected) throw new Error('Cannot send: Pixelblaze connection is not open')
     if (this.pending.has(SAVE_COMPLETION)) throw new Error('Controller Save already in progress')
 
-    // #1268: measured writes took 1.6–7.9 s at 11.5–109 KB. Allow a
-    // larger per-KiB cost and a fixed margin for relay and Controller load.
+    // Once another Save is sent, an untagged reply can no longer prove
+    // which write completed if an earlier reply was lost.
+    this.confirmLateSave = undefined
     const payloadBytes = new TextEncoder().encode(id).byteLength + pbpBlob.byteLength
-    const timeoutMs = 10_000 + 100 * Math.ceil(payloadBytes / 1024)
+    const timeoutMs = controllerSaveDeadlineMs(payloadBytes)
     const pending = this.enqueue(SAVE_COMPLETION, { timeoutMs })
     try {
       this.saveProgram(id, pbpBlob)
@@ -611,6 +626,7 @@ export class PixelblazeConnection {
     })
     if (this.ws !== socket || !this.isConnected) throw new Error('Pixelblaze connection closed')
     if (completion === undefined) {
+      if (this.saveCompletionsOwed === 0) this.confirmLateSave = onLateConfirmation
       this.saveCompletionsOwed += 1
       this.programListsBeforeSaveDeadline = this.programListsOwed
       return 'unconfirmed'
@@ -872,8 +888,14 @@ export class PixelblazeConnection {
     if ('ack' in msg) this.fulfil('ack', msg.ack)
     const saveCompletion = msg[SAVE_COMPLETION]
     if (typeof saveCompletion === 'boolean') {
-      if (this.saveCompletionsOwed > 0) this.saveCompletionsOwed -= 1
-      else this.fulfil(SAVE_COMPLETION, saveCompletion)
+      if (this.saveCompletionsOwed > 0 || !this.pending.has(SAVE_COMPLETION)) {
+        this.saveCompletionsOwed = Math.max(0, this.saveCompletionsOwed - 1)
+        const confirm = this.confirmLateSave
+        this.confirmLateSave = undefined
+        if (saveCompletion) confirm?.()
+      } else {
+        this.fulfil(SAVE_COMPLETION, saveCompletion)
+      }
     }
     // getControls reply carries a `controls` object; we resolve with the whole msg.
     if ('controls' in msg) this.fulfil('controls', msg)
@@ -960,6 +982,7 @@ export class PixelblazeConnection {
   private handleClose(detail?: unknown): void {
     this.stopPing()
     this.saveCompletionsOwed = 0
+    this.confirmLateSave = undefined
     this.programListsOwed = 0
     this.programListsBeforeSaveDeadline = 0
     // Reject everything still waiting — the reply can never arrive now.
