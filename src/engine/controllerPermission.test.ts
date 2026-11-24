@@ -7,6 +7,8 @@ import { ControllerPermissionDeniedError } from './ControllerProvider'
 import { ExtensionControllerProvider } from './ExtensionControllerProvider'
 import { RELAY_SOURCE, type RelayMessage, type RelayTransport } from './RelayWebSocket'
 
+const helperProbeMs = 10
+
 function helperHarness(legacy = false) {
   let connectPort!: (port: unknown) => void
   let permissionsAdded!: () => void
@@ -61,7 +63,9 @@ function helperHarness(legacy = false) {
       },
       subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     }
-    const provider = new ExtensionControllerProvider({ transport, pingIntervalMs: 0, livenessTimeoutMs: 0 })
+    const provider = new ExtensionControllerProvider({
+      transport, detectTimeoutMs: helperProbeMs, pingIntervalMs: 0, livenessTimeoutMs: 0,
+    })
     return { provider, transport, disconnect: () => disconnect(), messages }
   }
   return {
@@ -72,6 +76,7 @@ function helperHarness(legacy = false) {
 }
 const target = { address: '192.0.2.10', deviceId: 'pixelblaze_pb32_005544332211' }
 const flush = () => vi.advanceTimersByTimeAsync(0)
+const finishHelperProbe = () => vi.advanceTimersByTimeAsync(helperProbeMs)
 afterEach(() => vi.useRealTimers())
 
 describe('first-time Controller access (#63)', () => {
@@ -80,7 +85,7 @@ describe('first-time Controller access (#63)', () => {
     const helper = helperHarness(legacy)
     const { provider } = helper.page()
     const result = provider.connect(target).then(() => 'connected', () => 'failed')
-    await flush()
+    await finishHelperProbe()
     await vi.advanceTimersByTimeAsync(3500)
     expect(provider.getStatus()).toMatchObject({ kind: 'connecting', authorizationNeededIp: target.address })
     expect(helper.sockets).toHaveLength(0)
@@ -97,6 +102,7 @@ describe('first-time Controller access (#63)', () => {
     const helper = helperHarness()
     const { provider } = helper.page()
     const result = provider.connect(target).then(() => 'connected', () => 'failed')
+    await finishHelperProbe()
     await vi.advanceTimersByTimeAsync(3500)
     helper.grant(target.address)
     await flush()
@@ -115,7 +121,8 @@ describe('first-time Controller access (#63)', () => {
     const page = helper.page()
     let settled = false
     void page.provider.connect(target).catch(() => {}).finally(() => { settled = true })
-    await flush()
+    await finishHelperProbe()
+    expect(page.messages).toContainEqual(expect.objectContaining({ type: 'permission-needed' }))
     if (action === 'cancel') page.provider.disconnect()
     else page.disconnect()
     await flush()
@@ -133,14 +140,14 @@ describe('first-time Controller access (#63)', () => {
     const helper = helperHarness()
     const { provider } = helper.page()
     const result = provider.connect(target).catch(error => error)
-    await flush()
+    await finishHelperProbe()
     if (action === 'deny') helper.deny()
     else await vi.advanceTimersByTimeAsync(60000)
     expect(await result).toBeInstanceOf(ControllerPermissionDeniedError)
     expect(provider.getStatus().kind).toBe('extension-present')
     expect(helper.sockets).toHaveLength(0)
     const retry = provider.connect(target)
-    await flush()
+    await finishHelperProbe()
     helper.grant(target.address)
     await flush()
     helper.sockets[0].open()
@@ -155,7 +162,7 @@ describe('first-time Controller access (#63)', () => {
     helper.grant(target.address)
     const { provider, messages } = helper.page()
     const result = provider.connect(target)
-    await flush()
+    await finishHelperProbe()
     helper.sockets[0].open()
     await result
     expect(provider.getStatus().kind).toBe('connected')
@@ -183,7 +190,7 @@ describe('first-time Controller access (#63)', () => {
     const second = helper.page()
     const abandoned = first.provider.connect(target).catch(error => error)
     const connected = second.provider.connect(target)
-    await flush()
+    await finishHelperProbe()
     await first.provider.disconnect()
     await abandoned
     helper.grant(target.address)
@@ -201,11 +208,11 @@ describe('first-time Controller access (#63)', () => {
     const helper = helperHarness()
     const { provider } = helper.page()
     const abandoned = provider.connect(target).catch(error => error)
-    await flush()
+    await finishHelperProbe()
     void provider.disconnect()
     const connected = provider.connect(target)
     await abandoned
-    await flush()
+    await finishHelperProbe()
     helper.grant(target.address)
     await flush()
     expect(helper.sockets).toHaveLength(1)

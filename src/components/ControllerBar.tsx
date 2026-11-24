@@ -29,7 +29,7 @@ import { ControllerActionRow } from './ControllerActionRow'
 import { onControllerEntryRequested } from './controllerEntryEvents'
 import type { DiscoveredController } from '@/engine/ControllerProvider'
 import { routePath } from '@/engine/routes'
-import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
+import { CONTROLLER_HELPER_CONFLICT_MESSAGE, CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
 import { describeControllerSequencer } from '@/engine/controllerPanelView'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
@@ -352,6 +352,7 @@ const RESCAN_SPIN_CLASS = '[animation:spin_0.6s_linear_infinite] text-amber-400'
 
 export function ControllerBar({ reloadPage = () => window.location.reload() }: { reloadPage?: () => void } = {}) {
   const extensionPresent = useControllerStore((s) => s.extensionPresent)
+  const helperConflict = useControllerStore((s) => s.helperConflict)
   const controllers = useControllerStore((s) => s.controllers)
   const controllerReconciliations = useControllerStore((s) => s.controllerReconciliations)
   const rendererStates = useControllerStore((s) => s.rendererStates)
@@ -428,12 +429,12 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   // selector value so this effect's deps are exactly the gate (open + presence) —
   // it sets up/tears down the interval once per open, never per render.
   useEffect(() => {
-    if (!open || !extensionPresent) return
+    if (!open || !extensionPresent || helperConflict) return
     const sweep = () => void useControllerStore.getState().discover()
     sweep()
     const id = window.setInterval(sweep, DISCOVERY_REFRESH_MS)
     return () => window.clearInterval(id)
-  }, [open, extensionPresent])
+  }, [open, extensionPresent, helperConflict])
 
   useEffect(() => {
     if (!personalWorkspaceAuthenticated || controllerProfilesLoaded) return
@@ -654,9 +655,15 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
       {open && (
         <div
           data-testid="controller-entry-dropdown"
-          className="absolute right-0 top-8 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-2xl font-mono text-xs text-zinc-300"
+          className={`absolute right-0 top-8 z-50 w-72 rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-2xl font-mono text-xs text-zinc-300 ${
+            helperConflict ? 'max-[430px]:fixed max-[430px]:inset-x-2 max-[430px]:top-10 max-[430px]:w-auto' : ''
+          }`}
         >
-          {extensionPresent ? (
+          {helperConflict ? (
+            <p role="alert" className="leading-relaxed text-amber-200">
+              {CONTROLLER_HELPER_CONFLICT_MESSAGE}
+            </p>
+          ) : extensionPresent ? (
             <div className="flex flex-col gap-3">
               <form
                 onSubmit={(e) => {

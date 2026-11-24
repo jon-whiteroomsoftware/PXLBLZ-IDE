@@ -1802,6 +1802,24 @@ describe('routing (#308)', () => {
     expect(await screen.findByTestId('controller-ip-input')).toBeInTheDocument()
   })
 
+  it('shows Helper conflict recovery in the empty Controllers workspace', () => {
+    window.history.replaceState(null, '', '/studio/controllers')
+    seedSignedInWorkspace()
+    useControllerProfileStore.setState({ profiles: [], profilesLoaded: true })
+    useControllerStore.setState({
+      extensionPresent: true,
+      helperConflict: true,
+      detectExtension: async () => true,
+    })
+
+    render(<App />)
+
+    const emptyState = within(screen.getByTestId('controller-profiles-empty-state'))
+    expect(emptyState.getByRole('alert')).toHaveTextContent('turn off all but one, then reload this page.')
+    expect(emptyState.queryByText('Chrome extension ready')).not.toBeInTheDocument()
+    expect(emptyState.queryByRole('link', { name: 'Install Chrome extension' })).not.toBeInTheDocument()
+  })
+
   it('shows a graceful message for unknown paths whose action leads to the public Gallery', async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/bogus')

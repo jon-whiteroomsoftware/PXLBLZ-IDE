@@ -573,6 +573,15 @@ successful empty scan separately from helper, timeout, or service failures so
 the Controller entry surface can distinguish device settings from an
 unreachable discovery path.
 
+Before connecting, reconnecting or starting discovery from the Controller entry,
+the IDE probes the current page for the Helper. Provider instances share one
+broadcast and collect replies for 500 ms. One reply admits relay traffic. Zero
+replies means the Helper is unavailable. Multiple replies block the operation
+before a relay socket or discovery request is sent, and stop automatic reconnect.
+Helper 1.0.2 answers in the content script with an untagged acknowledgement.
+Each enabled copy would otherwise forward the same page messages to its own
+worker. Detection and the guard use the existing Helper protocol.
+
 First-time access waits for the helper's 60-second per-IP permission flow. The
 relay owns that deadline separately from the three-second socket-open deadline;
 helper 1.0.2 emits a connection-keyed `socket-connecting` after authorization to

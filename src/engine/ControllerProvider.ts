@@ -69,6 +69,8 @@ export interface DiscoveredController {
   boardType?: string
 }
 
+export type ControllerHelperAvailability = 'absent' | 'ready' | 'multiple'
+
 /** Connection status as a discriminated union — the source of truth for the nav
  *  indicator (H4) and the Controller panel (H5+). Deliberately mirrors H4's four
  *  states plus an explicit error.
@@ -91,7 +93,7 @@ export type ControllerStatus =
        * metadata refresh from a replacement socket. */
       connectionGeneration?: number
     }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; reason?: 'multiple-helpers' }
 
 /** True when a live-status snapshot still names the prepared Controller.
  * Providers replace status objects during reconnect and metadata refresh, so
@@ -171,9 +173,9 @@ export interface ControllerProvider {
   /** Static description of what this backend supports. */
   readonly capabilities: ControllerCapabilities
 
-  /** Is the relay helper installed/reachable? Drives no-extension vs extension-present.
-   *  Cheap and side-effect-free; safe to poll. */
-  detectHelper(): Promise<boolean>
+  /** Are zero, one, or multiple relay Helpers reachable on this page?
+   *  Detection does not contact a Controller. */
+  detectHelper(): Promise<ControllerHelperAvailability>
 
   /** Discover Controllers on the LAN via the cloud discovery service (H14, issue
    *  #206) — a global, not per-Controller, lookup the helper performs (the endpoint
@@ -320,8 +322,8 @@ export class NullControllerProvider implements ControllerProvider {
   private readonly listeners = new Set<(status: ControllerStatus) => void>()
   private static readonly STATUS: ControllerStatus = { kind: 'no-extension' }
 
-  detectHelper(): Promise<boolean> {
-    return Promise.resolve(false)
+  detectHelper(): Promise<ControllerHelperAvailability> {
+    return Promise.resolve('absent')
   }
 
   discover(): Promise<DiscoveredController[]> {

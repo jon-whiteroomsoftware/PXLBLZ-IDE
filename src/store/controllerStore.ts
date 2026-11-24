@@ -17,6 +17,7 @@ import {
   type ControllerTarget,
   type DiscoveredController,
 } from '@/engine/ControllerProvider'
+import { ControllerHelperConflictError } from '@/engine/controllerHelper'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import type { MapDimension } from '@/engine/sendToController'
 import {
@@ -197,9 +198,9 @@ export interface ControllerReconciliationState {
 interface ControllerConnectionState {
   /** Transient exact compile evidence; reusable only for the same source and live epoch. */
   lastShowArtifactCompilation: ShowArtifactCompilationRecord | null
-  /** Is the relay extension installed/reachable? Global — drives the entry button's
-   *  no-extension vs ready states. */
+  /** Is any relay Helper reachable? Helper conflicts are tracked separately. */
   extensionPresent: boolean
+  helperConflict: boolean
   /** Connected (or connecting/errored) Controllers, keyed by IP. */
   controllers: Record<string, ControllerEntry>
   /** Volatile renderer transport state keyed by Controller IP. */
@@ -417,6 +418,7 @@ export type ArtifactPushResult = PushResult & {
 export const controllerInitialState = {
   lastShowArtifactCompilation: null as ShowArtifactCompilationRecord | null,
   extensionPresent: false,
+  helperConflict: false,
   controllers: {} as Record<string, ControllerEntry>,
   rendererStates: {} as Record<string, ControllerRendererState>,
   rendererPausedByPxlblz: {} as Record<string, true>,
@@ -1271,8 +1273,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
         ...controllerInitialState,
 
         detectExtension: async () => {
-          const present = await detectControllerExtension().catch(() => false)
-          set({ extensionPresent: present })
+          const availability = await detectControllerExtension().catch(() => 'absent' as const)
+          const present = availability !== 'absent'
+          set({ extensionPresent: present, helperConflict: availability === 'multiple' })
           return present
         },
 
@@ -1284,7 +1287,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
           let found: DiscoveredController[]
           try {
             found = await discoverControllers()
-          } catch {
+          } catch (error) {
+            if (error instanceof ControllerHelperConflictError) {
+              set({ extensionPresent: true, helperConflict: true, discovered: [], discovering: false })
+              return
+            }
             set({ discovered: [], discovering: false, discoveryUnavailable: true })
             return
           }
@@ -1400,6 +1407,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
             unsubscribers.set(
               target,
               provider.subscribe((status) => {
+                if (status.kind === 'error' && status.reason === 'multiple-helpers') {
+                  set({ extensionPresent: true, helperConflict: true })
+                }
                 const patch = phaseFromStatus(status)
                 if (patch) patchController(target, patch)
                 if (status.kind === 'connecting' || status.kind === 'error') {

@@ -114,8 +114,8 @@ class FakeProvider extends NullControllerProvider {
   applyNameCommands = true
   connectionGeneration = 0
 
-  detectHelper(): Promise<boolean> {
-    return Promise.resolve(true)
+  detectHelper(): Promise<'ready'> {
+    return Promise.resolve('ready')
   }
   getStatus(): ControllerStatus {
     return this.status
@@ -810,7 +810,9 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
       },
     }
     const provider = new ExtensionControllerProvider({ transport, pingIntervalMs: 0, maxReconnectAttempts: 0 })
-    await provider.connect({ address: ip, deviceId })
+    const connecting = provider.connect({ address: ip, deviceId })
+    await vi.advanceTimersByTimeAsync(500)
+    await connecting
     onTestFinished(() => provider.disconnect())
     const entered = deferred<{ confirmation: Promise<ControllerSaveResult>; deadline: number }>()
     const save = fake.saveProgram.bind(fake)
@@ -1608,6 +1610,41 @@ describe('controllerStore (keyed)', () => {
   it('detectExtension records global extension presence', async () => {
     await store().detectExtension()
     expect(store().extensionPresent).toBe(true)
+  })
+
+  it('reports duplicate Helpers during startup and leaves the remembered Controller available for retry', async () => {
+    vi.useFakeTimers()
+    try {
+      const posts: RelayMessage['type'][] = []
+      const listeners = new Set<(message: RelayMessage) => void>()
+      const transport: RelayTransport = {
+        subscribe(listener) {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+        post(message) {
+          posts.push(message.type)
+          if (message.type !== 'detect') return
+          const ack = () => listeners.forEach((listener) => {
+            listener({ source: RELAY_SOURCE, dir: 'from-helper', type: 'detect-ack' })
+          })
+          queueMicrotask(ack)
+          setTimeout(ack, 50)
+        },
+      }
+      const ip = '10.0.0.5'
+      setControllerProviderFactory(() => new ExtensionControllerProvider({ transport }))
+      useControllerStore.setState({ lastConnectedIp: ip, lastConnectedNickname: 'Desk' })
+      const startup = Promise.all([store().detectExtension(), store().autoConnect(), store().discover()])
+      await vi.advanceTimersByTimeAsync(500)
+      await startup
+      expect(posts).toEqual(['detect'])
+      expect(store()).toMatchObject({ extensionPresent: true, helperConflict: true, lastConnectedIp: ip })
+      expect(store().controllers[ip]).toMatchObject({ phase: 'error', nickname: 'Desk' })
+      expect(store().discovering).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('addController connects and derives the installed-map observation from one raw read', async () => {

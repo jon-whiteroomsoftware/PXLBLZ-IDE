@@ -259,6 +259,10 @@ first time, the extension asks you to approve access, then connects without
 reloading the page. Visiting the Gallery or another public page hides the bar
 without disconnecting.
 
+Studio needs one enabled PXLBLZ-IDE Controller Helper. If Connect reports
+multiple Helpers, open `chrome://extensions`, turn off all but one, and reload
+Studio before connecting again.
+
 The live panel shows what the device says right now: brightness, FPS, IP,
 pixel count, the running Pattern's controls and watched variables, and power
 telemetry when the Pattern exposes it. Brightness and control changes are

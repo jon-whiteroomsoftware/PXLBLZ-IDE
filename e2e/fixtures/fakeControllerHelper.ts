@@ -29,8 +29,9 @@ export interface FakeControllerHelperOptions {
 export async function installFakeControllerHelper(
   page: Page,
   options: FakeControllerHelperOptions,
+  replyToGlobalRequests = true,
 ): Promise<void> {
-  await page.addInitScript((fixture) => {
+  await page.addInitScript(({ fixture, replyToGlobalRequests }) => {
     const connections = new Set<string>()
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
@@ -102,11 +103,11 @@ export async function installFakeControllerHelper(
       ) return
 
       if (message.type === 'detect') {
-        emit({ type: 'detect-ack' })
+        if (replyToGlobalRequests) emit({ type: 'detect-ack' })
         return
       }
       if (message.type === 'discover') {
-        emit({ type: 'discover-result', reqId: message.reqId, ok: true, controllers: [] })
+        if (replyToGlobalRequests) emit({ type: 'discover-result', reqId: message.reqId, ok: true, controllers: [] })
         return
       }
       if (message.type === 'connect') {
@@ -228,7 +229,7 @@ export async function installFakeControllerHelper(
       }
       if ('pause' in command && !('setCode' in command)) reply(message.connId, { ack: 1 })
     })
-  }, options)
+  }, { fixture: options, replyToGlobalRequests })
 }
 
 /** Distinct synthetic devices keyed by their real transport address and firmware MAC. */
@@ -242,5 +243,7 @@ export async function installFakeControllers(
       throw new Error(`Synthetic Controllers require distinct ${field} values`)
     }
   }
-  for (const fixture of fixtures) await installFakeControllerHelper(page, fixture)
+  for (const [index, fixture] of fixtures.entries()) {
+    await installFakeControllerHelper(page, fixture, index === 0)
+  }
 }

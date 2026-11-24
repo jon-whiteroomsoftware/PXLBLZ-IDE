@@ -18,6 +18,7 @@
 
 import {
   NullControllerProvider,
+  type ControllerHelperAvailability,
   type ControllerProvider,
   type DiscoveredController,
 } from './ControllerProvider'
@@ -58,7 +59,7 @@ export function createControllerProvider(ip: string): ControllerProvider {
 
 /** Probe whether the relay extension is installed/reachable — global, not tied to
  *  any one Controller. Reuses a single ambient provider for the handshake. */
-export function detectControllerExtension(): Promise<boolean> {
+export function detectControllerExtension(): Promise<ControllerHelperAvailability> {
   detector ??= factory('__detect__')
   return detector.detectHelper()
 }

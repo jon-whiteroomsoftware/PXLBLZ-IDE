@@ -308,6 +308,31 @@ describe('ControllerBar', () => {
     await settleControllerAsync()
   })
 
+  it('shows Helper conflict recovery in place of install, manual IP and discovery', async () => {
+    const discover = vi.fn(async () => {})
+    useControllerStore.setState({
+      extensionPresent: true,
+      helperConflict: true,
+      detectExtension: async () => true,
+      discover,
+    })
+    render(<ControllerBar />)
+    const connect = screen.getByTestId('controller-entry-button')
+    fireEvent.click(connect)
+    expect(screen.getByRole('alert')).toHaveTextContent('turn off all but one, then reload this page.')
+    expect(screen.queryByTestId('controller-install-pitch')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('controller-ip-input')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('controller-discover')).not.toBeInTheDocument()
+    expect(discover).not.toHaveBeenCalled()
+
+    fireEvent.click(connect)
+    act(() => useControllerStore.setState({ helperConflict: false }))
+    fireEvent.click(connect)
+    expect(screen.getByTestId('controller-ip-input')).toBeInTheDocument()
+    expect(discover).toHaveBeenCalledTimes(1)
+    await settleControllerAsync()
+  })
+
   it('renders a pill per connected Controller with the nickname and a status dot', () => {
     useControllerStore.setState({
       extensionPresent: true,

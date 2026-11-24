@@ -20,6 +20,7 @@ import {
   type ControllerSaveOptions,
   type ControllerSaveResult,
   type ControllerCapabilities,
+  type ControllerHelperAvailability,
   type ControllerStatus,
   type ControllerTarget,
   type ControllerConfig,
@@ -41,6 +42,11 @@ import {
   type WifiStatusWire,
 } from './RelayWebSocket'
 import { canonicalControllerDeviceId } from './controllerIdentity'
+import { ControllerHelperConflictError } from './controllerHelper'
+
+// Helpers answer a page broadcast without a request ID. The startup detector,
+// discovery and per-IP providers must share a single broadcast at a time.
+const helperProbes = new WeakMap<RelayTransport, Promise<ControllerHelperAvailability>>()
 
 /** Reverse a colon/dash/plain MAC string into the byte order used by Pixelblaze
  *  cloud ids. Returns null for malformed input. */
@@ -63,8 +69,7 @@ export function pixelblazeDeviceIdFromBoardAndMac(
 
 export interface ExtensionControllerProviderOptions {
   transport: RelayTransport
-  /** How long detectHelper waits for the extension's ack before deciding it is
-   *  absent. Default 500ms. */
+  /** Window to collect all Helper replies. Default 500ms. */
   detectTimeoutMs?: number
   /** Keepalive ping interval for the live connection. Also the watchdog's check
    *  cadence (it evaluates staleness on each tick), so it bounds how fast a drop
@@ -121,6 +126,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private readonly listeners = new Set<(status: ControllerStatus) => void>()
   private conn: PixelblazeConnection | null = null
   private target: ControllerTarget | null = null
+  private connectionRequest = 0
   private intentionalClose = false
   // True only while we hold a connection we expect to stay up. Gates the close-
   // driven reconnect so a *failed* open (which also fires a close) doesn't retry.
@@ -220,29 +226,48 @@ export class ExtensionControllerProvider implements ControllerProvider {
 
   // ── helper handshake ──────────────────────────────────────────────────────
 
-  /** Ask the relay "are you installed?" and resolve on its ack (or timeout).
-   *  Updates no-extension ↔ extension-present when not actively connected. */
-  detectHelper(): Promise<boolean> {
-    return new Promise((resolve) => {
-      let settled = false
-      const finish = (present: boolean) => {
-        if (settled) return
-        settled = true
-        unsubscribe()
-        this._clearTimeout(timer)
-        if (this.status.kind === 'no-extension' || this.status.kind === 'extension-present') {
-          this.setStatus({ kind: present ? 'extension-present' : 'no-extension' })
-        }
-        resolve(present)
-      }
+  async detectHelper(): Promise<ControllerHelperAvailability> {
+    let probe = helperProbes.get(this.transport)
+    if (!probe) {
+      probe = this.probeHelpers()
+      helperProbes.set(this.transport, probe)
+      const release = () => { helperProbes.delete(this.transport) }
+      void probe.then(release, release)
+    }
+    const availability = await probe
+    if (availability !== 'multiple'
+      && (this.status.kind === 'no-extension' || this.status.kind === 'extension-present')) {
+      this.setStatus({ kind: availability === 'ready' ? 'extension-present' : 'no-extension' })
+    }
+    return availability
+  }
+
+  private probeHelpers(): Promise<ControllerHelperAvailability> {
+    return new Promise((resolve, reject) => {
+      let replies = 0
       const unsubscribe = this.transport.subscribe((msg) => {
         if (msg.source === RELAY_SOURCE && msg.dir === 'from-helper' && msg.type === 'detect-ack') {
-          finish(true)
+          replies += 1
         }
       })
-      const timer = this._setTimeout(() => finish(false), this.detectTimeoutMs)
-      this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'detect' })
+      const timer = this._setTimeout(() => {
+        unsubscribe()
+        resolve(replies === 0 ? 'absent' : replies === 1 ? 'ready' : 'multiple')
+      }, this.detectTimeoutMs)
+      try {
+        this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'detect' })
+      } catch (error) {
+        unsubscribe()
+        this._clearTimeout(timer)
+        reject(error)
+      }
     })
+  }
+
+  private async requireSingleHelper(): Promise<void> {
+    const availability = await this.detectHelper()
+    if (availability === 'multiple') throw new ControllerHelperConflictError()
+    if (availability === 'absent') throw new Error('No Controller helper is installed')
   }
 
   /** Discover Controllers via the cloud service (H14, #206). Like compile/get-map
@@ -252,7 +277,12 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  timeout rejects so the UI can distinguish an unreachable discovery path from a
    *  successful empty scan while retaining manual IP entry. The wire records are mapped to DiscoveredController
    *  (`localIp` → `address`). */
-  discover(): Promise<DiscoveredController[]> {
+  async discover(): Promise<DiscoveredController[]> {
+    await this.requireSingleHelper()
+    return this.discoverViaRelay()
+  }
+
+  private discoverViaRelay(): Promise<DiscoveredController[]> {
     const reqId = `discover-${this.discoverSeq++}`
     return new Promise<DiscoveredController[]>((resolve, reject) => {
       let settled = false
@@ -312,26 +342,34 @@ export class ExtensionControllerProvider implements ControllerProvider {
   // ── connection lifecycle ───────────────────────────────────────────────────
 
   async connect(target: ControllerTarget): Promise<void> {
+    const request = ++this.connectionRequest
     this.knownActiveBytecode = null
-    if (!(await this.detectHelper())) {
-      const err = new Error('No Controller helper is installed')
-      this.setStatus({ kind: 'error', message: err.message })
-      throw err
-    }
-    this.target = target
     this.intentionalClose = false
     this.permissionBlocked = false
     try {
+      await this.requireSingleHelper()
+      if (request !== this.connectionRequest) throw new Error('Controller connection attempt was cancelled')
+      this.target = target
       await this.openConnection(target)
     } catch (e) {
       // The initial connect is fatal: surface it as an error pill. (A reconnect
       // attempt's failure, by contrast, stays `connecting` — the loop owns that
       // status and only goes `error` when it exhausts its attempts.)
-      if (e instanceof ControllerPermissionDeniedError || this.intentionalClose) throw e
-      const message = e instanceof Error ? e.message : 'Connection failed'
-      this.setStatus({ kind: 'error', message })
+      if (e instanceof ControllerPermissionDeniedError || this.intentionalClose
+        || request !== this.connectionRequest) throw e
+      this.failConnection(e)
       throw e
     }
+  }
+
+  private failConnection(error: unknown): void {
+    if (error instanceof ControllerHelperConflictError) {
+      this.target = null
+      this.setStatus({ kind: 'error', message: error.message, reason: 'multiple-helpers' })
+      return
+    }
+    const message = error instanceof Error ? error.message : 'Connection failed'
+    this.setStatus({ kind: 'error', message })
   }
 
   /** Open (or reopen) the socket. On success arms reconnect; on failure clears the
@@ -463,14 +501,23 @@ export class ExtensionControllerProvider implements ControllerProvider {
       return
     }
     const target = this.target!
+    const request = this.connectionRequest
+    const isCurrent = () => !this.intentionalClose && request === this.connectionRequest
     this.setStatus({ kind: 'connecting', target })
     this._setTimeout(() => {
-      if (this.intentionalClose) return
-      void this.openConnection(target).catch(() => this.scheduleReconnect(attemptsLeft - 1))
+      if (!isCurrent()) return
+      void this.requireSingleHelper().then(() => {
+        if (isCurrent()) return this.openConnection(target)
+      }).catch((error: unknown) => {
+        if (!isCurrent()) return
+        if (error instanceof ControllerHelperConflictError) this.failConnection(error)
+        else this.scheduleReconnect(attemptsLeft - 1)
+      })
     }, this.reconnectDelayMs)
   }
 
   disconnect(): Promise<void> {
+    this.connectionRequest += 1
     this.knownActiveBytecode = null
     this.intentionalClose = true
     this.expectConnected = false
@@ -684,7 +731,8 @@ export class ExtensionControllerProvider implements ControllerProvider {
     }
 
     try {
-      const discovered = await this.discover()
+      // The same connection attempt has already admitted this Helper.
+      const discovered = await this.discoverViaRelay()
       return discovered.find((c) => c.address === target.address)?.id ?? null
     } catch {
       return null

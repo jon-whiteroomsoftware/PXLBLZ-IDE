@@ -26,7 +26,7 @@ describe('NullControllerProvider', () => {
   })
 
   it('detects no helper', async () => {
-    await expect(new NullControllerProvider().detectHelper()).resolves.toBe(false)
+    await expect(new NullControllerProvider().detectHelper()).resolves.toBe('absent')
   })
 
   it('discovers nothing (no helper to ask)', async () => {

@@ -1,6 +1,6 @@
 import { ArrowUpRight } from 'lucide-react'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
-import { CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
+import { CONTROLLER_HELPER_CONFLICT_MESSAGE, CONTROLLER_HELPER_STORE_URL } from '@/engine/controllerHelper'
 import { useControllerStore } from '@/store/controllerStore'
 
 function ControllerSilhouette({ extensionPresent }: { extensionPresent: boolean }) {
@@ -26,6 +26,7 @@ function ControllerSilhouette({ extensionPresent }: { extensionPresent: boolean 
 
 export function ControllerProfilesEmptyState() {
   const extensionPresent = useControllerStore((state) => state.extensionPresent)
+  const helperConflict = useControllerStore((state) => state.helperConflict)
   const detectExtension = useControllerStore((state) => state.detectExtension)
 
   return (
@@ -36,23 +37,23 @@ export function ControllerProfilesEmptyState() {
     >
       <div className="m-auto grid w-full max-w-[760px] grid-cols-1 items-center gap-12 min-[1040px]:grid-cols-[minmax(0,1fr)_9rem]">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
+          {!helperConflict && <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-zinc-500">
             <span
               className={`size-1.5 rounded-full ${extensionPresent ? 'bg-green-400' : 'bg-red-400'}`}
               aria-hidden
             />
             {extensionPresent ? 'Chrome extension ready' : 'Chrome extension required'}
-          </p>
+          </p>}
           <h1
             id="controller-profiles-empty-title"
             className="mt-3 text-2xl leading-tight tracking-tight text-zinc-100 sm:text-[30px]"
           >
-            {extensionPresent
+            {extensionPresent && !helperConflict
               ? 'Connect a Controller to create its profile.'
               : 'Connect your Controllers.'}
           </h1>
-          <p className="mt-3 max-w-xl text-xs leading-5 text-zinc-400 sm:text-[13px] sm:leading-6">
-            {extensionPresent
+          <p role={helperConflict ? 'alert' : undefined} className="mt-3 max-w-xl text-xs leading-5 text-zinc-400 sm:text-[13px] sm:leading-6">
+            {helperConflict ? CONTROLLER_HELPER_CONFLICT_MESSAGE : extensionPresent
               ? 'Choose a discovered Controller or enter its IP. PXLBLZ creates the profile automatically.'
               : (
                 <>
@@ -61,7 +62,7 @@ export function ControllerProfilesEmptyState() {
                 </>
               )}
           </p>
-          <div className="mt-5 flex flex-wrap items-center gap-2">
+          {!helperConflict && <div className="mt-5 flex flex-wrap items-center gap-2">
             {extensionPresent ? (
               <button
                 type="button"
@@ -90,9 +91,9 @@ export function ControllerProfilesEmptyState() {
                 </button>
               </>
             )}
-          </div>
+          </div>}
         </div>
-        <ControllerSilhouette extensionPresent={extensionPresent} />
+        <ControllerSilhouette extensionPresent={extensionPresent && !helperConflict} />
       </div>
     </section>
   )

@@ -129,7 +129,7 @@ export class ScenarioControllerProvider extends NullControllerProvider {
     }
   }
 
-  async detectHelper() { return true }
+  async detectHelper() { return 'ready' as const }
   async discover() {
     return [{ id: CONTROLLER_SCENARIO_DEVICE_ID, address: CONTROLLER_SCENARIO_IP, name: 'Scenario Controller', version: '3.51' }]
   }

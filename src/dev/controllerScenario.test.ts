@@ -198,7 +198,7 @@ describe('Controller scenarios', () => {
     const listener = vi.fn()
     const unsubscribe = provider.subscribe(listener)
     expect(provider.getStatus()).toEqual({ kind: 'extension-present' })
-    expect(await provider.detectHelper()).toBe(true)
+    expect(await provider.detectHelper()).toBe('ready')
     expect(await provider.discover()).toEqual([{
       id: CONTROLLER_SCENARIO_DEVICE_ID, address: CONTROLLER_SCENARIO_IP, name: 'Scenario Controller', version: '3.51',
     }])

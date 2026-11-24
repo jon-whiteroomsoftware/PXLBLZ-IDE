@@ -70,8 +70,9 @@ function makeDeviceTransport(
     deferWifiStatus?: boolean
   } = {},
 ) {
-  const detectAck = opts.detectAck ?? true
+  let helperAckDelays = opts.detectAck === false ? [] : [0]
   const listeners = new Set<(m: RelayMessage) => void>()
+  const posts: RelayMessage['type'][] = []
   const writes: Record<string, unknown>[] = []
   const binaryWrites: Uint8Array[] = []
   let lastConnId = ''
@@ -98,9 +99,14 @@ function makeDeviceTransport(
 
   const transport: RelayTransport = {
     post(msg) {
+      posts.push(msg.type)
       switch (msg.type) {
         case 'detect':
-          if (detectAck) emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'detect-ack' })
+          for (const delay of helperAckDelays) {
+            const ack = () => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'detect-ack' })
+            if (delay > 0) setTimeout(ack, delay)
+            else ack()
+          }
           return
         case 'connect':
           lastConnId = msg.connId
@@ -240,8 +246,10 @@ function makeDeviceTransport(
 
   return {
     transport,
+    posts,
     writes,
     binaryWrites,
+    setHelperAckDelays: (delays: number[]) => { helperAckDelays = delays },
     isOpen: () => openSocket,
     pushFrame: (obj: object) => reply(lastConnId, obj),
     setActiveProgramId: (programId: string) => {
@@ -266,6 +274,17 @@ function makeDeviceTransport(
   }
 }
 
+function testProvider(options: ConstructorParameters<typeof ExtensionControllerProvider>[0]) {
+  const schedule = options.setTimeout
+  return new ExtensionControllerProvider({
+    detectTimeoutMs: 0,
+    ...options,
+    // A few reconnect tests inject a queue for delayed work. The zero-ms
+    // detection window still advances through its own event-loop turn.
+    setTimeout: schedule ? (fn, ms) => ms === 0 ? setTimeout(fn, ms) : schedule(fn, ms) : undefined,
+  })
+}
+
 const TARGET = { address: '192.168.8.224' }
 
 describe('ExtensionControllerProvider', () => {
@@ -280,29 +299,127 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('starts in no-helper', () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     expect(p.getStatus()).toEqual({ kind: 'no-extension' })
     // Push + compile are GO since the H8 spike (#200).
     expect(p.capabilities).toEqual({ push: true, compile: true })
   })
 
-  it('detectHelper resolves true and moves to helper-present when the relay acks', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
-    await expect(p.detectHelper()).resolves.toBe(true)
+  it('reports a ready Helper and moves to helper-present for one reply', async () => {
+    const p = testProvider({ transport: makeDeviceTransport().transport })
+    await expect(p.detectHelper()).resolves.toBe('ready')
     expect(p.getStatus()).toEqual({ kind: 'extension-present' })
   })
 
-  it('detectHelper resolves false and stays no-helper when there is no ack', async () => {
-    const p = new ExtensionControllerProvider({
+  it('reports an absent Helper and stays no-helper when there is no reply', async () => {
+    const p = testProvider({
       transport: makeDeviceTransport({ detectAck: false }).transport,
       detectTimeoutMs: 10,
     })
-    await expect(p.detectHelper()).resolves.toBe(false)
+    await expect(p.detectHelper()).resolves.toBe('absent')
     expect(p.getStatus()).toEqual({ kind: 'no-extension' })
   })
 
+  describe('shared Helper detection (#1271)', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('only probes when no Helper answers', async () => {
+      const d = makeDeviceTransport({ detectAck: false })
+      const controller = new ExtensionControllerProvider({ transport: d.transport })
+      const availability = controller.detectHelper()
+      const connecting = expect(controller.connect(TARGET)).rejects.toThrow('No Controller helper is installed')
+      await vi.advanceTimersByTimeAsync(500)
+      await expect(availability).resolves.toBe('absent')
+      await connecting
+      expect(d.posts).toEqual(['detect'])
+    })
+
+    it('blocks connect, discovery and Save when a second Helper answers in a later task', async () => {
+      const d = makeDeviceTransport()
+      d.setHelperAckDelays([0, 50])
+      const detector = new ExtensionControllerProvider({ transport: d.transport })
+      const controller = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
+      const availability = detector.detectHelper()
+      const outcome = Promise.allSettled([controller.connect(TARGET), detector.discover()])
+      await vi.advanceTimersByTimeAsync(50)
+      expect(d.posts).toEqual(['detect'])
+      await vi.advanceTimersByTimeAsync(450)
+      await expect(availability).resolves.toBe('multiple')
+      expect(await outcome).toEqual([
+        { status: 'rejected', reason: expect.objectContaining({ name: 'ControllerHelperConflictError' }) },
+        { status: 'rejected', reason: expect.objectContaining({ name: 'ControllerHelperConflictError' }) },
+      ])
+      await expect(controller.saveProgram(new Uint8Array(8), { id: 'probe' })).rejects.toThrow(/not connected/i)
+      await expect(controller.compile('')).rejects.toThrow(/not connected/i)
+      expect(d.posts).toEqual(['detect'])
+      expect(d.isOpen()).toBe(false)
+      expect(d.binaryWrites).toEqual([])
+    })
+
+    it('shares a probe at startup and waits for the full window before the one-Helper connect', async () => {
+      const d = makeDeviceTransport()
+      const detector = new ExtensionControllerProvider({ transport: d.transport })
+      const controller = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
+      const availability = detector.detectHelper()
+      const connecting = controller.connect({ ...TARGET, deviceId: 'pixelblaze_pb32_aabbccdd02' })
+      await vi.advanceTimersByTimeAsync(499)
+      expect(d.posts).toEqual(['detect'])
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(availability).resolves.toBe('ready')
+      await connecting
+      await controller.getConfig()
+      expect(d.posts).toEqual(['detect', 'connect', 'send'])
+      expect(controller.getStatus().kind).toBe('connected')
+      await controller.disconnect()
+    })
+
+    it('uses fresh replies when a subsequent attempt follows a Helper conflict', async () => {
+      const d = makeDeviceTransport()
+      d.setHelperAckDelays([0, 50])
+      const controller = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
+      const first = expect(controller.connect(TARGET)).rejects.toMatchObject({ name: 'ControllerHelperConflictError' })
+      await vi.advanceTimersByTimeAsync(500)
+      await first
+
+      d.setHelperAckDelays([0])
+      const retry = controller.connect({ ...TARGET, deviceId: 'pixelblaze_pb32_aabbccdd02' })
+      await vi.advanceTimersByTimeAsync(500)
+      await retry
+      expect(d.posts).toEqual(['detect', 'detect', 'connect'])
+      expect(controller.getStatus().kind).toBe('connected')
+      await controller.disconnect()
+    })
+
+    it('leaves a cancelled connection idle at the end of its detection window', async () => {
+      const d = makeDeviceTransport()
+      const controller = new ExtensionControllerProvider({ transport: d.transport, pingIntervalMs: 0 })
+      const connecting = expect(controller.connect(TARGET)).rejects.toThrow(/cancelled/i)
+      await controller.disconnect()
+      await vi.advanceTimersByTimeAsync(500)
+      await connecting
+      expect(d.posts).toEqual(['detect'])
+      expect(controller.getStatus()).toEqual({ kind: 'extension-present' })
+    })
+
+    it('stops reconnecting before another socket can open when two Helpers now answer', async () => {
+      const d = makeDeviceTransport()
+      const controller = new ExtensionControllerProvider({
+        transport: d.transport, reconnectDelayMs: 10, pingIntervalMs: 0,
+      })
+      const connecting = controller.connect({ ...TARGET, deviceId: 'pixelblaze_pb32_aabbccdd02' })
+      await vi.advanceTimersByTimeAsync(500)
+      await connecting
+      d.setHelperAckDelays([0, 50])
+      d.dropSocket()
+      await vi.advanceTimersByTimeAsync(2500)
+      expect(d.posts).toEqual(['detect', 'connect', 'detect'])
+      expect(controller.getStatus()).toMatchObject({ kind: 'error', reason: 'multiple-helpers' })
+    })
+  })
+
   it('connects through the relay and reports connected', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     const seen: ControllerStatus[] = []
     p.subscribe((s) => seen.push(s))
     await p.connect(TARGET)
@@ -315,7 +432,7 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('uses a discovery-picked device id immediately on connect', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     await p.connect({
       address: TARGET.address,
       deviceId: 'pixelblaze_pb32_aabbccdd02',
@@ -338,7 +455,7 @@ describe('ExtensionControllerProvider', () => {
       settings: { boardType: 'pb32', chipId: 3986670 },
       wifiStatus: { mac: '34:94:54:EE:D4:3C' },
     })
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
 
     await p.connect(TARGET)
 
@@ -359,7 +476,7 @@ describe('ExtensionControllerProvider', () => {
       wifiStatusError: 'wifi status failed',
       discovered: [{ id: 'pixelblaze_pb32_from_discovery', localIp: TARGET.address }],
     })
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
 
     await p.connect(TARGET)
 
@@ -376,7 +493,7 @@ describe('ExtensionControllerProvider', () => {
 
   it('keeps a manual-IP connection usable with null deviceId when no id is recoverable', async () => {
     const d = makeDeviceTransport({ discoverError: 'cloud offline' })
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
 
     await p.connect(TARGET)
 
@@ -388,7 +505,7 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('rejects connect when no helper is installed', async () => {
-    const p = new ExtensionControllerProvider({
+    const p = testProvider({
       transport: makeDeviceTransport({ detectAck: false }).transport,
       detectTimeoutMs: 10,
     })
@@ -397,13 +514,13 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('goes to error when the socket fails to open', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport({ failConnect: true }).transport })
+    const p = testProvider({ transport: makeDeviceTransport({ failConnect: true }).transport })
     await expect(p.connect(TARGET)).rejects.toThrow()
     expect(p.getStatus().kind).toBe('error')
   })
 
   it('rejects a declined per-IP permission with a typed error and resets to idle (#229)', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport({ denyPermission: true }).transport })
+    const p = testProvider({ transport: makeDeviceTransport({ denyPermission: true }).transport })
     // The typed error lets the store tell a user decline from a real failure and
     // drop the half-created entry rather than showing an error pill.
     await expect(p.connect(TARGET)).rejects.toBeInstanceOf(ControllerPermissionDeniedError)
@@ -412,7 +529,7 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('surfaces a pending per-IP authorization hint while connecting (#235)', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport({ pendingPermission: true }).transport })
+    const p = testProvider({ transport: makeDeviceTransport({ pendingPermission: true }).transport })
     const seen: ControllerStatus[] = []
     p.subscribe((s) => seen.push(s))
 
@@ -429,7 +546,7 @@ describe('ExtensionControllerProvider', () => {
   describe('push surface (H10)', () => {
     it('compile round-trips a reqId-keyed request and returns the helper bytecode', async () => {
       const d = makeDeviceTransport({ compileBytecode: new Uint8Array([1, 2, 3, 4]) })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await expect(p.compile('export function render(i){}')).resolves.toEqual(
         new Uint8Array([1, 2, 3, 4]),
@@ -438,13 +555,13 @@ describe('ExtensionControllerProvider', () => {
 
     it('compile rejects with the helper error message', async () => {
       const d = makeDeviceTransport({ compileError: 'syntax error at line 1' })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await expect(p.compile('garbage')).rejects.toThrow(/syntax error/)
     })
 
     it('compile rejects when not connected (no target to fetch the compiler from)', async () => {
-      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      const p = testProvider({ transport: makeDeviceTransport().transport })
       await expect(p.compile('x')).rejects.toThrow(/Not connected/)
     })
 
@@ -455,14 +572,14 @@ describe('ExtensionControllerProvider', () => {
       d.transport.post = (m) => {
         if (m.type !== 'compile') orig(m)
       }
-      const p = new ExtensionControllerProvider({ transport: d.transport, compileTimeoutMs: 10 })
+      const p = testProvider({ transport: d.transport, compileTimeoutMs: 10 })
       await p.connect(TARGET)
       await expect(p.compile('x')).rejects.toThrow(/timed out/)
     })
 
     it('pushBytecode sends the save-and-run sequence over the live connection', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1', name: 'demo' })
       // setCode JSON captured, plus the binary putByteCode frame.
@@ -475,7 +592,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('pushBytecode resolves after activation and remembers the active bytecode size', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
 
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1', name: 'demo' })
@@ -485,7 +602,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('forgets the previous footprint when a later activation fails without disconnecting', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
@@ -501,7 +618,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('invalidates the footprint after an external active-program change', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
 
@@ -514,7 +631,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('forwards explicit transient activation and invalidates the known footprint', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1' })
       await expect(p.getActiveProgramBytecodeSize()).resolves.toBe(3)
@@ -527,7 +644,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('forwards explicit persistent activation and saved-program deletion', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
 
       await p.setActiveProgram('PROG2', { save: true })
@@ -540,13 +657,13 @@ describe('ExtensionControllerProvider', () => {
     })
 
     it('pushBytecode rejects when not connected', async () => {
-      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      const p = testProvider({ transport: makeDeviceTransport().transport })
       await expect(p.pushBytecode(new Uint8Array([0]), { id: 'X' })).rejects.toThrow(/Not connected/)
     })
 
     it('setPixelMap encodes the coords and writes a type-8 map frame then persists', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await p.setPixelMap([
         [0, 0],
@@ -561,7 +678,7 @@ describe('ExtensionControllerProvider', () => {
     })
 
     it('setPixelMap rejects when not connected', async () => {
-      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      const p = testProvider({ transport: makeDeviceTransport().transport })
       await expect(p.setPixelMap([[0, 0]])).rejects.toThrow(/Not connected/)
     })
   })
@@ -570,14 +687,20 @@ describe('ExtensionControllerProvider', () => {
     beforeEach(() => vi.useFakeTimers())
     afterEach(() => vi.useRealTimers())
 
+    async function connectWithClock(provider: ExtensionControllerProvider) {
+      const connecting = provider.connect(TARGET)
+      await vi.advanceTimersByTimeAsync(0)
+      await connecting
+    }
+
     async function connectForSave() {
       const device = makeDeviceTransport()
-      const provider = new ExtensionControllerProvider({
+      const provider = testProvider({
         transport: device.transport,
         pingIntervalMs: 0,
         maxReconnectAttempts: 0,
       })
-      await provider.connect(TARGET)
+      await connectWithClock(provider)
       return { device, provider }
     }
 
@@ -664,7 +787,7 @@ describe('ExtensionControllerProvider', () => {
       await expect(save).resolves.toBe('unconfirmed')
       device.dropSocket()
       await vi.advanceTimersByTimeAsync(0)
-      await provider.connect(TARGET)
+      await connectWithClock(provider)
       device.pushFrame({ saveProgramSourceFile: true })
       await vi.advanceTimersByTimeAsync(0)
       expect(onLateConfirmation).not.toHaveBeenCalled()
@@ -713,13 +836,13 @@ describe('ExtensionControllerProvider', () => {
 
     it('rejects a watchdog close while awaiting completion', async () => {
       const device = makeDeviceTransport()
-      const provider = new ExtensionControllerProvider({
+      const provider = testProvider({
         transport: device.transport,
         pingIntervalMs: 1000,
         livenessTimeoutMs: 2500,
         maxReconnectAttempts: 0,
       })
-      await provider.connect(TARGET)
+      await connectWithClock(provider)
       const save = provider.saveProgram(smallBlob, { id })
       const closed = expect(save).rejects.toThrow('Pixelblaze connection closed')
       device.goSilent()
@@ -750,7 +873,7 @@ describe('ExtensionControllerProvider', () => {
           { id: 'pixelblaze_pb32_def', localIp: '192.168.8.99' },
         ],
       })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await expect(p.discover()).resolves.toEqual([
         {
           id: 'pixelblaze_pb32_000000000abc',
@@ -771,7 +894,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('rejects when the helper reports a discovery failure', async () => {
       const d = makeDeviceTransport({ discoverError: 'GET /discover -> 503' })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await expect(p.discover()).rejects.toThrow('GET /discover -> 503')
     })
 
@@ -781,13 +904,13 @@ describe('ExtensionControllerProvider', () => {
       d.transport.post = (m) => {
         if (m.type !== 'discover') orig(m)
       }
-      const p = new ExtensionControllerProvider({ transport: d.transport, discoverTimeoutMs: 10 })
+      const p = testProvider({ transport: d.transport, discoverTimeoutMs: 10 })
       await expect(p.discover()).rejects.toThrow('Controller discovery timed out')
     })
 
     it('discovers without needing a live connection (global lookup, no address)', async () => {
       const d = makeDeviceTransport({ discovered: [{ id: 'x', localIp: '10.0.0.5' }] })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       // No connect() first — discovery is connection-independent.
       await expect(p.discover()).resolves.toEqual([
         { id: 'x', address: '10.0.0.5', name: undefined, version: undefined, boardType: undefined },
@@ -803,7 +926,7 @@ describe('ExtensionControllerProvider', () => {
         [0.5, 0.25],
       ])
       const d = makeDeviceTransport({ mapData: map })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       const read = await p.getPixelMap()
       expect(read).not.toBeNull()
@@ -815,20 +938,20 @@ describe('ExtensionControllerProvider', () => {
 
     it('resolves null when the device has no installed map', async () => {
       const d = makeDeviceTransport() // no mapData
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await expect(p.getPixelMap()).resolves.toBeNull()
     })
 
     it('rejects on a helper read error', async () => {
       const d = makeDeviceTransport({ mapError: 'helper authorization failed' })
-      const p = new ExtensionControllerProvider({ transport: d.transport })
+      const p = testProvider({ transport: d.transport })
       await p.connect(TARGET)
       await expect(p.getPixelMapData()).rejects.toThrow('helper authorization failed')
     })
 
     it('rejects when not connected (no target)', async () => {
-      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      const p = testProvider({ transport: makeDeviceTransport().transport })
       await expect(p.getPixelMapData()).rejects.toThrow('Not connected to a Controller')
     })
 
@@ -838,7 +961,7 @@ describe('ExtensionControllerProvider', () => {
       d.transport.post = (m) => {
         if (m.type !== 'get-map') orig(m)
       }
-      const p = new ExtensionControllerProvider({ transport: d.transport, getMapTimeoutMs: 10 })
+      const p = testProvider({ transport: d.transport, getMapTimeoutMs: 10 })
       await p.connect(TARGET)
       await expect(p.getPixelMapData()).rejects.toThrow('Installed map read timed out')
     })
@@ -853,7 +976,7 @@ describe('ExtensionControllerProvider', () => {
         sourceCode: source,
         byteCode: Uint8Array.from([1, 2, 3]),
       })
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: makeDeviceTransport({ programData: blob }).transport,
       })
       await p.connect(TARGET)
@@ -867,14 +990,14 @@ describe('ExtensionControllerProvider', () => {
     })
 
     it('resolves null when the program is missing', async () => {
-      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      const p = testProvider({ transport: makeDeviceTransport().transport })
       await p.connect(TARGET)
 
       await expect(p.readSavedProgram('MISSING')).resolves.toBeNull()
     })
 
     it('surfaces helper failures as clean read errors', async () => {
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: makeDeviceTransport({ programError: 'GET /p/BROKEN -> 500' }).transport,
       })
       await p.connect(TARGET)
@@ -883,7 +1006,7 @@ describe('ExtensionControllerProvider', () => {
     })
 
     it('surfaces an undecodable PBP as a clean read error', async () => {
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: makeDeviceTransport({ programData: Uint8Array.from([1, 2, 3]) }).transport,
       })
       await p.connect(TARGET)
@@ -895,7 +1018,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('rejects when not connected and when the helper times out', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         getProgramTimeoutMs: 10,
       })
@@ -911,7 +1034,7 @@ describe('ExtensionControllerProvider', () => {
   })
 
   it('reads vars and config across the bridge once connected', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     await p.connect(TARGET)
     await expect(p.getVars()).resolves.toEqual({ speed: 0.5 })
     await expect(p.getConfig()).resolves.toEqual({
@@ -923,7 +1046,7 @@ describe('ExtensionControllerProvider', () => {
 
   it('reports captured fps via getTelemetry', async () => {
     const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
     await p.connect(TARGET)
     await expect(p.getTelemetry()).resolves.toEqual({ fps: null })
     d.pushFrame({ fps: 73 })
@@ -933,7 +1056,7 @@ describe('ExtensionControllerProvider', () => {
 
   it('sends brightness, name, variable, and controls writes to the device', async () => {
     const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
     await p.connect(TARGET)
     await p.setBrightness(0.25)
     await p.setName('Road case')
@@ -949,7 +1072,7 @@ describe('ExtensionControllerProvider', () => {
 
   it('round-trips acknowledged renderer pause and resume through the provider boundary', async () => {
     const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
     await p.connect(TARGET)
 
     await expect(p.setRendererPaused(true)).resolves.toBeUndefined()
@@ -963,7 +1086,7 @@ describe('ExtensionControllerProvider', () => {
 
   it('rejects an unacknowledged renderer command without poisoning connection status', async () => {
     const d = makeDeviceTransport({ acknowledgeRendererCommands: false })
-    const p = new ExtensionControllerProvider({
+    const p = testProvider({
       transport: d.transport,
       requestTimeoutMs: 10,
       pingIntervalMs: 0,
@@ -977,26 +1100,26 @@ describe('ExtensionControllerProvider', () => {
 
   it('sends a saved pixelCount write to the device', async () => {
     const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
     await p.connect(TARGET)
     await p.setPixelCount(16)
     expect(d.writes).toEqual([{ pixelCount: 16, save: true }])
   })
 
   it('resolves getPixelMap as null (H13 unconfirmed)', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     await p.connect(TARGET)
     await expect(p.getPixelMap()).resolves.toBeNull()
   })
 
   it('rejects reads when not connected', async () => {
-    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    const p = testProvider({ transport: makeDeviceTransport().transport })
     await expect(p.getVars()).rejects.toThrow(/not connected/i)
   })
 
   it('disconnect returns to helper-present and stops reconnecting', async () => {
     const d = makeDeviceTransport()
-    const p = new ExtensionControllerProvider({ transport: d.transport })
+    const p = testProvider({ transport: d.transport })
     await p.connect(TARGET)
     await p.disconnect()
     expect(p.getStatus()).toEqual({ kind: 'extension-present' })
@@ -1028,7 +1151,7 @@ describe('ExtensionControllerProvider', () => {
           return 0
         }) as unknown as typeof setTimeout,
       }
-      const p = new ExtensionControllerProvider(opts)
+      const p = testProvider(opts)
       await p.connect(TARGET)
       const firstStatus = p.getStatus()
       expect(firstStatus.kind).toBe('connected')
@@ -1052,7 +1175,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('reconnects with the device-confirmed name instead of the original target name', async () => {
       const d = makeDeviceTransport({ settings: { name: 'Burner bag' } })
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 5,
         setTimeout: ((fn: () => void) => {
@@ -1081,7 +1204,7 @@ describe('ExtensionControllerProvider', () => {
         wifiStatus: { mac: '34:94:54:EE:D4:3C' },
         deferWifiStatus: true,
       })
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 0,
       })
@@ -1109,7 +1232,7 @@ describe('ExtensionControllerProvider', () => {
         wifiStatus: { mac: '34:94:54:EE:D4:3C' },
         deferWifiStatus: true,
       })
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 0,
       })
@@ -1139,7 +1262,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('forgets the active bytecode footprint after reconnecting', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 5,
         setTimeout: ((fn: () => void) => {
@@ -1162,7 +1285,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('reconnects after a push loses the socket during activation and accepts a retry', async () => {
       const d = makeDeviceTransport({ dropOnFirstSetCode: true })
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 5,
         setTimeout: ((fn: () => void) => {
@@ -1187,7 +1310,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('keeps reconnecting indefinitely by default while the Controller is gone', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         reconnectDelayMs: 5,
         setTimeout: ((fn: () => void) => {
@@ -1218,7 +1341,7 @@ describe('ExtensionControllerProvider', () => {
       vi.useFakeTimers()
       try {
         const d = makeDeviceTransport()
-        const p = new ExtensionControllerProvider({
+        const p = testProvider({
           transport: d.transport,
           pingIntervalMs: 1000,
           livenessTimeoutMs: 2500,
@@ -1247,7 +1370,7 @@ describe('ExtensionControllerProvider', () => {
       vi.useFakeTimers()
       try {
         const d = makeDeviceTransport()
-        const p = new ExtensionControllerProvider({
+        const p = testProvider({
           transport: d.transport,
           pingIntervalMs: 1000,
           livenessTimeoutMs: 2500,
@@ -1290,7 +1413,7 @@ describe('ExtensionControllerProvider', () => {
 
     it('goes to error after exhausting reconnect attempts', async () => {
       const d = makeDeviceTransport()
-      const p = new ExtensionControllerProvider({
+      const p = testProvider({
         transport: d.transport,
         maxReconnectAttempts: 0,
         setTimeout: ((fn: () => void) => {
