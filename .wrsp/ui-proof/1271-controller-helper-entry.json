@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1271",
+  "route": "/PXLBLZ-IDE/studio/patterns/CoronalMassEjection",
+  "operation": "With two unpacked Helper 1.0.2 copies and a remembered Controller, open Connect with the keyboard at desktop and narrow widths. The approved alert replaces discovery and manual IP entry, and neither Helper attempts a socket.",
+  "captures": [
+    ".wrsp/ui-proof/1271-controller-helper-desktop.png",
+    ".wrsp/ui-proof/1271-controller-helper-narrow.png"
+  ],
+  "capturedAtCommit": "b0fb34d9f3fa1c69de4654f8814d980508b5b056"
+}

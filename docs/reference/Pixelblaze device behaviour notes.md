@@ -187,6 +187,12 @@ rebooted, with two saved Patterns (#1268; raw runs in the issue).
   fire-and-forget and completion-paced. So did 100 IDE-path reconciliation
   Saves in five cycles, with no drift in Save time.
 
+On 2026-11-24, the same Controller (pb32, firmware 3.70) returned
+`{"ack":1,"saveProgramSourceFile":false}` when two enabled Helper 1.0.2
+copies sent identical `putSourceCode` frames over separate sockets. With one
+Helper, Studio Save returned `true`, activated the Saved Pattern, and read
+back a byte-matched PBP. [#1271](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1271)
+
 ## A slow-rendering Pattern slows config replies, and a 1 Hz poll can wedge the socket
 
 Measured on 2026-11-23 on the test Controller at 192.168.8.161 (pb32, firmware

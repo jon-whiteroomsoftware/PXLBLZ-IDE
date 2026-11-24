@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "issue": "1271",
+  "route": "/PXLBLZ-IDE/studio/controllers",
+  "operation": "Open Studio Controllers as a synthetic user with no profiles and two unpacked Helper 1.0.2 copies. The approved alert appears in the empty state without connect or install buttons, and neither Helper attempts a socket.",
+  "captures": [
+    ".wrsp/ui-proof/1271-controller-helper-profiles.png"
+  ],
+  "capturedAtCommit": "b0fb34d9f3fa1c69de4654f8814d980508b5b056"
+}
