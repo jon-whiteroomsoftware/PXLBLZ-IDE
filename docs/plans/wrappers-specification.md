@@ -209,7 +209,8 @@ input. Both write the same record.
 There is no keep-up-to-date switch. The line reads "N of M up to date" at rest,
 shows a bar with "Updating d of t" while a run is active, "restarted" when a
 change folded into the run, and "n waiting for <Controller>" while offline. A
-run can be paused and resumed.
+run can be paused and resumed. A pause lasts for the browser session and is
+not stored in the profile.
 
 Each row shows a tag for every Wrapper applied to it. A Wrapper that was
 skipped for a Pattern shows as a greyed tag. Hover or keyboard focus reveals
@@ -262,7 +263,7 @@ Wrappers never change the preview.
 | Hardware probe | #1273 | now |
 | Always-on rewrites | #1274 | now |
 | Preview sliders ship | #1275 | Jon settles the slider direction (section 11) |
-| Engine: two Wrappers | #1276 | #1273 go |
+| Engine: two Wrappers | #1276 | #1273 go; slider direction settled |
 | Profile model and delivery | #1279 | #1276 |
 | Controller profile page | #1277 | #1274, #1279 |
 | Controller panel group | #1280 | #1279 |
