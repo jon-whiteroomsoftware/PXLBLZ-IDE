@@ -152,7 +152,7 @@ let S,timer=null;
 function base(){
   clearTimeout(timer);
   S={view:'controller',connected:true,w:{slowmo:false,dreamy:false,power:false},pct:25,inputs:[],
-     pats:DEFS.map(d=>({...d,vals:{slowmo:1,dreamy:0},auth:Object.fromEntries(d.controls.map((c,i)=>[c,.3+.2*i])),sig:'',written:{}})),
+     pats:DEFS.map(d=>({...d,vals:{slowmo:0,dreamy:0},auth:Object.fromEntries(d.controls.map((c,i)=>[c,.3+.2*i])),sig:'',written:{}})),
      job:{state:'idle',current:null,restarted:false},panel:false,panelPat:'LineDancer2D',pick:null,flash:null,
      pvPat:'LineDancer2D',pvVals:{},pvMode:'restore'};
   S.pats.forEach(p=>{p.sig=sig(p);p.written=applied(p)});
@@ -194,7 +194,7 @@ function change(fn){fn();kick();render()}
 /* ---------- formatting ---------- */
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function fmt(k,v){
-  if(k==='slowmo'){if(v>=.97)return '1×';const d=Math.round(1/Math.pow(2,-4*(1-v)));return d<=1?'1×':'1/'+d+'×'}
+  if(k==='slowmo'){if(v<=.03)return 'off';const d=Math.round(Math.pow(2,4*v));return d<=1?'off':'1/'+d+'×'}
   return Math.round(v*100)+'%';
 }
 const num=n=>n.toLocaleString('en-US');
@@ -329,7 +329,7 @@ const CODE=`// Pattern: Line Dancer 2D
 <b>export function</b> <u>sliderSpeed</u>(v) { speed = 1 + v * 9 }
 <b>export function</b> <u>beforeRender</u>(delta) { t1 = time(.1) }
 <b>export function</b> <u>render2D</u>(index, x, y) { hsv(x + t1, 1, y) }`;
-function pv(){return S.pvVals[S.pvPat]||(S.pvVals[S.pvPat]={slowmo:1,dreamy:0})}
+function pv(){return S.pvVals[S.pvPat]||(S.pvVals[S.pvPat]={slowmo:0,dreamy:0})}
 function vPattern(){
   const v=pv(),names=S.pats.filter(p=>!p.show).map(p=>p.name);
   return `<div class="body pat">
@@ -351,7 +351,7 @@ const STEPS=[
  {t:'Turn on Slow-mo',n:'No input is needed. Rewrites start on their own after a short pause, so several changes land as one run. Stacker has too little memory, so its tag is greyed: hover or tab to it for the reason. Try the switch yourself.',
   go(){S.w.slowmo=true;kick()}},
  {t:'Set it on the Controller',n:'The Controller panel gets a Wrappers group, apart from the Pattern’s own Controls (LineDancer2D has its own “speed”). The value is saved on the Controller per Pattern: pick another Pattern in the panel and it has its own.',
-  go(){S.w.slowmo=true;settle();pat('LineDancer2D').vals.slowmo=.5;pat('WavyBands').vals.slowmo=.75;S.panel=true}},
+  go(){S.w.slowmo=true;settle();pat('LineDancer2D').vals.slowmo=.5;pat('WavyBands').vals.slowmo=.25;S.panel=true}},
  {t:'Change your mind mid-run',n:'Dreamy was just switched on. While it runs, flip Power limit or Slow-mo: the same run picks the change up and says “restarted”. There is never a second run. Pause stops it.',
   go(){S.w.slowmo=true;settle();S.w.dreamy=true;kick()}},
  {t:'Unplug mid-update',n:'The Controller drops out two Patterns in. The rest wait. Use “Reconnect” below and the run carries on from where it stopped.',
@@ -430,7 +430,7 @@ function frame(now){
   document.querySelectorAll('.knob').forEach(k=>k.style.width=(55+18*Math.sin(now/900))+'%');
   const cv=document.getElementById('cv');
   if(cv){
-    const g=cv.getContext('2d'),v=pv(),rate=v.slowmo>=.97?1:Math.pow(2,-4*(1-v.slowmo)),ms=10000*v.dreamy*v.dreamy,keep=ms?Math.exp(-dt/ms):0;
+    const g=cv.getContext('2d'),v=pv(),rate=v.slowmo<=.03?1:Math.pow(2,-4*v.slowmo),ms=10000*v.dreamy*v.dreamy,keep=ms?Math.exp(-dt/ms):0;
     pt+=dt/1000*rate;
     const seed=S.pvPat.length,N=16,c=cv.width/N;
     if(!glow||glow.length!==N*N*3) glow=new Float32Array(N*N*3);

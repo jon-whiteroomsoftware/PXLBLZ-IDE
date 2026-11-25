@@ -76,9 +76,11 @@ Jon's words are recorded verbatim on the epic. This table is an index.
 | 25 | Patterns only; Shows get their own treatment | [25, 26](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1235#issuecomment-7169813909) |
 | 26 | The word is "skipped" | same |
 | 27 | The Controller panel needs no note for a Pattern skipped for memory | [27 to 29](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1235#issuecomment-7169979485) |
+| 30 | Both Wrapper Controls read as amounts, with the left end off | [30, 31](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1235#issuecomment-7171646073) |
+| 31 | Power limit and Brightness still apply to Shows | same |
 
 Decision 5 (Shows are not wrapped) was reopened by decision 24 and settled for
-now by decision 25.
+now by decisions 25 and 31.
 
 ## 3. What exists today
 
@@ -128,8 +130,14 @@ wrapper that exists today.
 
 **Wrapper Controls.** Each enabled Wrapper exports one slider. Dreamy gains its
 export. Final export names and the labels the firmware derives from them come
-from #1273's label table. At its default value a Wrapper Control leaves the
-Pattern looking as it does unwrapped.
+from #1273's label table.
+
+Both Wrapper Controls read as amounts (decision 30). The left end is off, and
+moving right gives more Slow-mo or more Dreamy. Dreamy already works this way.
+Slow-mo inverts today's `position`, where 1 is full speed: an amount `a` plays
+at rate `2 ** (-4 * a)`, and the blend is bypassed near zero as it is near
+full speed today. At the left end a Wrapper Control leaves the Pattern looking
+as it does unwrapped, so a slider nobody has touched is off on every surface.
 
 **The skip decision.** The engine decides, per Pattern, which enabled Wrappers
 can be applied. A structural refusal (no render function, a shadowed built-in,
@@ -240,7 +248,8 @@ A Show keeps its own timing. Slowing a Show stretches its whole timeline, and
 Dreamy overlaps the Show's own Effect Trails, so wrapping Shows is a separate
 design and is deferred. Delivery skips Slow-mo and Dreamy for any artifact
 whose binding key marks it as a Show. Power limit and Brightness continue to
-apply, because Power limit protects the supply and both apply today.
+apply (decision 31), because Power limit protects the supply and both apply
+today.
 
 ## 9. Preview
 
@@ -250,8 +259,11 @@ the flag's uses in the render scripts and Playwright configuration.
 
 Both values join the Settings cascade as per-pattern fields. A user's change
 writes a sparse override for that Pattern, and switching Patterns restores each
-Pattern's last values. Defaults are full speed and no Dreamy. A Pattern the
-wrapper declines runs unwrapped and shows the reason, as it does today.
+Pattern's last values. Both sliders read as amounts, as the Wrapper Controls
+do, and the lab's "speed" slider becomes "Slow-mo". The stored Slow-mo field is
+the amount. Defaults are no Slow-mo and no Dreamy, with both sliders at the
+left end. A Pattern the wrapper declines runs unwrapped and shows the reason,
+as it does today.
 
 The preview never reads or writes a Controller, and a Controller profile's
 Wrappers never change the preview.
@@ -262,8 +274,8 @@ Wrappers never change the preview.
 | --- | --- | --- |
 | Hardware probe | #1273 | now |
 | Always-on rewrites | #1274 | now |
-| Preview sliders ship | #1275 | Jon settles the slider direction (section 11) |
-| Engine: two Wrappers | #1276 | #1273 go; slider direction settled |
+| Preview sliders ship | #1275 | now |
+| Engine: two Wrappers | #1276 | #1273 go |
 | Profile model and delivery | #1279 | #1276 |
 | Controller profile page | #1277 | #1274, #1279 |
 | Controller panel group | #1280 | #1279 |
@@ -276,19 +288,14 @@ always-on slice.
 
 ## 11. Open points
 
-- **Slider direction (Jon).** The lab's slider is "speed", where the right end
-  is full speed. The product names the Wrapper Slow-mo. The recommendation is
-  that both Wrapper Controls read as amounts: the left end is off, and moving
-  right gives more Slow-mo or more Dreamy. A slider nobody has touched then
-  sits at off on every surface.
-- **Never-set sliders (#1273).** What the firmware shows and applies for a
-  slider with no saved value decides whether the recommendation above is also
-  a necessity.
+- **Never-set sliders (#1273).** Decision 30 relies on the firmware showing
+  and applying the left end for a slider with no saved value. If the probe
+  finds otherwise, the finding goes to Jon before the engine slice fixes its
+  defaults.
 - **Value survival (#1273).** Whether the rewrite must carry values across.
 - **Over-budget behaviour (#1273).** What the Controller reports when a wrapped
   Pattern's arrays exceed the VM budget, and whether a save can detect it.
 - **A live reading for a bound input.** The prototype animates a reading in the
   Controller panel. The build shows the input's name. A live reading needs an
   exported variable and is a follow-up.
-- **Shows.** Deferred. That Power limit and Brightness keep applying to Shows
-  is this session's reading of decision 25; Jon has not confirmed it in words.
+- **Shows.** Whether Shows ever take Slow-mo or Dreamy is deferred.
