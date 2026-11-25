@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wrappers UX prototype (#1235)</title>
+<style>
+:root{--bg:#09090b;--panel:#141416;--seam:#2e2e34;--live:#fbbf24;--ok:#4ade80;--bad:#f87171;--tour:#c4b5fd;
+--t1:#f4f4f5;--t2:#a1a1aa;--t3:#71717a;--t4:#52525b;
+--mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;--sans:'Geist Variable','Geist',Inter,-apple-system,system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--t1);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--live);outline-offset:2px}
+.mono{font-family:var(--mono)}
+/* app frame */
+#app{display:grid;grid-template-rows:auto 1fr;height:100%;padding-bottom:var(--tourh,150px)}
+.top{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--seam);position:relative;flex-wrap:wrap}
+.logo{font:600 15px var(--mono);letter-spacing:.2em;margin-right:6px}.logo i{color:var(--live);font-style:normal}
+.sect{display:flex;border:1px solid var(--seam);border-radius:8px;overflow:hidden}
+.sect button{padding:6px 12px;font:600 13px var(--mono);color:var(--t3)}
+.sect button[aria-pressed=true]{color:var(--live);background:#1c1a12}
+.grow{flex:1}
+.chipbtn{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--seam);border-radius:8px;font:13px var(--mono);color:var(--t2)}
+.chipbtn[aria-expanded=true]{border-color:var(--t2);color:var(--t1)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--ok);flex:none}
+.dot.off{background:var(--bad)}.dot.wait{background:none;border:1.5px solid var(--live)}
+.dot.now{background:var(--live);animation:pulse .8s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.body{display:grid;grid-template-columns:200px minmax(0,1.25fr) minmax(0,1fr);min-height:0}
+.body.pat{grid-template-columns:200px minmax(0,1.1fr) minmax(0,1fr)}
+.side,.mid,.right{overflow:auto;min-height:0}
+.side{border-right:1px solid var(--seam);padding:10px 0;font:13px var(--mono);color:var(--t2)}
+.side div,.side button{display:block;width:100%;text-align:left;padding:4px 14px}
+.side .cur{color:var(--live);background:#17150e;box-shadow:inset 2px 0 var(--live)}
+.side .grp{color:var(--t4);font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding-top:12px}
+.mid{border-right:1px solid var(--seam)}
+.hd{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--seam)}
+.hd .nm{font:15px var(--mono)}
+.tag{font:9px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--t3);border:1px solid var(--seam);border-radius:5px;padding:2px 6px}
+.btn{border:1px solid var(--seam);border-radius:8px;padding:5px 11px;font-size:13px;font-weight:500;color:var(--t1);white-space:nowrap}
+.btn:hover{border-color:var(--t3)}.btn.sm{padding:3px 9px;font-size:12px}
+.conn{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:14px 20px;font:13px var(--mono);color:var(--t2);border-bottom:1px solid var(--seam)}
+.conn b{font-weight:400;color:var(--t1)}.conn small{font-size:9px;letter-spacing:.14em;color:var(--t3);margin-right:5px}
+section{padding:22px 20px;border-bottom:1px solid var(--seam)}
+h2{margin:0;font:500 10px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--t2)}
+.h2row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.lead{margin:8px 0 14px;color:var(--t2);max-width:46ch}
+/* wrapper rows */
+.wr{display:grid;grid-template-columns:38px 108px minmax(0,1fr) auto;align-items:center;gap:10px;padding:9px 0;min-height:44px}
+.wr+.wr,.wr+.pick+.wr{border-top:1px solid #1d1d21}
+.wr .n{font-weight:500}.wr.offrow .n{color:var(--t2)}
+.wr .src{font:12px var(--mono);color:var(--t2);min-width:0}
+.pin{font:600 12px var(--mono);color:var(--live)}
+.warn{color:var(--live);font:12px var(--mono);text-decoration:underline dotted;text-underline-offset:3px}
+.sw{width:34px;height:20px;border-radius:10px;background:#3f3f46;position:relative;transition:.15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#a1a1aa;transition:.15s}
+.sw[aria-checked=true]{background:#7a5c0a}.sw[aria-checked=true]::after{left:17px;background:var(--live)}
+.none{color:var(--t4);text-align:center;font-family:var(--mono)}
+.pct{width:52px;background:var(--bg);border:1px solid var(--seam);border-radius:6px;color:var(--t1);font:12px var(--mono);padding:3px 6px;text-align:right}
+.pick{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:4px 0 12px 48px;font:12px var(--mono);color:var(--t3)}
+/* inputs */
+.inp{padding:14px 0}.inp+.inp{border-top:1px solid #1d1d21}
+.inp .row1{display:flex;align-items:baseline;gap:12px}.inp .row1 .name{font-size:17px;font-weight:500}
+.inp .meta{font:12px var(--mono);color:var(--t3);margin:2px 0 8px 46px}
+.use{display:flex;align-items:center;gap:10px;margin-left:46px;padding:6px 0 6px 14px;border-left:1px solid #6b5410}
+.use .what{font-weight:500}.use .scope{font:12px var(--mono);color:var(--t3)}
+.adds{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0 46px}
+.empty{color:var(--t3)}
+/* right column */
+.right section{padding:18px 20px}
+.prog{display:flex;align-items:center;gap:12px;margin:12px 0 6px;font:12px var(--mono);color:var(--t2);min-height:28px}
+.bar{flex:1;height:4px;border-radius:2px;background:#27272a;overflow:hidden;min-width:60px}
+.bar i{display:block;height:100%;background:var(--live);transition:width .3s}
+.bar.done i{background:#2f6b45}
+table{width:100%;border-collapse:collapse}
+td{padding:9px 0;border-top:1px solid #1d1d21;vertical-align:top}
+td.s{width:18px;text-align:right;padding-top:14px}
+.sg{margin:18px 0 2px;font:600 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--t3)}
+.sgn{margin:4px 0 4px;color:var(--t2);font-size:13px}
+.shn{display:block;font:11px var(--mono);color:var(--t3);margin-top:2px}
+.cpn{margin:0;color:var(--t2);font-size:13px}
+.pn{color:var(--live);font-weight:500}.pn.show{color:var(--t1)}
+.tags{display:flex;gap:5px;justify-content:flex-end}
+td.tg{width:1%;white-space:nowrap;padding-left:10px;padding-top:11px}
+.wt{font:10px var(--mono);color:var(--t2);border:1px solid var(--seam);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.wt.off{color:var(--t4);border-style:dashed;position:relative;cursor:help}
+.wt.off:hover,.wt.off:focus{color:var(--t2);border-color:var(--t3)}
+.wt.off:hover::after,.wt.off:focus::after{content:attr(data-tip);position:absolute;right:0;top:calc(100% + 6px);z-index:4;width:max-content;max-width:230px;white-space:normal;background:#27272a;color:var(--t1);border:1px solid #3f3f46;border-radius:6px;padding:6px 9px;font:12px/1.4 var(--sans);box-shadow:0 8px 24px #000a}
+tr.flash td{background:#1c1a12}
+/* controller panel */
+.cp{position:absolute;right:14px;top:calc(100% + 6px);width:min(520px,calc(100vw - 28px));background:var(--panel);border:1px solid var(--seam);border-radius:12px;box-shadow:0 20px 50px #000a;z-index:5;padding:14px 16px}
+.cp select,.pv select{background:var(--bg);color:var(--t1);border:1px solid var(--seam);border-radius:8px;font:14px var(--mono);padding:6px 8px}
+.cp .first{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grp{border-top:1px solid var(--seam);margin-top:12px;padding-top:10px}
+.grp h3{margin:0 0 8px;font:600 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--t2);display:flex;gap:8px;align-items:center}
+.kv{font:12px var(--mono);color:var(--t3);display:flex;gap:16px;flex-wrap:wrap}.kv b{color:var(--live);font-weight:400}
+.ctl{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 18px}
+.c{display:grid;grid-template-columns:76px minmax(0,1fr) 46px;gap:8px;align-items:center;font:12px var(--mono);color:var(--t2)}
+.c output{color:var(--live);text-align:right}
+input[type=range]{accent-color:var(--live);width:100%;min-width:0}
+.meter{height:6px;border-radius:3px;background:#27272a;overflow:hidden}.meter i{display:block;height:100%;background:#a1a1aa}
+.c .pin{font-size:10px}
+/* pattern view */
+.code{padding:16px 20px;font:13px/1.7 var(--mono);color:#6b8f6b;white-space:pre-wrap}
+.code b{color:#93c5fd;font-weight:400}.code u{color:var(--t1);text-decoration:none}
+.pv{padding:0 0 20px}
+canvas{display:block;width:100%;max-width:340px;aspect-ratio:1;margin:0 auto;background:#000}
+.pv .ttl{display:flex;align-items:center;gap:10px;padding:12px 20px 0;font:16px var(--mono)}
+.pv .grp{margin:12px 20px 0}
+/* tour: prototype scaffolding, not product UI */
+#tour{position:fixed;left:0;right:0;bottom:0;background:#16131f;border-top:1px solid #4c3f7a;color:#e9e4fb;padding:12px 18px;z-index:10;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 18px;align-items:start}
+#tour .k{font:600 10px var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tour)}
+#tour h4{margin:2px 0 4px;font:600 15px var(--sans)}
+#tour p{margin:0;max-width:92ch;color:#cfc8ea}
+#tour ul{margin:4px 0 0;padding-left:18px;color:#cfc8ea;max-width:100ch}
+#tour .nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+#tour .btn{border-color:#4c3f7a;color:#e9e4fb}#tour .btn.go{background:var(--tour);color:#16131f;border-color:var(--tour)}
+#tour .steps{display:flex;gap:4px}
+#tour .steps button{width:22px;height:22px;border-radius:50%;font:11px var(--mono);color:#9d91c9;border:1px solid #4c3f7a}
+#tour .steps button[aria-current=true]{background:var(--tour);color:#16131f}
+#tour .sim{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font:12px var(--mono);color:#9d91c9}
+@media (max-width:900px){
+  #app{height:auto;min-height:100%}
+  .body,.body.pat{display:block}.side{display:none}.mid{border-right:0}
+  .side,.mid,.right{overflow:visible}
+  .wr{grid-template-columns:38px minmax(0,1fr) auto}.wr .src{grid-column:2/-1;grid-row:2}
+  .tags{flex-wrap:wrap}td.tg{white-space:normal;width:40%}
+  #tour{grid-template-columns:1fr}#tour .nav{justify-content:flex-start}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="tour"></div>
+<script>
+/* ---------- model ---------- */
+const NEED={slowmo:1560,dreamy:780};            // array words at 256 pixels
+const LABEL={slowmo:'Slow-mo',dreamy:'Dreamy',power:'Power limit',bright:'Brightness'};
+const TAG={slowmo:'slow-mo',dreamy:'dreamy',power:'power',bright:'bright'};
+const DEFS=[
+  {name:'DoomFireV20_2D',free:6000,controls:['cooling','sparking']},
+  {name:'IridescentFibers',free:9000,controls:['zoom']},
+  {name:'LineDancer2D',free:9000,controls:['speed','twist','reflections']},
+  {name:'Stacker',free:512,controls:['rate']},
+  {name:'VoronoiMix2D',free:9000,controls:['speed','scale']},
+  {name:'WavyBands',free:9000,controls:['speed','width']},
+  {name:'Night Drive',show:true,free:0,controls:[]},
+];
+let S,timer=null;
+function base(){
+  clearTimeout(timer);
+  S={view:'controller',connected:true,w:{slowmo:false,dreamy:false,power:false},pct:25,inputs:[],
+     pats:DEFS.map(d=>({...d,vals:{slowmo:1,dreamy:0},auth:Object.fromEntries(d.controls.map((c,i)=>[c,.3+.2*i])),sig:'',written:{}})),
+     job:{state:'idle',current:null,restarted:false},panel:false,panelPat:'LineDancer2D',pick:null,flash:null,
+     pvPat:'LineDancer2D',pvVals:{},pvMode:'restore'};
+  S.pats.forEach(p=>{p.sig=sig(p);p.written=applied(p)});
+}
+const pat=n=>S.pats.find(p=>p.name===n);
+const inputFor=k=>S.inputs.find(i=>i.drive===k);
+function fits(p){return !p.show&&((S.w.slowmo?NEED.slowmo:0)+(S.w.dreamy?NEED.dreamy:0))<=p.free}
+/* what PXLBLZ would write for this Pattern under the current profile */
+function applied(p){
+  const a={};
+  for(const k of ['slowmo','dreamy']) if(S.w[k]&&fits(p)){
+    const i=inputFor(k); a[k]=(i&&!(i.use&&i.use.pattern===p.name))?i.pin:'slider';
+  }
+  if(S.w.power) a.power=S.pct;
+  const b=inputFor('bright'); if(b&&!(b.use&&b.use.pattern===p.name)) a.bright=b.pin;
+  S.inputs.forEach(i=>{if(i.use&&i.use.pattern===p.name) a['use:'+i.use.control]=i.pin});
+  return a;
+}
+const sig=p=>JSON.stringify(applied(p));
+const stale=()=>S.pats.filter(p=>p.sig!==sig(p));
+function settle(){S.pats.forEach(p=>{p.sig=sig(p);p.written=applied(p)});S.job={state:'idle',current:null,restarted:false}}
+/* rewrite queue: one run, later changes fold into it */
+function kick(){
+  if(!stale().length){clearTimeout(timer);S.job.state='idle';S.job.restarted=false;return}
+  if(S.job.state==='running'){S.job.restarted=true;return}
+  if(S.job.state==='paused')return;
+  clearTimeout(timer);
+  if(!S.connected){S.job.state='waiting';return}
+  S.job.state='pending';timer=setTimeout(run,1100);
+}
+function run(){
+  if(!S.connected){S.job.state='waiting';return renderRight()}
+  const s=stale();
+  if(!s.length){S.job={state:'idle',current:null,restarted:false};renderRight();renderPanel();return}
+  S.job.state='running';S.job.current=s[0].name;renderRight();
+  timer=setTimeout(()=>{const p=pat(S.job.current);p.sig=sig(p);p.written=applied(p);S.job.current=null;renderPanel();run()},850);
+}
+function change(fn){fn();kick();render()}
+/* ---------- formatting ---------- */
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fmt(k,v){
+  if(k==='slowmo'){if(v>=.97)return '1×';const d=Math.round(1/Math.pow(2,-4*(1-v)));return d<=1?'1×':'1/'+d+'×'}
+  return Math.round(v*100)+'%';
+}
+const num=n=>n.toLocaleString('en-US');
+/* ---------- views ---------- */
+function topBar(){
+  return `<div class="top">
+    <span class="logo"><i>∿</i> PXLBLZ</span>
+    <span class="sect" role="group" aria-label="Section">
+      <button data-a="view" data-v="controller" aria-pressed="${S.view==='controller'}">Controllers</button>
+      <button data-a="view" data-v="pattern" aria-pressed="${S.view==='pattern'}">Patterns</button></span>
+    <span class="grow"></span>
+    <span class="chipbtn" aria-disabled="true">Proto 4 <span class="dot off"></span></span>
+    <button class="chipbtn" data-a="panel" aria-expanded="${S.panel}" title="Controller panel">Proto 3 <span class="dot ${S.connected?'':'off'}"></span></button>
+    <div id="cp"></div>
+  </div>`;
+}
+function wrow(k){
+  const on=S.w[k],i=inputFor(k),bad=on?S.pats.filter(p=>!p.show&&!fits(p)):[];
+  let src='',act='';
+  if(on){
+    const ex=i&&i.use?` · every Pattern except ${esc(i.use.pattern)}`:(i?' · every Pattern':'');
+    src=i?`<span class="pin">${i.pin}</span> ${esc(i.name)}${ex}`:'slider, set per Pattern';
+    if(bad.length) src+=` · <button class="warn" data-a="flash" data-v="${esc(bad[0].name)}">${bad.length} skipped</button>`;
+    act=i?`<button class="btn sm" data-a="unbind" data-v="${k}">Unbind</button>`:`<button class="btn sm" data-a="pick" data-v="w:${k}">Bind input</button>`;
+  }
+  return `<div class="wr ${on?'':'offrow'}">
+    <button class="sw" role="switch" aria-checked="${on}" aria-label="${LABEL[k]}" data-a="tog" data-v="${k}"></button>
+    <span class="n">${LABEL[k]}</span><span class="src">${src}</span><span>${act}</span></div>${picker('w:'+k)}`;
+}
+function powerRow(){
+  const on=S.w.power;
+  return `<div class="wr ${on?'':'offrow'}">
+    <button class="sw" role="switch" aria-checked="${on}" aria-label="Power limit" data-a="tog" data-v="power"></button>
+    <span class="n">Power limit</span>
+    <span class="src">${on?`<input class="pct" type="number" min="5" max="100" step="5" value="${S.pct}" data-a="pct" aria-label="Power limit percent"> % of full draw`:''}</span><span></span></div>`;
+}
+function brightRow(){
+  const i=inputFor('bright');
+  return `<div class="wr"><span class="none" aria-hidden="true">–</span><span class="n">Brightness</span>
+    <span class="src"><span class="pin">${i.pin}</span> ${esc(i.name)} · every Pattern${i.use?' except '+esc(i.use.pattern):''}</span>
+    <span><button class="btn sm" data-a="unbind" data-v="bright">Unbind</button></span></div>`;
+}
+/* inline chooser: from a Wrapper (pick an input) or from an input (pick a Wrapper) */
+function picker(id){
+  if(S.pick!==id) return '';
+  if(id.startsWith('w:')){
+    const k=id.slice(2);
+    return `<div class="pick">Driven by ${S.inputs.map(i=>`<button class="btn sm" data-a="bind" data-k="${k}" data-i="${i.id}"><span class="pin">${i.pin}</span> ${esc(i.name)}${i.drive?` (now ${LABEL[i.drive]})`:''}</button>`).join('')}
+      <button class="btn sm" data-a="bindnew" data-k="${k}">+ New input</button><button class="btn sm" data-a="pick" data-v="">Cancel</button></div>`;
+  }
+  const iid=+id.slice(2);
+  return `<div class="pick" style="padding-left:46px">Drive ${['bright','slowmo','dreamy'].map(k=>`<button class="btn sm" data-a="bind" data-k="${k}" data-i="${iid}">${LABEL[k]}</button>`).join('')}
+    <button class="btn sm" data-a="pick" data-v="">Cancel</button></div>`;
+}
+function inputCard(i){
+  const scope=i.use?`every Pattern except ${esc(i.use.pattern)}`:'every Pattern';
+  return `<div class="inp">
+    <div class="row1"><span class="pin" style="width:34px">${i.pin}</span><span class="name">${esc(i.name)}</span><span class="grow"></span>
+      <button class="btn sm">Adjust</button><button class="btn sm" data-a="rminput" data-i="${i.id}">Remove</button></div>
+    <div class="meta">analog · smooth 20% · fallback 50%</div>
+    ${i.drive?`<div class="use"><span class="what">${LABEL[i.drive]}</span><span class="scope">${scope}</span><span class="grow"></span><button class="btn sm" data-a="unbind" data-v="${i.drive}">Unbind</button></div>`:''}
+    ${i.use?`<div class="use"><span class="what">${esc(i.use.pattern)}</span><span class="scope">drives ${esc(i.use.control)}</span><span class="grow"></span><button class="btn sm" data-a="rmuse" data-i="${i.id}">Remove</button></div>`:''}
+    <div class="adds">${i.drive?'':`<button class="btn sm" data-a="pick" data-v="i:${i.id}">+ Use for a Wrapper</button>`}
+      ${i.use?'':`<button class="btn sm" data-a="adduse" data-i="${i.id}">+ Use for one Pattern</button>`}</div>
+    ${picker('i:'+i.id)}</div>`;
+}
+function vController(){
+  return `<div class="body">
+  <nav class="side" aria-label="Controllers"><div>Burner bag</div><div>4' Mast 2</div><div>#2 Cark</div><div>Proto 4</div><div class="cur">Proto 3</div></nav>
+  <main class="mid">
+    <div class="hd"><span class="nm">Proto 3</span><span class="tag">Controller</span><span class="grow"></span><button class="btn sm">Refresh</button><button class="btn sm">Import map</button></div>
+    <div class="conn"><span><span class="dot ${S.connected?'':'off'}"></span> <b>${S.connected?'Connected':'Offline'}</b></span>
+      <span><small>PIXELS</small><b>256</b></span><span><small>MAP</small><b>16x16 WS2815 Matrix</b></span></div>
+    <section><h2>Wrappers</h2><p class="lead">Added to every Pattern PXLBLZ saves on this Controller.</p>
+      ${wrow('slowmo')}${wrow('dreamy')}${powerRow()}${inputFor('bright')?brightRow():''}</section>
+    <section><div class="h2row"><h2>Inputs</h2><button class="btn sm" data-a="addinput">+ Add input</button></div>
+      <p class="lead">One entry per physical control wired to the board.</p>
+      ${S.inputs.length?S.inputs.map(inputCard).join(''):'<div class="empty">No inputs.</div>'}</section>
+  </main>
+  <aside class="right" id="right"></aside></div>`;
+}
+function right(){
+  const total=S.pats.length,done=total-stale().length,j=S.job,pc=Math.round(100*done/total);
+  let line;
+  if(j.state==='idle') line=`<span>${done} of ${total} up to date</span>`;
+  else if(j.state==='waiting') line=`<div class="bar"><i style="width:${pc}%"></i></div><span>${total-done} waiting for Proto 3</span>`;
+  else if(j.state==='paused') line=`<div class="bar"><i style="width:${pc}%"></i></div><span>Paused at ${done} of ${total}</span><button class="btn sm" data-a="resume">Resume</button>`;
+  else line=`<div class="bar"><i style="width:${pc}%"></i></div><span>Updating ${done} of ${total}${j.restarted?' · restarted':''}</span><button class="btn sm" data-a="pause">Pause</button>`;
+  const row=p=>{
+    const a=p.written,ks=['slowmo','dreamy'].filter(k=>S.w[k]),need=ks.reduce((t,k)=>t+NEED[k],0);
+    const tip=`Skipped: not enough memory. Needs ${num(need)} array words, ${num(p.free)} free.`;
+    const tags=['slowmo','dreamy','power','bright'].map(k=>k in a?`<span class="wt">${TAG[k]}</span>`
+        :(S.w[k]&&!p.show&&!fits(p)?`<span class="wt off" tabindex="0" data-tip="${esc(tip)}" aria-label="${TAG[k]}: ${esc(tip)}">${TAG[k]}</span>`:'')).join('')+
+      Object.keys(a).filter(k=>k.startsWith('use:')).map(k=>`<span class="wt">${esc(a[k])} → ${esc(k.slice(4))}</span>`).join('');
+    const st=j.current===p.name?'now':(p.sig===sig(p)?'':'wait');
+    const stt=st==='now'?'Updating':st==='wait'?'Waiting to update':'Up to date';
+    return `<tr class="${S.flash===p.name?'flash':''}" data-row="${esc(p.name)}"><td><span class="pn ${p.show?'show':''}">${esc(p.name)}</span>${p.show?'<span class="shn">Portable 2D</span>':''}</td>
+      <td class="tg"><div class="tags">${tags}</div></td><td class="s"><span class="dot ${st}" title="${stt}" role="img" aria-label="${stt}"></span></td></tr>`;
+  };
+  const pats=S.pats.filter(p=>!p.show),shows=S.pats.filter(p=>p.show),off=showOff();
+  return `<section><h2>Saved by PXLBLZ (${total})</h2><div class="prog ${j.state==='idle'?'':'busy'}" aria-live="polite">${line}</div>
+    <h3 class="sg">Patterns (${pats.length})</h3><table aria-label="Patterns"><tbody>${pats.map(row).join('')}</tbody></table>
+    <h3 class="sg">Shows (${shows.length})</h3>${off?`<p class="sgn" id="shownote">Shows keep their own timing: no ${off.replace(' and ',' or ')}.</p>`:''}
+    <table aria-label="Shows"><tbody>${shows.map(row).join('')}</tbody></table></section>
+    <section><h2>Other Patterns (1)</h2><table><tbody><tr><td><span class="pn show">rainbow melt</span></td></tr></tbody></table></section>`;
+}
+/* the Wrappers a Show is excepted from, when any is on */
+function showOff(){return ['slowmo','dreamy'].filter(k=>S.w[k]).map(k=>LABEL[k]).join(' and ')}
+function ctl(label,k,v,pin,act,name){
+  return pin?`<div class="c"><span>${esc(label)}</span><div class="meter" role="img" aria-label="${esc(label)} from ${pin}"><i class="knob"></i></div><span class="pin">${pin}</span></div>`
+    :`<label class="c"><span>${esc(label)}</span><input type="range" min="0" max="1" step="0.01" value="${v}" data-a="${act}" data-k="${esc(name||k)}" data-f="${k}"><output>${fmt(k,v)}</output></label>`;
+}
+function panel(){
+  if(!S.panel) return '';
+  const p=pat(S.panelPat),a=p.written,wk=['slowmo','dreamy'].filter(k=>k in a);
+  return `<div class="cp" role="dialog" aria-label="Controller panel">
+    <div class="first"><select data-a="panelpat" aria-label="Pattern on Controller">${S.pats.map(q=>`<option ${q.name===p.name?'selected':''}>${esc(q.name)}</option>`).join('')}</select>
+      <span class="kv"><span>fps <b>109.5</b></span><span>pixels <b>256</b></span></span></div>
+    ${wk.length?`<div class="grp"><h3>Wrappers</h3><div class="ctl">${wk.map(k=>ctl(TAG[k],k,p.vals[k],a[k]==='slider'?null:a[k],'wval')).join('')}</div></div>`
+      :(p.show&&showOff()?`<div class="grp"><h3>Wrappers</h3><p class="cpn">${showOff()} ${showOff().includes(' and ')?'are':'is'} off for Shows.</p></div>`:'')}
+    ${p.controls.length?`<div class="grp"><h3>Controls</h3><div class="ctl">${p.controls.map(c=>{
+      const key='use:slider'+c[0].toUpperCase()+c.slice(1);return ctl(c,'pct',p.auth[c],a[key]||null,'aval',c)}).join('')}</div></div>`:''}
+  </div>`;
+}
+const CODE=`// Pattern: Line Dancer 2D
+// Credit: "Line Dancer 2D" by ZRanger1
+
+<b>export var</b> <u>speed</u> = 4.6;
+<b>export var</b> <u>twist</u> = 1.75;
+<b>export var</b> <u>nSides</u> = 1;
+
+<b>export function</b> <u>sliderSpeed</u>(v) { speed = 1 + v * 9 }
+<b>export function</b> <u>beforeRender</u>(delta) { t1 = time(.1) }
+<b>export function</b> <u>render2D</u>(index, x, y) { hsv(x + t1, 1, y) }`;
+function pv(){return S.pvVals[S.pvPat]||(S.pvVals[S.pvPat]={slowmo:1,dreamy:0})}
+function vPattern(){
+  const v=pv(),names=S.pats.filter(p=>!p.show).map(p=>p.name);
+  return `<div class="body pat">
+  <nav class="side" aria-label="Patterns"><div class="grp">ZRanger1</div>${names.map(n=>`<button class="${n===S.pvPat?'cur':''}" data-a="pvpat" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</nav>
+  <main class="mid"><div class="hd"><span class="nm">${esc(S.pvPat)}</span><span class="tag">2D</span></div><div class="code">${CODE.replace('Line Dancer 2D',esc(S.pvPat))}</div></main>
+  <aside class="right pv"><canvas id="cv" width="320" height="320" aria-label="Pattern preview"></canvas>
+    <div class="ttl">${esc(S.pvPat)} <span class="tag">2D</span></div>
+    <div class="grp"><h3>Preview</h3><div class="kv"><span>renderer <b>Precise</b></span><span>fps <b>60.0</b></span><span>layout <b>16×16</b></span></div></div>
+    <div class="grp"><h3>Wrappers <span class="tag">preview only</span></h3><div class="ctl">
+      ${ctl('slow-mo','slowmo',v.slowmo,null,'pval')}${ctl('dreamy','dreamy',v.dreamy,null,'pval')}</div></div>
+    <div class="grp"><h3>Controls</h3><div class="ctl">${ctl('speed','pct',.39,null,'noop')}${ctl('twist','pct',1,null,'noop')}</div></div>
+  </aside></div>`;
+}
+/* ---------- tour (scaffolding) ---------- */
+const addIn=(pin,name,drive,use)=>{const i={id:Date.now()+Math.random(),pin,name,drive:drive||null,use:use||null};S.inputs.push(i);return i};
+const STEPS=[
+ {t:'The page at rest',n:'Three parts: Wrappers, Inputs, and the Patterns saved on the Controller. The “Keep Patterns up to date” switch is gone. Nothing is on, so every Pattern is plain code, as today.',
+  go(){}},
+ {t:'Turn on Slow-mo',n:'No input is needed. Rewrites start on their own after a short pause, so several changes land as one run. Stacker has too little memory, so its tag is greyed: hover or tab to it for the reason. Try the switch yourself.',
+  go(){S.w.slowmo=true;kick()}},
+ {t:'Set it on the Controller',n:'The Controller panel gets a Wrappers group, apart from the Pattern’s own Controls (LineDancer2D has its own “speed”). The value is saved on the Controller per Pattern: pick another Pattern in the panel and it has its own.',
+  go(){S.w.slowmo=true;settle();pat('LineDancer2D').vals.slowmo=.5;pat('WavyBands').vals.slowmo=.75;S.panel=true}},
+ {t:'Change your mind mid-run',n:'Dreamy was just switched on. While it runs, flip Power limit or Slow-mo: the same run picks the change up and says “restarted”. There is never a second run. Pause stops it.',
+  go(){S.w.slowmo=true;settle();S.w.dreamy=true;kick()}},
+ {t:'Unplug mid-update',n:'The Controller drops out two Patterns in. The rest wait. Use “Reconnect” below and the run carries on from where it stopped.',
+  go(){S.w.slowmo=true;S.w.dreamy=true;settle();S.w.power=true;kick();setTimeout(()=>{if(step===4&&S.connected){S.connected=false;clearTimeout(timer);S.job.state='waiting';S.job.current=null;render()}},3100)}},
+ {t:'Brightness arrives with a knob',n:'Brightness is absent from the list until an input drives it. Here Input 1 does. Unbind it and the row goes; “Use for a Wrapper” on the input brings it back. Slow-mo and Dreamy can be bound from either side.',
+  go(){S.w.slowmo=true;S.w.dreamy=true;settle();addIn('IO34','Input 1','bright');kick()}},
+ {t:'Bind a knob to Slow-mo',n:'The second step, and optional. The knob takes over from the slider on every wrapped Pattern, so the panel shows a reading instead of a slider. Dreamy stays a per-Pattern slider.',
+  go(){S.w.slowmo=true;S.w.dreamy=true;addIn('IO34','Input 1','bright');addIn('IO35','Input 2','slowmo');settle();S.panel=true;S.panelPat='WavyBands';pat('WavyBands').vals.dreamy=.3}},
+ {t:'One Pattern keeps the knob for itself',n:'Input 2 also drives LineDancer2D’s own speed. That Pattern opts out of knob-driven Slow-mo and gets its slider back. This is the rule brightness already follows, and my proposed answer to “all Patterns or a subset”: no subset picker.',
+  go(){S.w.slowmo=true;S.w.dreamy=true;addIn('IO34','Input 1','bright');addIn('IO35','Input 2','slowmo',{pattern:'LineDancer2D',control:'sliderSpeed'});settle();S.panel=true;S.panelPat='LineDancer2D';pat('LineDancer2D').vals.slowmo=.5}},
+ {t:'The preview stays separate',n:'The lab flag is gone and the two sliders ship, marked preview only. Nothing here reaches a Controller. Each Pattern keeps its last values, saved with its other preview settings: set them, switch Patterns in the list, and come back.',
+  go(){S.view='pattern';S.pvVals={LineDancer2D:{slowmo:.5,dreamy:.4}}}},
+ {t:'A Show on this Controller',n:'Shows get their own group. Slow-mo and Dreamy skip every Show, and the group says so once, only while one of them is on. A greyed tag is kept for a Pattern that was tried and skipped. Power limit and Brightness still reach a Show, as they do today, so those tags stay. The Controller panel says the same while a Show is selected, which is when a bound knob would otherwise seem dead.',
+  go(){S.w.slowmo=true;S.w.dreamy=true;S.w.power=true;addIn('IO34','Input 1','bright');addIn('IO35','Input 2','slowmo');settle();S.panel=true;S.panelPat='Night Drive'}},
+ {t:'Settled today',list:['This page shape; Brightness absent until an input drives it; a bound knob covers every wrapped Pattern with the per-Pattern opt-out.','A Pattern that can’t take a Wrapper is saved without it: a greyed tag, “skipped”, with the reason on hover.','The preview sliders ship, the lab flag goes, and values are kept per Pattern.','Wrappers are for Patterns first. Shows have their own group; whether Shows ever take Slow-mo or Dreamy is deferred.'],
+  go(){S.w.slowmo=true;S.w.dreamy=true;S.w.power=true;addIn('IO34','Input 1','bright');settle()}},
+];
+let step=0;
+function goStep(i){step=Math.max(0,Math.min(STEPS.length-1,i));base();STEPS[step].go();render()}
+function tour(){
+  const s=STEPS[step];
+  const sim=S.view==='pattern'?'':`Bench: <button class="btn sm" data-a="conn">${S.connected?'Unplug Proto 3':'Reconnect Proto 3'}</button>`;
+  document.getElementById('tour').innerHTML=`<div><div class="k">Prototype tour · ${step+1} of ${STEPS.length}</div><h4>${s.t}</h4>
+    ${s.list?`<ul>${s.list.map(x=>`<li>${x}</li>`).join('')}</ul>`:`<p>${s.n}</p>`}</div>
+    <div class="nav"><span class="steps">${STEPS.map((_,i)=>`<button data-a="step" data-v="${i}" aria-current="${i===step}" aria-label="Step ${i+1}">${i+1}</button>`).join('')}</span>
+      <button class="btn" data-a="step" data-v="${step-1}" ${step?'':'disabled'}>Back</button><button class="btn go" data-a="step" data-v="${step+1}" ${step<STEPS.length-1?'':'disabled'}>Next</button></div>
+    ${sim?`<div class="sim">${sim}</div>`:''}`;
+  document.documentElement.style.setProperty('--tourh',document.getElementById('tour').offsetHeight+'px');
+}
+/* ---------- render ---------- */
+function renderRight(){const r=document.getElementById('right');if(r)r.innerHTML=right()}
+function renderPanel(){const c=document.getElementById('cp');if(c)c.innerHTML=panel()}
+function render(){
+  document.getElementById('app').innerHTML=topBar()+(S.view==='controller'?vController():vPattern());
+  renderRight();renderPanel();tour();
+}
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b||b.tagName==='INPUT'||b.tagName==='SELECT')return;
+  const a=b.dataset.a,v=b.dataset.v,k=b.dataset.k,inp=S.inputs.find(i=>String(i.id)===b.dataset.i);
+  if(a==='step') return goStep(+v);
+  if(a==='view'){S.view=v;S.panel=false;return render()}
+  if(a==='panel'){S.panel=!S.panel;return render()}
+  if(a==='tog') return change(()=>{S.w[v]=!S.w[v];if(!S.w[v]){const i=inputFor(v);if(i)i.drive=null}S.pick=null});
+  if(a==='pick'){S.pick=S.pick===v?null:(v||null);return render()}
+  if(a==='bind') return change(()=>{S.inputs.forEach(i=>{if(i.drive===k)i.drive=null});inp.drive=k;if(k!=='bright')S.w[k]=true;S.pick=null});
+  if(a==='bindnew') return change(()=>{S.inputs.forEach(i=>{if(i.drive===k)i.drive=null});addIn(S.inputs.length?'IO35':'IO34','Input '+(S.inputs.length+1),k);if(k!=='bright')S.w[k]=true;S.pick=null});
+  if(a==='unbind') return change(()=>{const i=inputFor(v);if(i)i.drive=null});
+  if(a==='addinput') return change(()=>addIn(['IO34','IO35','IO36','IO39','IO33'][S.inputs.length%5],'Input '+(S.inputs.length+1)));
+  if(a==='rminput') return change(()=>{S.inputs=S.inputs.filter(i=>i!==inp)});
+  if(a==='adduse') return change(()=>{inp.use={pattern:'LineDancer2D',control:'sliderSpeed'}});
+  if(a==='rmuse') return change(()=>{inp.use=null});
+  if(a==='pause'){clearTimeout(timer);S.job.state='paused';S.job.current=null;return renderRight()}
+  if(a==='resume'){S.job.state='idle';kick();return renderRight()}
+  if(a==='conn'){S.connected=!S.connected;if(!S.connected){clearTimeout(timer);if(S.job.state!=='idle'&&S.job.state!=='paused'){S.job.state='waiting';S.job.current=null}}else if(S.job.state==='waiting'){S.job.state='idle';kick()}return render()}
+  if(a==='flash'){S.flash=v;renderRight();const r=document.querySelector('tr.flash');if(r)r.scrollIntoView({block:'nearest'});setTimeout(()=>{S.flash=null;renderRight()},1600);return}
+  if(a==='pvmode'){S.pvMode=v;return tour()}
+  if(a==='pvpat'){S.pvPat=v;glow=null;return render()}
+});
+document.addEventListener('input',e=>{
+  const t=e.target,a=t.dataset.a;if(!a)return;
+  if(a==='pct'){S.pct=Math.max(5,Math.min(100,+t.value||25));kick();return renderRight()}
+  const v=+t.value,f=t.dataset.f,out=t.parentElement.querySelector('output');
+  if(a==='wval') pat(S.panelPat).vals[f]=v;          // a slider value: never a rewrite
+  if(a==='aval') pat(S.panelPat).auth[t.dataset.k]=v;
+  if(a==='pval') pv()[f]=v;
+  if(out) out.textContent=fmt(f,v);
+});
+document.addEventListener('change',e=>{if(e.target.dataset.a==='panelpat'){S.panelPat=e.target.value;renderPanel()}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.panel){S.panel=false;render()}});
+/* ---------- preview canvas and knob reading ---------- */
+let pt=0,last=0,glow=null;
+function hsv(h,s,v){h=((h%1)+1)%1;const i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);return [[v,t,p],[q,v,p],[p,v,t],[p,q,v],[t,p,v],[v,p,q]][i%6]}
+function frame(now){
+  const dt=Math.min(50,now-last||16);last=now;
+  document.querySelectorAll('.knob').forEach(k=>k.style.width=(55+18*Math.sin(now/900))+'%');
+  const cv=document.getElementById('cv');
+  if(cv){
+    const g=cv.getContext('2d'),v=pv(),rate=v.slowmo>=.97?1:Math.pow(2,-4*(1-v.slowmo)),ms=10000*v.dreamy*v.dreamy,keep=ms?Math.exp(-dt/ms):0;
+    pt+=dt/1000*rate;
+    const seed=S.pvPat.length,N=16,c=cv.width/N;
+    if(!glow||glow.length!==N*N*3) glow=new Float32Array(N*N*3);
+    g.fillStyle='#000';g.fillRect(0,0,cv.width,cv.height);
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      const dx=x/(N-1)-.5,dy=y/(N-1)-.5,r=Math.hypot(dx,dy),a=Math.atan2(dy,dx);
+      const band=Math.sin(a*(1+seed%3)+r*(6+seed%5)-pt*5);
+      const rgb=hsv(a/6.283+r-pt*.35+seed*.07,1,Math.pow(Math.max(0,band),2.5)),o=(y*N+x)*3;
+      for(let j=0;j<3;j++) glow[o+j]=Math.max(rgb[j],glow[o+j]*keep);
+      g.fillStyle=`rgb(${glow[o]*255|0},${glow[o+1]*255|0},${glow[o+2]*255|0})`;
+      g.beginPath();g.arc(x*c+c/2,y*c+c/2,c*.36,0,6.283);g.fill();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+addEventListener('resize',()=>tour());
+goStep(0);requestAnimationFrame(frame);
+</script>
+</body>
+</html>

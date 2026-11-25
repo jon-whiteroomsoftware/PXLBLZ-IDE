@@ -88,6 +88,9 @@ setup automatically.
 
 ## Native controls for Slow-mo and Dreamy
 
+[`wrappers-specification.md`](wrappers-specification.md) supersedes this section
+for current design.
+
 Generated enhanced Patterns expose **Slow-mo** and **Dreamy** as native
 Pixelblaze sliders. A physical potentiometer is optional. Slow-mo deliberately
 ranges from slower playback to normal speed; speeding Patterns above normal is
