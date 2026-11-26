@@ -176,9 +176,10 @@ const stale=()=>S.pats.filter(p=>p.sig!==sig(p));
 function settle(){S.pats.forEach(p=>{p.sig=sig(p);p.written=applied(p)});S.job={state:'idle',current:null,restarted:false}}
 /* rewrite queue: one run, later changes fold into it */
 function kick(){
-  if(!stale().length){clearTimeout(timer);S.job.state='idle';S.job.restarted=false;return}
+  if(!stale().length){clearTimeout(timer);S.job={state:'idle',current:null,restarted:false};return}
   if(S.job.state==='running'){S.job.restarted=true;return}
   if(S.job.state==='paused')return;
+  if(S.job.state==='pending')S.job.restarted=true;
   clearTimeout(timer);
   if(!S.connected){S.job.state='waiting';return}
   S.job.state='pending';timer=setTimeout(run,1100);
@@ -191,10 +192,16 @@ function run(){
   timer=setTimeout(()=>{const p=pat(S.job.current);p.sig=sig(p);p.written=applied(p);S.job.current=null;renderPanel();run()},850);
 }
 function change(fn){fn();kick();render()}
+const slowmoRate=v=>v<=.03?1:Math.pow(2,-4*v);
 /* ---------- formatting ---------- */
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function fmt(k,v){
-  if(k==='slowmo'){if(v<=.03)return 'off';const d=Math.round(Math.pow(2,4*v));return d<=1?'off':'1/'+d+'×'}
+  if(k==='slowmo'){
+    const rate=slowmoRate(v);
+    if(rate===1)return 'off';
+    const d=1/rate,n=d<10?Number(d.toFixed(1)):Math.round(d);
+    return '1/'+n+'×';
+  }
   return Math.round(v*100)+'%';
 }
 const num=n=>n.toLocaleString('en-US');
@@ -287,7 +294,7 @@ function right(){
     const a=p.written,ks=['slowmo','dreamy'].filter(k=>S.w[k]),need=ks.reduce((t,k)=>t+NEED[k],0);
     const tip=`Skipped: not enough memory. Needs ${num(need)} array words, ${num(p.free)} free.`;
     const tags=['slowmo','dreamy','power','bright'].map(k=>k in a?`<span class="wt">${TAG[k]}</span>`
-        :(S.w[k]&&!p.show&&!fits(p)?`<span class="wt off" tabindex="0" data-tip="${esc(tip)}" aria-label="${TAG[k]}: ${esc(tip)}">${TAG[k]}</span>`:'')).join('')+
+        :(ks.includes(k)&&!p.show&&!fits(p)?`<span class="wt off" tabindex="0" data-tip="${esc(tip)}" aria-label="${TAG[k]}: ${esc(tip)}">${TAG[k]}</span>`:'')).join('')+
       Object.keys(a).filter(k=>k.startsWith('use:')).map(k=>`<span class="wt">${esc(a[k])} → ${esc(k.slice(4))}</span>`).join('');
     const st=j.current===p.name?'now':(p.sig===sig(p)?'':'wait');
     const stt=st==='now'?'Updating':st==='wait'?'Waiting to update':'Up to date';
@@ -430,7 +437,7 @@ function frame(now){
   document.querySelectorAll('.knob').forEach(k=>k.style.width=(55+18*Math.sin(now/900))+'%');
   const cv=document.getElementById('cv');
   if(cv){
-    const g=cv.getContext('2d'),v=pv(),rate=v.slowmo<=.03?1:Math.pow(2,-4*v.slowmo),ms=10000*v.dreamy*v.dreamy,keep=ms?Math.exp(-dt/ms):0;
+    const g=cv.getContext('2d'),v=pv(),rate=slowmoRate(v.slowmo),ms=10000*v.dreamy*v.dreamy,keep=ms?Math.exp(-dt/ms):0;
     pt+=dt/1000*rate;
     const seed=S.pvPat.length,N=16,c=cv.width/N;
     if(!glow||glow.length!==N*N*3) glow=new Float32Array(N*N*3);
