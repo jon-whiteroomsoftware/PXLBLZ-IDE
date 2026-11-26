@@ -128,9 +128,9 @@ independent switches and allocates only the buffers the enabled set needs: six
 for Slow-mo, three for Dreamy, nine for both. With both on, the output is the
 wrapper that exists today.
 
-**Wrapper Controls.** Each enabled Wrapper exports one slider. Dreamy gains its
-export. Final export names and the labels the firmware derives from them come
-from #1273's label table.
+**Wrapper Controls.** Each applied Wrapper exports one slider. Slow-mo uses
+`sliderSlowMo` (“Slow Mo”) and Dreamy uses `sliderDreamy` (“Dreamy”), the two
+names verified in both Controller panels. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
 
 Both Wrapper Controls read as amounts (decision 30). The left end is off, and
 moving right gives more Slow-mo or more Dreamy. Dreamy already works this way.
@@ -145,8 +145,12 @@ a reserved identifier) skips both Slow-mo and Dreamy. Memory is decided in a
 fixed order, Slow-mo then Dreamy, each against the words that remain, so a
 Pattern with room for one keeps that one. The decision is a pure function of
 the Pattern's source, the pixel count and the enabled set, and it returns a
-reason for each skipped Wrapper. Power limit and Brightness are unaffected by a
-skip.
+reason for each skipped Wrapper.
+
+A Pattern may already use a Wrapper's Control name. The engine skips that
+Wrapper with `control-name-taken`, naming the existing Control in the reason.
+The other Wrapper keeps its place in the memory decision. Power limit and
+Brightness are unaffected by a skip. [#1276](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1276)
 
 Memory accounting must include the Pattern's own arrays, which today's check
 omits. The engine slice owns the method. The fail-closed rule is fixed here: a

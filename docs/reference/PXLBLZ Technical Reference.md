@@ -310,7 +310,8 @@ byte-compatible with `bundle()`.
 Pass kinds: **inject** (prepend source, compose `beforeRender`), **intercept**
 (rewrite AST-located, unshadowed `hsv`/`hsv24`/`rgb`/`paint` calls), **bind**
 (drive a function or variable from a normalized source with range/quantize),
-and **renderer adapter** (exact map-dimensional wrapper). Generated
+**renderer adapter** (exact map-dimensional wrapper), and the Wrapper passes
+described below. Generated
 identifiers use the reserved `__pxlblz_` prefix; collisions and unsupported
 call shapes become transform warnings, and generated source is always
 inspectable. The interception boundary is deliberately honest: aliases, object
@@ -355,6 +356,28 @@ capture. The display blends the latest two captures and skips intermediate real
 frames on screen, with no extra render pass, as accepted in
 [#1236](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1236).
 Push and Show compilation are unchanged.
+
+**Native Pattern Wrappers.** The `wrappers` recipe and
+`emitPatternWrappers(code, pixelCount, enabled)` apply a selected set to the
+flat Pattern. An empty set preserves the source bytes. Each applied Wrapper
+adds an amount Control, `sliderSlowMo` or `sliderDreamy`, whose initial state
+is off before the firmware calls the handler. Untouched output uses the
+native clock and color sinks. The existing `slowmo` preview recipe runs both
+effects and accepts the preview's position and decay settings.
+
+For a fixed pixel count, the native pass reserves the Pattern's own array
+words before visiting Slow-mo and Dreamy in that order. Slow-mo uses six
+buffers and Dreamy uses three. Each costs the pixel count plus four header
+words. The bound charges both array literals and `array(n)` allocations,
+including provably bounded initialization calls, guarded caches and nested
+setup. The pass skips a Wrapper if array use is unbounded or the remaining
+words cannot cover it. The VM budget is 10,240 words.
+
+A structural refusal skips both Wrappers. An existing top-level Control name
+skips its own Wrapper with `control-name-taken`. The pass summary exposes each
+applied Wrapper and each skip reason. A recipe places Pattern bindings before
+the Wrappers, then intercepts the emitted output for Brightness and Power
+limit in that order. [#1276](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1276)
 
 **Source manifests.** Every stock Pattern opens with a compact human-readable
 manifest (name, provenance, description, controls). `parsePatternManifest`
@@ -1868,6 +1891,12 @@ phase-continuous across that wrap for power-of-two 16.16 raw intervals and
 may jump otherwise. Clock-of-day builtins are unchanged. Preview tests do
 not establish firmware conversion parity, total memory use, LED appearance,
 or device FPS; those still require hardware proof.
+
+The #1273 Controller bench measured the combined Slow-mo and Dreamy wrapper
+with both Controls off at 14.4–73.9% of unwrapped FPS across six Patterns at
+256 pixels. The target was 90%. Jon accepted that cost for this release at
+12:43 -07:00 on 2026-11-26. The bench measured the prior combined emitter.
+[#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
 
 ## 32. Evidence and further reading
 
