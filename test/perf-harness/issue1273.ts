@@ -32,6 +32,7 @@ import { PixelblazeConnection, type WebSocketLike } from '../../src/engine/Pixel
 import { fetchControllerCompiler, sleep } from './controllerHardware'
 import {
   assertProbeTarget,
+  type BenchBaseline,
   buildVariant,
   compareRestore,
   type ControllerSnapshot,
@@ -40,6 +41,8 @@ import {
   FPS_VERSIONS,
   LABEL_PROBE_NAMES,
   OVER_BUDGET_PROBE_SOURCE,
+  restoreBaselineSnapshot,
+  restoreSurvivalSliders,
   SLIDER_NAMES,
   sliderProbeSource,
   summarizeFreshFps,
@@ -370,6 +373,13 @@ async function readValues(ip: string, id: string, sliders: string[], activate: b
 
 export const SURVIVAL_VALUES = { [SLIDER_NAMES.plainSpeed]: 0.3, [SLIDER_NAMES.plainDreamy]: 0.7 }
 
+async function parkSurvivalProbe(ip: string, parkId: string) {
+  await withSession(ip, async ({ conn }) => {
+    conn.setActiveProgram(parkId, false)
+    await waitActive(conn, parkId)
+  })
+}
+
 /** Shared survival setup: save the target and a parking probe, activate the
  * target, save non-default values, confirm them over a fresh socket and park
  * on the other probe so the rewrite targets an inactive Pattern. */
@@ -406,10 +416,7 @@ async function survivalSetup(
     const actual = values?.[id]?.[slider]
     return typeof actual !== 'number' || Math.abs(actual - expected) > 0.001
   })) throw new Error(`${name}: initial controls were not confirmed: ${JSON.stringify(confirmedBefore)}`)
-  await withSession(ip, async ({ conn }) => {
-    conn.setActiveProgram(parkId, false)
-    await waitActive(conn, parkId)
-  })
+  await parkSurvivalProbe(ip, parkId)
   return { id, name, parkId, parkName, initialSave, parkSave, confirmedBefore, initialSliders: initial.sliders }
 }
 
@@ -417,10 +424,7 @@ async function survivalSetup(
 export async function survivalReadBack(ip: string, id: string, parkId: string, sliders: string[]) {
   const fresh = await readValues(ip, id, sliders, false)
   const activated = await readValues(ip, id, sliders, true)
-  await withSession(ip, async ({ conn }) => {
-    conn.setActiveProgram(parkId, false)
-    await waitActive(conn, parkId)
-  })
+  await parkSurvivalProbe(ip, parkId)
   const returned = await readValues(ip, id, sliders, true)
   return { fresh, activated, returned }
 }
@@ -446,10 +450,11 @@ export async function runSurvival(ip: string, out: string, path: 'raw' | 'ide', 
       path, case: kase, ...setup, rewriteSliders: rewrite.sliders, rewriteSave, identicalBytes, afterRewrite,
     }
     if (kase === 'c') {
-      const restore = survivalSource('c', 'restore')
-      record.restoreSave = await save(id, name, restore.source, true)
-      record.restoreSliders = restore.sliders
-      record.afterRestore = await survivalReadBack(ip, id, parkId, restore.sliders)
+      Object.assign(record, await restoreSurvivalSliders(
+        () => parkSurvivalProbe(ip, parkId),
+        (source) => save(id, name, source, true),
+        (sliders) => survivalReadBack(ip, id, parkId, sliders),
+      ))
     }
     results.push(record)
     writeFileSync(out, JSON.stringify({ ip, at: new Date().toISOString(), values: SURVIVAL_VALUES, results }, null, 2))
@@ -574,21 +579,17 @@ async function overBudgetMode(ip: string, out: string) {
 }
 
 async function restoreMode(ip: string, out: string) {
-  const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as {
-    ip: string
-    config: { activeProgramId: string; brightness: number; pixelCount: number }
-    map: { sha256: string }
-    programs: Array<{ id: string; name: string }>
-  }
+  const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as BenchBaseline
   if (ip !== baseline.ip) throw new Error('Restore requires the captured bench Controller')
-  const ids = baselineIds()
+  const before = restoreBaselineSnapshot(baseline)
+  const ids = new Set(before.programs.map((p) => p.id))
   const manifest = existsSync(MANIFEST)
     ? readFileSync(MANIFEST, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { id: string; name: string })
     : []
   const deleted: string[] = []
   await withSession(ip, async ({ conn }) => {
-    conn.setActiveProgram(baseline.config.activeProgramId, false)
-    await waitActive(conn, baseline.config.activeProgramId)
+    conn.setActiveProgram(before.activeProgramId, false)
+    await waitActive(conn, before.activeProgramId)
     const listed = await conn.listPrograms()
     for (const probe of manifest) {
       if (ids.has(probe.id)) throw new Error(`manifest names baseline id ${probe.id}; refusing`)
@@ -600,13 +601,6 @@ async function restoreMode(ip: string, out: string) {
     await sleep(3000)
   })
   const after = await withSession(ip, ({ conn }) => snapshot(conn, ip))
-  const before: ControllerSnapshot = {
-    activeProgramId: baseline.config.activeProgramId,
-    brightness: baseline.config.brightness,
-    pixelCount: baseline.config.pixelCount,
-    mapSha256: baseline.map.sha256,
-    programs: baseline.programs,
-  }
   const verdict = compareRestore(before, after)
   writeFileSync(out, JSON.stringify({ ip, at: new Date().toISOString(), deleted, after, verdict }, null, 2))
   log(`restore: ${verdict.ok ? 'matches baseline' : verdict.differences.join('; ')}`)

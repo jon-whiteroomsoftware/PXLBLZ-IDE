@@ -143,6 +143,22 @@ export function survivalSource(kase: SurvivalCase, step: SurvivalStep): { source
   return { source: sliderProbeSource([A, C, B], 'survival v3 B restored'), sliders: [A, C, B] }
 }
 
+/** The previous readback leaves the rewritten target active. Park before restoring it. */
+export async function restoreSurvivalSliders<SaveResult, ReadBack>(
+  park: () => Promise<void>,
+  save: (source: string) => Promise<SaveResult>,
+  readBack: (sliders: string[]) => Promise<ReadBack>,
+) {
+  const restore = survivalSource('c', 'restore')
+  await park()
+  const restoreSave = await save(restore.source)
+  return {
+    restoreSave,
+    restoreSliders: restore.sliders,
+    afterRestore: await readBack(restore.sliders),
+  }
+}
+
 export interface FpsFrame { at: number; fps: number }
 export interface FpsSummary { n: number; mean: number; min: number; max: number }
 
@@ -170,6 +186,27 @@ export interface ControllerSnapshot {
   pixelCount?: number
   mapSha256?: string
   programs: Array<{ id: string; name: string }>
+}
+
+export interface BenchBaseline extends ControllerSnapshot {
+  ip: string
+  config?: Pick<ControllerSnapshot, 'activeProgramId' | 'brightness' | 'pixelCount'>
+  map?: { sha256: string }
+}
+
+/** CLI snapshots have top-level fields. The original bench record nests config and map. */
+export function restoreBaselineSnapshot(baseline: BenchBaseline): ControllerSnapshot & { activeProgramId: string } {
+  const activeProgramId = baseline.activeProgramId ?? baseline.config?.activeProgramId
+  const mapSha256 = baseline.mapSha256 ?? baseline.map?.sha256
+  if (!activeProgramId) throw new Error('Baseline did not record the active Pattern')
+  if (!mapSha256) throw new Error('Baseline did not record the map hash')
+  return {
+    activeProgramId,
+    brightness: baseline.brightness ?? baseline.config?.brightness,
+    pixelCount: baseline.pixelCount ?? baseline.config?.pixelCount,
+    mapSha256,
+    programs: baseline.programs,
+  }
 }
 
 /** Restore check: every baseline field, and the saved list by id and name. */

@@ -14,6 +14,8 @@ import {
   FPS_VERSIONS,
   LABEL_PROBE_NAMES,
   OVER_BUDGET_PROBE_SOURCE,
+  restoreBaselineSnapshot,
+  restoreSurvivalSliders,
   sliderProbeSource,
   summarizeFreshFps,
   survivalSource,
@@ -152,6 +154,31 @@ describe('#1273 restore', () => {
     programs: [{ id: 'x', name: 'Top' }, { id: 'y', name: 'Line' }],
   }
 
+  const config = { activeProgramId: before.activeProgramId, brightness: before.brightness, pixelCount: before.pixelCount }
+  const ip = '192.0.2.1'
+
+  it('reopens a CLI baseline with the top-level snapshot and compares the captured map', () => {
+    const baseline = JSON.parse(JSON.stringify({ ip, config, settings: null, ...before }))
+    const restored = restoreBaselineSnapshot(baseline)
+    expect(compareRestore(restored, before)).toEqual({ ok: true, differences: [] })
+    expect(compareRestore(restored, { ...before, mapSha256: 'different' })).toEqual({
+      ok: false, differences: ['mapSha256: m -> different'],
+    })
+  })
+
+  it('reopens the earlier bench baseline with nested config and map', () => {
+    expect(restoreBaselineSnapshot({
+      ip, config, map: { sha256: before.mapSha256 }, programs: before.programs,
+    })).toEqual(before)
+  })
+
+  it('rejects a baseline missing the active Pattern or map hash', () => {
+    const baseline = { ip, config, programs: before.programs }
+    expect(() => restoreBaselineSnapshot(baseline)).toThrow('Baseline did not record the map hash')
+    expect(() => restoreBaselineSnapshot({ ...baseline, config: {}, mapSha256: 'm' }))
+      .toThrow('Baseline did not record the active Pattern')
+  })
+
   it('accepts the same list in another order', () => {
     expect(compareRestore(before, { ...before, programs: [...before.programs].reverse() })).toEqual({ ok: true, differences: [] })
   })
@@ -166,5 +193,46 @@ describe('#1273 restore', () => {
   it('refuses writes to baseline ids', () => {
     expect(() => assertProbeTarget('x', new Set(['x']))).toThrow('refusing a write to baseline Pattern x')
     expect(() => assertProbeTarget('p', new Set(['x']))).not.toThrow()
+  })
+})
+
+describe('#1273 case (c) restore Save', () => {
+  it('waits for parking and Save before reading back the restored sliders', async () => {
+    let active = 'probe'
+    let saved = false
+    const result = await restoreSurvivalSliders(
+      async () => {
+        await Promise.resolve()
+        active = 'park'
+      },
+      async (source) => {
+        expect(active).toBe('park')
+        expect(source).toBe(survivalSource('c', 'restore').source)
+        await Promise.resolve()
+        saved = true
+        return 'saved'
+      },
+      async (sliders) => {
+        expect(active).toBe('park')
+        expect(saved).toBe(true)
+        expect(sliders).toEqual(['sliderSlowMo', 'sliderPxlblzDreamy', 'sliderDreamy'])
+        return 'read back'
+      },
+    )
+    expect(result).toEqual({
+      restoreSave: 'saved',
+      restoreSliders: ['sliderSlowMo', 'sliderPxlblzDreamy', 'sliderDreamy'],
+      afterRestore: 'read back',
+    })
+  })
+
+  it('stops before Save or readback if parking fails', async () => {
+    const operations: string[] = []
+    await expect(restoreSurvivalSliders(
+      async () => { throw new Error('parking failed') },
+      async () => { operations.push('save') },
+      async () => { operations.push('readback') },
+    )).rejects.toThrow('parking failed')
+    expect(operations).toEqual([])
   })
 })
