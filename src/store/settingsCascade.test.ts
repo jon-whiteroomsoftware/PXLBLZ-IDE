@@ -44,6 +44,8 @@ describe('resolveActiveSettings', () => {
     seedPattern()
     const eff = resolveActiveSettings()
     expect(eff.brightness).toBe(1)
+    expect(eff.slowMo).toBe(0)
+    expect(eff.dreamy).toBe(0)
     expect(eff.mapId).toBe(AUTO_MAP_ID)
   })
 
@@ -71,12 +73,33 @@ describe('resolveActiveSettings', () => {
 })
 
 describe('seedActiveSettings', () => {
-  it('pushes resolved values into the live stores', () => {
-    seedPattern({ mapId: 'cube', pixelCount: 512, brightness: 0.5 })
+  it('pushes resolved values including slowMo and dreamy into the live stores', () => {
+    seedPattern({ mapId: 'cube', pixelCount: 512, brightness: 0.5, slowMo: 0.5, dreamy: 0.3 })
     seedActiveSettings()
     expect(useMapStore.getState().activeMapId).toBe('cube')
     expect(useMapStore.getState().activePixelCount).toBe(512)
     expect(usePreviewStore.getState().brightness).toBe(0.5)
+    expect(usePreviewStore.getState().slowMo).toBe(0.5)
+    expect(usePreviewStore.getState().dreamy).toBe(0.3)
+  })
+
+  it('restores per-pattern slowMo and dreamy across A -> B -> A switches', () => {
+    usePatternStore.setState({
+      activePatternId: 'a',
+      activeDemoName: null,
+      userPatterns: [
+        { id: 'a', name: 'A', src: '', controls: {}, updatedAt: 1, settings: { slowMo: 0.5, dreamy: 0.4 } },
+        { id: 'b', name: 'B', src: '', controls: {}, updatedAt: 2 },
+      ],
+    })
+    seedActiveSettings()
+    expect(usePreviewStore.getState()).toMatchObject({ slowMo: 0.5, dreamy: 0.4 })
+    usePatternStore.setState({ activePatternId: 'b' })
+    seedActiveSettings()
+    expect(usePreviewStore.getState()).toMatchObject({ slowMo: 0, dreamy: 0 })
+    usePatternStore.setState({ activePatternId: 'a' })
+    seedActiveSettings()
+    expect(usePreviewStore.getState()).toMatchObject({ slowMo: 0.5, dreamy: 0.4 })
   })
 })
 
@@ -87,12 +110,33 @@ describe('writeCascadedOverride', () => {
     expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ brightness: 0.3 })
   })
 
-  it('persists a per-demo override in the keyed demoOverrides bag', () => {
+  it('persists slowMo and dreamy sparsely and removes the override when returned to 0', () => {
+    seedPattern()
+    writeCascadedOverride('slowMo', 0.5)
+    writeCascadedOverride('dreamy', 0.4)
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ slowMo: 0.5, dreamy: 0.4 })
+    expect(hasActiveOverrides()).toBe(true)
+    writeCascadedOverride('slowMo', 0)
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ dreamy: 0.4 })
+    writeCascadedOverride('dreamy', 0)
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
+    expect(hasActiveOverrides()).toBe(false)
+  })
+
+  it('persists a per-demo override in the keyed demoOverrides bag and drops it when returned to 0', () => {
     usePatternStore.setState({ activePatternId: null, activeDemoName: 'AuroraSphere', userPatterns: [] })
     writeCascadedOverride('brightness', 0.3)
     expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({ brightness: 0.3 })
     // The override outranks the recommendation on the next resolve.
     expect(resolveActiveSettings().brightness).toBe(0.3)
+
+    usePatternStore.setState({ activePatternId: null, activeDemoName: 'KaleidoBloom', userPatterns: [], demoOverrides: {} })
+    writeCascadedOverride('slowMo', 0.5)
+    expect(usePatternStore.getState().demoOverrides.KaleidoBloom).toEqual({ slowMo: 0.5 })
+    expect(hasActiveOverrides()).toBe(true)
+    writeCascadedOverride('slowMo', 0)
+    expect(usePatternStore.getState().demoOverrides.KaleidoBloom).toBeUndefined()
+    expect(hasActiveOverrides()).toBe(false)
   })
 })
 
@@ -104,6 +148,8 @@ describe('fork snapshot', () => {
     expect(snap.pixelCount).toBe(2048)
     expect(snap.solidity).toBe(0.08)
     expect('fidelity' in snap).toBe(false)
+    expect('slowMo' in snap).toBe(false)
+    expect('dreamy' in snap).toBe(false)
   })
 
   it('snapshots a named demo regardless of what is active', () => {

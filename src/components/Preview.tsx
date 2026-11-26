@@ -17,9 +17,12 @@ import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { bundleWithPasses, type PassRecipe } from '@/engine/passEngine'
-import { SLOW_MO_SPEED_SLIDER, slowMoTunables, type SlowMoSettings } from '@/engine/slowMo'
-import { slowMoEnabled } from '@/dev/slowMoFlag'
-import { createSlowMoDraft } from '@/engine/slowMoDraft'
+import {
+  SLOW_MO_SPEED_SLIDER,
+  isSlowMoActive,
+  slowMoSettingsFromAmounts,
+  slowMoTunables,
+} from '@/engine/slowMo'
 import { createSlowMoElapsed, SLOW_MO_CLOCK_VAR } from '@/engine/slowMoElapsed'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
@@ -49,14 +52,14 @@ function cube3DCanvasPx(containerWidth: number, containerHeight?: number): numbe
   return Math.max(1, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
-function slowMoPreviewRecipe(settings: SlowMoSettings | null, pixelCount: number): PassRecipe {
-  return slowMoEnabled()
-    ? [{ kind: 'slowmo', settings: settings ?? createSlowMoDraft(), pixelCount }] : []
+function slowMoPreviewRecipe(slowMo: number, dreamy: number, pixelCount: number): PassRecipe {
+  return isSlowMoActive(slowMo, dreamy)
+    ? [{ kind: 'slowmo', settings: slowMoSettingsFromAmounts(slowMo, dreamy), pixelCount }] : []
 }
 
 function publishSlowMoDecline(artifact: ReturnType<typeof bundleWithPasses>) {
   const summary = artifact.summary.passes.find(pass => pass.kind === 'slowmo')
-  usePreviewStore.getState().setSlowMoDeclined(slowMoEnabled() ? summary?.declined ?? null : null)
+  usePreviewStore.getState().setSlowMoDeclined(summary?.declined ?? null)
 }
 
 // The deck uses its intrinsic height; the preview fits the remaining space.
@@ -83,8 +86,9 @@ export function Preview({
   const diffusion = usePreviewStore((s) => s.diffusion)
   const fidelity = usePreviewStore((s) => s.fidelity)
   const slowMo = usePreviewStore((s) => s.slowMo)
-  const labEnabled = slowMoEnabled()
-  const slowMoStructure = labEnabled ? 'slowmo' : 'baseline'
+  const dreamy = usePreviewStore((s) => s.dreamy)
+  const slowMoActive = isSlowMoActive(slowMo, dreamy)
+  const slowMoStructure = slowMoActive ? 'slowmo' : 'baseline'
   const editorSource = useEditorStore((s) => s.source)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
   const compileStatus = useEditorStore((s) => s.compileStatus)
@@ -173,6 +177,15 @@ export function Preview({
     })
   }, [lightSize, constrainCanvasHeight])
 
+  // Seed the live working state from the resolved settings cascade on open:
+  // one pass that composes per-pattern override → recommended (demos) → global-sticky
+  // → dev-default for every field and pushes the result into mapStore.active* +
+  // previewStore live values. Declared before the loop-build effect so Pattern
+  // switches seed slowMo/dreamy before the new loop reads them.
+  useEffect(() => {
+    seedActiveSettings()
+  }, [activePatternId, activeDemoName])
+
   // Source/layout changes rebuild the loop; viewport resizing only refits it.
   useEffect(() => {
     const canvas = canvasRef.current
@@ -248,8 +261,8 @@ export function Preview({
     }
 
     const { mapPoints, pixelCount, draw } = layout
-    const settings = usePreviewStore.getState().slowMo
-    const recipe = slowMoPreviewRecipe(settings, pixelCount)
+    const { slowMo: currentSlowMo, dreamy: currentDreamy } = usePreviewStore.getState()
+    const recipe = slowMoPreviewRecipe(currentSlowMo, currentDreamy, pixelCount)
     const artifact = recipe.length ? bundleWithPasses(previewSource, libraries, recipe) : bundled
     const { code, fxCode, metadata } = artifact
     const wrapped = recipe.length > 0 && !artifact.summary.passes.some(pass => pass.declined)
@@ -296,7 +309,7 @@ export function Preview({
       publishSlowMoDecline(artifact)
       useEditorStore.getState().setPatternVars(metadata.patternVars)
       useEditorStore.getState().setControls(withControlDescriptions(activeDemoName,
-        slowMoEnabled() ? metadata.controls.filter(control => control.exportName !== SLOW_MO_SPEED_SLIDER) : metadata.controls))
+        wrapped ? metadata.controls.filter(control => control.exportName !== SLOW_MO_SPEED_SLIDER) : metadata.controls))
       // Seed control UI from the pattern's own initialised vars so swatches and
       // sliders show the real starting values on mount. The vars already ran via
       // the pattern's own initialiser, so we read them rather than invoking the
@@ -438,25 +451,12 @@ export function Preview({
     const context = executionRef.current
     const handle = handleRef.current
     const shim = shimRef.current
-    if (!context?.wrapped || !labEnabled || !handle || !shim) return
-    for (const [name, value] of Object.entries(slowMoTunables(slowMo ?? createSlowMoDraft()))) {
+    if (!context?.wrapped || !slowMoActive || !handle || !shim) return
+    for (const [name, value] of Object.entries(slowMoTunables(slowMoSettingsFromAmounts(slowMo, dreamy)))) {
       handle.setRuntimeVar(name, shim.encodeScalar(value))
     }
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-  }, [labEnabled, slowMo])
-
-  // Seed the live working state from the resolved settings cascade on open:
-  // one pass that composes per-pattern override → recommended (demos) → global-sticky
-  // → dev-default for every field and pushes the result into mapStore.active* +
-  // previewStore live values. Replaces the former separate hydrate/solidity effects.
-  // Fires on a pattern OR demo switch so a read-only demo opens on its recommendation.
-  // The renderer then reads the seeded live values per frame as before — the resolver
-  // never runs on a frame. Manipulation (deck handlers) writes the matching layer; we
-  // no longer reactively persist the whole layout, so a dimension-correction in the
-  // build effect is display-only and never written back as a spurious override.
-  useEffect(() => {
-    seedActiveSettings()
-  }, [activePatternId, activeDemoName])
+  }, [slowMoActive, slowMo, dreamy])
 
   // Forward control value changes to the live pattern handle
   useEffect(() => {

@@ -8,8 +8,6 @@ import { useControlStore, controlInitialState } from '@/store/controlStore'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import { PreviewDeck } from './PreviewDeck'
 
-const originalUrl = location.href
-
 function resetStores() {
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
@@ -21,12 +19,12 @@ function resetStores() {
 
 beforeEach(() => {
   resetStores()
-  history.replaceState(null, '', `${location.pathname}?slowmo=1`)
   usePreviewStore.setState({
     isRunning: false,
     elapsed: 1000,
+    slowMo: 0.5,
+    dreamy: 1,
   })
-  usePreviewStore.getState().setSlowMo({ position: 0.5, dreamy: 1 })
   useEditorStore.setState({ layoutLabel: '16×16' })
   usePanelPreferencesStore.setState({ expanded: { 'pattern:preview': true } })
 })
@@ -34,7 +32,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   resetStores()
-  history.replaceState(null, '', originalUrl)
   document.body.replaceChildren()
 })
 
@@ -49,23 +46,23 @@ function expectInside(control: DOMRect, panel: DOMRect) {
   expect(control.right).toBeLessThanOrEqual(panel.right + 1)
 }
 
-describe('Slow-Mo in the production preview grid', () => {
+describe('Wrappers in the production preview grid', () => {
   it.each([460, 375])('collapses to one header and keeps expanded sliders in one row at %ipx', width => {
     const host = document.createElement('div')
     host.style.width = `${width}px`
     document.body.appendChild(host)
     const view = render(<PreviewDeck />, { container: host })
     for (const expanded of [false, true]) {
-      act(() => usePanelPreferencesStore.setState({ expanded: { 'pattern:slow-mo': expanded } }))
+      act(() => usePanelPreferencesStore.setState({ expanded: { 'pattern:wrappers': expanded } }))
       view.rerender(<PreviewDeck />)
-      const section = screen.getByRole('region', { name: 'Slow-Mo' })
+      const section = screen.getByRole('region', { name: 'Wrappers' })
       const panel = section.getBoundingClientRect()
       const sliders = section.querySelectorAll<HTMLElement>('[data-deck="slider"]')
       expect(sliders).toHaveLength(expanded ? 2 : 0)
       if (expanded) {
-        const [speed, dreamy] = [...sliders].map(el => el.getBoundingClientRect())
-        expect(Math.abs(speed.top - dreamy.top)).toBeLessThanOrEqual(1)
-        expect(overlaps(speed, dreamy)).toBe(false)
+        const [slowMo, dreamy] = [...sliders].map(el => el.getBoundingClientRect())
+        expect(Math.abs(slowMo.top - dreamy.top)).toBeLessThanOrEqual(1)
+        expect(overlaps(slowMo, dreamy)).toBe(false)
       } else {
         const header = section.querySelector('[data-deck="section-header"]')!.getBoundingClientRect()
         expect(panel.height).toBe(header.height + 1)

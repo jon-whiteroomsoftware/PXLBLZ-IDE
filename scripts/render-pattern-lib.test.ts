@@ -87,10 +87,10 @@ describe('parseRenderArgs', () => {
   })
 
   describe('--slowmo', () => {
-    const settings = { position: 0.5, dreamy: 0 }
+    const settings = { slowMo: 0.5, dreamy: 0 }
     const parse = (input: unknown) => parseRenderArgs(['--demo', 'A', '--slowmo', JSON.stringify(input)]).slowMo
-    it.each([0, 0.5, 1])('accepts and copies the reduced settings at %s', value => {
-      const expected = { position: value, dreamy: value }
+    it.each([0, 0.5, 1])('accepts and copies the stored fields at %s', value => {
+      const expected = { slowMo: value, dreamy: value }
       expect(parse({ ...expected, extra: true })).toEqual(expected)
     })
     it('preserves omission for Patterns and Shows', () => {
@@ -101,9 +101,9 @@ describe('parseRenderArgs', () => {
       expect(() => parseRenderArgs(['--demo', 'A', '--slowmo'])).toThrow('--slowmo requires a value.')
     })
     it.each(['{', 'null', '[]', '1', '"settings"'])('rejects non-object JSON %s', raw => {
-      expect(() => parseRenderArgs(['--demo', 'A', '--slowmo', raw])).toThrow('--slowmo requires a SlowMoSettings JSON object.')
+      expect(() => parseRenderArgs(['--demo', 'A', '--slowmo', raw])).toThrow('--slowmo requires a JSON object with slowMo and dreamy.')
     })
-    for (const field of ['position', 'dreamy']) {
+    for (const field of ['slowMo', 'dreamy']) {
       it.each([undefined, null, -0.001, 1.001, '0.5', 1e308])(`rejects invalid or missing ${field} %s`, value => {
         expect(() => parse({ ...settings, [field]: value })).toThrow(`--slowmo ${field} must be finite and in [0, 1].`)
       })

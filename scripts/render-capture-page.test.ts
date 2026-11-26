@@ -7,14 +7,14 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('preparePatternCapture forwarding', () => {
   it.each(['fast', 'fidelity'] as const)('applies settings before the fresh %s source rebuild', async fidelity => {
-    const slowMo = { rate: 1 / 32, stepMs: 32, inBetween: 'eased' as const, stagger: { shape: 'scatter' as const, width: 0 }, persistence: null }
+    const slowMo = { slowMo: 0.5, dreamy: 0.4 }
     const calls = await capture({ fidelity, slowMo, source: 'target' })
     expect(calls).toEqual([
       ['setPreview', { isRunning: false }],
       ['setPreview', { diffusion: 0.4 }],
       ['setPreview', { lightSize: 0.7 }],
       ['setPreview', { fidelity }],
-      ['setPreview', { slowMo }],
+      ['setPreview', { slowMo: 0.5, dreamy: 0.4 }],
       ['loadSource', ''], ['loadSource', 'target'],
     ])
   })

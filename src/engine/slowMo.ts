@@ -25,6 +25,31 @@ export function slowMoPositionFromRate(rate: number): number {
   return clampPosition(1 + Math.log2(rate) / 4)
 }
 
+export function clampSlowMoUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(1, value))
+}
+
+export function slowMoPositionFromAmount(amount: number): number {
+  return 1 - clampSlowMoUnit(amount)
+}
+
+export function slowMoSettingsFromAmounts(slowMo: number, dreamy: number): SlowMoSettings {
+  return { position: slowMoPositionFromAmount(slowMo), dreamy: clampSlowMoUnit(dreamy) }
+}
+
+export function isSlowMoActive(slowMo: number, dreamy: number): boolean {
+  return clampSlowMoUnit(slowMo) > 0 || clampSlowMoUnit(dreamy) > 0
+}
+
+export function formatSlowMoAmount(amount: number): string {
+  const clamped = clampSlowMoUnit(amount)
+  if (clamped <= 0) return 'off'
+  const divisor = 2 ** (4 * clamped)
+  const display = divisor >= 10 ? Math.round(divisor) : Number(divisor.toFixed(1))
+  return `1/${display}×`
+}
+
 export interface SlowMoSettings {
   position: number
   dreamy: number

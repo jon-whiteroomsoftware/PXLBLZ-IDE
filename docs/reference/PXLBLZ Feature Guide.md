@@ -171,13 +171,16 @@ The settings are split by what the hardware could carry. **Pixelblaze**
 settings (map, modeled pixel count, Fill/Contain fit) describe what the
 Pattern computes against. **Preview** settings (renderer,
 light size, diffusion, interior opacity) only change how the browser draws it.
-Most settings are remembered per Pattern, and none of them ride along when
-you send to a Controller.
+**Wrappers** (`preview only`) holds the **slow-mo** and **dreamy** sliders:
+both start off at the left end so an untouched Pattern runs unwrapped, remember
+their last values per Pattern, and never change an `.epe` export or a
+Controller push. Most settings are remembered per Pattern, and none of them
+ride along when you send to a Controller.
 
 Below the preview, **Controls** starts open, while **Pixelblaze**,
-**Preview**, and **Variables** fold to one-line summaries. Each remembers
-whether you left it open. Brightness, Reset, and Play/Pause stay in the
-header row. Expanding a section borrows height from the preview without
+**Preview**, **Wrappers**, and **Variables** fold to one-line summaries. Each
+remembers whether you left it open. Brightness, Reset, and Play/Pause stay in
+the header row. Expanding a section borrows height from the preview without
 restarting the Pattern, and the sections scroll once the preview reaches its
 minimum size.
 

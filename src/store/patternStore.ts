@@ -178,10 +178,16 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   updateDemoSettings: async (name, patch) => {
-    // Sparse merge over any existing demo overrides, then persist the whole map.
+    // Sparse merge over any existing demo overrides, dropping the entry when empty.
     let next: Record<string, Partial<Settings>> | undefined
     set((s) => {
-      next = { ...s.demoOverrides, [name]: discardLegacyPreviewSpeed({ ...s.demoOverrides[name], ...patch }) }
+      const merged = discardLegacyPreviewSpeed({ ...s.demoOverrides[name], ...patch })
+      if (Object.keys(merged).length === 0) {
+        const { [name]: _drop, ...rest } = s.demoOverrides
+        next = rest
+      } else {
+        next = { ...s.demoOverrides, [name]: merged }
+      }
       return { demoOverrides: next }
     })
     if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})

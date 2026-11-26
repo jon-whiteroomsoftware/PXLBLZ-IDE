@@ -7,7 +7,7 @@
 //   npm run render -- --file path/to/pattern.js --seconds 5 --fps 30
 //   npm run render -- --file aurora-calm.js --demo AuroraSphere
 //   npm run render -- --demo KaleidoBloom --fidelity precise --seconds 5
-//   npm run render -- --demo Raindrops2D --fidelity precise --slowmo '{"position":0.5,"dreamy":0.5}'
+//   npm run render -- --demo Raindrops2D --fidelity precise --slowmo '{"slowMo":0.5,"dreamy":0.5}'
 //   npm run render -- --show stock-show-showcase-distortion-effects --start 7 --seconds 2.5
 //
 // With --file, --demo names the mount point whose map/preview config is used
@@ -106,7 +106,7 @@ async function renderFrames(config: RenderConfig): Promise<number> {
   // Shows are a signed-in Studio surface; Patterns are public.
   const url = config.show
     ? `${config.baseUrl}studio/shows/${encodeURIComponent(config.show)}?capture`
-    : `${config.baseUrl}studio/patterns/${encodeURIComponent(demo)}?capture${config.slowMo !== null ? '&slowmo=1' : ''}`
+    : `${config.baseUrl}studio/patterns/${encodeURIComponent(demo)}?capture`
 
   const browser = await chromium.launch({ headless: true })
   try {

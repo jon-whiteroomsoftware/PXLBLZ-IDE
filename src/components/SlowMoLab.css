@@ -5,3 +5,8 @@
 .pattern-panel .slowmo-section .panel-fields {
   grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content) minmax(0, 1fr);
 }
+
+.pattern-panel .slowmo-section [data-deck="slider"] > div > span {
+  width: auto;
+  min-width: 34px;
+}

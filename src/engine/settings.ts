@@ -25,6 +25,8 @@ export interface Settings {
   solidity: number
   normalize: 'contain' | 'fill'
   brightness: number
+  slowMo: number
+  dreamy: number
   // Hybrid comfort prefs (all four layers).
   lightSize: number
   diffusion: number
@@ -44,6 +46,8 @@ export const DEV_DEFAULTS: Settings = {
   solidity: 1,
   normalize: 'contain',
   brightness: 1,
+  slowMo: 0,
+  dreamy: 0,
   lightSize: DEFAULT_LIGHT_SIZE,
   diffusion: 0.5,
   fidelity: 'fast',
@@ -62,6 +66,8 @@ export const CASCADED_FIELDS = [
   'solidity',
   'normalize',
   'brightness',
+  'slowMo',
+  'dreamy',
 ] as const satisfies readonly (keyof Settings)[]
 
 export const HYBRID_FIELDS = ['lightSize', 'diffusion'] as const satisfies readonly (keyof Settings)[]
@@ -72,10 +78,17 @@ export type CascadedField = (typeof CASCADED_FIELDS)[number]
 export type HybridField = (typeof HYBRID_FIELDS)[number]
 export type GlobalOnlyField = (typeof GLOBAL_ONLY_FIELDS)[number]
 
-/** Discard the retired preview speed preference from old sparse override bags. */
+/** Discard the retired preview speed preference and prune default Wrapper overrides from sparse bags. */
 export function discardLegacyPreviewSpeed(settings: Partial<Settings>): Partial<Settings> {
-  const { speed: _speed, ...rest } = settings as Partial<Settings> & { speed?: unknown }
-  return rest
+  const { speed: _speed, slowMo, dreamy, ...rest } = settings as Partial<Settings> & { speed?: unknown }
+  const out: Partial<Settings> = { ...rest }
+  if (typeof slowMo === 'number' && Number.isFinite(slowMo) && slowMo > 0) {
+    out.slowMo = Math.min(1, slowMo)
+  }
+  if (typeof dreamy === 'number' && Number.isFinite(dreamy) && dreamy > 0) {
+    out.dreamy = Math.min(1, dreamy)
+  }
+  return out
 }
 
 // The user global-sticky layer (cascade layer 3): a single persisted set of values.

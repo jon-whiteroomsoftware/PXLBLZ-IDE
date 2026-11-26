@@ -1,5 +1,5 @@
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PreviewDeck, PreviewViewportSection, SlowMoSection } from './PreviewDeck'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
@@ -9,58 +9,55 @@ import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
 import { AUTO_MAP_ID } from '@/engine/settings'
 
-const originalUrl = location.href
-afterEach(() => history.replaceState(null, '', originalUrl))
-
 beforeEach(() => {
-  history.replaceState(null, '', location.pathname)
-  usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true, 'pattern:slow-mo': true } })
+  usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true, 'pattern:wrappers': true } })
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
 })
 
-describe('Preview Slow-Mo section gate', () => {
-  const settings = { position: 1, dreamy: 0 } as const
-
+describe('Preview Wrappers section', () => {
   it('has no generated-code Copy action and preserves the decline reason', () => {
-    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
     usePreviewStore.setState({ slowMoDeclined: { reason: 'shadowed-builtin', message: 'Shadowed builtin refused.' } })
     render(<SlowMoSection />)
     expect(screen.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Shadowed builtin refused.')
   })
 
-  it.each(['', '?slowmo=0', '?slowmo=true'])('hides the panel with %s despite stale active settings (I18 panel absence only)', (query) => {
-    history.replaceState(null, '', `${location.pathname}${query}`)
-    usePreviewStore.setState({ slowMo: settings })
-    render(<PreviewViewportSection profile="pattern" />)
-    expect(screen.queryByRole('region', { name: 'Slow-Mo' })).not.toBeInTheDocument()
-  })
-
-  it('shows both flagged Pattern sliders and writes settings through the actual store', () => {
-    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
+  it('always shows Wrappers with preview only tag and persists sparse cascaded overrides', () => {
+    usePatternStore.setState({
+      activePatternId: 'p1',
+      activeDemoName: null,
+      userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 }],
+    })
     render(<PreviewDeck />)
-    expect(screen.getByRole('region', { name: 'Slow-Mo' })).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo speed' }), { target: { value: '0.5' } })
-    expect(usePreviewStore.getState().slowMo).toEqual({ position: 0.5, dreamy: 0 })
-    fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo dreamy' }), { target: { value: '1' } })
-    expect(usePreviewStore.getState().slowMo).toEqual({ position: 0.5, dreamy: 1 })
-    fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
-    expect(screen.queryByRole('slider', { name: 'Slow-mo speed' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('slider', { name: 'Slow-mo dreamy' })).not.toBeInTheDocument()
-    act(() => usePreviewStore.getState().setSlowMo({ position: 1, dreamy: 0.5 }))
-    fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
-    expect(screen.getByRole('slider', { name: 'Slow-mo speed' })).toHaveValue('1')
-    expect(screen.getByRole('slider', { name: 'Slow-mo dreamy' })).toHaveValue('0.5')
+    expect(screen.getByRole('region', { name: 'Wrappers' })).toBeInTheDocument()
+    expect(screen.getByText('preview only')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo' }), { target: { value: '0.5' } })
+    expect(usePreviewStore.getState().slowMo).toBe(0.5)
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ slowMo: 0.5 })
+    fireEvent.change(screen.getByRole('slider', { name: 'Dreamy' }), { target: { value: '1' } })
+    expect(usePreviewStore.getState().dreamy).toBe(1)
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ slowMo: 0.5, dreamy: 1 })
+    fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo' }), { target: { value: '0' } })
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ dreamy: 1 })
+    fireEvent.click(screen.getByRole('button', { name: 'Wrappers' }))
+    expect(screen.queryByRole('slider', { name: 'Slow-mo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: 'Dreamy' })).not.toBeInTheDocument()
+    act(() => {
+      usePreviewStore.getState().setSlowMo(0.25)
+      usePreviewStore.getState().setDreamy(0.5)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Wrappers' }))
+    expect(screen.getByRole('slider', { name: 'Slow-mo' })).toHaveValue('0.25')
+    expect(screen.getByRole('slider', { name: 'Dreamy' })).toHaveValue('0.5')
   })
 
-  it('never mounts in the Show profile with the flag and active settings', () => {
-    history.replaceState(null, '', `${location.pathname}?slowmo=1`)
-    usePreviewStore.setState({ slowMo: settings })
+  it('never mounts in the Show profile even with active preview values', () => {
+    usePreviewStore.setState({ slowMo: 0.5, dreamy: 0.5 })
     render(<PreviewViewportSection profile="show" />)
-    expect(screen.queryByTestId('slowmo-lab')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Wrappers' })).not.toBeInTheDocument()
   })
 })
 

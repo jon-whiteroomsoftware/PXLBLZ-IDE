@@ -1,57 +1,63 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
 import { usePreviewStore, previewInitialState, mergePersistedPreview } from './previewStore'
-import type { SlowMoSettings } from '../engine/slowMo'
-import { createSlowMoDraft } from '../engine/slowMoDraft'
 import { controllerProfilePassRecipe } from '../engine/controllerProfilePassRecipe'
 import { bundleWithPasses } from '../engine/passEngine'
+import { buildPatternEpeExport } from '../engine/patternEpeExport'
+import { parseEpe } from '../engine/epeImport'
 import { defaultControllerProfile } from './controllerProfileStore'
-
-const slowMoSample: SlowMoSettings = { position: 0.5, dreamy: 0 }
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
 })
 
-describe('complete session draft', () => {
-  it('atomically projects both sliders and resets to defaults', () => {
-    const draft = { position: 0.25, dreamy: 0.7 }
-    const snapshots: unknown[] = []
-    const unsubscribe = usePreviewStore.subscribe(s => snapshots.push([s.slowMoDraft, s.slowMo]))
-    usePreviewStore.getState().setSlowMoDraft(draft)
-    expect(snapshots).toEqual([[draft, draft]])
-    usePreviewStore.getState().setSlowMo(null)
-    expect(usePreviewStore.getState().slowMoDraft).toEqual(createSlowMoDraft())
-    expect(usePreviewStore.getState().slowMo).toEqual(createSlowMoDraft())
-    usePreviewStore.getState().setSlowMo(slowMoSample)
-    expect(usePreviewStore.getState().slowMoDraft).toEqual(slowMoSample)
-    expect(usePreviewStore.getState().slowMo).toEqual(slowMoSample)
-    unsubscribe()
+describe('cascaded live slowMo and dreamy state', () => {
+  it('defaults to 0, clamps to [0, 1], and updates independently', () => {
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
+    usePreviewStore.getState().setSlowMo(0.5)
+    expect(usePreviewStore.getState().slowMo).toBe(0.5)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
+    usePreviewStore.getState().setDreamy(0.7)
+    expect(usePreviewStore.getState().slowMo).toBe(0.5)
+    expect(usePreviewStore.getState().dreamy).toBe(0.7)
+    usePreviewStore.getState().setSlowMo(-1)
+    usePreviewStore.getState().setDreamy(2)
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(1)
+    usePreviewStore.getState().setSlowMo(Number.NaN)
+    usePreviewStore.getState().setDreamy(Number.POSITIVE_INFINITY)
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
   })
 
-  it('drops stale draft and effective hydration while preserving live state and persisted preferences', async () => {
-    const draft = { position: 0.25, dreamy: 0.6 }
-    usePreviewStore.getState().setSlowMoDraft(draft)
+  it('drops stale slowMo, dreamy, and slowMoDraft hydration while preserving live values and persisted preferences', async () => {
+    usePreviewStore.getState().setSlowMo(0.4)
+    usePreviewStore.getState().setDreamy(0.6)
     const saved = JSON.parse(localStorage.getItem('pixelblaze-preview')!)
     expect(saved.state).toEqual({ fidelity: 'fast', lightSizeSticky: 0.5, diffusionSticky: 0.5 })
-    localStorage.setItem('pixelblaze-preview', JSON.stringify({ ...saved, state: { ...saved.state, slowMo: slowMoSample, slowMoDraft: { inBetween: 'eased' } } }))
+    localStorage.setItem('pixelblaze-preview', JSON.stringify({
+      ...saved,
+      state: { ...saved.state, slowMo: 0.9, dreamy: 0.8, slowMoDraft: { position: 0.25, dreamy: 0.5 } },
+    }))
     await usePreviewStore.persist.rehydrate()
-    expect(usePreviewStore.getState().slowMoDraft).toEqual(draft)
-    expect(usePreviewStore.getState().slowMo).toEqual(draft)
+    expect(usePreviewStore.getState().slowMo).toBe(0.4)
+    expect(usePreviewStore.getState().dreamy).toBe(0.6)
   })
 })
 
-describe('session-only slow-mo decline', () => {
+describe('transient slow-mo decline', () => {
   it('replaces, drops stale persistence, preserves live values, and resets', async () => {
     const live = { reason: 'shadowed-builtin' as const, message: 'Shadowed builtin refused.' }
     const store = usePreviewStore.getState()
     store.setSlowMoDeclined({ reason: 'no-renderer', message: 'No renderer.' })
     store.setSlowMoDeclined(live)
-    store.setSlowMo(slowMoSample)
-    const merged = mergePersistedPreview({ slowMo: null, slowMoArtifact: { code: 'stale' }, slowMoDeclined: { reason: 'stale' } }, usePreviewStore.getState())
+    store.setSlowMo(0.5)
+    const merged = mergePersistedPreview({ slowMo: 0.9, dreamy: 0.8, slowMoArtifact: { code: 'stale' }, slowMoDeclined: { reason: 'stale' } }, usePreviewStore.getState())
     expect(merged.slowMoDeclined).toEqual(live)
     expect(merged).not.toHaveProperty('slowMoArtifact')
-    expect(merged.slowMo).toEqual(slowMoSample)
+    expect(merged.slowMo).toBe(0.5)
+    expect(merged.dreamy).toBe(0)
     const saved = localStorage.getItem('pixelblaze-preview')!
     expect(JSON.parse(saved).state).toEqual({ fidelity: 'fast', lightSizeSticky: 0.5, diffusionSticky: 0.5 })
     store.setSlowMoDeclined(null)
@@ -60,7 +66,8 @@ describe('session-only slow-mo decline', () => {
     localStorage.setItem('pixelblaze-preview', saved)
     await usePreviewStore.persist.rehydrate()
     expect(usePreviewStore.getState().slowMoDeclined).toBeNull()
-    expect(usePreviewStore.getState().slowMo).toEqual(createSlowMoDraft())
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
   })
 })
 
@@ -120,16 +127,17 @@ describe('previewStore', () => {
 })
 
 describe('mergePersistedPreview', () => {
-  it('drops stale slow-mo settings while preserving the current session setting', () => {
-    const persisted = { slowMo: slowMoSample }
+  it('drops stale slow-mo and dreamy settings while preserving the current live values', () => {
+    const persisted = { slowMo: 0.5, dreamy: 0.4 }
     const current = usePreviewStore.getState()
-    expect(mergePersistedPreview(persisted, current).slowMo).toEqual(createSlowMoDraft())
+    expect(mergePersistedPreview(persisted, current).slowMo).toBe(0)
+    expect(mergePersistedPreview(persisted, current).dreamy).toBe(0)
 
-    const liveSlowMo: SlowMoSettings = { ...slowMoSample, position: 0, dreamy: 1 }
-    const live = { ...current, slowMo: liveSlowMo }
-    expect(mergePersistedPreview(persisted, live).slowMo).toEqual(liveSlowMo)
-    expect(live.slowMo).toEqual(liveSlowMo)
-    expect(persisted).toEqual({ slowMo: slowMoSample })
+    const live = { ...current, slowMo: 0.8, dreamy: 0.9 }
+    const merged = mergePersistedPreview(persisted, live)
+    expect(merged.slowMo).toBe(0.8)
+    expect(merged.dreamy).toBe(0.9)
+    expect(persisted).toEqual({ slowMo: 0.5, dreamy: 0.4 })
   })
 
   it('drops a legacy persisted grid without crashing or landing it on state', () => {
@@ -190,9 +198,10 @@ describe('mergePersistedPreview', () => {
   })
 })
 
-describe('session-only slow-mo', () => {
-  it('defaults to full speed and zero dreamy', () => {
-    expect(usePreviewStore.getState().slowMo).toEqual(createSlowMoDraft())
+describe('live slow-mo and dreamy defaults', () => {
+  it('defaults to zero slow-mo and zero dreamy', () => {
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
   })
 
   it('replaces the whole setting and restores defaults without changing other preview settings', () => {
@@ -202,12 +211,11 @@ describe('session-only slow-mo', () => {
       diffusionSticky: 0.3,
     }
     usePreviewStore.setState(preserved)
-    const eased: SlowMoSettings = {
-      ...slowMoSample, position: 0, dreamy: 1,
-    }
-    for (const slowMo of [slowMoSample, eased, null]) {
+    for (const [slowMo, dreamy] of [[0.5, 0], [1, 1], [0, 0]] as const) {
       usePreviewStore.getState().setSlowMo(slowMo)
-      expect(usePreviewStore.getState().slowMo).toEqual(slowMo ?? createSlowMoDraft())
+      usePreviewStore.getState().setDreamy(dreamy)
+      expect(usePreviewStore.getState().slowMo).toBe(slowMo)
+      expect(usePreviewStore.getState().dreamy).toBe(dreamy)
       expect(usePreviewStore.getState()).toMatchObject(preserved)
     }
   })
@@ -219,20 +227,22 @@ describe('session-only slow-mo', () => {
       diffusionSticky: 0.3,
     }
     usePreviewStore.setState(preferences)
-    usePreviewStore.getState().setSlowMo(slowMoSample)
+    usePreviewStore.getState().setSlowMo(0.5)
+    usePreviewStore.getState().setDreamy(0.4)
     const saved = localStorage.getItem('pixelblaze-preview')!
     expect(JSON.parse(saved).state).toEqual(preferences)
 
     usePreviewStore.setState(previewInitialState)
     localStorage.setItem('pixelblaze-preview', saved)
     await usePreviewStore.persist.rehydrate()
-    expect(usePreviewStore.getState().slowMo).toEqual(createSlowMoDraft())
+    expect(usePreviewStore.getState().slowMo).toBe(0)
+    expect(usePreviewStore.getState().dreamy).toBe(0)
     expect(usePreviewStore.getState()).toMatchObject(preferences)
   })
 })
 
-describe('I17: Controller artifact isolation from preview slow-mo', () => {
-  it('preserves the complete push recipe and artifact across defaults, slow speed, dreamy, and reset', () => {
+describe('I17: Controller artifact and .epe export isolation from preview slow-mo', () => {
+  it('preserves the complete push recipe, artifact, and reopened .epe across defaults, slow-mo, dreamy, and reset', () => {
     const profile = {
       ...defaultControllerProfile({ id: 'slowmo-isolation', now: 1 }),
       lastKnownPixelCount: 100,
@@ -249,12 +259,15 @@ describe('I17: Controller artifact isolation from preview slow-mo', () => {
     const source = 'export function render(index) { rgb(0.8, 0.4, 0.2) }'
     const recipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
     const artifact = bundleWithPasses(source, {}, recipe)
+    const baselineEpe = buildPatternEpeExport('SlowMo Isolation', bundleWithPasses(source, {}, []).code, { idSeed: 'slowmo-test' })
+    const baselineParsed = parseEpe(baselineEpe.text)
     expect(recipe.length).toBeGreaterThan(0)
-    const dreamy: SlowMoSettings = { ...slowMoSample, dreamy: 1 }
-    for (const slowMo of [null, slowMoSample, dreamy, null]) {
+    for (const [slowMo, dreamy] of [[0, 0], [0.5, 0], [0.5, 1], [1, 1], [0, 0]] as const) {
       usePreviewStore.getState().setSlowMo(slowMo)
-      usePreviewStore.getState().setSlowMoDeclined(slowMo ? { reason: 'shadowed-builtin', message: 'Preview-only refusal.' } : null)
-      expect(usePreviewStore.getState().slowMo).toEqual(slowMo ?? createSlowMoDraft())
+      usePreviewStore.getState().setDreamy(dreamy)
+      usePreviewStore.getState().setSlowMoDeclined(slowMo > 0 ? { reason: 'shadowed-builtin', message: 'Preview-only refusal.' } : null)
+      expect(usePreviewStore.getState().slowMo).toBe(slowMo)
+      expect(usePreviewStore.getState().dreamy).toBe(dreamy)
       const currentRecipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
       expect(currentRecipe).toEqual(recipe)
       const currentArtifact = bundleWithPasses(source, {}, currentRecipe)
@@ -262,6 +275,9 @@ describe('I17: Controller artifact isolation from preview slow-mo', () => {
       expect(currentArtifact.fxCode).toBe(artifact.fxCode)
       expect(currentArtifact.metadata).toEqual(artifact.metadata)
       expect(currentArtifact).toEqual(artifact)
+      const currentEpe = buildPatternEpeExport('SlowMo Isolation', bundleWithPasses(source, {}, []).code, { idSeed: 'slowmo-test' })
+      expect(currentEpe).toEqual(baselineEpe)
+      expect(parseEpe(currentEpe.text)).toEqual(baselineParsed)
     }
   })
 })

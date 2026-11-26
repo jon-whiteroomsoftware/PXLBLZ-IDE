@@ -134,6 +134,7 @@ export function DeckSection({
 
 export function DeckDisclosureHeader({
   label,
+  tag,
   expanded,
   onToggle,
   hint,
@@ -144,6 +145,7 @@ export function DeckDisclosureHeader({
   actions,
 }: {
   label: string
+  tag?: string
   expanded: boolean
   onToggle: () => void
   hint?: ReactNode
@@ -161,6 +163,7 @@ export function DeckDisclosureHeader({
           <span>{label}</span>
         </button>
       </h4>
+      {tag && <span className="panel-section-tag">{tag}</span>}
       {/* The specified folded readout deliberately fades surplus text at the right edge. */}
       <div className="panel-section-summary" data-deck="section-summary" data-testid="deck-section-summary" data-layout-allow="overflow-x">
         <div className="panel-section-summary-content" data-layout-allow="escape-x">{summary}</div>

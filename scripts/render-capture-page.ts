@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import type { SlowMoSettings } from '../src/engine/slowMo'
+import type { RenderSlowMo } from './render-pattern-lib'
 
 export interface CaptureSequenceCall {
   frames: number
@@ -52,7 +52,7 @@ export const HIDE_SHOW_CHROME_CSS = `
 export const PREVIEW_CANVAS = '[data-testid="preview-pane"] canvas'
 
 export interface PatternCaptureSetup {
-  slowMo?: SlowMoSettings
+  slowMo?: RenderSlowMo
   width: number
   /** Source to rebuild on a fresh clock; undefined reuses the route's own preview source (getPreviewSource). */
   source?: string
@@ -88,7 +88,7 @@ export async function preparePatternCapture(page: Page, setup: PatternCaptureSet
     if (diffusion !== null) api.setPreview({ diffusion })
     if (lightSize !== null) api.setPreview({ lightSize })
     if (fidelity !== undefined) api.setPreview({ fidelity })
-    if (slowMo !== undefined) api.setPreview({ slowMo })
+    if (slowMo !== undefined) api.setPreview({ slowMo: slowMo.slowMo, dreamy: slowMo.dreamy })
     api.loadSource('')
     // Defer the reload a macrotask so React commits the teardown first.
     return new Promise<void>((resolve) => {

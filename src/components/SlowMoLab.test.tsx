@@ -3,44 +3,62 @@ import { afterEach, vi } from 'vitest'
 import { SlowMoLab, type SlowMoLabProps } from './SlowMoLab'
 
 const props = (overrides: Partial<SlowMoLabProps> = {}): SlowMoLabProps => ({
-  draft: { position: 1, dreamy: 0 }, onChange: vi.fn(), declined: null,
-  expanded: false, onExpandedChange: vi.fn(), ...overrides,
+  slowMo: 0,
+  dreamy: 0,
+  onSlowMoChange: vi.fn(),
+  onDreamyChange: vi.fn(),
+  declined: null,
+  expanded: false,
+  onExpandedChange: vi.fn(),
+  ...overrides,
 })
 afterEach(cleanup)
 
-it('shows only speed and dreamy when expanded', () => {
+it('shows Wrappers with preview only tag and only slow-mo and dreamy when expanded', () => {
   render(<SlowMoLab {...props({ expanded: true })} />)
-  const section = within(screen.getByRole('region', { name: 'Slow-Mo' }))
+  const section = within(screen.getByRole('region', { name: 'Wrappers' }))
+  expect(section.getByText('preview only')).toBeInTheDocument()
   expect(section.getAllByRole('slider')).toHaveLength(2)
-  expect(section.getByRole('slider', { name: 'Slow-mo speed' })).toHaveValue('1')
-  expect(section.getByRole('slider', { name: 'Slow-mo dreamy' })).toHaveValue('0')
+  expect(section.getByRole('slider', { name: 'Slow-mo' })).toHaveValue('0')
+  expect(section.getByRole('slider', { name: 'Slow-mo' })).toHaveAttribute('aria-valuetext', 'off')
+  expect(section.getByRole('slider', { name: 'Dreamy' })).toHaveValue('0')
+  expect(section.getByRole('slider', { name: 'Dreamy' })).toHaveAttribute('aria-valuetext', '0%')
   expect(section.queryByRole('combobox')).not.toBeInTheDocument()
   expect(section.queryByText('array words')).not.toBeInTheDocument()
   expect(section.queryByRole('button', { name: 'Copy generated code' })).not.toBeInTheDocument()
 })
-it('collapses to a live summary with no controls or expanded-content spacing', () => {
-  const view = render(<SlowMoLab {...props({ draft: { position: 0.5, dreamy: 0.3 } })} />)
-  const section = screen.getByRole('region', { name: 'Slow-Mo' })
+
+it('collapses to a live summary with preview only tag and no controls', () => {
+  const view = render(<SlowMoLab {...props({ slowMo: 0.5, dreamy: 0.3 })} />)
+  const section = screen.getByRole('region', { name: 'Wrappers' })
+  expect(within(section).getByText('preview only')).toBeInTheDocument()
   expect(within(section).queryAllByRole('slider')).toHaveLength(0)
   expect(section.querySelector('.panel-section-body')).toHaveAttribute('hidden')
   const summary = within(section).getByTestId('deck-section-summary')
-  expect(summary).toHaveTextContent('speed0.25×·dreamy30%')
+  expect(summary).toHaveTextContent('slow-mo1/4×·dreamy30%')
   expect(summary.querySelectorAll('.panel-readout-item')).toHaveLength(2)
-  view.rerender(<SlowMoLab {...props({ draft: { position: 1, dreamy: 1 } })} />)
-  expect(summary).toHaveTextContent('speed1×·dreamy100%')
+  view.rerender(<SlowMoLab {...props({ slowMo: 0, dreamy: 1 })} />)
+  expect(summary).toHaveTextContent('slow-mooff·dreamy100%')
+  view.rerender(<SlowMoLab {...props({ slowMo: 0.14, dreamy: 0 })} />)
+  expect(summary).toHaveTextContent('slow-mo1/1.5×·dreamy0%')
 })
+
 it('updates the sliders independently and delegates collapse', () => {
-  const onChange = vi.fn(), onExpandedChange = vi.fn()
-  render(<SlowMoLab {...props({ draft: { position: 0.5, dreamy: 0.3 }, expanded: true, onChange, onExpandedChange })} />)
-  const speed = screen.getByRole('slider', { name: 'Slow-mo speed' })
-  expect(speed).toHaveAttribute('aria-valuetext', '0.25×')
-  fireEvent.change(speed, { target: { value: '0.75' } })
-  expect(onChange).toHaveBeenLastCalledWith({ position: 0.75, dreamy: 0.3 })
-  fireEvent.change(screen.getByRole('slider', { name: 'Slow-mo dreamy' }), { target: { value: '1' } })
-  expect(onChange).toHaveBeenLastCalledWith({ position: 0.5, dreamy: 1 })
-  fireEvent.click(screen.getByRole('button', { name: 'Slow-Mo' }))
+  const onSlowMoChange = vi.fn()
+  const onDreamyChange = vi.fn()
+  const onExpandedChange = vi.fn()
+  render(<SlowMoLab {...props({ slowMo: 0.5, dreamy: 0.3, expanded: true, onSlowMoChange, onDreamyChange, onExpandedChange })} />)
+  const slowMo = screen.getByRole('slider', { name: 'Slow-mo' })
+  expect(slowMo).toHaveAttribute('aria-valuetext', '1/4×')
+  fireEvent.change(slowMo, { target: { value: '0.75' } })
+  expect(onSlowMoChange).toHaveBeenLastCalledWith(0.75)
+  expect(onDreamyChange).not.toHaveBeenCalled()
+  fireEvent.change(screen.getByRole('slider', { name: 'Dreamy' }), { target: { value: '1' } })
+  expect(onDreamyChange).toHaveBeenLastCalledWith(1)
+  fireEvent.click(screen.getByRole('button', { name: 'Wrappers' }))
   expect(onExpandedChange).toHaveBeenCalledExactlyOnceWith(false)
 })
+
 it('keeps refusal visible collapsed and expanded without a Copy action', () => {
   const view = render(<SlowMoLab {...props({ declined: { reason: 'shadowed-builtin', message: 'Shadowed builtin refused.' } })} />)
   expect(screen.getByRole('status')).toHaveTextContent('Shadowed builtin refused.')

@@ -266,4 +266,14 @@ describe('demo overrides', () => {
     await usePatternStore.getState().loadDemoOverrides()
     expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({ brightness: 0.5 })
   })
+
+  it('removes slowMo/dreamy overrides and drops empty demo bags on reset to 0', async () => {
+    const provider = getPersonalContentProvider()
+    await usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0.5, dreamy: 0.3 })
+    expect(await provider.getDemoOverrides()).toEqual({ KaleidoBloom: { slowMo: 0.5, dreamy: 0.3 } })
+    await usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0 })
+    expect(await provider.getDemoOverrides()).toEqual({ KaleidoBloom: { dreamy: 0.3 } })
+    await usePatternStore.getState().updateDemoSettings('KaleidoBloom', { dreamy: 0 })
+    expect(await provider.getDemoOverrides()).toEqual({})
+  })
 })

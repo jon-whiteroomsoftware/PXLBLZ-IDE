@@ -10,7 +10,7 @@
 // matching writer here to persist its layer (cascaded override / hybrid / global).
 
 import type { Settings, FidelityMode } from '@/engine/settings'
-import { DEV_DEFAULTS } from '@/engine/settings'
+import { DEV_DEFAULTS, discardLegacyPreviewSpeed } from '@/engine/settings'
 import { resolveSettings, hybridWriteTarget } from '@/engine/resolveSettings'
 import { recommendedSettingsFor } from '@/pixelblaze/stock/patterns'
 import type { ShapeId } from '@/engine/shapes'
@@ -85,6 +85,8 @@ export function seedActiveSettings(): void {
   pv.setBrightness(eff.brightness)
   pv.setLightSize(eff.lightSize)
   pv.setDiffusion(eff.diffusion)
+  pv.setSlowMo(eff.slowMo)
+  pv.setDreamy(eff.dreamy)
 }
 
 // Write a cascaded override (layer 1) for whatever is active. Routes to the user
@@ -123,14 +125,14 @@ export function writeHybrid(field: 'lightSize' | 'diffusion', value: number): vo
 // while the demo is still active (before `setActivePattern` flips state).
 export function forkSettingsSnapshot(): Partial<Settings> {
   const { fidelity: _fidelity, ...rest } = resolveActiveSettings()
-  return rest
+  return discardLegacyPreviewSpeed(rest)
 }
 
 // Same frozen snapshot for a named demo (per-row fork, #182), which forks without the
 // demo being active. Captures every field except pure-global `fidelity`.
 export function forkSettingsSnapshotForDemo(demoName: string): Partial<Settings> {
   const { fidelity: _fidelity, ...rest } = resolveSettingsForDemo(demoName)
-  return rest
+  return discardLegacyPreviewSpeed(rest)
 }
 
 // "Reset to defaults" (user pattern) / "Revert to recommended" (demo):

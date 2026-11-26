@@ -9,8 +9,8 @@ const editedSource = source('0,1,0', '1,1,0')
 
 test.use({ viewport: { width: 1440, height: 1000 } })
 
-async function seed(page: Page, id: string, name: string, src: string) {
-  const pattern = { id, name, src, controls: {}, updatedAt: Date.now() }
+async function seed(page: Page, id: string, name: string, src: string, settings?: Record<string, unknown>) {
+  const pattern = { id, name, src, controls: {}, updatedAt: Date.now(), ...(settings ? { settings } : {}) }
   const response = await page.context().request.post('/api/patterns', { data: pattern })
   expect(response.ok(), `POST /api/patterns -> ${response.status()}`).toBe(true)
   return pattern
@@ -22,8 +22,8 @@ async function expand(page: Page, name: string) {
   await expect(button).toHaveAttribute('aria-expanded', 'true')
 }
 
-async function setSlowMo(page: Page, name: string, value: number) {
-  const slider = page.getByRole('slider', { name: `Slow-mo ${name}`, exact: true })
+async function setWrapperSlider(page: Page, name: 'Slow-mo' | 'Dreamy', value: number) {
+  const slider = page.getByRole('slider', { name, exact: true })
   await slider.focus()
   await slider.press('Home')
   for (let step = 0; step < Math.round(value * 10); step++) await slider.press('PageUp')
@@ -36,14 +36,15 @@ async function published(page: Page, src: string) {
 }
 
 async function setup(page: Page, id: string, src: string, fidelity: 'fast' | 'fidelity') {
-  await page.goto(`studio/patterns/${id}?capture&slowmo=1`)
+  await page.goto(`studio/patterns/${id}?capture`)
   await expect(page.locator('.monaco-editor .view-lines').first()).toBeVisible()
   await published(page, src)
   await page.evaluate((fidelity) => window.__pxlblz!.setPreview({
     isRunning: false, fidelity, brightness: 1, diffusion: 0,
   }), fidelity)
   await expand(page, 'Preview')
-  await setSlowMo(page, 'speed', 0.5)
+  await expand(page, 'Wrappers')
+  await setWrapperSlider(page, 'Slow-mo', 0.5)
   await expand(page, 'Variables')
 }
 
@@ -120,7 +121,7 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     test.setTimeout(90_000)
     const capture = await captures(page)
     const a = await seed(page, 'slowmo-a', 'Slowmo lifecycle A', originalSource)
-    const b = await seed(page, 'slowmo-b', 'Slowmo lifecycle B', editedSource)
+    const b = await seed(page, 'slowmo-b', 'Slowmo lifecycle B', editedSource, { slowMo: 0.5 })
     await setup(page, a.id, a.src, fidelity)
     await primary(page, await capture('initial-red'), 0)
     await zeroClocks(page)
@@ -138,23 +139,23 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     await page.getByRole('tree', { name: 'Patterns', exact: true }).getByRole('treeitem')
       .filter({ hasText: b.name }).click()
     await expect.poll(() => new URL(page.url()).pathname).toMatch(new RegExp(`/studio/patterns/${b.id}$`))
-    expect(new URL(page.url()).searchParams.get('slowmo')).toBe('1')
     await published(page, b.src)
     await primary(page, await capture('switched-green'), 1)
     await zeroClocks(page)
   })
 
-  test(`both sliders preserve elapsed and Pattern clocks (${fidelity})`, async ({ page }) => {
+  test(`both sliders preserve elapsed and Pattern clocks while active (${fidelity})`, async ({ page }) => {
     const capture = await captures(page)
     const a = await seed(page, 'slowmo-live', 'Slowmo live sliders', originalSource)
     await setup(page, a.id, a.src, fidelity)
+    await setWrapperSlider(page, 'Dreamy', 0.5)
     await capture('live-prime')
     await capture('live-positive', 1024)
     await expect.poll(async () => Object.values(await clocks(page)).every(value => parseFloat(value) > 0)).toBe(true)
     const before = await clocks(page)
-    for (const [name, values] of [['speed', [0, 1, 0.5]], ['dreamy', [1, 0.5, 0]]] as const) {
+    for (const [name, values] of [['Slow-mo', [1, 0, 0.5]], ['Dreamy', [1, 0.5, 0]]] as const) {
       for (const value of values) {
-        await setSlowMo(page, name, value)
+        await setWrapperSlider(page, name, value)
         await capture(`preserved-${name}-${value}`)
         await expect.poll(() => clocks(page)).toEqual(before)
       }
@@ -164,14 +165,3 @@ for (const fidelity of ['fast', 'fidelity'] as const) {
     await expect.poll(async () => Number((await clocks(page)).patternClock)).toBeGreaterThan(Number(before.patternClock))
   })
 }
-
-test('absent flag hides Slow-Mo on a loaded Pattern editor', async ({ page }) => {
-  const a = await seed(page, 'slowmo-absent', 'Slowmo absent flag', originalSource)
-  await page.goto(`studio/patterns/${a.id}`)
-  await expect(page.locator('.monaco-editor .view-lines').first()).toBeVisible()
-  await expect(page.getByTestId('compile-status')).toHaveAttribute('data-status', 'good')
-  await expand(page, 'Preview')
-  await expect(page.getByTestId('preview-pane').locator('canvas.rounded-sm')).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Slow-Mo', exact: true })).toHaveCount(0)
-  await page.screenshot({ path: test.info().outputPath('slowmo-flag-off.png') })
-})

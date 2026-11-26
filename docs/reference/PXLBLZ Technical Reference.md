@@ -316,7 +316,7 @@ call shapes become transform warnings, and generated source is always
 inspectable. The interception boundary is deliberately honest: aliases, object
 methods, and dynamically selected sinks are not guessed.
 
-**Slow-Mo (flagged preview prototype, `?slowmo=1`).** The preview-only
+**Slow-Mo and Dreamy (preview Wrappers).** The preview-only
 `slowmo` recipe gives a Pattern a fixed 16 ms clock, captures RGB into A/B
 frames, and linearly blends the latest captures. Scope-aware rewriting redirects
 `time` and captures `rgb`/`hsv`/`hsv24` and builtin `paint` after bundling,
@@ -331,13 +331,14 @@ A declined pass preserves exact `code`/`fxCode` and exposes its reason in the
 summary. Missing renderers, shadowed clock/color builtins, reserved names and
 excess wrapper array use retain their named refusals.
 
-Two settings control the wrapper: speed position and dreamy, each from 0 to 1.
-Speed follows `2 ** (-4 * (1 - position))`, from 1/16 to full speed. Position
-at or above 0.97 enters full-speed bypass; below 0.94 leaves it. Bypass runs the
-inner Pattern at display cadence. Leaving bypass refreshes both captures to
-avoid blending stale endpoints. Dreamy sets decay to `10000 * dreamy ** 2` ms;
-0 gives no trails, 0.5 gives 2,500 ms and 1 gives 10,000 ms. Both settings are
-live runtime globals. Generated code exports the speed slider for manual paste.
+Two amount sliders control the preview wrapper: Slow-mo and Dreamy, each from 0
+(off) to 1. Slow-mo maps amount `a` to wrapper position `1 - a`, playing at rate
+`2 ** (-4 * a)` from full speed down to 1/16×. Position at or above 0.97 enters
+full-speed bypass; below 0.94 leaves it. Bypass runs the inner Pattern at
+display cadence. Leaving bypass refreshes both captures to avoid blending stale
+endpoints. Dreamy sets decay to `10000 * dreamy ** 2` ms; 0 gives no trails,
+0.5 gives 2,500 ms and 1 gives 10,000 ms. Both settings are live runtime
+globals. Generated code exports the speed slider for manual paste.
 
 Decay applies per channel after blending, with immediate rise. Once per display
 frame its coefficient is `1 - exp(-displayDelta / decayMs)`, or 1 at zero
@@ -405,14 +406,14 @@ paints, and publishes FPS and watched vars. Runtime exceptions stop the loop.
 `tickHeadless` executes all stateful render work without painting; Show seek
 replay depends on it because render functions may mutate state.
 
-The flagged Slow-Mo section (`?slowmo=1`) applies `bundleWithPasses` to
-Pattern preview after resolving the pixel count. Without the flag, the recipe
-is empty and complete `code`/`fxCode` identity with `bundle()` is preserved.
-With the flag, the wrapper is always applied. Its speed slider controls Pattern
+The **Wrappers** section (marked `preview only`) applies `bundleWithPasses` to
+Pattern preview after resolving the pixel count whenever `slowMo > 0` or
+`dreamy > 0`. At defaults (`0` and `0`), the recipe is empty and complete
+`code`/`fxCode` identity with `bundle()` is preserved. Slow-mo controls Pattern
 time; there is no separate Pattern preview speed setting.
 The Preview row's `elapsed` reading measures time experienced by the Pattern:
-the wrapper's actual fixed-step clock under Slow-Mo, and the ordinary preview
-clock otherwise. Live speed changes preserve the accumulated time.
+the wrapper's actual fixed-step clock while wrapped, and the ordinary preview
+clock otherwise. Live slider changes while active preserve the accumulated time.
 
 Show playback rate belongs to the session-only Show transport, separate from
 Pattern preview. Show-only `1`/`2`/`3` shortcuts select 1×/2×/3× without changing
@@ -420,13 +421,15 @@ play/pause; a different Show resets the rate to 1×. Gallery live cards always
 use unscaled delta. Legacy preview speed preferences are discarded on hydration
 and omitted from subsequent per-Pattern settings saves.
 
-The expanded section keeps speed and dreamy side by side; collapsing it shows
+The expanded section keeps slow-mo and dreamy side by side; collapsing it shows
 their current values in the same single-line readout as the Preview section.
-A refusal stays visible while the unwrapped Pattern runs. Slider
-changes update encoded runtime globals without resetting time or recompiling
-the runtime. Source, Pattern, layout and fidelity changes re-prime the preview.
-Slow-Mo state stays session-only: draft and effective settings are omitted from
-persisted snapshots and dropped from stale hydration blobs.
+A refusal stays visible while the unwrapped Pattern runs. Slider changes while
+active update encoded runtime globals without resetting time or recompiling
+the runtime. Source, Pattern, layout, fidelity, and active/baseline transitions
+re-prime the preview. Slow-mo and Dreamy persist per Pattern in the Settings
+cascade (`PatternRecord.settings` / `demoOverrides`) as sparse overrides,
+removing the override when returned to 0; they are omitted from localStorage
+preview snapshots and never affect `.epe` exports or Controller pushes.
 
 The Show Stage has two advancement contracts: live playback advances once per
 presented frame (`advanceLive`), deterministic seek advances at fixed 60 Hz
@@ -498,8 +501,10 @@ Pattern visual settings.
 Effective preview settings resolve field-by-field: per-Pattern override →
 built-in recommendation → user comfort baseline (light size/diffusion only) →
 developer default. Personal overrides live on `PatternRecord.settings`;
-built-in overrides in `demoOverrides`. Fast/Precise is a separate global
-setting.
+built-in overrides in `demoOverrides`. Preview `slowMo` and `dreamy` join the
+cascaded per-Pattern fields (default `0`, never recommended for stock demos,
+removed from sparse overrides when returned to `0`). Fast/Precise is a separate
+global setting.
 
 Panel disclosure preferences live separately from Pattern
 settings, keyed by Studio mode. The shared Deck primitive opts into summary
@@ -1845,7 +1850,7 @@ The agent diagnostic harness and its baseline suites are described in §28.
 - Show seeking reconstructs Pattern state exactly, but Trails restarts its
   history at the seek destination.
 
-The flagged Slow-Mo prototype (§6) sets nominal per-frame pace to
+The preview Slow-Mo/Dreamy wrapper (§6) sets nominal per-frame pace to
 `62.5 * rate` updates/sec outside full-speed bypass. The display trails by
 one captured frame in that fixed-step path. Its Pattern clock T wraps at 2^14
 units of 65,536 ms, about 12.4 Pattern days. `time(interval)` stays

@@ -1,6 +1,10 @@
 // Pure helpers for the headless pattern video renderer (#576). The Playwright
 // driver (render-pattern.ts) owns all I/O; everything here is table-testable.
-import type { SlowMoSettings } from '../src/engine/slowMo'
+
+export interface RenderSlowMo {
+  slowMo: number
+  dreamy: number
+}
 
 export interface RenderConfig {
   /** Demo to mount; with --file it only supplies the map/preview config. */
@@ -22,7 +26,7 @@ export interface RenderConfig {
   lightSize: number | null
   /** Pattern arithmetic override; null keeps the stored preview mode. */
   fidelity: 'fast' | 'precise' | null
-  slowMo: SlowMoSettings | null
+  slowMo: RenderSlowMo | null
   /** Show id to record from its stage preview (#879); exclusive with demo/file. */
   show: string | null
   /** Virtual time of the first frame, in seconds; reached by a headless pre-roll. */
@@ -63,19 +67,19 @@ function nonNegativeNumber(flag: string, raw: string | undefined): number {
   return value
 }
 
-function parseSlowMo(raw: string): SlowMoSettings {
+function parseSlowMo(raw: string): RenderSlowMo {
   let parsed: unknown
-  try { parsed = JSON.parse(raw) } catch { throw new Error('--slowmo requires a SlowMoSettings JSON object.') }
+  try { parsed = JSON.parse(raw) } catch { throw new Error('--slowmo requires a JSON object with slowMo and dreamy.') }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('--slowmo requires a SlowMoSettings JSON object.')
+    throw new Error('--slowmo requires a JSON object with slowMo and dreamy.')
   }
-  const { position, dreamy } = parsed as Record<string, unknown>
-  for (const [name, value] of Object.entries({ position, dreamy })) {
+  const { slowMo, dreamy } = parsed as Record<string, unknown>
+  for (const [name, value] of Object.entries({ slowMo, dreamy })) {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
       throw new Error(`--slowmo ${name} must be finite and in [0, 1].`)
     }
   }
-  return { position: position as number, dreamy: dreamy as number }
+  return { slowMo: slowMo as number, dreamy: dreamy as number }
 }
 
 export function parseRenderArgs(argv: string[]): RenderConfig {
@@ -91,7 +95,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let diffusion: number | null = null
   let lightSize: number | null = null
   let fidelity: RenderConfig['fidelity'] = null
-  let slowMo: SlowMoSettings | null = null
+  let slowMo: RenderSlowMo | null = null
   let show: string | null = null
   let startSeconds = 0
 

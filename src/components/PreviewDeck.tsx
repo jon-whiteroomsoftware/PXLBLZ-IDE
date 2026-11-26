@@ -20,7 +20,6 @@ import {
 import { effectivePixelCount } from '@/engine/layout'
 import { CoordinateViewSelect, MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
 import { SlowMoLab } from '@/components/SlowMoLab'
-import { slowMoEnabled } from '@/dev/slowMoFlag'
 import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
 import { ControlsPanel } from '@/components/ControlsPanel'
@@ -98,7 +97,7 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
       <SecondaryBand mode={summaryMode} />
-      {slowMoEnabled() && <SlowMoSection mode={summaryMode} />}
+      <SlowMoSection mode={summaryMode} />
       <ControlsPanel mode={summaryMode} />
       <Variables mode={summaryMode} />
       </div>
@@ -108,12 +107,25 @@ export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: bool
 
 
 export function SlowMoSection({ mode }: { mode?: string }) {
-  const slowMoDraft = usePreviewStore(s => s.slowMoDraft)
-  const setSlowMoDraft = usePreviewStore(s => s.setSlowMoDraft)
+  const slowMo = usePreviewStore(s => s.slowMo)
+  const dreamy = usePreviewStore(s => s.dreamy)
+  const setSlowMo = usePreviewStore(s => s.setSlowMo)
+  const setDreamy = usePreviewStore(s => s.setDreamy)
+  const toggle = usePreviewStore(s => s.toggle)
   const declined = usePreviewStore(s => s.slowMoDeclined)
-  const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Slow-Mo')
-  return <SlowMoLab draft={slowMoDraft} onChange={setSlowMoDraft} declined={declined}
-    expanded={expanded} onExpandedChange={setExpanded} />
+  const [expanded, setExpanded] = usePanelSection(mode ?? 'pattern', 'Wrappers')
+  return (
+    <SlowMoLab
+      slowMo={slowMo}
+      dreamy={dreamy}
+      onSlowMoChange={v => { setSlowMo(v); writeCascadedOverride('slowMo', v) }}
+      onDreamyChange={v => { setDreamy(v); writeCascadedOverride('dreamy', v) }}
+      onSpace={toggle}
+      declined={declined}
+      expanded={expanded}
+      onExpandedChange={setExpanded}
+    />
+  )
 }
 
 function PatternSection({ label, mode, ...props }: Omit<Parameters<typeof DeckSection>[0], 'collapsible' | 'summaryRow'> & { mode?: string }) {
