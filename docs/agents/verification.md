@@ -20,8 +20,8 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-The current release is WRSP 1.5.12 (#1264), pinned in `package.json` and `package-lock.json`;
-runner adoption was delivered in #962. The release-specific sections below
+`package.json` and `package-lock.json` pin WRSP 1.5.14 (#1281).
+Runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
 the packet representation introduced there,
@@ -76,6 +76,32 @@ laptops may export the same names. Authenticated Playwright refuses a Shows
 worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
+
+## WRSP 1.5.14 adoption (#1281)
+
+This update advances directly from 1.5.12 (#1264) to 1.5.14, superseding the
+1.5.13 bump (#1272).
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.14, tag `v1.5.14` |
+| Source | `309dacdd20b3` |
+| Tarball | `vendor/whiteroom-software-process-1.5.14.tgz` |
+| SHA256 | `693d9bbac5793ab1353effdbd0f02dca51df3d44abff93781f9888229a8ec225` |
+
+Supervised Codex developer lanes use containment by default. The restricted
+profile denies the login keychain and resolves the scoped `gh` shim (WRSP #574,
+#628, #630, #633). Gemini Neon developer lanes write from their native shell
+and commit through `wrsp-sandboxed-commit`. Staging works with configured
+non-index hooks, and commits refuse if hooks move unrelated refs, including
+packed refs (WRSP #622, #623, #625).
+
+Neon reviews tolerate recoverable tool-step errors. Lane keychains unlock at
+login and failed turns can recover (WRSP #631, #632). Live reboot proof and
+live cross-account proof for Claude developer lanes remain pending (WRSP #632,
+#575). Two Claude lane-process findings are tracked in WRSP #635. The package
+drops `wrsp-review-timer`, which had no PXLBLZ-IDE callers. The existing project
+configuration and required suite definitions apply to this release.
 
 ## WRSP 1.5.12 adoption (#1264)
 
