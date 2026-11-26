@@ -220,6 +220,21 @@ copies sent identical `putSourceCode` frames over separate sockets. With one
 Helper, Studio Save returned `true`, activated the Saved Pattern, and read
 back a byte-matched PBP. [#1271](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1271)
 
+## An active Pattern id can report a VM fault
+
+On 2026-11-26, the compiler served by the bench pb32 on firmware 3.70 emitted
+bytecode for a Pattern whose array required 10,241 words including its header.
+Run reported the requested active id and `vmerr: 6` (array index out of bounds),
+then FPS reached zero.
+The Controller still answered configuration and program-list reads.
+
+Saving the same bytecode under a separate id returned
+`saveProgramSourceFile: true` and listed the new saved Pattern. The running
+id stayed on the Run attempt. A Save acknowledgement confirms storage.
+Runtime failures surface separately in the status frame as `vmerr`, which
+PXLBLZ exposes as a `vm-error` event.
+[#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
 ## A slow-rendering Pattern slows config replies, and a 1 Hz poll can wedge the socket
 
 Measured on 2026-11-23 on the test Controller at 192.168.8.161 (pb32, firmware

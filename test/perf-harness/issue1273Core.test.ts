@@ -1,5 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import {
+  inspectGeneratedShowVmAllocations,
+  PIXELBLAZE_ARRAY_HEADER_WORDS,
+  PIXELBLAZE_VM_ARRAY_WORDS,
+} from '../../src/engine/showVmResourceLedger'
 import { compareVisualDrift } from './benchCore'
 import {
   assertProbeTarget,
@@ -8,6 +13,7 @@ import {
   defaultsVerdict,
   FPS_VERSIONS,
   LABEL_PROBE_NAMES,
+  OVER_BUDGET_PROBE_SOURCE,
   sliderProbeSource,
   summarizeFreshFps,
   survivalSource,
@@ -97,6 +103,12 @@ describe('#1273 bypass output (emulator evidence for the defaults row)', () => {
 })
 
 describe('#1273 probe sources', () => {
+  it('allocates exactly one word over the VM array budget in the Q7 fixture', () => {
+    const arrays = inspectGeneratedShowVmAllocations(OVER_BUDGET_PROBE_SOURCE)
+    expect(arrays).toHaveLength(1)
+    expect(arrays[0].elementCount + PIXELBLAZE_ARRAY_HEADER_WORDS).toBe(PIXELBLAZE_VM_ARRAY_WORDS + 1)
+  })
+
   it('records every name form with a sentinel and a call count', () => {
     const source = sliderProbeSource(LABEL_PROBE_NAMES)
     LABEL_PROBE_NAMES.forEach((name, i) => {

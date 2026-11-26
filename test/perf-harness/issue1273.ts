@@ -10,6 +10,7 @@
 //   set        Q3: protocol setControls (no save) on the sliders probe, read handlers
 //   survival   Q4 raw path: cases a, b, c on independent probes
 //   jon        Q5: WavyBands wrapped with amount sliders, saved and left active
+//   over-budget  Q7: one Run and one Save, only after the operator approves
 //   restore    re-activate the baseline Pattern, delete manifest probes, compare
 //
 //   PIXELBLAZE_IP=192.168.8.161 npx tsx test/perf-harness/issue1273.ts --mode baseline --out .wrsp/1273/x.json
@@ -38,6 +39,7 @@ import {
   type FpsFrame,
   FPS_VERSIONS,
   LABEL_PROBE_NAMES,
+  OVER_BUDGET_PROBE_SOURCE,
   SLIDER_NAMES,
   sliderProbeSource,
   summarizeFreshFps,
@@ -477,12 +479,108 @@ async function jonMode(ip: string, out: string) {
   })
 }
 
+async function overBudgetMode(ip: string, out: string) {
+  const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as {
+    ip: string
+    config: { chipId: number; firmwareVersion: string }
+  }
+  if (ip !== baseline.ip) throw new Error('Over-budget probe requires the captured bench Controller')
+  const runId = makeProgramId()
+  const saveId = makeProgramId()
+  const saveName = `${PREFIX}over-budget-save`
+  const evidence: Record<string, unknown> = { ip, runId, saveId, saveName }
+  const persist = () => writeFileSync(out, JSON.stringify(evidence, null, 2))
+  writeFileSync(out, JSON.stringify(evidence, null, 2), { flag: 'wx' })
+
+  let phase = 'bench identity'
+  try {
+    await withSession(ip, async ({ conn, json }) => {
+      const before = await conn.getConfig()
+      if (before.chipId !== baseline.config.chipId
+        || before.firmwareVersion !== baseline.config.firmwareVersion || before.runSequencer !== false) {
+        throw new Error('Bench identity, firmware, or sequencer does not match the probe baseline')
+      }
+      evidence.before = { activeProgramId: before.activeProgramId, chipId: before.chipId, firmware: before.firmwareVersion }
+      const existing = await conn.listPrograms()
+      if (runId === saveId || existing.some((p) => p.name === saveName || p.id === runId || p.id === saveId)) {
+        throw new Error('Over-budget probe ids and Save name must be new')
+      }
+      const ids = baselineIds()
+      assertProbeTarget(runId, ids)
+      assertProbeTarget(saveId, ids)
+
+      phase = 'compiler'
+      const compile = await fetchControllerCompiler(ip, 1)
+      let byteCode: Uint8Array
+      try {
+        byteCode = compile(OVER_BUDGET_PROBE_SOURCE)
+      } catch (error) {
+        evidence.compiler = { outcome: 'refused', error: (error as Error).message }
+        persist()
+        return
+      }
+      evidence.compiler = { outcome: 'compiled', bytes: byteCode.length }
+      persist()
+      const blob = encodePbp({ id: saveId, name: saveName, sourceCode: OVER_BUDGET_PROBE_SOURCE,
+        byteCode, previewImage: await probePreview() })
+
+      phase = 'Run'
+      const interestingFrames = (from: number) => json.slice(from).filter((frame) =>
+        'setCode' in frame || 'vmerr' in frame || 'fps' in frame || 'saveProgramSourceFile' in frame)
+      const fromRun = json.length
+      const run: Record<string, unknown> = { id: runId }
+      evidence.run = run
+      try {
+        conn.pushByteCode(byteCode, { id: runId, name: '' })
+        await sleep(SETTLE_MS)
+        const config = await conn.getConfig()
+        assertBenchPixels(config.pixelCount)
+        run.activeProgramId = config.activeProgramId ?? null
+        run.saved = (await conn.listPrograms()).some((p) => p.id === runId)
+        run.responsive = true
+      } finally {
+        run.frames = interestingFrames(fromRun)
+        persist()
+      }
+
+      phase = 'Save'
+      const fromSave = json.length
+      const save: Record<string, unknown> = { id: saveId }
+      evidence.save = save
+      try {
+        recordProbe(saveId, saveName)
+        try {
+          save.outcome = await conn.saveProgramAndWait(saveId, blob)
+        } catch (error) {
+          if (!json.slice(fromSave).some((frame) => frame.saveProgramSourceFile === false)) throw error
+          save.outcome = 'rejected'
+        }
+        const config = await conn.getConfig()
+        assertBenchPixels(config.pixelCount)
+        save.activeProgramId = config.activeProgramId ?? null
+        save.saved = (await conn.listPrograms()).some((p) => p.id === saveId && p.name === saveName)
+        save.responsive = true
+      } finally {
+        save.frames = interestingFrames(fromSave)
+        persist()
+      }
+    })
+  } catch (error) {
+    evidence.stopped = { phase, error: (error as Error).message }
+    persist()
+    throw error
+  }
+  log(`over-budget: ${out}`)
+}
+
 async function restoreMode(ip: string, out: string) {
   const baseline = JSON.parse(readFileSync(BASELINE, 'utf8')) as {
+    ip: string
     config: { activeProgramId: string; brightness: number; pixelCount: number }
     map: { sha256: string }
     programs: Array<{ id: string; name: string }>
   }
+  if (ip !== baseline.ip) throw new Error('Restore requires the captured bench Controller')
   const ids = baselineIds()
   const manifest = existsSync(MANIFEST)
     ? readFileSync(MANIFEST, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as { id: string; name: string })
@@ -512,6 +610,7 @@ async function restoreMode(ip: string, out: string) {
   const verdict = compareRestore(before, after)
   writeFileSync(out, JSON.stringify({ ip, at: new Date().toISOString(), deleted, after, verdict }, null, 2))
   log(`restore: ${verdict.ok ? 'matches baseline' : verdict.differences.join('; ')}`)
+  if (!verdict.ok) throw new Error('Restore snapshot differs from baseline')
 }
 
 async function baselineMode(ip: string, out: string) {
@@ -532,6 +631,7 @@ async function main() {
     baseline: baselineMode, fps: fpsMode, sliders: slidersMode, set: setMode,
     'read-sliders': readSlidersMode,
     survival: (ip, out) => runSurvival(ip, out, 'raw'), jon: jonMode, restore: restoreMode,
+    'over-budget': overBudgetMode,
   }
   const run = modes[mode]
   if (!run) throw new Error(`--mode ${Object.keys(modes).join('|')}`)

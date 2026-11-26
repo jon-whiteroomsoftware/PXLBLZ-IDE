@@ -6,6 +6,7 @@
 // the small probe Patterns that record what each slider handler receives.
 
 import { emitSlowMoWrapper, type SlowMoPlan, type SlowMoSettings, SLOW_MO_SPEED_SLIDER } from '../../src/engine/slowMo'
+import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from '../../src/engine/showVmResourceLedger'
 
 const P = '__pxlblz_slowmo_'
 
@@ -124,6 +125,11 @@ export const LABEL_PROBE_NAMES = [
 
 export type SurvivalCase = 'a' | 'b' | 'c'
 export type SurvivalStep = 'initial' | 'rewrite' | 'restore'
+
+// A single allocation one word above the budget, including its header.
+export const OVER_BUDGET_PROBE_SOURCE = `var levels = array(${PIXELBLAZE_VM_ARRAY_WORDS + 1 - PIXELBLAZE_ARRAY_HEADER_WORDS})
+export function render(index) { rgb(levels[index], 0, 0) }
+`
 
 /** Q4 sources. A and B start on the Pattern; (c) keeps A, removes B and adds
  * C, and its restore step brings B back under its exact original name. */
