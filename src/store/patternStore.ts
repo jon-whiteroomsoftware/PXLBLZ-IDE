@@ -131,6 +131,8 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   removePattern: async (id) => {
+    pendingPatternSettings.delete(id)
+    await activePatternSettingsFlush.get(id)
     await getPersonalContentProvider().deletePattern(id)
     const { activePatternId, userPatterns } = get()
     const remaining = userPatterns.filter((p) => p.id !== id)
@@ -167,14 +169,14 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       }),
     }))
     if (merged === undefined) return
-    await getPersonalContentProvider().updatePattern(id, { settings: merged }).catch(() => {})
+    await queuePatternSettingsWrite(id, merged)
   },
 
   resetPatternSettings: async (id) => {
     set((s) => ({
       userPatterns: s.userPatterns.map((p) => (p.id === id ? { ...p, settings: {} } : p)),
     }))
-    await getPersonalContentProvider().updatePattern(id, { settings: {} }).catch(() => {})
+    await queuePatternSettingsWrite(id, {})
   },
 
   updateDemoSettings: async (name, patch) => {
@@ -190,7 +192,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       }
       return { demoOverrides: next }
     })
-    if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})
+    if (next) await queueDemoOverridesWrite(next)
   },
 
   resetDemoSettings: async (name) => {
@@ -200,9 +202,57 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       next = rest
       return { demoOverrides: next }
     })
-    if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})
+    if (next) await queueDemoOverridesWrite(next)
   },
 }))
+
+// Serial coalesced persistence queues: rapid slider edits (e.g. dragging Slow-mo
+// then returning to 0) update in-memory state synchronously, while storage writes
+// run strictly one at a time and always flush the latest desired snapshot so an
+// earlier in-flight request can never overwrite a newer value or restore a cleared
+// override.
+const pendingPatternSettings = new Map<string, Partial<Settings>>()
+const activePatternSettingsFlush = new Map<string, Promise<void>>()
+
+function queuePatternSettingsWrite(id: string, settings: Partial<Settings>): Promise<void> {
+  pendingPatternSettings.set(id, settings)
+  const existing = activePatternSettingsFlush.get(id)
+  if (existing) return existing
+  const flush = (async () => {
+    try {
+      while (pendingPatternSettings.has(id)) {
+        const payload = pendingPatternSettings.get(id)!
+        pendingPatternSettings.delete(id)
+        await getPersonalContentProvider().updatePattern(id, { settings: payload }).catch(() => {})
+      }
+    } finally {
+      activePatternSettingsFlush.delete(id)
+    }
+  })()
+  activePatternSettingsFlush.set(id, flush)
+  return flush
+}
+
+let pendingDemoOverrides: Record<string, Partial<Settings>> | null = null
+let activeDemoOverridesFlush: Promise<void> | null = null
+
+function queueDemoOverridesWrite(overrides: Record<string, Partial<Settings>>): Promise<void> {
+  pendingDemoOverrides = overrides
+  if (activeDemoOverridesFlush) return activeDemoOverridesFlush
+  const flush = (async () => {
+    try {
+      while (pendingDemoOverrides !== null) {
+        const payload = pendingDemoOverrides
+        pendingDemoOverrides = null
+        await getPersonalContentProvider().setDemoOverrides(payload).catch(() => {})
+      }
+    } finally {
+      activeDemoOverridesFlush = null
+    }
+  })()
+  activeDemoOverridesFlush = flush
+  return flush
+}
 
 function patternRecordWithAttribution(record: PatternRecord): PatternRecord {
   const structured = normalizePatternAuthors(record.authors)

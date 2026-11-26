@@ -212,6 +212,40 @@ describe('updatePatternSettings', () => {
     await usePatternStore.getState().updatePatternSettings('p1', { brightness: 0.5 })
     expect(usePatternStore.getState().userPatterns[0].updatedAt).toBe(1)
   })
+
+  it('serializes and coalesces rapid pattern settings edits so a slow earlier save cannot restore a cleared override', async () => {
+    const base = memoryProvider()
+    await base.createPattern({ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 })
+    const sent: Partial<Settings>[] = []
+    let releaseFirst!: () => void
+    let inFlight = 0
+    let maxInFlight = 0
+    setPersonalContentProvider({
+      ...base,
+      updatePattern: async (id, changes) => {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        sent.push(changes.settings ?? {})
+        if (sent.length === 1) {
+          await new Promise<void>((resolve) => { releaseFirst = resolve })
+        }
+        await base.updatePattern(id, changes)
+        inFlight--
+      },
+    })
+
+    const first = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0.5 })
+    const middle = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0.8 })
+    const reset = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0 })
+
+    expect(sent).toEqual([{ slowMo: 0.5 }])
+    releaseFirst()
+    await Promise.all([first, middle, reset])
+
+    expect(maxInFlight).toBe(1)
+    expect(sent).toEqual([{ slowMo: 0.5 }, {}])
+    expect((await base.listPatterns())[0].settings).toEqual({})
+  })
 })
 
 describe('resetPatternSettings', () => {
@@ -275,5 +309,39 @@ describe('demo overrides', () => {
     expect(await provider.getDemoOverrides()).toEqual({ KaleidoBloom: { dreamy: 0.3 } })
     await usePatternStore.getState().updateDemoSettings('KaleidoBloom', { dreamy: 0 })
     expect(await provider.getDemoOverrides()).toEqual({})
+  })
+
+  it('serializes and coalesces rapid demo override edits so a slow earlier save cannot restore a cleared override', async () => {
+    const base = memoryProvider()
+    const sent: Record<string, Partial<Settings>>[] = []
+    let releaseFirst!: () => void
+    let inFlight = 0
+    let maxInFlight = 0
+    setPersonalContentProvider({
+      ...base,
+      setDemoOverrides: async (next) => {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        sent.push(next)
+        if (sent.length === 1) {
+          await new Promise<void>((resolve) => { releaseFirst = resolve })
+        }
+        await base.setDemoOverrides(next)
+        inFlight--
+      },
+    })
+
+    const first = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0.5 })
+    const middle = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0.9, dreamy: 0.4 })
+    const resetSlowMo = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0 })
+    const resetDreamy = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { dreamy: 0 })
+
+    expect(sent).toEqual([{ KaleidoBloom: { slowMo: 0.5 } }])
+    releaseFirst()
+    await Promise.all([first, middle, resetSlowMo, resetDreamy])
+
+    expect(maxInFlight).toBe(1)
+    expect(sent).toEqual([{ KaleidoBloom: { slowMo: 0.5 } }, {}])
+    expect(await base.getDemoOverrides()).toEqual({})
   })
 })

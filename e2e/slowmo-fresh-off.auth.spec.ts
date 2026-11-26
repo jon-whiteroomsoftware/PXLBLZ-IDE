@@ -1,8 +1,45 @@
+import { readFile } from 'node:fs/promises'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from './fixtures/authenticated'
+import { parseEpe } from '../src/engine/epeImport'
 
 const slider = (page: Page, name: 'Slow-mo' | 'Dreamy') => page.getByRole('slider', { name, exact: true })
 const section = (page: Page) => page.getByRole('region', { name: 'Wrappers', exact: true })
+
+async function downloadEpe(page: Page): Promise<{ text: string; src: string }> {
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Pattern actions' }).click()
+  await page.getByRole('menuitem', { name: 'Download .epe' }).click()
+  const download = await downloadPromise
+  const text = await readFile((await download.path())!, 'utf8')
+  return { text, src: parseEpe(text).src }
+}
+
+function recordMatches(actual: Record<string, unknown> | undefined, expected: Record<string, unknown> | undefined): boolean {
+  if (expected === undefined) return actual === undefined
+  if (!actual) return false
+  const actualKeys = Object.keys(actual)
+  const expectedKeys = Object.keys(expected)
+  return actualKeys.length === expectedKeys.length && expectedKeys.every((key) => actual[key] === expected[key])
+}
+
+function waitForDemoOverrideSave(page: Page, demoName: string, expected: Record<string, unknown> | undefined) {
+  return page.waitForResponse((response) => {
+    if (!response.ok() || response.request().method() !== 'PUT') return false
+    if (!response.url().includes('/api/settings/demoOverrides')) return false
+    const body = response.request().postDataJSON() as { value?: Record<string, Record<string, unknown>> } | null
+    return recordMatches(body?.value?.[demoName], expected)
+  })
+}
+
+function waitForPatternSettingsSave(page: Page, patternId: string, expected: Record<string, unknown>) {
+  return page.waitForResponse((response) => {
+    if (!response.ok() || response.request().method() !== 'PATCH') return false
+    if (!response.url().includes(`/api/patterns/${patternId}`)) return false
+    const body = response.request().postDataJSON() as { settings?: Record<string, unknown> } | null
+    return recordMatches(body?.settings, expected)
+  })
+}
 
 async function openPattern(page: Page, path: string) {
   await page.goto(path)
@@ -122,33 +159,38 @@ test('persists per-Pattern Wrappers values across stock demo and user Pattern sw
   // 1. Set values on stock demo KaleidoBloom
   await openPattern(page, 'studio/patterns/KaleidoBloom')
   await setExpanded(page, true)
-  const demoSave = page.waitForResponse(r => r.url().includes('/api/settings/demoOverrides') && r.request().method() === 'PUT')
+  const demoSave = waitForDemoOverrideSave(page, 'KaleidoBloom', { slowMo: 0.5 })
   await setByKeyboard(page, 'Slow-mo', 5)
   await demoSave
-  const demoSave2 = page.waitForResponse(r => r.url().includes('/api/settings/demoOverrides') && r.request().method() === 'PUT')
+  const demoSave2 = waitForDemoOverrideSave(page, 'KaleidoBloom', { slowMo: 0.5, dreamy: 0.3 })
   await setByKeyboard(page, 'Dreamy', 3)
   await demoSave2
   await expect(slider(page, 'Slow-mo')).toHaveAttribute('aria-valuetext', '1/4×')
   await expect(slider(page, 'Dreamy')).toHaveAttribute('aria-valuetext', '30%')
 
-  // 2. Switch to user Pattern, verify defaults, then set its own values
+  // 2. Switch to user Pattern, verify defaults, capture baseline .epe download, then set its own values
   await openPattern(page, `studio/patterns/${userId}`)
   await setExpanded(page, true)
   await expect(slider(page, 'Slow-mo')).toHaveValue('0')
   await expect(slider(page, 'Dreamy')).toHaveValue('0')
-  const userSave = page.waitForResponse(r => r.url().includes(`/api/patterns/${userId}`) && r.request().method() === 'PATCH')
+  const baselineEpe = await downloadEpe(page)
+  const userSave = waitForPatternSettingsSave(page, userId, { slowMo: 0.7 })
   await setByKeyboard(page, 'Slow-mo', 7)
   await userSave
-  const userSave2 = page.waitForResponse(r => r.url().includes(`/api/patterns/${userId}`) && r.request().method() === 'PATCH')
+  const userSave2 = waitForPatternSettingsSave(page, userId, { slowMo: 0.7, dreamy: 0.4 })
   await setByKeyboard(page, 'Dreamy', 4)
   await userSave2
 
-  // 3. Reload user Pattern and read values back
+  // 3. Reload user Pattern, read values back, and prove production .epe download is unchanged
   await page.reload()
   await expect(section(page)).toBeVisible()
   await setExpanded(page, true)
   await expect(slider(page, 'Slow-mo')).toHaveValue('0.7')
   await expect(slider(page, 'Dreamy')).toHaveValue('0.4')
+  const overriddenEpe = await downloadEpe(page)
+  const stripStamp = (s: string) => s.replace(/stamped=\S+/g, 'stamped=<ts>')
+  expect(stripStamp(overriddenEpe.src)).toBe(stripStamp(baselineEpe.src))
+  expect(stripStamp(overriddenEpe.text)).toBe(stripStamp(baselineEpe.text))
 
   // 4. Switch back to stock demo and reload to verify independent persistence
   await openPattern(page, 'studio/patterns/KaleidoBloom')
@@ -162,10 +204,10 @@ test('persists per-Pattern Wrappers values across stock demo and user Pattern sw
   await expect(slider(page, 'Dreamy')).toHaveValue('0.3')
 
   // 5. Return sliders to 0 on stock demo and confirm override is removed (not stored as 0)
-  const clear1 = page.waitForResponse(r => r.url().includes('/api/settings/demoOverrides') && r.request().method() === 'PUT')
+  const clear1 = waitForDemoOverrideSave(page, 'KaleidoBloom', { dreamy: 0.3 })
   await setByKeyboard(page, 'Slow-mo', 0)
   await clear1
-  const clear2 = page.waitForResponse(r => r.url().includes('/api/settings/demoOverrides') && r.request().method() === 'PUT')
+  const clear2 = waitForDemoOverrideSave(page, 'KaleidoBloom', undefined)
   await setByKeyboard(page, 'Dreamy', 0)
   await clear2
   const storedDemo = await page.context().request.get('/api/settings/demoOverrides')

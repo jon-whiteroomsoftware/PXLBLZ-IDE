@@ -1,11 +1,34 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { usePreviewStore, previewInitialState, mergePersistedPreview } from './previewStore'
-import { controllerProfilePassRecipe } from '../engine/controllerProfilePassRecipe'
-import { bundleWithPasses } from '../engine/passEngine'
-import { buildPatternEpeExport } from '../engine/patternEpeExport'
-import { parseEpe } from '../engine/epeImport'
+import { usePatternStore, patternInitialState } from './patternStore'
+import { useEditorStore, editorInitialState } from './editorStore'
+import {
+  useControllerStore,
+  controllerInitialState,
+  __resetControllerProviders,
+} from './controllerStore'
 import { defaultControllerProfile } from './controllerProfileStore'
+import { seedActiveSettings, writeCascadedOverride } from './settingsCascade'
+import {
+  NullControllerProvider,
+  type ControllerStatus,
+  type ControllerTarget,
+} from '@/engine/ControllerProvider'
+import {
+  resetControllerProvider,
+  setControllerProviderFactory,
+} from '@/engine/controllerProviderRegistry'
+import {
+  demoPersonalContentProvider,
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+} from '@/engine/personalContentProvider'
+import { resetControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
+import { bundle } from '@/engine/bundle'
+import { stampArtifact } from '@/engine/artifactStamp'
+import { buildPatternEpeExport } from '@/engine/patternEpeExport'
+import { parseEpe } from '@/engine/epeImport'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
@@ -242,9 +265,60 @@ describe('live slow-mo and dreamy defaults', () => {
 })
 
 describe('I17: Controller artifact and .epe export isolation from preview slow-mo', () => {
-  it('preserves the complete push recipe, artifact, and reopened .epe across defaults, slow-mo, dreamy, and reset', () => {
+  afterEach(() => {
+    __resetControllerProviders()
+    resetControllerProvider()
+    resetPersonalContentProvider()
+    resetControllerMetadataStorage()
+    useControllerStore.setState(controllerInitialState)
+    usePatternStore.setState(patternInitialState)
+    useEditorStore.setState(editorInitialState)
+  })
+
+  it('pushes identical compiled source via pushActivePattern and exports identical .epe across stored slowMo/dreamy overrides', async () => {
+    const pushedSources: string[] = []
+    const reconcilingBytecode = (() => {
+      const bytes = new Uint8Array(16)
+      new DataView(bytes.buffer).setUint32(0, 8, true)
+      return bytes
+    })()
+    class CapturingProvider extends NullControllerProvider {
+      readonly capabilities = { push: true, compile: true }
+      status: ControllerStatus = { kind: 'extension-present' }
+      subs = new Set<(s: ControllerStatus) => void>()
+      detectHelper() { return Promise.resolve('ready' as const) }
+      getStatus() { return this.status }
+      subscribe(listener: (s: ControllerStatus) => void) {
+        this.subs.add(listener)
+        return () => this.subs.delete(listener)
+      }
+      connect(target: ControllerTarget) {
+        this.status = {
+          kind: 'connected',
+          connectionGeneration: 1,
+          controller: { id: 'ctrl-iso', address: target.address, deviceId: 'ctrl-iso', name: 'Bench' },
+        }
+        this.subs.forEach(l => l(this.status))
+        return Promise.resolve()
+      }
+      getConfig() { return Promise.resolve({ name: 'Bench', pixelCount: 100 }) }
+      getPixelMap() { return Promise.resolve([[0, 0], [1, 1]]) }
+      getPixelMapData() { return Promise.resolve(null) }
+      getActiveProgramBytecodeSize() { return Promise.resolve(0) }
+      listPrograms() { return Promise.resolve([]) }
+      compile(source: string) {
+        pushedSources.push(source)
+        return Promise.resolve(reconcilingBytecode)
+      }
+      pushBytecode() {
+        return Promise.resolve()
+      }
+    }
+
     const profile = {
       ...defaultControllerProfile({ id: 'slowmo-isolation', now: 1 }),
+      deviceId: 'ctrl-iso',
+      lastSeenIp: '192.0.2.10',
       lastKnownPixelCount: 100,
       globalTransforms: [{
         id: 'power-cap',
@@ -257,27 +331,80 @@ describe('I17: Controller artifact and .epe export isolation from preview slow-m
       }],
     }
     const source = 'export function render(index) { rgb(0.8, 0.4, 0.2) }'
-    const recipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
-    const artifact = bundleWithPasses(source, {}, recipe)
-    const baselineEpe = buildPatternEpeExport('SlowMo Isolation', bundleWithPasses(source, {}, []).code, { idSeed: 'slowmo-test' })
+    const patternId = 'pat-slowmo-iso'
+    const storedRecords = new Map([
+      [patternId, { id: patternId, name: 'SlowMo Isolation', src: source, controls: {}, updatedAt: 1 }],
+    ])
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      listPatterns: async () => [...storedRecords.values()],
+      updatePattern: async (id, changes) => {
+        const cur = storedRecords.get(id)
+        if (cur) storedRecords.set(id, { ...cur, ...changes })
+      },
+      listControllerProfiles: async () => [profile],
+    })
+    setControllerProviderFactory(() => new CapturingProvider())
+    useControllerStore.setState(controllerInitialState)
+    await useControllerStore.getState().addController('192.0.2.10', 'Bench')
+
+    usePatternStore.setState({
+      ...patternInitialState,
+      activePatternId: patternId,
+      userPatterns: [...storedRecords.values()],
+      patternsLoaded: true,
+    })
+    useEditorStore.setState({
+      ...editorInitialState,
+      source,
+      previewSource: source,
+      previewPatternName: 'SlowMo Isolation',
+    })
+    seedActiveSettings()
+
+    const exportProductionEpe = () => {
+      const record = usePatternStore.getState().userPatterns.find(p => p.id === patternId)!
+      const editorSource = useEditorStore.getState().source
+      const bundled = bundle(editorSource, {})
+      const stamped = stampArtifact(bundled.code, { kind: 'pattern', id: patternId, name: record.name })
+      return buildPatternEpeExport(record.name, stamped, { idSeed: patternId })
+    }
+
+    await useControllerStore.getState().pushActivePattern()
+    expect(useControllerStore.getState().pushResult?.ok).toBe(true)
+    const baselinePush = pushedSources[0]
+    const baselineTransform = useControllerStore.getState().lastTransformArtifacts['192.0.2.10']?.[patternId]?.summary
+    const baselineEpe = exportProductionEpe()
     const baselineParsed = parseEpe(baselineEpe.text)
-    expect(recipe.length).toBeGreaterThan(0)
-    for (const [slowMo, dreamy] of [[0, 0], [0.5, 0], [0.5, 1], [1, 1], [0, 0]] as const) {
+    expect(baselinePush).toBeTruthy()
+    expect(baselineTransform?.passes.length).toBeGreaterThan(0)
+
+    for (const [slowMo, dreamy] of [[0.5, 0], [0.5, 1], [1, 1], [0, 0]] as const) {
       usePreviewStore.getState().setSlowMo(slowMo)
       usePreviewStore.getState().setDreamy(dreamy)
+      writeCascadedOverride('slowMo', slowMo)
+      writeCascadedOverride('dreamy', dreamy)
+      await usePatternStore.getState().updatePatternSettings(patternId, { slowMo, dreamy })
+      seedActiveSettings()
       usePreviewStore.getState().setSlowMoDeclined(slowMo > 0 ? { reason: 'shadowed-builtin', message: 'Preview-only refusal.' } : null)
-      expect(usePreviewStore.getState().slowMo).toBe(slowMo)
-      expect(usePreviewStore.getState().dreamy).toBe(dreamy)
-      const currentRecipe = controllerProfilePassRecipe(profile, source, 'slowmo-test')
-      expect(currentRecipe).toEqual(recipe)
-      const currentArtifact = bundleWithPasses(source, {}, currentRecipe)
-      expect(currentArtifact.code).toBe(artifact.code)
-      expect(currentArtifact.fxCode).toBe(artifact.fxCode)
-      expect(currentArtifact.metadata).toEqual(artifact.metadata)
-      expect(currentArtifact).toEqual(artifact)
-      const currentEpe = buildPatternEpeExport('SlowMo Isolation', bundleWithPasses(source, {}, []).code, { idSeed: 'slowmo-test' })
-      expect(currentEpe).toEqual(baselineEpe)
-      expect(parseEpe(currentEpe.text)).toEqual(baselineParsed)
+
+      const beforeCount = pushedSources.length
+      await useControllerStore.getState().pushActivePattern()
+      expect(useControllerStore.getState().pushResult?.ok).toBe(true)
+      expect(pushedSources.length).toBe(beforeCount + 1)
+      expect(pushedSources[pushedSources.length - 1]).toBe(baselinePush)
+      expect(useControllerStore.getState().lastTransformArtifacts['192.0.2.10']?.[patternId]?.summary).toEqual(baselineTransform)
+
+      const stripStamp = (s: string) => s.replace(/stamped=\S+/g, 'stamped=<ts>')
+      const normalizeParsed = (parsed: ReturnType<typeof parseEpe>) => ({
+        ...parsed,
+        src: stripStamp(parsed.src),
+        ...(parsed.stamp ? { stamp: { ...parsed.stamp, stamped: '<ts>' } } : {}),
+      })
+      const currentEpe = exportProductionEpe()
+      expect(currentEpe.filename).toBe(baselineEpe.filename)
+      expect(stripStamp(currentEpe.text)).toBe(stripStamp(baselineEpe.text))
+      expect(normalizeParsed(parseEpe(currentEpe.text))).toEqual(normalizeParsed(baselineParsed))
     }
   })
 })

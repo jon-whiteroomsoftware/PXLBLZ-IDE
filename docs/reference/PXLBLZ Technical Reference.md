@@ -503,7 +503,9 @@ built-in recommendation â†’ user comfort baseline (light size/diffusion only) â†
 developer default. Personal overrides live on `PatternRecord.settings`;
 built-in overrides in `demoOverrides`. Preview `slowMo` and `dreamy` join the
 cascaded per-Pattern fields (default `0`, never recommended for stock demos,
-removed from sparse overrides when returned to `0`). Fast/Precise is a separate
+removed from sparse overrides when returned to `0`). Settings writes serialize
+and coalesce per Pattern (and across `demoOverrides`) so rapid slider drags and
+resets cannot finish out of order. Fast/Precise is a separate
 global setting.
 
 Panel disclosure preferences live separately from Pattern
