@@ -27,6 +27,8 @@ interface PatternState {
   // keyed by demo name. Parallel to PatternRecord.settings for user patterns; a demo
   // has no record so its bag lives here instead.
   demoOverrides: Record<string, Partial<Settings>>
+  settingsSaveFailed: boolean
+  retrySettingsPersistence: () => Promise<void>
   setActivePattern: (id: string | null) => void
   setActiveLibrary: (name: string | null) => void
   setActiveDemo: (name: string | null) => void
@@ -76,6 +78,7 @@ export const patternInitialState = {
   userPatterns: [] as PatternRecord[],
   patternsLoaded: false,
   demoOverrides: {} as Record<string, Partial<Settings>>,
+  settingsSaveFailed: false,
 }
 
 export const usePatternStore = create<PatternState>()((set, get) => ({
@@ -102,12 +105,23 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   loadPatterns: async () => {
     const patterns = await getPersonalContentProvider().listPatterns()
-    set({ userPatterns: patterns.map((p) => p.settings ? { ...p, settings: discardLegacyPreviewSpeed(p.settings) } : p).sort((a, b) => b.updatedAt - a.updatedAt), patternsLoaded: true })
+    set((s) => ({
+      userPatterns: patterns.map((pattern) => {
+        const local = pendingSettingsWrites.has(pattern.id)
+          ? s.userPatterns.find((p) => p.id === pattern.id)
+          : undefined
+        const settings = local?.settings ?? pattern.settings
+        return settings ? { ...pattern, settings: discardLegacyPreviewSpeed(settings) } : pattern
+      }).sort((a, b) => b.updatedAt - a.updatedAt),
+      patternsLoaded: true,
+    }))
   },
 
   loadDemoOverrides: async () => {
     const stored = await getPersonalContentProvider().getDemoOverrides().catch(() => undefined)
-    if (stored) set({ demoOverrides: Object.fromEntries(Object.entries(stored).map(([name, settings]) => [name, discardLegacyPreviewSpeed(settings)])) })
+    if (stored && !pendingSettingsWrites.has(null)) {
+      set({ demoOverrides: Object.fromEntries(Object.entries(stored).map(([name, settings]) => [name, discardLegacyPreviewSpeed(settings)])) })
+    }
   },
 
   addPattern: async (record) => {
@@ -131,8 +145,8 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   removePattern: async (id) => {
-    while (activePatternSettingsFlush.has(id)) {
-      await activePatternSettingsFlush.get(id)
+    while (activeSettingsFlushes.has(id)) {
+      await activeSettingsFlushes.get(id)
     }
     await getPersonalContentProvider().deletePattern(id)
     const { activePatternId, userPatterns } = get()
@@ -141,6 +155,9 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       userPatterns: remaining,
       activePatternId: activePatternId === id ? (remaining[0]?.id ?? null) : activePatternId,
     })
+    pendingSettingsWrites.delete(id)
+    failedSettingsWrites.delete(id)
+    syncSettingsPersistence()
   },
 
   updatePatternSrc: async (id, src) => {
@@ -205,24 +222,24 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     })
     if (next) await queueDemoOverridesWrite(next)
   },
+
+  retrySettingsPersistence: async () => {
+    await Promise.all(Array.from(failedSettingsWrites, flushSettingsWrites))
+  },
 }))
 
-// Serial coalesced persistence queues: rapid slider edits (e.g. dragging Slow-mo
-// then returning to 0) update in-memory state synchronously, while storage writes
-// run strictly one at a time and always flush the latest desired snapshot so an
-// earlier in-flight request can never overwrite a newer value or restore a cleared
-// override. A beforeunload guard stays attached while any write is in flight or
-// queued so a reload cannot silently discard a queued reset (matching #1095).
-const pendingPatternSettings = new Map<string, Partial<Settings>>()
-const activePatternSettingsFlush = new Map<string, Promise<void>>()
-
-let pendingDemoOverrides: Record<string, Partial<Settings>> | null = null
-let activeDemoOverridesFlush: Promise<void> | null = null
+// Each Pattern has its own coalescing queue. The demo overrides share one
+// storage value and use the null key. Keep the latest snapshot until storage
+// acknowledges it, including while a failed write waits for Retry.
+type SettingsWriteKey = string | null
+const pendingSettingsWrites = new Map<SettingsWriteKey, () => Promise<void>>()
+const activeSettingsFlushes = new Map<SettingsWriteKey, Promise<void>>()
+const failedSettingsWrites = new Set<SettingsWriteKey>()
 
 let settingsUnloadGuardAttached = false
 
 export function hasPendingSettingsPersistence(): boolean {
-  return activePatternSettingsFlush.size > 0 || activeDemoOverridesFlush !== null
+  return pendingSettingsWrites.size > 0 || activeSettingsFlushes.size > 0
 }
 
 function handleSettingsBeforeUnload(event: BeforeUnloadEvent): void {
@@ -241,43 +258,54 @@ function syncSettingsUnloadGuard(): void {
   }
 }
 
-function queuePatternSettingsWrite(id: string, settings: Partial<Settings>): Promise<void> {
-  pendingPatternSettings.set(id, settings)
-  const existing = activePatternSettingsFlush.get(id)
-  if (existing) return existing
-  const flush = (async () => {
-    try {
-      while (pendingPatternSettings.has(id)) {
-        const payload = pendingPatternSettings.get(id)!
-        pendingPatternSettings.delete(id)
-        await getPersonalContentProvider().updatePattern(id, { settings: payload }).catch(() => {})
-      }
-    } finally {
-      activePatternSettingsFlush.delete(id)
-      syncSettingsUnloadGuard()
-    }
-  })()
-  activePatternSettingsFlush.set(id, flush)
+function syncSettingsPersistence(): void {
   syncSettingsUnloadGuard()
-  return flush
+  const settingsSaveFailed = failedSettingsWrites.size > 0
+  if (usePatternStore.getState().settingsSaveFailed !== settingsSaveFailed) {
+    usePatternStore.setState({ settingsSaveFailed })
+  }
+}
+
+function queuePatternSettingsWrite(id: string, settings: Partial<Settings>): Promise<void> {
+  const provider = getPersonalContentProvider()
+  pendingSettingsWrites.set(id, async () => provider.updatePattern(id, { settings }))
+  return flushSettingsWrites(id)
 }
 
 function queueDemoOverridesWrite(overrides: Record<string, Partial<Settings>>): Promise<void> {
-  pendingDemoOverrides = overrides
-  if (activeDemoOverridesFlush) return activeDemoOverridesFlush
+  const provider = getPersonalContentProvider()
+  pendingSettingsWrites.set(null, async () => provider.setDemoOverrides(overrides))
+  return flushSettingsWrites(null)
+}
+
+function flushSettingsWrites(key: SettingsWriteKey): Promise<void> {
+  const existing = activeSettingsFlushes.get(key)
+  if (existing) return existing
   const flush = (async () => {
     try {
-      while (pendingDemoOverrides !== null) {
-        const payload = pendingDemoOverrides
-        pendingDemoOverrides = null
-        await getPersonalContentProvider().setDemoOverrides(payload).catch(() => {})
+      let write = pendingSettingsWrites.get(key)
+      while (write) {
+        try {
+          await write()
+          if (pendingSettingsWrites.get(key) === write) {
+            pendingSettingsWrites.delete(key)
+            failedSettingsWrites.delete(key)
+          }
+        } catch {
+          const latest = pendingSettingsWrites.get(key)
+          if (!latest) break // The Pattern was deleted during the write.
+          failedSettingsWrites.add(key)
+          if (latest === write) break
+          syncSettingsPersistence()
+        }
+        write = pendingSettingsWrites.get(key)
       }
     } finally {
-      activeDemoOverridesFlush = null
-      syncSettingsUnloadGuard()
+      activeSettingsFlushes.delete(key)
+      syncSettingsPersistence()
     }
   })()
-  activeDemoOverridesFlush = flush
+  activeSettingsFlushes.set(key, flush)
   syncSettingsUnloadGuard()
   return flush
 }

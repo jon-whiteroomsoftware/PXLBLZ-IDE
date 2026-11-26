@@ -177,6 +177,10 @@ their last values per Pattern, and never change an `.epe` export or a
 Controller push. Most settings are remembered per Pattern, and none of them
 ride along when you send to a Controller.
 
+If a preview settings save fails, the deck shows **Unsaved preview settings**.
+Choose **Retry** to save the latest values. The browser warns before leaving
+while settings still need to be saved.
+
 Below the preview, **Controls** starts open, while **Pixelblaze**,
 **Preview**, **Wrappers**, and **Variables** fold to one-line summaries. Each
 remembers whether you left it open. Brightness, Reset, and Play/Pause stay in

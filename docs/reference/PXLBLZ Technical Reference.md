@@ -504,11 +504,12 @@ developer default. Personal overrides live on `PatternRecord.settings`;
 built-in overrides in `demoOverrides`. Preview `slowMo` and `dreamy` join the
 cascaded per-Pattern fields (default `0`, never recommended for stock demos,
 removed from sparse overrides when returned to `0`). Settings writes serialize
-and coalesce per Pattern (and across `demoOverrides`), attach a `beforeunload`
-guard while writes are in flight or queued, and drain pending writes before
-Pattern deletion so rapid slider drags and resets cannot finish out of order or
-be silently lost. Fast/Precise is a separate
-global setting.
+and coalesce per Pattern and across the shared `demoOverrides` bag. The
+latest snapshot stays pending until storage acknowledges it. A failed save
+keeps the edit visible, exposes Retry, and keeps the `beforeunload` guard
+attached. Pattern deletion drains active writes and discards a retained
+snapshot after storage confirms deletion. Fast/Precise is a separate global
+setting.
 
 Panel disclosure preferences live separately from Pattern
 settings, keyed by Studio mode. The shared Deck primitive opts into summary

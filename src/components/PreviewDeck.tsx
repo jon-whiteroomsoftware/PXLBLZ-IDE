@@ -22,6 +22,7 @@ import { CoordinateViewSelect, MapSelect, EmbeddingSelect, useMapSelectMeta } fr
 import { SlowMoLab } from '@/components/SlowMoLab'
 import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
+import { SaveFailureNotice } from '@/components/SaveFailureNotice'
 import { ControlsPanel } from '@/components/ControlsPanel'
 import { DimPills } from '@/components/DimPills'
 import { exportedDims } from '@/engine/exportedDims'
@@ -90,12 +91,22 @@ export const SHOW_PREVIEW_HINT = (
 // then the author's pattern controls; then the Variables turn-down.
 export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: boolean }) {
   const mode = useEditorStore(s => s.editorFlavor)
+  const settingsSaveFailed = usePatternStore(s => s.settingsSaveFailed)
+  const retrySettings = usePatternStore(s => s.retrySettingsPersistence)
   const summaryMode = showPrimaryBand ? mode : undefined
   return (
     <div className={showPrimaryBand ? 'pattern-panel-container' : 'font-mono pl-3'} data-testid="preview-deck">
       <div className={showPrimaryBand ? 'font-mono pattern-panel' : undefined}>
       {showPrimaryBand && <PrimaryBand />}
       {!showPrimaryBand && <ActiveMapBakeStatus standalone />}
+      {settingsSaveFailed && (
+        <SaveFailureNotice
+          message="Unsaved preview settings"
+          onRetry={() => void retrySettings()}
+          retryLabel="Retry saving preview settings"
+          testId="preview-settings-save-failure"
+        />
+      )}
       <SecondaryBand mode={summaryMode} />
       <SlowMoSection mode={summaryMode} />
       <ControlsPanel mode={summaryMode} />

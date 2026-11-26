@@ -148,6 +148,71 @@ test('native keyboard traversal edits both sliders and preserves the independent
   await expect(slider(page, 'Dreamy')).toHaveValue('0')
 })
 
+test.describe('Wrappers settings recovery', () => {
+  test.use({ allowedBrowserErrors: [/^console: Failed to load resource: .*500/] })
+
+  for (const scope of ['personal Pattern', 'stock demo'] as const) {
+    test(`shows an unsaved reset and retries it for a ${scope}`, async ({ page }, testInfo) => {
+      const personal = scope === 'personal Pattern'
+      const patternId = 'wrappers-retry-user'
+      const demoName = 'KaleidoBloom'
+      const width = personal ? 1440 : 900
+      await page.setViewportSize({ width, height: 1000 })
+      if (personal) {
+        await seedPattern(page, patternId, 'Wrappers Retry User', 'export function render(index) { rgb(1, 0.5, 0) }')
+      }
+      await openPattern(page, `studio/patterns/${personal ? patternId : demoName}`)
+      await setExpanded(page, true)
+
+      const firstSave = personal
+        ? waitForPatternSettingsSave(page, patternId, { slowMo: 0.5 })
+        : waitForDemoOverrideSave(page, demoName, { slowMo: 0.5 })
+      await setByKeyboard(page, 'Slow-mo', 5)
+      await firstSave
+
+      const path = personal ? `patterns/${patternId}` : 'settings/demoOverrides'
+      let failedReset = false
+      await page.route(`**/api/${path}`, async (route) => {
+        if (!failedReset && route.request().method() === (personal ? 'PATCH' : 'PUT')) {
+          failedReset = true
+          await route.fulfill({ status: 500 })
+          return
+        }
+        await route.continue()
+      })
+
+      await slider(page, 'Slow-mo').press('Home')
+      await expect(slider(page, 'Slow-mo')).toHaveAttribute('aria-valuetext', 'off')
+      const notice = page.getByTestId('preview-settings-save-failure')
+      await expect(notice).toContainText('Unsaved preview settings')
+      expect(failedReset).toBe(true)
+      const dispatchBeforeUnload = () => page.evaluate(() => {
+        const event = new Event('beforeunload', { cancelable: true })
+        window.dispatchEvent(event)
+        return event.defaultPrevented
+      })
+      expect(await dispatchBeforeUnload()).toBe(true)
+      await notice.scrollIntoViewIfNeeded()
+      await page.screenshot({ path: testInfo.outputPath(`settings-unsaved-${width}.png`) })
+
+      const saved = personal
+        ? waitForPatternSettingsSave(page, patternId, {})
+        : waitForDemoOverrideSave(page, demoName, undefined)
+      const retry = notice.getByRole('button', { name: 'Retry saving preview settings' })
+      await retry.focus()
+      await retry.press('Enter')
+      await saved
+      await expect(notice).toHaveCount(0)
+      expect(await dispatchBeforeUnload()).toBe(false)
+
+      await page.reload()
+      await expect(section(page)).toBeVisible()
+      await setExpanded(page, true)
+      await expect(slider(page, 'Slow-mo')).toHaveAttribute('aria-valuetext', 'off')
+    })
+  }
+})
+
 test('persists per-Pattern Wrappers values across stock demo and user Pattern switches, reload, reset, and declined Pattern', async ({ page }) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1440, height: 1000 })

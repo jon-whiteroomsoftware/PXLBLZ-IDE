@@ -1,8 +1,5 @@
-// The one alert bar for a failed one-shot persistence write, shared by the
-// Show editor (#792) and the Controller profile page (#810). The owning store
-// has already rolled the edit back; this surface reports it and offers Retry
-// (re-apply the reverted edit) and Dismiss. Rendering is conditional at the
-// call site — mount it only while the store holds a failure.
+// Shared save-failure alert. The owning store controls recovery and may
+// keep the notice visible until the pending change has been saved.
 import { CloudOff, TriangleAlert, X } from 'lucide-react'
 
 export function SaveFailureNotice({
@@ -17,7 +14,7 @@ export function SaveFailureNotice({
 }: {
   message: string
   onRetry?: () => void
-  onDismiss: () => void
+  onDismiss?: () => void
   retryLabel?: string
   dismissLabel?: string
   compact?: boolean
@@ -45,14 +42,16 @@ export function SaveFailureNotice({
           Retry
         </button>
       )}
-      <button
-        type="button"
-        aria-label={dismissLabel}
-        onClick={onDismiss}
-        className={`grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200 ${compact ? 'absolute right-1 top-1' : onRetry ? '' : 'ml-auto'}`}
-      >
-        <X size={12} aria-hidden />
-      </button>
+      {onDismiss && (
+        <button
+          type="button"
+          aria-label={dismissLabel}
+          onClick={onDismiss}
+          className={`grid size-5 shrink-0 place-items-center text-zinc-500 transition-colors hover:text-zinc-200 ${compact ? 'absolute right-1 top-1' : onRetry ? '' : 'ml-auto'}`}
+        >
+          <X size={12} aria-hidden />
+        </button>
+      )}
     </div>
   )
 }

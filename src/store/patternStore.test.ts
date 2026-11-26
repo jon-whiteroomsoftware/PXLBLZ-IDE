@@ -298,6 +298,69 @@ describe('resetPatternSettings', () => {
   })
 })
 
+describe('settings save failures', () => {
+  it.each(['Pattern', 'stock demo'] as const)('keeps a failed %s reset pending until it is retried successfully', async (scope) => {
+    const base = getPersonalContentProvider()
+    await base.createPattern({ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 })
+    await usePatternStore.getState().loadPatterns()
+
+    let releaseFirst!: () => void
+    let releaseRetry!: () => void
+    let writes = 0
+    async function beforeWrite() {
+      writes++
+      if (writes === 1) await new Promise<void>((resolve) => { releaseFirst = resolve })
+      if (writes === 2) throw new Error('HTTP 500')
+      if (writes === 3) await new Promise<void>((resolve) => { releaseRetry = resolve })
+    }
+    setPersonalContentProvider({
+      ...base,
+      updatePattern: async (id, changes) => {
+        await beforeWrite()
+        await base.updatePattern(id, changes)
+      },
+      setDemoOverrides: async (overrides) => {
+        await beforeWrite()
+        await base.setDemoOverrides(overrides)
+      },
+    })
+    const update = (slowMo: number) => scope === 'Pattern'
+      ? usePatternStore.getState().updatePatternSettings('p1', { slowMo })
+      : usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo })
+    const readStored = async () => scope === 'Pattern'
+      ? (await base.listPatterns())[0].settings
+      : (await base.getDemoOverrides())?.KaleidoBloom ?? {}
+    const readLocal = () => scope === 'Pattern'
+      ? usePatternStore.getState().userPatterns[0].settings
+      : usePatternStore.getState().demoOverrides.KaleidoBloom ?? {}
+
+    const first = update(0.5)
+    const reset = update(0)
+    expect(writes).toBe(1)
+    releaseFirst()
+    await Promise.all([first, reset])
+
+    expect(writes).toBe(2)
+    expect(await readStored()).toEqual({ slowMo: 0.5 })
+    expect(readLocal()).toEqual({})
+    expect(hasPendingSettingsPersistence()).toBe(true)
+    expect(usePatternStore.getState().settingsSaveFailed).toBe(true)
+
+    await usePatternStore.getState().loadPatterns()
+    await usePatternStore.getState().loadDemoOverrides()
+    expect(readLocal()).toEqual({})
+
+    const retry = usePatternStore.getState().retrySettingsPersistence()
+    expect(hasPendingSettingsPersistence()).toBe(true)
+    expect(usePatternStore.getState().settingsSaveFailed).toBe(true)
+    releaseRetry()
+    await retry
+    expect(await readStored()).toEqual({})
+    expect(hasPendingSettingsPersistence()).toBe(false)
+    expect(usePatternStore.getState().settingsSaveFailed).toBe(false)
+  })
+})
+
 describe('demo overrides', () => {
   it('discards legacy speed-only and mixed demo settings on hydration and save (#1246)', async () => {
     const provider = getPersonalContentProvider()
