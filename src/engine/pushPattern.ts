@@ -97,6 +97,7 @@ export interface PushPatternDeps {
   loadPushRecords: () => Promise<ControllerPushRecords>
   /** Persist the latest saved-artifact metadata after every successful save push. */
   savePushRecords: (records: ControllerPushRecords) => Promise<void>
+  updatePushRecords?: (edit: (records: ControllerPushRecords) => ControllerPushRecords) => Promise<void>
   /** Injectable id minter (determinism in tests). Defaults to makeProgramId. */
   mintId?: () => string
   /** Injectable throwaway id for the transport-only drain Pattern. */
@@ -111,6 +112,8 @@ export interface PushPatternDeps {
   profileSignature?: string
   /** Hash of the canonical Studio source before Controller-specific transforms. */
   sourceHash?: string
+  wrapperOutcome?: ControllerPushRecord['wrapperOutcome']
+  wrapperPixelCount?: number
   /** Override the saved artifact's provenance. Shows pass their canonical Show stamp;
    * ordinary Pattern sends omit this and retain the historical Pattern stamp. */
   artifactStamp?: ArtifactStampMeta
@@ -250,11 +253,22 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     transforms: stamp.transforms,
     ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),
     ...(deps.sourceHash ? { sourceHash: deps.sourceHash } : {}),
+    ...(deps.wrapperOutcome && !deps.patternId.startsWith('show:') ? {
+      wrapperOutcome: deps.wrapperOutcome,
+      wrapperProgramId: programId,
+      ...(deps.wrapperPixelCount === undefined ? {} : { wrapperPixelCount: deps.wrapperPixelCount }),
+    } : {}),
     artifactHash: stamp.hash,
     stampedAt: stamp.stamped,
     name: deps.name ?? '',
     ...(stamp.showOutputContract ? { showOutputContract: stamp.showOutputContract } : {}),
   }
+  const mergeRecord = (records: ControllerPushRecords) =>
+    withPushRecord(records, deps.controllerId, deps.patternId, record)
+  const publishRecord = (records: ControllerPushRecords, isCurrent = () => true) =>
+    deps.updatePushRecords
+      ? deps.updatePushRecords((current) => isCurrent() ? mergeRecord(current) : current)
+      : deps.savePushRecords(mergeRecord(records))
 
   const blob = encodePbp({
     id: programId,
@@ -283,8 +297,8 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
             if (!isNew || currentId !== originalId) return false
             await deps.saveBindings(withBinding(currentBindings, deps.controllerId, deps.patternId, programId))
           }
-          await deps.savePushRecords(withPushRecord(currentRecords, deps.controllerId, deps.patternId, record))
-          return true
+          await publishRecord(currentRecords, isCurrent)
+          return isCurrent()
         })
       },
     }),
@@ -340,7 +354,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
   }
 
-  await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, record))
+  await publishRecord(pushRecords)
 
   return activationUnconfirmed
     ? { programId, created: isNew, activation: 'unconfirmed' }

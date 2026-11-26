@@ -37,6 +37,9 @@ adoption, history, hydration, or save recovery, read
 Before changing the agent bridge or `__pxlblzEditor` candidate application, read
 `docs/reference/contracts/agent-candidate-application.md`.
 
+Before changing Controller Wrapper delivery, signatures or saved decisions,
+read `docs/reference/contracts/controller-wrappers.md`.
+
 ## Architecture map
 
 - `src/engine/`: pure TypeScript for parsers, transforms, compilers, models,

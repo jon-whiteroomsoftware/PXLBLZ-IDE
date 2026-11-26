@@ -9,7 +9,7 @@ export interface ReconciliationArtifact {
   bindingKey: string
   name: string
   source: string
-  profileSignature: string
+  profileSignature: string | null
   artifactStamp?: ArtifactStampMeta
 }
 
@@ -44,6 +44,7 @@ export function planControllerReconciliation(input: {
   bindings: BindingStore
   pushRecords: ControllerPushRecords
   artifacts: readonly ReconciliationArtifact[]
+  resolveArtifact?: (artifact: ReconciliationArtifact) => ReconciliationArtifact
   precedingPatternSources?: ReadonlyMap<string, string>
   unconfirmedProgramIds?: ReadonlySet<string>
 }): ControllerReconciliationPlan {
@@ -68,11 +69,12 @@ export function planControllerReconciliation(input: {
       unmanaged.push({ programId: program.id, bindingKey, reason: 'missing-push-record' })
       continue
     }
-    const artifact = artifactByBindingKey.get(bindingKey)
-    if (!artifact) {
+    const candidate = artifactByBindingKey.get(bindingKey)
+    if (!candidate) {
       unmanaged.push({ programId: program.id, bindingKey, reason: 'missing-source' })
       continue
     }
+    const artifact = input.resolveArtifact?.(candidate) ?? candidate
     // The record is persisted while the artifact signature is computed now, so
     // the stored side is read in today's terms first (#772). A record carrying
     // no signature at all stays eligible for one reconciliation, as before.
@@ -84,7 +86,7 @@ export function planControllerReconciliation(input: {
       && precedingSource !== artifact.source
       && pushRecord.sourceHash !== undefined
       && pushRecord.sourceHash !== artifactHash(artifact.source)
-    if (storedSignature === artifact.profileSignature && !sourceChanged
+    if (artifact.profileSignature !== null && storedSignature === artifact.profileSignature && !sourceChanged
       && !input.unconfirmedProgramIds?.has(program.id)) {
       current.push({ ...artifact, programId: program.id, state: 'current' })
     } else {

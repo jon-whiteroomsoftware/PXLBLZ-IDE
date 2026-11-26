@@ -1,9 +1,12 @@
 import { sameControllerDeviceId } from './controllerIdentity'
 import * as acorn from 'acorn'
 import {
+  CONTROLLER_WRAPPER_TYPES,
+  enabledControllerWrappers,
   patternBindingOverridesHardwareBrightness,
   type ControllerInput,
   type ControllerProfile,
+  type ControllerWrapperType,
   type GlobalTransform,
   type PatternBinding,
 } from './controllerProfile'
@@ -35,6 +38,7 @@ export function controllerProfileArtifactSignature(
   profile: ControllerProfile | null | undefined,
   patternId?: string | null,
   renderer?: ArtifactRendererSignature,
+  appliedWrappers?: readonly ControllerWrapperType[],
 ): string {
   if (!profile && !renderer) return ''
   const transforms: ArtifactTransformSignature[] = []
@@ -48,17 +52,25 @@ export function controllerProfileArtifactSignature(
       })
       continue
     }
-    transforms.push({
-      type: transform.type,
-      mixinId: transform.mixinId,
-      inputId: transform.inputId,
-      mode: transform.mode,
-    })
+    if (transform.type === 'hardware-brightness') {
+      transforms.push({
+        type: transform.type,
+        mixinId: transform.mixinId,
+        inputId: transform.inputId,
+        mode: transform.mode,
+      })
+    }
   }
   const bindings = patternId
     ? (profile?.patternBindings ?? []).filter((binding) => binding.patternId === patternId)
     : []
-  return serializeArtifactSignature(transforms, profile?.inputs ?? [], bindings, renderer)
+  const signature = serializeArtifactSignature(transforms, profile?.inputs ?? [], bindings, renderer, appliedWrappers)
+  // Run/Save dirtiness is checked before preparation. Its requested inputs
+  // compare independently from the applied set that goes in a flash receipt.
+  const requested = appliedWrappers === undefined ? enabledControllerWrappers(profile, patternId) : []
+  return requested.length
+    ? JSON.stringify({ signature, requested, pixelCount: profile?.lastKnownPixelCount ?? null })
+    : signature
 }
 
 function serializeArtifactSignature(
@@ -66,6 +78,7 @@ function serializeArtifactSignature(
   inputs: ArtifactInputSignature[],
   bindings: PatternBinding[],
   renderer?: ArtifactRendererSignature,
+  appliedWrappers?: readonly ControllerWrapperType[],
 ): string {
   const relevantTransforms = transforms.filter((transform) =>
     transform.type === 'power-cap' || inputs.some((input) =>
@@ -93,6 +106,7 @@ function serializeArtifactSignature(
         : { kind: 'call-function', name: binding.target.name },
     })),
     ...(renderer ? { renderer } : {}),
+    ...(appliedWrappers?.length ? { wrappers: CONTROLLER_WRAPPER_TYPES.filter((type) => appliedWrappers.includes(type)) } : {}),
   })
 }
 
@@ -135,10 +149,13 @@ export function readStoredArtifactSignature(signature: string): StoredArtifactSi
   if (record.renderer !== undefined && !isRendererSignature(record.renderer)) {
     return { kind: 'unrecognized' }
   }
+  if (record.wrappers !== undefined && !isAppliedWrapperList(record.wrappers)) {
+    return { kind: 'unrecognized' }
+  }
 
   return {
     kind: 'recognized',
-    normalized: serializeArtifactSignature(record.transforms, record.inputs, record.bindings, record.renderer),
+    normalized: serializeArtifactSignature(record.transforms, record.inputs, record.bindings, record.renderer, record.wrappers),
   }
 }
 
@@ -147,7 +164,12 @@ export function normalizeStoredArtifactSignature(signature: string): string {
   return read.kind === 'recognized' ? read.normalized : signature
 }
 
-const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer'])
+const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer', 'wrappers'])
+
+function isAppliedWrapperList(value: unknown): value is ControllerWrapperType[] {
+  return Array.isArray(value) && value.length === new Set(value).size
+    && value.every((type) => CONTROLLER_WRAPPER_TYPES.includes(type))
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -221,6 +243,7 @@ function isRendererSignature(value: unknown): value is ArtifactRendererSignature
  * to be scheduled; each Pattern still gets its narrower artifact signature. */
 export function controllerProfileReconciliationSignature(profile: ControllerProfile): string {
   const powerCap = activePowerCap(profile)
+  const wrappers = enabledControllerWrappers(profile)
   const brightnessInput = hardwareBrightnessInput(profile)
   const patternBindings = new Map<string, unknown[]>()
   for (const binding of profile.patternBindings) {
@@ -241,6 +264,7 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
     maxDuty: powerCap && effectivePowerCapMaxDuty(profile, powerCap),
     brightness: brightnessInput && samplingSettings(brightnessInput),
     patternBindings: [...patternBindings.keys()].sort().map((id) => [id, patternBindings.get(id)]),
+    ...(wrappers.length ? { wrappers, pixelCount: profile.lastKnownPixelCount ?? null } : {}),
   })
 }
 
@@ -285,6 +309,7 @@ export function controllerProfilePassRecipe(
   profile: ControllerProfile | null | undefined,
   patternSource: string,
   patternId?: string | null,
+  wrapperPixelCount?: number,
 ): PassRecipe {
   if (!profile) return []
   const recipe: PassRecipe = []
@@ -362,6 +387,7 @@ export function controllerProfilePassRecipe(
     }
   }
 
+  const globalPassCount = recipe.length
   if (patternId) {
     for (const binding of activePatternBindings) {
       const input = profile.inputs.find((candidate) => candidate.id === binding.inputId)
@@ -374,7 +400,14 @@ export function controllerProfilePassRecipe(
     }
   }
 
-  return recipe
+  if (wrapperPixelCount === undefined) return recipe
+  const enabled = enabledControllerWrappers(profile, patternId)
+  if (!enabled.length) return recipe
+  return [
+    ...recipe.slice(globalPassCount),
+    { id: 'wrappers', kind: 'wrappers', enabled, pixelCount: wrapperPixelCount },
+    ...recipe.slice(0, globalPassCount),
+  ]
 }
 
 function effectivePowerCapMaxDuty(

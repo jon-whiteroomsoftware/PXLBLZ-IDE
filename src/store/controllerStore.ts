@@ -43,6 +43,7 @@ import {
   setProgramLabels,
   getPushRecords,
   setPushRecords,
+  updatePushRecords,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
@@ -66,16 +67,16 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { waitForControllerProfileWrites } from '@/engine/controllerProfileWriteQueue'
 import {
   controllerProfileArtifactSignature,
-  controllerProfilePassRecipe,
   controllerProfileReconciliationSignature,
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
-import type { ControllerProfile } from '@/engine/controllerProfile'
+import { enabledControllerWrappers, type ControllerProfile } from '@/engine/controllerProfile'
 import {
   executeControllerReconciliation,
   planControllerReconciliation,
   type ControllerReconciliationJob,
+  type ReconciliationArtifact,
 } from '@/engine/controllerReconciliation'
 import {
   isReconciliationTimeout,
@@ -98,8 +99,8 @@ import {
 } from '@/engine/showCompilePressure'
 import { deliveredShowSourceBytes } from '@/engine/showSourceInventory'
 import {
-  artifactTransformIds,
   prepareControllerArtifactDelivery,
+  type PreparedControllerArtifactDelivery,
 } from '@/engine/controllerArtifactDelivery'
 import type { SendMode } from '@/engine/sendToController'
 import { canonicalControllerDeviceId, sameControllerDeviceId } from '@/engine/controllerIdentity'
@@ -934,6 +935,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               profile,
               pattern.id,
               { mapDim: live.mapDim },
+              [],
             ),
           })),
           ...Object.entries(DEMOS).map(([name, source]) => ({
@@ -944,9 +946,28 @@ export const useControllerStore = create<ControllerConnectionState>()(
               profile,
               `demo:${name}`,
               { mapDim: live.mapDim },
+              [],
             ),
           })),
         ]
+        const wrappersEnabled = enabledControllerWrappers(profile).length > 0
+        const pixelCount = config?.pixelCount
+        let compiledLibraries: Record<string, string> | undefined
+        const prepareDelivery = (artifact: ReconciliationArtifact) =>
+          prepareControllerArtifactDelivery({
+            source: artifact.source,
+            profile,
+            artifactId: artifact.bindingKey,
+            pixelCount,
+            mapDim: live.mapDim,
+            alwaysBundle: true,
+            libraries: compiledLibraries ??= compileLibraries(LIBRARIES, libraryState.userLibraries),
+            extraPasses: live.mapDim && !artifact.bindingKey.startsWith('show:')
+              ? [{ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: live.mapDim }]
+              : [],
+          })
+        const prepared = new Map<string, PreparedControllerArtifactDelivery>()
+        const preparationErrors = new Map<string, unknown>()
         const preceding = reconciliationPatternSources.get(live.ip)
         const precedingPatternSources = preceding && sameReconciliationTarget(live, preceding.target)
           ? preceding.patternSources
@@ -957,6 +978,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
           bindings,
           pushRecords,
           artifacts: [...patterns, ...showArtifacts],
+          resolveArtifact: (artifact) => {
+            if (!wrappersEnabled || artifact.bindingKey.startsWith('show:')) return artifact
+            try {
+              const delivery = prepareDelivery(artifact)
+              prepared.set(artifact.bindingKey, delivery)
+              return { ...artifact, profileSignature: delivery.profileSignature }
+            } catch (error) {
+              preparationErrors.set(artifact.bindingKey, error)
+              return { ...artifact, profileSignature: null }
+            }
+          },
           precedingPatternSources: recheckPatternSources ? precedingPatternSources : undefined,
           unconfirmedProgramIds: unconfirmedProgramsFor(live),
         })
@@ -999,13 +1031,72 @@ export const useControllerStore = create<ControllerConnectionState>()(
           completedCount: plan.current.length,
           programs: initialPrograms,
         }))
+        const reconciliationSignature = controllerProfileReconciliationSignature(profile)
+        const mayStartJob = () => isCurrentSession() && !get().controllerReconciliations[profileId]?.paused
+        const planIsCurrent = async () => {
+          if (!mayStartJob()) return false
+          const latestProfiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+          const latest = latestProfiles.find((candidate) => candidate.id === profileId)
+          const latestLive = latest ? controllerForProfile(latest, get().controllers) : null
+          return Boolean(latest && mayStartJob() && latestLive?.ip === live.ip
+            && controllerProfileReconciliationSignature(latest) === reconciliationSignature)
+        }
+        const patternSourceIsCurrent = ({ bindingKey, source }: ReconciliationArtifact) =>
+          (bindingKey.startsWith('demo:')
+            || usePatternStore.getState().userPatterns.find((pattern) => pattern.id === bindingKey)?.src === source)
+          && libraryState.userLibraries === useLibraryStore.getState().userLibraries
+        const outcomeUpdates = plan.current.flatMap((artifact) => {
+          const record = pushRecords[live.ip]?.[artifact.bindingKey]
+          const delivery = prepared.get(artifact.bindingKey)
+          if (!record || artifact.bindingKey.startsWith('show:')) return []
+          const wrapperOutcome = delivery?.wrapperOutcome ?? { applied: [], skipped: {} }
+          const wrapperPixelCount = delivery ? pixelCount : undefined
+          if (!delivery && !Object.keys(record.wrapperOutcome?.skipped ?? {}).length) return []
+          if (record.wrapperProgramId !== undefined && record.wrapperProgramId !== artifact.programId) return []
+          if (record.sourceHash !== artifactHash(artifact.source)) return []
+          if (delivery && record.artifactHash !== artifactHash(delivery.source)) return []
+          if (record.wrapperProgramId === artifact.programId && record.wrapperPixelCount === wrapperPixelCount
+            && JSON.stringify(record.wrapperOutcome) === JSON.stringify(wrapperOutcome)) return []
+          return [{ artifact, record, wrapperOutcome, wrapperPixelCount }]
+        })
+        if (outcomeUpdates.length) {
+          await queueControllerDeviceWrite(live.ip, async () => {
+            if (!await planIsCurrent()) return
+            if (wrappersEnabled && (await provider.getConfig()).pixelCount !== pixelCount) {
+              if (isCurrentSession()) get().scheduleControllerReconciliation(profileId, true)
+              return
+            }
+            const currentBindings = await getControllerBindings()
+            await updatePushRecords((records) => {
+              if (!mayStartJob()) return records
+              let next = records
+              for (const { artifact, record, wrapperOutcome, wrapperPixelCount } of outcomeUpdates) {
+                const current = records[live.ip]?.[artifact.bindingKey]
+                if (currentBindings[live.ip]?.[artifact.bindingKey] !== artifact.programId
+                  || protectedBindings.has(artifact.bindingKey)
+                  || !patternSourceIsCurrent(artifact)
+                  || JSON.stringify(record) !== JSON.stringify(current)) continue
+                next = {
+                  ...next,
+                  [live.ip]: {
+                    ...next[live.ip],
+                    [artifact.bindingKey]: {
+                      ...record,
+                      wrapperOutcome,
+                      wrapperPixelCount,
+                      wrapperProgramId: artifact.programId,
+                    },
+                  },
+                }
+              }
+              return next
+            })
+          })
+        }
         if (plan.jobs.length === 0) {
           reportPhase('current')
           return 'finished'
         }
-
-        const compiledLibraries = compileLibraries(LIBRARIES, libraryState.userLibraries)
-        const reconciliationSignature = controllerProfileReconciliationSignature(profile)
         let rereadNeeded = false
         const rememberPatternSource = (job: ControllerReconciliationJob) => {
           if (patternSources.has(job.bindingKey)) patternSources.set(job.bindingKey, job.source)
@@ -1023,23 +1114,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         const result = await executeControllerReconciliation({
           jobs: plan.jobs,
           activeProgramId: config?.activeProgramId,
-          shouldContinue: async () => {
-            const mayStartJob = () => isCurrentSession() && !get().controllerReconciliations[profileId]?.paused
-            if (!mayStartJob()) return false
-            const latestProfiles = await getPersonalContentProvider()
-              .listControllerProfiles()
-              .catch(() => [])
-            const latest = latestProfiles.find((candidate) => candidate.id === profileId)
-            const latestLive = latest
-              ? controllerForProfile(latest, get().controllers)
-              : null
-            return Boolean(
-              latest &&
-              mayStartJob() &&
-              latestLive?.ip === live.ip &&
-              controllerProfileReconciliationSignature(latest) === reconciliationSignature,
-            )
-          },
+          shouldContinue: planIsCurrent,
           onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
           onJobComplete: (job) => {
             rememberPatternSource(job)
@@ -1048,19 +1123,20 @@ export const useControllerStore = create<ControllerConnectionState>()(
           onJobFailed: ({ job, message }) => updateProgram(job, { state: 'failed', message }),
           onJobDeferred: (job) => updateProgram(job, { state: 'queued' }),
           overwrite: async (job, activate) => {
+            const profileSignature = job.profileSignature
+            if (profileSignature === null) {
+              throw preparationErrors.get(job.bindingKey) ?? new Error('Controller artifact preparation failed.')
+            }
             const previous = saveAttempts.get(live.ip)?.get(job.bindingKey)
             const confirmation = previous?.confirmation
             if (previous && confirmation && !confirmationsAtRead.has(confirmation)
               && confirmation.programId === job.programId
-              && confirmation.profileSignature === job.profileSignature
+              && confirmation.profileSignature === profileSignature
               && previous.source === job.source
               && await confirmation.recorded && isLatestSaveAttempt(previous) && isCurrentSession()) return
-            const attempt = beginSaveAttempt(live.ip, job.bindingKey, job.source, false)
-            const recipe = controllerProfilePassRecipe(profile, job.source, job.bindingKey)
-            if (live.mapDim && job.artifactStamp?.kind !== 'show') {
-              recipe.push({ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: live.mapDim })
-            }
-            const bundled = bundleWithPasses(job.source, compiledLibraries, recipe)
+            const deliveryInputs = prepared.get(job.bindingKey)
+            const deliveryArtifact = deliveryInputs ?? prepareDelivery(job)
+            const bundled = deliveryArtifact.bundled!
             if (live.mapDim) {
               const hardwarePlan = planHardwareRenderer(
                 live.mapDim,
@@ -1076,7 +1152,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             )
             if (adapterCollision) throw new Error(adapterCollision.message)
             const previewImage = (await buildPreviewJpeg(bundled)) ?? undefined
-            const transforms = artifactTransformIds(bundled.summary.passes)
+            const transforms = deliveryArtifact.transformIds
             const artifactStamp = job.artifactStamp
               ? {
                   ...job.artifactStamp,
@@ -1087,12 +1163,23 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 }
               : undefined
             const assertWriteAllowed = () => {
-              if (!isCurrentSession() || protectedBindings.has(job.bindingKey)) {
+              if (!isCurrentSession() || protectedBindings.has(job.bindingKey) || (deliveryInputs && !patternSourceIsCurrent(job))) {
+                if (deliveryInputs && isCurrentSession() && !patternSourceIsCurrent(job)) {
+                  get().scheduleControllerReconciliation(profileId, true)
+                }
                 throw new ReconciliationWriteCancelled()
               }
             }
+            const attempt = beginSaveAttempt(live.ip, job.bindingKey, job.source, false)
             try {
               const delivery = await queueControllerDeviceWrite(live.ip, async () => {
+                if (deliveryInputs) {
+                  const currentConfig = await provider.getConfig()
+                  if (currentConfig.pixelCount !== pixelCount || !await planIsCurrent()) {
+                    if (isCurrentSession()) get().scheduleControllerReconciliation(profileId, true)
+                    throw new ReconciliationWriteCancelled()
+                  }
+                }
                 assertWriteAllowed()
                 invalidateRendererState(live.ip)
                 if (activate) retainRendererResumeRecovery(live.ip)
@@ -1111,13 +1198,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   previewImage,
                   transforms,
                   artifactStamp,
-                  profileSignature: job.profileSignature,
+                  profileSignature,
+                  wrapperOutcome: deliveryArtifact.wrapperOutcome,
+                  wrapperPixelCount: deliveryInputs ? pixelCount : undefined,
                   loadBindings: getControllerBindings,
                   saveBindings: setControllerBindings,
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
+                  updatePushRecords,
                   assertDeviceSession: assertWriteAllowed,
-                  onLateSaveConfirmation: recordLateSave(attempt, live, job.profileSignature, isCurrentSession),
+                  onLateSaveConfirmation: recordLateSave(attempt, live, profileSignature, isCurrentSession),
                 })
                 rememberSaveOutcome(live, result)
                 if (result.save !== 'unconfirmed') forgetSaveAttempt(attempt)
@@ -1858,11 +1948,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const profileSignature = controllerProfileArtifactSignature(
-              profile,
-              artifact.artifactId,
-              { mapDim: activeController?.mapDim ?? null },
-            )
+            const pixelCount = enabledControllerWrappers(profile, artifact.artifactId).length
+              ? (await getControllerProvider().getConfig()).pixelCount
+              : undefined
             const extraPasses = []
             if (activeController?.mapDim && artifact.artifactStamp.kind !== 'show') {
               extraPasses.push({
@@ -1875,9 +1963,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               source: artifact.source,
               profile,
               artifactId: artifact.artifactId,
+              pixelCount,
+              mapDim: activeController?.mapDim ?? null,
               libraries: compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
               extraPasses,
             })
+            const { profileSignature } = delivery
             const bundled = delivery.bundled
             if (bundled && activeController?.mapDim) {
               const hardwarePlan = planHardwareRenderer(
@@ -1946,12 +2037,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   previewImage: artifact.previewImage,
                   artifactStamp,
                   profileSignature,
+                  wrapperOutcome: delivery.wrapperOutcome,
+                  wrapperPixelCount: pixelCount,
                   transforms: artifactStamp.transforms,
                   stampedAt: artifact.artifactStamp.stampedAt,
                   loadBindings: getControllerBindings,
                   saveBindings: setControllerBindings,
                   loadPushRecords: getPushRecords,
                   savePushRecords: setPushRecords,
+                  updatePushRecords,
                   ...(assertDeviceSession ? { assertDeviceSession } : {}),
                   ...(attempt && activeController && assertDeviceSession && {
                     onLateSaveConfirmation: recordLateSave(attempt, activeController, profileSignature, () => {
@@ -2354,24 +2448,28 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const profileSignature = controllerProfileArtifactSignature(
+            const mapDim = activeController?.mapDim ?? null
+            const dirtySignature = controllerProfileArtifactSignature(
               profile,
               patternId,
-              { mapDim: activeController?.mapDim ?? null },
+              { mapDim },
             )
-            const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
-            if (activeController?.mapDim) {
-              recipe.push({
-                id: 'renderer-adapter',
-                kind: 'renderer-adapter',
-                mapDim: activeController.mapDim,
-              })
-            }
-            const bundled = bundleWithPasses(
-              previewSource,
-              compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
-              recipe,
-            )
+            const pixelCount = enabledControllerWrappers(profile, patternId).length
+              ? (await provider.getConfig()).pixelCount
+              : undefined
+            assertDeviceSession()
+            const delivery = prepareControllerArtifactDelivery({
+              source: previewSource,
+              profile,
+              artifactId: patternId,
+              pixelCount,
+              mapDim,
+              libraries: compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
+              alwaysBundle: true,
+              extraPasses: mapDim ? [{ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim }] : [],
+            })
+            const { profileSignature } = delivery
+            const bundled = delivery.bundled!
             if (activeController?.mapDim) {
               const hardwarePlan = planHardwareRenderer(
                 activeController.mapDim,
@@ -2411,33 +2509,42 @@ export const useControllerStore = create<ControllerConnectionState>()(
               controllerId,
               patternId,
               persist,
-              (markSave) => pushPattern({
-                provider,
-                controllerId,
-                patternId,
-                source: code,
-                sourceHash: artifactHash(previewSource),
-                name: previewPatternName,
-                persist,
-                previewImage,
-                transforms: artifactTransformIds(bundled.summary.passes),
-                profileSignature,
-                loadBindings: getControllerBindings,
-                saveBindings: setControllerBindings,
-                loadPushRecords: getPushRecords,
-                savePushRecords: setPushRecords,
-                assertDeviceSession,
-                ...(attempt && activeController && {
-                  onLateSaveConfirmation: recordLateSave(attempt, activeController, profileSignature, () => {
-                    assertDeviceSession()
-                    return true
+              async (markSave) => {
+                if (pixelCount !== undefined && (await provider.getConfig()).pixelCount !== pixelCount) {
+                  throw new Error('Controller pixel count changed before Pattern delivery.')
+                }
+                assertDeviceSession()
+                return pushPattern({
+                  provider,
+                  controllerId,
+                  patternId,
+                  source: code,
+                  sourceHash: artifactHash(previewSource),
+                  name: previewPatternName,
+                  persist,
+                  previewImage,
+                  transforms: delivery.transformIds,
+                  profileSignature,
+                  wrapperOutcome: delivery.wrapperOutcome,
+                  wrapperPixelCount: pixelCount,
+                  loadBindings: getControllerBindings,
+                  saveBindings: setControllerBindings,
+                  loadPushRecords: getPushRecords,
+                  savePushRecords: setPushRecords,
+                  updatePushRecords,
+                  assertDeviceSession,
+                  ...(attempt && activeController && {
+                    onLateSaveConfirmation: recordLateSave(attempt, activeController, profileSignature, () => {
+                      assertDeviceSession()
+                      return true
+                    }),
                   }),
-                }),
-                onDeviceWrite: () => {
-                  deviceWriteEntered = true
-                  markSave()
-                },
-              }),
+                  onDeviceWrite: () => {
+                    deviceWriteEntered = true
+                    markSave()
+                  },
+                })
+              },
             )
             assertDeviceSession()
             if (save === 'unconfirmed') {
@@ -2501,7 +2608,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...s[profileRecordKey],
                 [controllerId]: {
                   ...s[profileRecordKey][controllerId],
-                  [patternId]: profileSignature,
+                  [patternId]: dirtySignature,
                 },
               },
               ...(!persist

@@ -2,6 +2,7 @@ import type { PowerCapSettings } from './powerCap'
 import type { FirmwareUpdateState } from './firmwareUpdate'
 import type { ControllerElectricalProfile } from './controllerElectricalProfile'
 import type { InstalledMapSnapshot } from './installedMapObservation'
+import type { PatternWrapper, PatternWrapperDecision } from './slowMo'
 
 export type ControllerBoardKind = 'pixelblaze-v3-standard'
 
@@ -107,6 +108,21 @@ export interface PowerCapTransform extends PowerCapSettings {
   mixinId: string
 }
 
+export type ControllerWrapperType = PatternWrapper
+export type ControllerWrapperOutcome = Pick<PatternWrapperDecision, 'applied' | 'skipped'>
+
+export const CONTROLLER_WRAPPER_TYPES: readonly ControllerWrapperType[] = ['slow-mo', 'dreamy']
+
+export function enabledControllerWrappers(
+  profile: ControllerProfile | null | undefined,
+  bindingKey?: string | null,
+): ControllerWrapperType[] {
+  if (!profile || bindingKey?.startsWith('show:')) return []
+  return CONTROLLER_WRAPPER_TYPES.filter((type) =>
+    profile.globalTransforms.some((transform) => transform.type === type && transform.enabled),
+  )
+}
+
 export type GlobalTransform =
   | {
       id: string
@@ -117,6 +133,7 @@ export type GlobalTransform =
       mode: 'multiply-output'
     }
   | PowerCapTransform
+  | { id: string; type: ControllerWrapperType; enabled: boolean }
 
 export type ControllerBindingTarget =
   | {
@@ -267,6 +284,7 @@ export function validateControllerProfile(
 ): ControllerProfileValidationResult {
   const errors: ControllerProfileValidationIssue[] = []
   const inputIds = new Set<string>()
+  const wrapperTypes = new Set<ControllerWrapperType>()
   const analogPins = analogPinsForBoard(profile.board)
 
   collectDuplicateIds(profile.inputs, 'input', errors)
@@ -296,6 +314,15 @@ export function validateControllerProfile(
   }
 
   for (const transform of profile.globalTransforms) {
+    if (transform.type === 'slow-mo' || transform.type === 'dreamy') {
+      if (wrapperTypes.has(transform.type) || typeof transform.enabled !== 'boolean') {
+        errors.push({
+          path: `globalTransforms.${transform.id}`,
+          message: `A profile needs a single ${transform.type} setting with a boolean enabled value.`,
+        })
+      }
+      wrapperTypes.add(transform.type)
+    }
     if (transform.type === 'hardware-brightness' && transform.enabled && !inputIds.has(transform.inputId)) {
       errors.push({
         path: `globalTransforms.${transform.id}.inputId`,

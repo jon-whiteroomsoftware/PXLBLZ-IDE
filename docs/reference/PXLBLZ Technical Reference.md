@@ -799,8 +799,8 @@ conclusive firmware observation even when the device id is unavailable.
 
 A profile is durable hardware intent for one physical Controller, keyed by
 device id, created from observed hardware. It holds board facts (including the
-last firmware-update observation), typed inputs, the two global transforms
-(hardware brightness, power cap), an optional installation power model,
+last firmware-update observation), typed inputs, global transforms
+(hardware brightness, power cap, Slow-mo and Dreamy), an optional installation power model,
 per-Pattern bindings, map fingerprints, and the last present/absent
 installed-map snapshot for offline display. Profiles carry no zones: #775
 retired `ControllerProfile.zones` and dropped the `zones_json` column
@@ -811,6 +811,11 @@ authored inside each Installation Show; "New show from profile" seeds a
 single-zone Show sized from `lastKnownPixelCount`. Edits update
 Zustand optimistically, serialize writes per profile, roll back failures, and
 expose a drain barrier that Pattern push waits on.
+
+The Slow-mo and Dreamy entries are independent enabled flags in the profile
+JSON. Delivery evaluates both against each Pattern and the Controller's
+reported pixel count. The [Controller Wrapper contract](contracts/controller-wrappers.md)
+defines order, refusal, signatures and saved evidence.
 
 **Inputs and effective uses.** Input records carry pin, signal, smoothing,
 fallback, and inversion; bindings target an exported slider, function, or
@@ -1044,7 +1049,11 @@ have an overwrite binding, a successful push record, and regenerable source.
 The scheduling signature covers active transforms and the inputs they or a
 Pattern binding use. Each plan compares the eligible push records' stored
 signature with a freshly computed per-artifact signature (global transforms,
-referenced inputs, bindings, renderer dimension). The signature carries a
+referenced inputs, bindings, renderer dimension and applied Wrappers).
+Reconciliation computes the applied set before it compares signatures. A
+skipped Wrapper can leave the Pattern current without any device write.
+Confirmed Pattern receipts can carry the applied set and the skip reasons
+for the saved slot. The signature carries a
 compatibility rule: **a field that cannot change generated code must never
 change the signature, and a retired field is normalized on read rather than
 paid for in device writes.** Freshly computed and stored signatures use the

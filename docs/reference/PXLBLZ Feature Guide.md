@@ -323,6 +323,11 @@ hardware knowledge lives:
   watts). Every Pattern or Show sent through the profile respects the cap.
   PXLBLZ does not pretend to be an ammeter; plan the physical power system
   for real.
+- **Wrappers.** A Controller profile can apply Slow-mo and Dreamy to saved
+  Patterns. Each applied Wrapper adds a native Pixelblaze slider. A Pattern
+  that cannot take a Wrapper is still saved with the Wrappers that fit.
+  Shows keep their own timing and continue to receive Power limit and
+  hardware brightness. Studio Patterns and exports keep their authored source.
 - **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
   from everything else on the device. The running row has a green marker, and
   managed rows show which profile features were baked in and whether the

@@ -161,6 +161,24 @@ export async function setPushRecords(records: ControllerPushRecords): Promise<vo
   for (const listener of pushRecordsRevisionListeners) listener()
 }
 
+let pendingPushRecordUpdate = Promise.resolve()
+
+/** Serialize receipt merges across Controller write queues. */
+export function updatePushRecords(
+  edit: (records: ControllerPushRecords) => ControllerPushRecords,
+): Promise<void> {
+  const storage = activeStorage
+  const update = pendingPushRecordUpdate.then(async () => {
+    if (storage !== activeStorage) return
+    const current = await storage.getPushRecords()
+    if (storage !== activeStorage) return
+    const next = edit(current)
+    if (next !== current) await setPushRecords(next)
+  })
+  pendingPushRecordUpdate = update.catch(() => {})
+  return update
+}
+
 async function getControllerMetadata<T>(
   fetcher: typeof fetch,
   key: string,

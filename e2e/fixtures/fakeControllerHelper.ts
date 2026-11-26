@@ -37,6 +37,9 @@ export async function installFakeControllerHelper(
     const connections = new Set<string>()
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
+    let pixelCount = fixture.pixelCount
+    const savedControls = new Map<string, Record<string, number>>()
+    const controlsFor = (id: string) => savedControls.get(id) ?? fixture.controls ?? {}
     let pendingProgramId: string | null = null
     let programs = fixture.programs.map((program) => ({ ...program }))
     const deviceNameStorageKey = `__pxlblzFakeControllerName:${fixture.mac}`
@@ -241,15 +244,23 @@ export async function installFakeControllerHelper(
           boardType: fixture.boardType,
           chipId: 777,
           name: deviceName,
-          pixelCount: fixture.pixelCount,
+          pixelCount,
           ver: '3.67',
           sequencerMode: fixture.sequencerMode,
           runSequencer: fixture.runSequencer,
         })
         reply(message.connId, {
-          activeProgram: { activeProgramId, controls: fixture.controls ?? {} },
+          activeProgram: { activeProgramId, controls: controlsFor(activeProgramId) },
           sequencerMode: fixture.sequencerMode,
           runSequencer: fixture.runSequencer,
+        })
+      }
+      if (typeof command.pixelCount === 'number') pixelCount = command.pixelCount
+      if (fixture.trackSavedPrograms && command.save === true
+        && command.setControls && typeof command.setControls === 'object') {
+        savedControls.set(activeProgramId, {
+          ...controlsFor(activeProgramId),
+          ...command.setControls,
         })
       }
       if (command.ping) reply(message.connId, { ack: 1 })
@@ -273,7 +284,7 @@ export async function installFakeControllerHelper(
         programs = programs.filter((program) => program.id !== command.deleteProgram)
       }
       if (command.getControls !== undefined) {
-        reply(message.connId, { controls: fixture.controls ?? {} })
+        reply(message.connId, { controls: controlsFor(String(command.getControls) || activeProgramId) })
       }
       if (typeof command.activeProgramId === 'string') {
         activeProgramId = command.activeProgramId

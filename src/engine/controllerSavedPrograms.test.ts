@@ -192,6 +192,54 @@ describe('describeProfileFreshness', () => {
 })
 
 describe('describeControllerSavedPrograms', () => {
+  it('uses a Wrapper decision only for its confirmed saved slot and evaluation count', () => {
+    const wrapperProfile = {
+      ...profile,
+      lastKnownPixelCount: 1703,
+      globalTransforms: [
+        ...profile.globalTransforms,
+        { id: 'slow-mo', type: 'slow-mo', enabled: true },
+      ] satisfies typeof profile.globalTransforms,
+    }
+    const wrapperOutcome = {
+      applied: [],
+      skipped: { 'slow-mo': { reason: 'array-budget', message: 'Insufficient array words.' } },
+    } as const
+    const input = {
+      controllerId: 'ctrl',
+      programs: [{ id: 'slot', name: 'Saved' }],
+      bindings: { ctrl: { pattern: 'slot' } },
+      studioPatterns: [{ bindingKey: 'pattern', routeId: 'pattern', name: 'Saved' }],
+      pushRecords: {
+        ctrl: {
+          pattern: {
+            ...pushRecord([], signature('pattern')),
+            wrapperProgramId: 'slot',
+            wrapperPixelCount: 1703,
+            wrapperOutcome: { ...wrapperOutcome, applied: [] },
+          },
+        },
+      },
+      profile: wrapperProfile,
+      mapDim: 2 as const,
+    }
+    expect(describeControllerSavedPrograms(input).owned[0]).toMatchObject({
+      wrapperOutcome,
+      freshness: 'current',
+    })
+    expect(describeControllerSavedPrograms({
+      ...input,
+      profile: { ...wrapperProfile, lastKnownPixelCount: 1702 },
+    }).owned[0].freshness).toBe('unmanaged')
+    const replacement = describeControllerSavedPrograms({
+      ...input,
+      programs: [{ id: 'new-slot', name: 'Saved' }],
+      bindings: { ctrl: { pattern: 'new-slot' } },
+    }).owned[0]
+    expect(replacement.freshness).toBe('unmanaged')
+    expect(replacement.wrapperOutcome).toBeUndefined()
+  })
+
   it('groups binding-owned programs first and resolves Studio names and routes', () => {
     const view = describeControllerSavedPrograms({
       controllerId: 'ctrl-A',

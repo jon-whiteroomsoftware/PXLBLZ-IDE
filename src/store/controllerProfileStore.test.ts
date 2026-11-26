@@ -134,6 +134,40 @@ beforeEach(() => {
 })
 
 describe('controllerProfileStore', () => {
+  it('persists each Wrapper independently through the profile write and reconciliation path', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-wrappers', now: 1 })
+    const provider = memoryProvider([profile])
+    const save = vi.spyOn(provider, 'updateControllerProfile')
+    setPersonalContentProvider(provider)
+    const schedule = vi.spyOn(useControllerStore.getState(), 'scheduleControllerReconciliation').mockImplementation(() => {})
+    try {
+      const state = useControllerProfileStore.getState()
+      await state.loadProfiles()
+      await state.setWrapperEnabled(profile.id, 'slow-mo', false)
+      expect(save).not.toHaveBeenCalled()
+      await Promise.all([
+        state.setWrapperEnabled(profile.id, 'slow-mo', true),
+        state.setWrapperEnabled(profile.id, 'dreamy', true),
+      ])
+      await state.setWrapperEnabled(profile.id, 'slow-mo', true)
+      await state.setWrapperEnabled(profile.id, 'slow-mo', false)
+      const expected = [
+        ...profile.globalTransforms,
+        { id: 'slow-mo', type: 'slow-mo', enabled: false },
+        { id: 'dreamy', type: 'dreamy', enabled: true },
+      ]
+      expect((await provider.listControllerProfiles())[0].globalTransforms).toEqual(expected)
+      save.mockRejectedValueOnce(new Error('profile write refused'))
+      await expect(state.setWrapperEnabled(profile.id, 'dreamy', false)).rejects.toThrow('profile write refused')
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms).toEqual(expected)
+      expect(schedule).toHaveBeenCalledTimes(3)
+      await state.loadProfiles()
+      expect(useControllerProfileStore.getState().profiles[0].globalTransforms).toEqual(expected)
+    } finally {
+      schedule.mockRestore()
+    }
+  })
+
   it('creates a valid default profile with disabled global transforms', () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',

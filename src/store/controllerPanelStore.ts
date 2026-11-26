@@ -19,6 +19,7 @@ import {
   type LimitingSmoothingState,
 } from '@/engine/limitingSmoothing'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
+import { enabledControllerWrappers } from '@/engine/controllerProfile'
 import {
   confirmControllerBatchDelete,
   planControllerBatchDelete,
@@ -356,13 +357,19 @@ function controllerSessionMatches(
 /** Re-read live metadata for the profile matched to the active live Controller,
  *  so durable facts such as `lastKnownPixelCount` follow a device write the
  *  panel just made (#876). A no-op without a live match. */
-function refreshMatchedProfileMetadata(): void {
+function refreshMatchedProfileMetadata(observedWrapperPixelCount?: number): void {
   const live = useControllerStore.getState()
   const active = live.activeIp ? live.controllers[live.activeIp] : undefined
   if (!active || active.phase !== 'live') return
   const profileStore = useControllerProfileStore.getState()
   const profile = findProfileForLiveController(profileStore.profiles, active)
-  if (profile) void profileStore.refreshLiveMetadata(profile.id)
+  if (!profile) return
+  if (observedWrapperPixelCount === undefined) {
+    void profileStore.refreshLiveMetadata(profile.id)
+  } else if (enabledControllerWrappers(profile).length
+    && profile.lastKnownPixelCount !== observedWrapperPixelCount) {
+    void profileStore.refreshLiveMetadata(profile.id, { reuseInstalledMap: true })
+  }
 }
 
 /** How long a saved pixel-count write may take before the Controller reports the
@@ -490,7 +497,12 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
     if (session !== panelSession) return
     if (config) {
+      const previousCount = get().pixelCount
       set((state) => configPatch(state, config))
+      if (typeof config.pixelCount === 'number' && config.pixelCount !== previousCount
+        && controllerSessionMatches(session, provider)) {
+        refreshMatchedProfileMetadata(config.pixelCount)
+      }
     }
     if (telemetry && acceptsFps) set({ fps: telemetry.fps, fpsSourceIp })
     if (vars) set((state) => varsPollPatch(state, vars))

@@ -27,6 +27,7 @@ import {
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
+  type ControllerWrapperType,
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
@@ -73,6 +74,7 @@ interface ControllerProfileState {
   updateInput: (profileId: string, inputId: string, changes: Partial<ControllerInput>) => Promise<void>
   removeInput: (profileId: string, inputId: string) => Promise<void>
   toggleGlobalTransform: (profileId: string, transformId: string, enabled: boolean) => Promise<void>
+  setWrapperEnabled: (profileId: string, type: ControllerWrapperType, enabled: boolean) => Promise<void>
   /** Point the profile's single hardware-brightness transform at an input, or
    * disable it with `null`. One transform per profile makes this exclusive. */
   assignHardwareBrightness: (profileId: string, inputId: string | null) => Promise<void>
@@ -576,6 +578,23 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         transform.id === transformId ? { ...transform, enabled } : transform,
       ) as GlobalTransform[],
     })
+  },
+
+  setWrapperEnabled: async (profileId, type, enabled) => {
+    const profile = get().profiles.find((candidate) => candidate.id === profileId)
+    if (!profile) return
+    const wrapper = profile.globalTransforms.find((transform) => transform.type === type)
+    if ((wrapper?.enabled ?? false) === enabled) return
+    const globalTransforms: GlobalTransform[] = wrapper
+      ? profile.globalTransforms.map((transform) => transform === wrapper ? { ...transform, enabled } : transform)
+      : [...profile.globalTransforms, {
+          id: profile.globalTransforms.some((transform) => transform.id === type)
+            ? nextId(type, profile.globalTransforms)
+            : type,
+          type,
+          enabled,
+        }]
+    await get().updateProfile(profileId, { globalTransforms })
   },
 
   assignHardwareBrightness: async (profileId, inputId) => {

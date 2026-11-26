@@ -3066,6 +3066,47 @@ describe('controllerStore (keyed)', () => {
       expect(bindings['10.0.0.5']['pat-1']).toBe(provider.saved[0].opts.id)
     })
 
+    it('saves the same authored Pattern with Wrappers only on the Controller that enables them', async () => {
+      const wrappedIp = '10.0.0.5'
+      const plainIp = '10.0.0.6'
+      const wrapped = defaultControllerProfile({ id: 'wrapped', ip: wrappedIp, now: 1 })
+      wrapped.globalTransforms.push({ id: 'slow-mo', type: 'slow-mo', enabled: true })
+      const plain = defaultControllerProfile({ id: 'plain', ip: plainIp, now: 1 })
+      setControllerProfiles([wrapped, plain])
+      setControllerProviderFactory((ip) => {
+        const provider = new FakeProvider()
+        provider.pixelMap = null
+        if (ip === wrappedIp) provider.pixelCount = 64
+        created.set(ip, provider)
+        return provider
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+      store().setSaveArmed(true)
+
+      await store().addController(wrappedIp)
+      await store().pushActivePattern()
+      expect(store().pushResult).toMatchObject({ ok: true })
+      await store().addController(plainIp)
+      await store().pushActivePattern()
+      expect(store().pushResult).toMatchObject({ ok: true })
+
+      const wrappedSave = created.get(wrappedIp)!.saved[0]
+      const plainSave = created.get(plainIp)!.saved[0]
+      expect(decodePbp(wrappedSave.blob)?.sourceCode).toContain('export function sliderSlowMo')
+      expect(stripPxlblzBanner(decodePbp(plainSave.blob)!.sourceCode)).toBe(PATTERN_SRC)
+      expect(useEditorStore.getState().previewSource).toBe(PATTERN_SRC)
+      const pushRecords = await getPushRecords()
+      expect(pushRecords[wrappedIp]['pat-1']).toMatchObject({
+        wrapperProgramId: wrappedSave.opts.id,
+        wrapperOutcome: { applied: ['slow-mo'], skipped: {} },
+      })
+      expect(pushRecords[plainIp]['pat-1']).toMatchObject({
+        wrapperProgramId: plainSave.opts.id,
+        wrapperOutcome: { applied: [], skipped: {} },
+      })
+    })
+
     it('runs and overwrite-saves a generated Show under its own stable identity (#429)', async () => {
       await store().addController('10.0.0.5')
       const source = stampArtifact(PATTERN_SRC, {

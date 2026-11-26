@@ -1,8 +1,8 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
-import type { ControllerPushRecord, ControllerPushRecords } from './controllerPushRecord'
+import { savedControllerWrapperOutcome, type ControllerPushRecord, type ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactShowOutputContract } from './artifactStamp'
-import type { ControllerProfile } from './controllerProfile'
+import { enabledControllerWrappers, type ControllerProfile, type ControllerWrapperOutcome } from './controllerProfile'
 import type { MapDimension } from './renderCompatibility'
 import {
   controllerProfileArtifactSignature,
@@ -114,6 +114,7 @@ export interface ControllerSavedProgramRow {
   /** Profile features baked into the durable Controller artifact. */
   profileFeatures?: ControllerSavedProgramFeatures
   showOutputContract?: ArtifactShowOutputContract
+  wrapperOutcome?: ControllerWrapperOutcome
 }
 
 export interface ControllerSavedProgramsView {
@@ -274,6 +275,26 @@ export function describeControllerSavedPrograms(input: {
 
     const studioPattern = studioByBindingKey.get(bindingKey)
     const pushRecord = input.pushRecords[input.controllerId]?.[bindingKey]
+    const isShow = bindingKey.startsWith('show:')
+    const wrapperOutcome = isShow || input.profileSignatureReady === false
+      ? undefined
+      : savedControllerWrapperOutcome(pushRecord, program.id)
+    const enabled = enabledControllerWrappers(input.profile, bindingKey)
+    const evaluated = wrapperOutcome
+      ? [...wrapperOutcome.applied, ...Object.keys(wrapperOutcome.skipped)]
+      : []
+    const wrapperDecisionReady = !enabled.length || (
+      Boolean(wrapperOutcome)
+      && pushRecord?.wrapperPixelCount !== undefined
+      && pushRecord.wrapperPixelCount === input.profile.lastKnownPixelCount
+      && evaluated.length === enabled.length
+      && enabled.every((type) => evaluated.includes(type))
+    )
+    const profileSignature = input.profileSignatureReady === false || !wrapperDecisionReady
+      ? null
+      : controllerProfileArtifactSignature(
+          input.profile, bindingKey, { mapDim: input.mapDim }, enabled.length ? wrapperOutcome?.applied ?? [] : [],
+        )
     owned.push({
       kind: 'owned',
       programId: program.id,
@@ -282,16 +303,15 @@ export function describeControllerSavedPrograms(input: {
       deviceName,
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
-      sourceKind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
+      sourceKind: isShow ? 'show' : 'pattern',
       profileFeatures: controllerSavedProgramFeatures(pushRecord),
       freshness: describeProfileFreshness(
         pushRecord,
-        input.profileSignatureReady === false
-          ? null
-          : controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }),
+        profileSignature,
         studioPattern?.sourceHash,
       ),
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
+      ...(wrapperOutcome ? { wrapperOutcome } : {}),
     })
   }
 

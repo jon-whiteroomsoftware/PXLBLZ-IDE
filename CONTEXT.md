@@ -65,6 +65,19 @@ _Avoid_: keying anything durable on IP or name; treating chipId or MAC alone as 
 The durable, D1-backed record of one physical **Controller** — claimed **device id**, board profile, hardware inputs, global transforms, **Controller power profile**, pattern bindings, zones, and last-known hardware facts (device name, IP, firmware, firmware-update state, pixel count, and the last successful present/absent **installed-map observation**). Created from observed hardware, not from a blank manual form: signed-in sessions auto-create it when a live device reports a stable id, while an unclaimed live connection remains usable without becoming durable. The profile display name mirrors the mutable Pixelblaze device name whenever the device is seen again. Renaming is a live hardware action: PXLBLZ writes the matched physical Controller, reads the name back, then updates the profile; an offline or unmatched profile cannot become a local alias. Other configuration remains offline-editable at `/studio/controllers/<id>`; edits auto-save immediately and the profile holds durable configuration only, never duplicating live controls — those stay in the **Controller panel**. Its Map fact shows the live Controller observation while connected and otherwise resolves the saved fingerprint/dimension/point-count snapshot; a failed read never replaces the last successful snapshot. Its Firmware fact may show the last conclusive update state observed while the Controller was connected, read-only and still visible offline; an available update shows the full notice in the profile status area with installed firmware, Settings → Updates, and an Open Pixelblaze link when a live or last-known IP is available. The right-hand context pane shows progress as PXLBLZ automatically keeps **managed saved artifacts** current. While connected, it shows separate **Saved PXLBLZ Patterns** and **Other Patterns** inventories. Other Patterns remain visible as Controller-owned content and are completely exempt from automatic writes. The page edits Power, hardware inputs, and nothing else: zones stay on the record and stay live in Show compilation, but are Installation Show setup rather than Controller hardware setup.
 _Avoid_: conflating it with the live connection or panel; "controller" bare when the profile/live distinction matters.
 
+**Wrapper**:
+Built-in behavior enabled for a **Controller profile** and applied at Pattern
+delivery. Slow-mo and Dreamy are independent Wrappers. Delivery can skip an
+enabled Wrapper for an individual Pattern and retain the engine's reason.
+
+**Wrapped Pattern**:
+The device-specific Pattern code delivered with the Wrappers that could be
+applied. The authored Pattern remains the source for Studio and exports.
+
+**Wrapper Control**:
+A native Pixelblaze slider added by an applied Wrapper. Firmware stores its
+value per saved Pattern under its export name.
+
 **Effective input use**:
 One thing a **hardware input** actually drives, derived from the authoritative records rather than annotated on the input. Exactly two kinds exist: the profile's single hardware-brightness transform, whose scope is every Pattern except those with a Pattern binding on that same input; and one Pattern binding, which drives an exported slider, function, or variable for one Pattern. An input with no uses says so explicitly. Uses are derived, never stored, and deriving them never mutates the profile. The retired `role` field was an annotation that looked like a use and drove nothing.
 _Avoid_: calling a stored annotation a use; per-use push staleness — re-push freshness is a (Controller, Pattern) fact and belongs to the Pattern; restating the brightness/Pattern precedence in more than one place.
@@ -102,8 +115,8 @@ copies the exact artifact banner facts embedded in the saved PBP — transforms,
 artifact hash, stamp time, pushed name, and any **Show output contract** — plus
 the complete generated-artifact profile signature, then overwrites the previous
 record on re-push. **Run** pushes never create records. The signature covers the
-code-affecting Controller profile, the Pattern's referenced input bindings, and
-live renderer adaptation. It makes Saved PXLBLZ Patterns the canonical
+code-affecting Controller profile, the Pattern's referenced input bindings,
+the applied Wrappers, and live renderer adaptation. It makes Saved PXLBLZ Patterns the canonical
 (Controller, Pattern) freshness surface without reading Pattern source back from
 hardware: exact recognized equality is **CURRENT**, recognized inequality is
 **PUSH AGAIN**, and missing or unrecognized evidence is **UNKNOWN**. The record
