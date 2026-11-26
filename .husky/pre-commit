@@ -10,16 +10,21 @@ SIGNIFICANT_SRC=$(echo "$STAGED_SRC" | grep -vE '\.(test|bench)\.[tj]sx?$' | gre
 REFERENCE_CHANGED=$(git diff --cached --name-only | grep -c "^docs/reference/PXLBLZ Technical Reference.md$" || true)
 
 if [ -n "$SIGNIFICANT_SRC" ] && [ "$REFERENCE_CHANGED" -eq 0 ]; then
-  echo ""
-  echo "⚠️  Source files are staged but docs/reference/PXLBLZ Technical Reference.md has no changes."
-  echo "   Staged non-test src/ files:"
-  echo "$SIGNIFICANT_SRC" | sed 's/^/     /'
-  echo ""
-  printf "   Does docs/reference/PXLBLZ Technical Reference.md still accurately reflect these changes? (y/n) "
-  { read -r answer < /dev/tty; } 2>/dev/null || answer="y"
-  if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+  # A developer lane can have a controlling terminal without anyone to answer.
+  if [ "${WRSP_ROLE:-}" = "developer" ]; then
+    echo "Skipping the Technical Reference prompt in a WRSP developer lane."
+  else
     echo ""
-    echo "   Aborting. Update docs/reference/PXLBLZ Technical Reference.md and re-commit."
-    exit 1
+    echo "⚠️  Source files are staged but docs/reference/PXLBLZ Technical Reference.md has no changes."
+    echo "   Staged non-test src/ files:"
+    echo "$SIGNIFICANT_SRC" | sed 's/^/     /'
+    echo ""
+    printf "   Does docs/reference/PXLBLZ Technical Reference.md still accurately reflect these changes? (y/n) "
+    { read -r answer < /dev/tty; } 2>/dev/null || answer="y"
+    if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+      echo ""
+      echo "   Aborting. Update docs/reference/PXLBLZ Technical Reference.md and re-commit."
+      exit 1
+    fi
   fi
 fi
