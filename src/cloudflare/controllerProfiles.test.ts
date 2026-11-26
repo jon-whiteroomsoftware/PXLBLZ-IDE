@@ -125,18 +125,16 @@ function fakeDb(rows: Record<string, unknown>[] = []): {
 }
 
 describe('D1 controller profile persistence', () => {
-  it('reads and updates rows written by the previous Worker with the existing schema', async () => {
+  it('drops the legacy flag from profiles with values 0 and 1 and preserves the rest of each row and schema', async () => {
     using sqlite = new DatabaseSync(':memory:')
-    for (const migration of readdirSync('migrations').filter((name) => /^\d+.*\.sql$/.test(name)).sort()) {
+    const previousMigrations = readdirSync('migrations')
+      .filter((name) => /^\d+.*\.sql$/.test(name) && Number.parseInt(name, 10) < 30)
+      .sort()
+    for (const migration of previousMigrations) {
       sqlite.exec(readFileSync(`migrations/${migration}`, 'utf8'))
     }
     const user = 'github:123'
     sqlite.prepare('INSERT INTO users (id, created_at, updated_at) VALUES (?, ?, ?)').run(user, 1, 1)
-    const legacyInsert = sqlite.prepare(`
-      INSERT INTO controller_profiles
-        (user_id, id, name, board_json, electrical_profile_json, keep_patterns_up_to_date, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
     const db: D1DatabaseControllerProfilesLike = {
       prepare(sql) {
         const statement = sqlite.prepare(sql)
@@ -152,22 +150,53 @@ describe('D1 controller profile persistence', () => {
         }
       },
     }
-    for (const legacy of [0, 1]) {
-      const id = `legacy-${legacy}`
-      legacyInsert.run(user, id, profile.name, JSON.stringify(profile.board), JSON.stringify(profile.electricalProfile), legacy, 1, 2)
-      await updateD1ControllerProfile(db, user, id, { name: 'Renamed' })
-      expect(await getD1ControllerProfile(db, user, id)).toMatchObject({
-        id, name: 'Renamed', board: profile.board, electricalProfile: profile.electricalProfile, updatedAt: 2,
-      })
+    const setLegacyFlag = sqlite.prepare(
+      'UPDATE controller_profiles SET keep_patterns_up_to_date = ? WHERE user_id = ? AND id = ?',
+    )
+    const existingProfiles = [0, 1].map((flag) => ({ ...profile, id: `legacy-${flag}`, name: `Legacy ${flag}` }))
+    for (const [flag, existing] of existingProfiles.entries()) {
+      await createD1ControllerProfile(db, user, existing, flag + 1)
+      setLegacyFlag.run(flag, user, existing.id)
+    }
+
+    const readRows = () => sqlite.prepare('SELECT * FROM controller_profiles ORDER BY user_id, id').all()
+    const readColumns = () => sqlite.prepare(`
+      SELECT name, type, "notnull", dflt_value, pk, hidden
+      FROM pragma_table_xinfo('controller_profiles') ORDER BY cid
+    `).all()
+    const readIndexes = () => sqlite.prepare(`
+      SELECT name, sql FROM sqlite_schema
+      WHERE type = 'index' AND tbl_name = 'controller_profiles' ORDER BY name
+    `).all()
+    const readForeignKeys = () => sqlite.prepare('PRAGMA foreign_key_list(controller_profiles)').all()
+    const rows = readRows()
+    expect(rows.map((row) => row.keep_patterns_up_to_date)).toEqual([0, 1])
+    const preservedRows = rows.map(({ keep_patterns_up_to_date: _flag, ...row }) => row)
+    const preservedColumns = readColumns().filter(({ name }) => name !== 'keep_patterns_up_to_date')
+    const indexes = readIndexes()
+    const foreignKeys = readForeignKeys()
+
+    sqlite.exec(readFileSync('migrations/0030_drop_controller_keep_patterns_up_to_date.sql', 'utf8'))
+
+    expect(readColumns()).toEqual(preservedColumns)
+    expect(readRows()).toEqual(preservedRows)
+    expect(readIndexes()).toEqual(indexes)
+    expect(readForeignKeys()).toEqual(foreignKeys)
+    expect(sqlite.prepare("SELECT value FROM app_metadata WHERE key = 'schema_version'").get()).toEqual({ value: '30' })
+
+    for (const existing of existingProfiles) {
+      expect(await getD1ControllerProfile(db, user, existing.id)).toEqual(existing)
+      await updateD1ControllerProfile(db, user, existing.id, { name: 'Renamed' })
+      expect(await getD1ControllerProfile(db, user, existing.id)).toEqual({ ...existing, name: 'Renamed' })
     }
     await createD1ControllerProfile(db, user, profile)
     expect((await listD1ControllerProfiles(db, user)).map(({ id }) => id).sort())
       .toEqual([profile.id, 'legacy-0', 'legacy-1'])
-    expect(sqlite.prepare('SELECT keep_patterns_up_to_date AS legacy FROM controller_profiles ORDER BY id').all()
-      .map(({ legacy }) => legacy)).toEqual([0, 0, 1])
+    await deleteD1ControllerProfile(db, user, profile.id)
+    expect(await getD1ControllerProfile(db, user, profile.id)).toBeUndefined()
   })
 
-  it.each([0, 1, undefined])('maps a D1 profile with legacy column %s to the same public record', (legacy) => {
+  it('maps a D1 row to a Controller profile', () => {
     expect(controllerProfileFromRow({
       id: 'ctrl-1',
       name: 'Burner bag',
@@ -182,7 +211,6 @@ describe('D1 controller profile persistence', () => {
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
       electrical_profile_json: JSON.stringify(profile.electricalProfile),
-      ...(legacy === undefined ? {} : { keep_patterns_up_to_date: legacy }),
       pattern_bindings_json: JSON.stringify(profile.patternBindings),
       updated_at: 100,
     })).toEqual(profile)
@@ -250,7 +278,6 @@ describe('D1 controller profile persistence', () => {
     expect(calls[0].values).toEqual(['github:123'])
     expect(calls[1].sql).toContain('WHERE user_id = ? AND id = ?')
     expect(calls[1].values).toEqual(['github:123', 'ctrl-1'])
-    expect(calls.every(({ sql }) => !sql.includes('keep_patterns_up_to_date'))).toBe(true)
   })
 
   it('creates, updates, and deletes profiles with user id in the key', async () => {
@@ -292,7 +319,6 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
     expect(calls[1].sql).toContain('electrical_profile_json = ?')
-    expect(calls.every(({ sql }) => !sql.includes('keep_patterns_up_to_date'))).toBe(true)
     expect(calls[1].sql).not.toContain('output_profile')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
