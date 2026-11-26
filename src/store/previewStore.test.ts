@@ -407,6 +407,51 @@ describe('I17: Controller artifact and .epe export isolation from preview slow-m
       expect(normalizeParsed(parseEpe(currentEpe.text))).toEqual(normalizeParsed(baselineParsed))
     }
   })
+
+  it('warns via beforeunload while a personal Pattern or stock demo settings reset is queued behind an in-flight save', async () => {
+    const dispatchBeforeUnload = () => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    let releasePattern!: () => void
+    let releaseDemo!: () => void
+    let patternWrites = 0
+    let demoWrites = 0
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updatePattern: async () => {
+        patternWrites++
+        if (patternWrites === 1) await new Promise<void>((resolve) => { releasePattern = resolve })
+      },
+      setDemoOverrides: async () => {
+        demoWrites++
+        if (demoWrites === 1) await new Promise<void>((resolve) => { releaseDemo = resolve })
+      },
+    })
+
+    usePatternStore.setState({
+      ...patternInitialState,
+      activePatternId: 'p-unload',
+      userPatterns: [{ id: 'p-unload', name: 'Unload', src: '', controls: {}, updatedAt: 1 }],
+    })
+    expect(dispatchBeforeUnload()).toBe(false)
+
+    const p1 = usePatternStore.getState().updatePatternSettings('p-unload', { slowMo: 0.5 })
+    const p2 = usePatternStore.getState().updatePatternSettings('p-unload', { slowMo: 0 })
+    expect(dispatchBeforeUnload()).toBe(true)
+    releasePattern()
+    await Promise.all([p1, p2])
+    expect(dispatchBeforeUnload()).toBe(false)
+
+    const d1 = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0.5 })
+    const d2 = usePatternStore.getState().updateDemoSettings('KaleidoBloom', { slowMo: 0 })
+    expect(dispatchBeforeUnload()).toBe(true)
+    releaseDemo()
+    await Promise.all([d1, d2])
+    expect(dispatchBeforeUnload()).toBe(false)
+  })
 })
 
 describe('lightSize', () => {

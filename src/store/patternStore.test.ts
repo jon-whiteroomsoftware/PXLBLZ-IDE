@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { usePatternStore, patternInitialState, activePushKey } from './patternStore'
+import {
+  usePatternStore,
+  patternInitialState,
+  activePushKey,
+  hasPendingSettingsPersistence,
+} from './patternStore'
 import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import {
@@ -238,13 +243,48 @@ describe('updatePatternSettings', () => {
     const middle = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0.8 })
     const reset = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0 })
 
+    expect(hasPendingSettingsPersistence()).toBe(true)
     expect(sent).toEqual([{ slowMo: 0.5 }])
     releaseFirst()
     await Promise.all([first, middle, reset])
 
+    expect(hasPendingSettingsPersistence()).toBe(false)
     expect(maxInFlight).toBe(1)
     expect(sent).toEqual([{ slowMo: 0.5 }, {}])
     expect((await base.listPatterns())[0].settings).toEqual({})
+  })
+
+  it('drains queued settings reset before removePattern so a failed deletion preserves the reset in storage', async () => {
+    const base = memoryProvider()
+    await base.createPattern({ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 })
+    const sent: Partial<Settings>[] = []
+    let releaseFirst!: () => void
+    setPersonalContentProvider({
+      ...base,
+      updatePattern: async (id, changes) => {
+        sent.push(changes.settings ?? {})
+        if (sent.length === 1) {
+          await new Promise<void>((resolve) => { releaseFirst = resolve })
+        }
+        await base.updatePattern(id, changes)
+      },
+      deletePattern: async () => {
+        throw new Error('delete failed')
+      },
+    })
+
+    const first = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0.5 })
+    const reset = usePatternStore.getState().updatePatternSettings('p1', { slowMo: 0 })
+    const removal = usePatternStore.getState().removePattern('p1')
+
+    releaseFirst()
+    await expect(removal).rejects.toThrow('delete failed')
+    await Promise.all([first, reset])
+
+    expect(sent).toEqual([{ slowMo: 0.5 }, {}])
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
+    expect((await base.listPatterns())[0].settings).toEqual({})
+    expect(hasPendingSettingsPersistence()).toBe(false)
   })
 })
 

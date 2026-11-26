@@ -131,8 +131,9 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   removePattern: async (id) => {
-    pendingPatternSettings.delete(id)
-    await activePatternSettingsFlush.get(id)
+    while (activePatternSettingsFlush.has(id)) {
+      await activePatternSettingsFlush.get(id)
+    }
     await getPersonalContentProvider().deletePattern(id)
     const { activePatternId, userPatterns } = get()
     const remaining = userPatterns.filter((p) => p.id !== id)
@@ -210,9 +211,35 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 // then returning to 0) update in-memory state synchronously, while storage writes
 // run strictly one at a time and always flush the latest desired snapshot so an
 // earlier in-flight request can never overwrite a newer value or restore a cleared
-// override.
+// override. A beforeunload guard stays attached while any write is in flight or
+// queued so a reload cannot silently discard a queued reset (matching #1095).
 const pendingPatternSettings = new Map<string, Partial<Settings>>()
 const activePatternSettingsFlush = new Map<string, Promise<void>>()
+
+let pendingDemoOverrides: Record<string, Partial<Settings>> | null = null
+let activeDemoOverridesFlush: Promise<void> | null = null
+
+let settingsUnloadGuardAttached = false
+
+export function hasPendingSettingsPersistence(): boolean {
+  return activePatternSettingsFlush.size > 0 || activeDemoOverridesFlush !== null
+}
+
+function handleSettingsBeforeUnload(event: BeforeUnloadEvent): void {
+  if (hasPendingSettingsPersistence()) event.preventDefault()
+}
+
+function syncSettingsUnloadGuard(): void {
+  if (typeof window === 'undefined') return
+  const pending = hasPendingSettingsPersistence()
+  if (pending && !settingsUnloadGuardAttached) {
+    window.addEventListener('beforeunload', handleSettingsBeforeUnload)
+    settingsUnloadGuardAttached = true
+  } else if (!pending && settingsUnloadGuardAttached) {
+    window.removeEventListener('beforeunload', handleSettingsBeforeUnload)
+    settingsUnloadGuardAttached = false
+  }
+}
 
 function queuePatternSettingsWrite(id: string, settings: Partial<Settings>): Promise<void> {
   pendingPatternSettings.set(id, settings)
@@ -227,14 +254,13 @@ function queuePatternSettingsWrite(id: string, settings: Partial<Settings>): Pro
       }
     } finally {
       activePatternSettingsFlush.delete(id)
+      syncSettingsUnloadGuard()
     }
   })()
   activePatternSettingsFlush.set(id, flush)
+  syncSettingsUnloadGuard()
   return flush
 }
-
-let pendingDemoOverrides: Record<string, Partial<Settings>> | null = null
-let activeDemoOverridesFlush: Promise<void> | null = null
 
 function queueDemoOverridesWrite(overrides: Record<string, Partial<Settings>>): Promise<void> {
   pendingDemoOverrides = overrides
@@ -248,9 +274,11 @@ function queueDemoOverridesWrite(overrides: Record<string, Partial<Settings>>): 
       }
     } finally {
       activeDemoOverridesFlush = null
+      syncSettingsUnloadGuard()
     }
   })()
   activeDemoOverridesFlush = flush
+  syncSettingsUnloadGuard()
   return flush
 }
 
