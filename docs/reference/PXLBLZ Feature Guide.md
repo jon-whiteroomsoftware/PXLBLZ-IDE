@@ -331,9 +331,13 @@ hardware knowledge lives:
   anything in Studio. **Delete**
   removes a saved Pattern that is not running, after a confirmation; deleting
   one PXLBLZ did not create warns that there is no recovery copy unless you
-  import it first. **Keep Patterns up to date** rewrites managed Patterns and
-  Portable Shows after an edit that changes their generated code.
-  During a normal update, further changes are picked up in one follow-up. If a
+  import it first. PXLBLZ rewrites stale managed Patterns and Portable Shows
+  when the Controller connects or an edit changes their generated code. The
+  pane shows how many are up to date and marks the update **restarted** when it
+  picks up a change during the same run. **Pause** lets the current save finish
+  before stopping. **Resume** continues with the latest settings. A pause lasts
+  until you reload the page or resume. If the Controller disconnects, the pane
+  shows how many are waiting and finishes those saves when it reconnects. If a
   Save goes unconfirmed, its row stays queued for the next update. A late
   confirmation can record that Save so the next update skips it. If the
   Controller stops responding to a request, the update pauses and retries once

@@ -1015,10 +1015,11 @@ Import opens the existing Studio Pattern, restores a deleted one, creates a
 personal Pattern from foreign source, or explains that recovery is impossible.
 Import never mutates the Controller.
 
-**Managed-artifact reconciliation.** Opt-in per profile. A program is eligible
-only with both an overwrite binding and a successful push record plus
-regenerable source; everything else is unmanaged and untouched. Code-affecting
-profile edits schedule a plan that compares each eligible push record's stored
+**Managed-artifact reconciliation.** Code-affecting profile edits and
+Controller connections schedule reconciliation automatically. Eligible programs
+have an overwrite binding, a successful push record, and regenerable source.
+The scheduling signature covers active transforms and the inputs they or a
+Pattern binding use. Each plan compares the eligible push records' stored
 signature with a freshly computed per-artifact signature (global transforms,
 referenced inputs, bindings, renderer dimension). The signature carries a
 compatibility rule: **a field that cannot change generated code must never
@@ -1028,24 +1029,26 @@ stored signatures in today's terms (drop `role`, promote to the version-1
 envelope) and returns unrecognized bytes verbatim - the safe direction, which
 can cost one re-push but can never read stale data as current.
 
-One reconciliation pass owns a Controller from planning through the last job.
-Profiles reaching the same IP or a known identical device ID share that
-ownership. A trigger received during a pass requests one follow-up with fresh
-profile, inventory and source reads. A follow-up or stall recovery also
-compares recorded Pattern source hashes for edits since the preceding plan.
+One run owns a Controller from planning through the last job. Profiles reaching
+the same IP or a known identical device ID share that ownership. Edits during
+the pending debounce fold together. Edits during a run request a fresh plan
+within the same run. Replanning and stall recovery compare recorded Pattern
+source hashes for edits since the preceding plan.
 An interrupted recheck or a pass from another profile of the stalled
 Controller preserves the source comparison for edits still awaiting a Save.
 Each job uses the existing per-Controller write queue and the active program
 runs last. A foreground Save that reaches the write path takes precedence over
 an overlapping captured job for the same binding, including when the Save's
-later activation fails. The pending job remains queued.
+later activation fails. The pending job remains queued. Pause takes effect
+after the artifact in flight and lasts for the browser session. Resume or a
+reconnection plans from the saved records and skips programs already current.
 
 The first Controller request timeout stops the pass before any later job or
 inventory refresh. The profile schedules one automatic retry after 10 seconds
 for the same Controller. If it cannot finish, the profile waits for **Retry**.
 Reconnects and edits received during the stall do not start a pass on that
-Controller. Successful reconciliation, Retry, a replacement Controller, or
-opting out clears the stall. If the flash confirmation deadline expires, the
+Controller. Successful reconciliation, Retry, or a replacement Controller
+clears the stall. If the flash confirmation deadline expires, the
 pass ends with that row queued and takes the queue-idle re-read. The next
 triggered pass skips a Save whose late confirmation recorded the current
 artifact. It reattempts an eligible slot that remains unconfirmed, including

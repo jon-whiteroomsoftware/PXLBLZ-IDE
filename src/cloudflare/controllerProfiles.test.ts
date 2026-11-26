@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import {
   assertValidControllerProfile,
   createD1ControllerProfile,
@@ -78,7 +80,6 @@ const profile: ControllerProfile = {
     ledPresetId: 'ws2811-12v-grouped',
     supplyBudget: { value: 20, unit: 'amps' },
   },
-  keepPatternsUpToDate: true,
   patternBindings: [
     {
       id: 'p1-pot0-speed',
@@ -124,7 +125,49 @@ function fakeDb(rows: Record<string, unknown>[] = []): {
 }
 
 describe('D1 controller profile persistence', () => {
-  it('maps D1 rows to ControllerProfile values', () => {
+  it('reads and updates rows written by the previous Worker with the existing schema', async () => {
+    using sqlite = new DatabaseSync(':memory:')
+    for (const migration of readdirSync('migrations').filter((name) => /^\d+.*\.sql$/.test(name)).sort()) {
+      sqlite.exec(readFileSync(`migrations/${migration}`, 'utf8'))
+    }
+    const user = 'github:123'
+    sqlite.prepare('INSERT INTO users (id, created_at, updated_at) VALUES (?, ?, ?)').run(user, 1, 1)
+    const legacyInsert = sqlite.prepare(`
+      INSERT INTO controller_profiles
+        (user_id, id, name, board_json, electrical_profile_json, keep_patterns_up_to_date, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const db: D1DatabaseControllerProfilesLike = {
+      prepare(sql) {
+        const statement = sqlite.prepare(sql)
+        let values: SQLInputValue[] = []
+        return {
+          bind(...bound) {
+            values = bound as SQLInputValue[]
+            return this
+          },
+          async all<T>() { return { results: statement.all(...values) as T[] } },
+          async first<T>() { return (statement.get(...values) as T | undefined) ?? null },
+          async run() { return statement.run(...values) },
+        }
+      },
+    }
+    for (const legacy of [0, 1]) {
+      const id = `legacy-${legacy}`
+      legacyInsert.run(user, id, profile.name, JSON.stringify(profile.board), JSON.stringify(profile.electricalProfile), legacy, 1, 2)
+      await updateD1ControllerProfile(db, user, id, { name: 'Renamed' })
+      expect(await getD1ControllerProfile(db, user, id)).toMatchObject({
+        id, name: 'Renamed', board: profile.board, electricalProfile: profile.electricalProfile, updatedAt: 2,
+      })
+    }
+    await createD1ControllerProfile(db, user, profile)
+    expect((await listD1ControllerProfiles(db, user)).map(({ id }) => id).sort())
+      .toEqual([profile.id, 'legacy-0', 'legacy-1'])
+    expect(sqlite.prepare('SELECT keep_patterns_up_to_date AS legacy FROM controller_profiles ORDER BY id').all()
+      .map(({ legacy }) => legacy)).toEqual([0, 0, 1])
+  })
+
+  it.each([0, 1, undefined])('maps a D1 profile with legacy column %s to the same public record', (legacy) => {
     expect(controllerProfileFromRow({
       id: 'ctrl-1',
       name: 'Burner bag',
@@ -139,7 +182,7 @@ describe('D1 controller profile persistence', () => {
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
       electrical_profile_json: JSON.stringify(profile.electricalProfile),
-      keep_patterns_up_to_date: 1,
+      ...(legacy === undefined ? {} : { keep_patterns_up_to_date: legacy }),
       pattern_bindings_json: JSON.stringify(profile.patternBindings),
       updated_at: 100,
     })).toEqual(profile)
@@ -162,7 +205,6 @@ describe('D1 controller profile persistence', () => {
       inputs_json: JSON.stringify(legacyInputs),
       global_transforms_json: JSON.stringify([]),
       electrical_profile_json: null,
-      keep_patterns_up_to_date: 0,
       pattern_bindings_json: JSON.stringify([]),
       updated_at: 100,
     })
@@ -208,6 +250,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[0].values).toEqual(['github:123'])
     expect(calls[1].sql).toContain('WHERE user_id = ? AND id = ?')
     expect(calls[1].values).toEqual(['github:123', 'ctrl-1'])
+    expect(calls.every(({ sql }) => !sql.includes('keep_patterns_up_to_date'))).toBe(true)
   })
 
   it('creates, updates, and deletes profiles with user id in the key', async () => {
@@ -227,13 +270,13 @@ describe('D1 controller profile persistence', () => {
         ledPresetId: 'ws2812-5v-individual',
         supplyBudget: { value: 15, unit: 'watts' },
       },
-      keepPatternsUpToDate: false,
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
-    expect(calls[0].values).toHaveLength(18)
+    expect(calls[0].values).toHaveLength(17)
+    expect(calls[0].values.slice(-3)).toEqual([JSON.stringify(profile.patternBindings), 50, profile.updatedAt])
     expect(calls[0].sql).not.toContain('output_profile')
     expect(calls[0].sql).not.toContain('zones_json')
     expect(calls[0].values).toContain('Pixelblaze shelf')
@@ -249,7 +292,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
     expect(calls[1].sql).toContain('electrical_profile_json = ?')
-    expect(calls[1].sql).toContain('keep_patterns_up_to_date = ?')
+    expect(calls.every(({ sql }) => !sql.includes('keep_patterns_up_to_date'))).toBe(true)
     expect(calls[1].sql).not.toContain('output_profile')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')

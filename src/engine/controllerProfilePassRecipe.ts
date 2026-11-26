@@ -70,8 +70,7 @@ export function controllerProfileArtifactSignature(
  * before #772 carried a `role` that never reached a byte of generated code.
  * Retiring `role` therefore changed every stored signature for an input-driven
  * Pattern while the emitted Pattern stayed identical. Left alone, that reads as
- * staleness: a profile with `keepPatternsUpToDate` would rewrite artifacts on
- * the physical Controller on every reconnect, for nothing.
+ * staleness and would trigger a rewrite of the same artifact on reconnect.
  *
  * The rule this establishes: a field that cannot change generated code must
  * never change the signature, and when one is retired its removal is normalized
@@ -196,18 +195,51 @@ function isRendererSignature(value: unknown): boolean {
  * generated Pattern. It is used only to decide whether reconciliation needs
  * to be scheduled; each Pattern still gets its narrower artifact signature. */
 export function controllerProfileReconciliationSignature(profile: ControllerProfile): string {
+  const powerCap = activePowerCap(profile)
+  const brightnessInput = hardwareBrightnessInput(profile)
+  const patternBindings = new Map<string, unknown[]>()
+  for (const binding of profile.patternBindings) {
+    const input = profile.inputs.find((candidate) => candidate.id === binding.inputId)
+    if (!input) continue
+    const bindings = patternBindings.get(binding.patternId) ?? []
+    const { id: _id, ...drive } = patternBindingDrivePass(binding, '')
+    bindings.push({
+      id: binding.id,
+      sample: samplingSettings(input),
+      valueName: identifierStem(input.id),
+      drive,
+      overridesBrightness: Boolean(brightnessInput && patternBindingOverridesHardwareBrightness(profile, binding)),
+    })
+    patternBindings.set(binding.patternId, bindings)
+  }
   return JSON.stringify({
-    globalTransforms: profile.globalTransforms.map((transform) =>
-      transform.type === 'power-cap'
-        ? { ...transform, maxDuty: effectivePowerCapMaxDuty(profile, transform) }
-        : transform),
-    inputs: profile.inputs,
-    patternBindings: profile.patternBindings,
+    maxDuty: powerCap && effectivePowerCapMaxDuty(profile, powerCap),
+    brightness: brightnessInput && samplingSettings(brightnessInput),
+    patternBindings: [...patternBindings.keys()].sort().map((id) => [id, patternBindings.get(id)]),
   })
 }
 
-type HardwareBrightnessTransform = Extract<GlobalTransform, { type: 'hardware-brightness' }>
+function samplingSettings({ pin, signal, smoothing, fallback, invert }: ControllerInput) {
+  return { pin, signal, smoothing, fallback, invert }
+}
+
 type PowerCapTransform = Extract<GlobalTransform, { type: 'power-cap' }>
+
+function activePowerCap(profile: ControllerProfile): PowerCapTransform | undefined {
+  return profile.globalTransforms.find(
+    (transform): transform is PowerCapTransform =>
+      transform.type === 'power-cap' && transform.enabled && transform.maxDuty >= 0,
+  )
+}
+
+function hardwareBrightnessInput(profile: ControllerProfile): ControllerInput | undefined {
+  const transform = profile.globalTransforms.find(
+    (candidate) => candidate.type === 'hardware-brightness' && candidate.enabled,
+  )
+  if (transform?.type !== 'hardware-brightness' || transform.mode !== 'multiply-output') return undefined
+  const input = profile.inputs.find((candidate) => candidate.id === transform.inputId)
+  return input?.signal === 'analog' ? input : undefined
+}
 
 export function findProfileForLiveController(
   profiles: ControllerProfile[],
@@ -231,64 +263,51 @@ export function controllerProfilePassRecipe(
   const activePatternBindings = patternId
     ? profile.patternBindings.filter((binding) => binding.patternId === patternId)
     : []
-  const hardwareBrightness = profile.globalTransforms.find(
-    (transform): transform is HardwareBrightnessTransform =>
-      transform.type === 'hardware-brightness' && transform.enabled,
-  )
-  const powerCap = profile.globalTransforms.find(
-    (transform): transform is PowerCapTransform =>
-      transform.type === 'power-cap' && transform.enabled && transform.maxDuty >= 0,
-  )
+  const brightnessInput = hardwareBrightnessInput(profile)
+  const powerCap = activePowerCap(profile)
 
   const patternOverridesHardwareBrightness = activePatternBindings.some((binding) =>
     patternBindingOverridesHardwareBrightness(profile, binding),
   )
 
-  if (
-    hardwareBrightness &&
-    hardwareBrightness.mode === 'multiply-output' &&
-    !patternOverridesHardwareBrightness
-  ) {
-    const input = profile.inputs.find((candidate) => candidate.id === hardwareBrightness.inputId)
-    if (input?.signal === 'analog') {
-      const brightnessName = reserveIdentifier(usedNames, 'hardwareBrightnessValue')
-      const hwBrightnessMixin = stockMixinSpec('hw-brightness')
-      if (hwBrightnessMixin) {
-        recipe.push(
-          {
-            id: 'hardware-brightness-sample',
-            kind: 'inject',
-            source: [
-              `var ${brightnessName} = FALLBACK`,
-              ``,
-              `export function beforeRender(delta) {`,
-              `  var raw = analogRead(PIN)`,
-              `  if (INVERT) raw = 1 - raw`,
-              `  ${brightnessName} = ${brightnessName} + (raw - ${brightnessName}) * SMOOTHING`,
-              `}`,
-            ].join('\n'),
-            params: {
-              PIN: input.pin,
-              SMOOTHING: input.smoothing,
-              FALLBACK: input.fallback,
-              INVERT: input.invert,
-            },
+  if (brightnessInput && !patternOverridesHardwareBrightness) {
+    const brightnessName = reserveIdentifier(usedNames, 'hardwareBrightnessValue')
+    const hwBrightnessMixin = stockMixinSpec('hw-brightness')
+    if (hwBrightnessMixin) {
+      recipe.push(
+        {
+          id: 'hardware-brightness-sample',
+          kind: 'inject',
+          source: [
+            `var ${brightnessName} = FALLBACK`,
+            ``,
+            `export function beforeRender(delta) {`,
+            `  var raw = analogRead(PIN)`,
+            `  if (INVERT) raw = 1 - raw`,
+            `  ${brightnessName} = ${brightnessName} + (raw - ${brightnessName}) * SMOOTHING`,
+            `}`,
+          ].join('\n'),
+          params: {
+            PIN: brightnessInput.pin,
+            SMOOTHING: brightnessInput.smoothing,
+            FALLBACK: brightnessInput.fallback,
+            INVERT: brightnessInput.invert,
           },
-          {
-            id: 'hardware-brightness',
-            kind: 'intercept',
-            target: ['hsv', 'rgb'],
-            source: hwBrightnessMixin.src,
-            wrapperName: {
-              hsv: '__px_hardwareBrightness',
-              rgb: '__px_hardwareBrightnessRgb',
-            },
-            params: {
-              BRIGHTNESS: brightnessName,
-            },
+        },
+        {
+          id: 'hardware-brightness',
+          kind: 'intercept',
+          target: ['hsv', 'rgb'],
+          source: hwBrightnessMixin.src,
+          wrapperName: {
+            hsv: '__px_hardwareBrightness',
+            rgb: '__px_hardwareBrightnessRgb',
           },
-        )
-      }
+          params: {
+            BRIGHTNESS: brightnessName,
+          },
+        },
+      )
     }
   }
 

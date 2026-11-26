@@ -1340,7 +1340,6 @@ describe('ControllerProfilePage', () => {
     const base = seedProfile()
     const profile = {
       ...base,
-      keepPatternsUpToDate: true,
       inputs: [{
         id: 'green-pot',
         name: 'Green pot',
@@ -1357,7 +1356,12 @@ describe('ControllerProfilePage', () => {
       ),
     }
     const scheduleReconciliation = vi.fn()
-    useControllerProfileStore.setState({ profiles: [profile] })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      listControllerProfiles: async () => [profile],
+      updateControllerProfile: async () => {},
+    })
+    await useControllerProfileStore.getState().loadProfiles()
     usePatternStore.setState({
       userPatterns: [{
         id: 'pat-line',
@@ -2089,10 +2093,13 @@ describe('ControllerProfilePage', () => {
     expect(screen.queryByRole('heading', { name: /Other Patterns/ })).not.toBeInTheDocument()
   })
 
-  it('keeps reconciliation progress while reducing the update control to one concise line', () => {
-    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+  it('shows one running progress line and pauses after the current update', () => {
+    const profile = seedProfile()
     useControllerProfileStore.setState({ profiles: [profile] })
     useControllerStore.setState({
+      controllers: {
+        '192.168.8.224': { ip: '192.168.8.224', deviceId: profile.deviceId, phase: 'live', mapDim: 2 },
+      },
       controllerReconciliations: {
         'ctrl-1': {
           phase: 'running',
@@ -2110,25 +2117,19 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerSavedProgramsPane profile={profile} />)
 
-    const updateLabel = 'Keep PXLBLZ Patterns up to date when Controller settings change'
-    const updateControl = screen.getByRole('checkbox', { name: updateLabel })
-    expect(updateControl).toBeChecked()
-    for (const decoration of updateControl.parentElement?.querySelectorAll('span') ?? []) {
-      expect(decoration).toHaveClass('pointer-events-none')
-    }
-    expect(screen.getByText(updateLabel)).toBeInTheDocument()
-    expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/unmanaged programs are exempt/i)).not.toBeInTheDocument()
+    expect(screen.getByText('Updating 1 of 3')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /keep.*up to date/i })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toHaveTextContent(
       '1 current, 0 to push again, 1 updating, 1 queued, 0 failed',
     )
 
-    fireEvent.click(screen.getByRole('checkbox', { name: updateLabel }))
-    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: /^Pause$/ }))
+    expect(screen.getByRole('button', { name: /^Pause$/ })).toBeDisabled()
+    expect(useControllerStore.getState().controllerReconciliations[profile.id].paused).toBe(true)
   })
 
-  it('keeps offline work pending and removes the progress rail once current', () => {
-    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+  it('counts waiting work offline and keeps the progress line visible at rest', () => {
+    const profile = seedProfile()
     useControllerProfileStore.setState({ profiles: [profile] })
     useControllerStore.setState({
       controllerReconciliations: {
@@ -2146,7 +2147,7 @@ describe('ControllerProfilePage', () => {
     })
     const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.queryByText(/updates pending/i)).not.toBeInTheDocument()
+    expect(screen.getByText(`2 waiting for ${profile.name}`)).toBeInTheDocument()
     expect(screen.getByLabelText('Managed Pattern refresh progress')).toBeInTheDocument()
 
     act(() => useControllerStore.setState({
@@ -2165,7 +2166,7 @@ describe('ControllerProfilePage', () => {
     }))
     rerender(<ControllerSavedProgramsPane profile={profile} />)
 
-    expect(screen.queryByText(/managed Patterns current/i)).not.toBeInTheDocument()
+    expect(screen.getByText(`0 waiting for ${profile.name}`)).toBeInTheDocument()
     expect(screen.queryByLabelText('Managed Pattern refresh progress')).not.toBeInTheDocument()
   })
 
@@ -2504,9 +2505,16 @@ describe('ControllerProfilePage', () => {
   })
 
   it('moves the aggregate summary and the rows to stale together on a profile change (#874)', async () => {
-    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+    const profile = seedProfile()
     useControllerProfileStore.setState({ profiles: [profile] })
     const names = ['Alpha', 'Bravo', 'Charlie'] as const
+    usePatternStore.setState({
+      patternsLoaded: true,
+      userPatterns: names.map((name, index) => ({
+        id: `pat-${index + 1}`, name, src: 'export function render(i) { rgb(0, 0.5, 0.5) }',
+        controls: {}, updatedAt: 1,
+      })),
+    })
     const record = (name: string, bindingKey: string) => ({
       transforms: [],
       artifactHash: `${bindingKey}-artifact`,

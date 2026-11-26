@@ -57,10 +57,11 @@ import {
   useControllerProfileStore,
   type ControllerProfile,
 } from './controllerProfileStore'
-import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
+import { controllerProfileArtifactSignature, controllerProfilePassRecipe } from '@/engine/controllerProfilePassRecipe'
+import { bundleWithPasses } from '@/engine/passEngine'
 import { isAlreadyPushed } from '@/engine/sendToController'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
-import { artifactHash, parsePxlblzBanner, stampArtifact } from '@/engine/artifactStamp'
+import { artifactHash, parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from '@/engine/artifactStamp'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { createShowWithOutputContract } from '@/engine/showModel'
 import {
@@ -280,7 +281,6 @@ function managedShowProfile(): ControllerProfile {
       deviceId: 'pixelblaze_pb32_managed',
       ip: '10.0.0.5',
     }),
-    keepPatternsUpToDate: true,
   }
 }
 
@@ -401,10 +401,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
   const ip = '10.0.0.5'
   const deviceId = 'pixelblaze_pb32_managed'
   const profileId = 'profile-1'
-  const profile = {
-    ...defaultControllerProfile({ id: profileId, deviceId, ip }),
-    keepPatternsUpToDate: true,
-  }
+  const profile = defaultControllerProfile({ id: profileId, deviceId, ip })
   const timeout = () => new ControllerRequestTimeoutError('Controller reply overdue')
   const debounce = 600
   const retryDelay = 10_000
@@ -427,7 +424,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
   }
 
   async function fixture() {
-    setControllerProfiles([{ ...profile, keepPatternsUpToDate: false }])
+    setControllerProfiles([])
     await store().addController({ id: deviceId, address: ip, name: 'Test Controller' })
     setControllerProfiles([profile])
     author(11, 12)
@@ -494,6 +491,53 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     })
     return { requested, secondJobProfile }
   }
+
+  it('uses the last of two durable edits in one pending run and writes nothing on a repeat', async () => {
+    const fake = await fixture()
+    let durable = profile
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      id: 'rewrite-rapid-profile-edits',
+      listControllerProfiles: async () => [durable],
+      listShowDocumentsV2: async () => [],
+      updateControllerProfile: async (_id, changes) => { durable = { ...durable, ...changes } },
+    })
+    const config = vi.spyOn(fake, 'getConfig')
+    const profiles = useControllerProfileStore.getState()
+    await profiles.loadProfiles()
+    const setCap = (maxDuty: number) => profiles.updateProfile(profileId, {
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'power-cap' ? { ...transform, enabled: true, maxDuty } : transform),
+    })
+    await setCap(0.4)
+    await setCap(0.6)
+    expect(fake.saved).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(debounce)
+    expect(config).toHaveBeenCalledTimes(1)
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    for (const [index, { blob }] of fake.saved.entries()) {
+      const src = source(11 + index)
+      const expected = bundleWithPasses(src, {}, controllerProfilePassRecipe(durable, src, `pat-${index + 1}`)).code
+      expect(stripPxlblzBanner(decodePbp(blob)!.sourceCode)).toBe(expected)
+    }
+
+    await store().reconcileControllerProfile(profileId)
+    expect(fake.saved).toHaveLength(2)
+  })
+
+  it.each([true, false, undefined])('rewrites on connect with legacy flag %s', async (legacy) => {
+    const fake = await fixture()
+    await store().removeController(ip)
+    const stored = { ...profile, ...(legacy === undefined ? {} : { keepPatternsUpToDate: legacy }) }
+    setControllerProfiles([stored])
+    setControllerProviderFactory(() => fake)
+    await store().addController({ id: deviceId, address: ip, name: 'Test Controller' })
+    await vi.advanceTimersByTimeAsync(debounce)
+
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+    expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+  })
 
   it('writes old captured jobs before the coalesced pass writes the latest authored source', async () => {
     const fake = await fixture()
@@ -638,6 +682,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     const list = vi.spyOn(fake, 'listPrograms').mockRejectedValueOnce(new Error('ordinary planning error'))
     const first = store().reconcileControllerProfile(profileId)
     const failed = expect(first).rejects.toThrow('ordinary planning error')
+    await vi.advanceTimersByTimeAsync(0)
     store().scheduleControllerReconciliation(profileId)
     await vi.advanceTimersByTimeAsync(debounce)
     expect(list).not.toHaveBeenCalled()
@@ -1154,7 +1199,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
-  it('consumes the automatic attempt on a profile outage, then clears on opt-out', async () => {
+  it('consumes the automatic attempt on a profile outage, then clears for a removed profile', async () => {
     const fake = await fixture()
     vi.spyOn(fake, 'saveProgram').mockRejectedValueOnce(timeout())
     await store().reconcileControllerProfile(profileId)
@@ -1167,7 +1212,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(state().phase).toBe('not-responding')
     expect(state().retryAt).toBeUndefined()
     expect(fake.saved).toEqual([])
-    setControllerProfiles([{ ...profile, keepPatternsUpToDate: false }])
+    setControllerProfiles([])
     store().scheduleControllerReconciliation(profileId)
     await vi.advanceTimersByTimeAsync(debounce)
     expect(state()).toMatchObject({ phase: 'idle', programs: [] })
@@ -1365,7 +1410,6 @@ describe('controllerStore (keyed)', () => {
         deviceId: 'pixelblaze_pb32_managed',
         ip: '10.0.0.5',
       }),
-      keepPatternsUpToDate: true,
     }
     setControllerProfiles([profile])
     usePatternStore.setState({
@@ -1895,11 +1939,10 @@ describe('controllerStore (keyed)', () => {
     expect(store().controllers['10.0.0.5'].mapDim).toBe(2)
   })
 
-  it('schedules opted-in managed Pattern reconciliation when a Controller reconnects', async () => {
+  it('schedules managed Pattern reconciliation when a Controller connects', async () => {
     const scheduled: string[] = []
     setControllerProfiles([{
       ...defaultControllerProfile({ id: 'profile-1', ip: '10.0.0.5', now: 1 }),
-      keepPatternsUpToDate: true,
     }])
     useControllerStore.setState({
       scheduleControllerReconciliation: (profileId) => scheduled.push(profileId),

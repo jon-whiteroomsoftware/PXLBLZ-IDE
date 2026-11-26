@@ -85,7 +85,7 @@ import {
   type ReconciliationStall,
   type ReconciliationTarget,
 } from '@/engine/controllerReconciliationPolicy'
-import { ControllerReconciliationQueue } from './controllerReconciliationQueue'
+import { ControllerReconciliationQueue, type ControllerReconciliationRun } from './controllerReconciliationQueue'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { resolveShowV2StageMap } from '@/store/showV2StageMap'
 import {
@@ -188,6 +188,8 @@ export interface ControllerReconciliationProgram {
 
 export interface ControllerReconciliationState {
   phase: 'idle' | 'pending' | 'running' | 'current' | 'attention' | 'not-responding'
+  paused?: boolean
+  restarted?: boolean
   retryAt?: number
   managedCount: number
   unmanagedCount: number
@@ -382,7 +384,9 @@ interface ControllerConnectionState {
   /** Reconcile installed PXLBLZ-managed artifacts for one opted-in Controller profile. */
   reconcileControllerProfile: (profileId: string) => Promise<void>
   /** Debounced entry point used after profile edits and reconnect. */
-  scheduleControllerReconciliation: (profileId: string) => void
+  scheduleControllerReconciliation: (profileId: string, profileChanged?: boolean) => void
+  pauseControllerReconciliation: (profileId: string) => void
+  resumeControllerReconciliation: (profileId: string) => void
 }
 
 export interface GeneratedArtifactPush {
@@ -789,7 +793,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
         profileId: string,
         phase: ControllerReconciliationState['phase'],
         retryAt?: number,
-      ) => setReconciliation(profileId, (state) => ({ ...state, phase, retryAt }))
+      ) => setReconciliation(profileId, (state) => ({
+        ...state,
+        phase,
+        retryAt,
+        restarted: phase === 'running' ? state.restarted : undefined,
+      }))
 
       const queueForegroundPush = (
         ip: string,
@@ -821,6 +830,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         isCurrentSession,
         protectedBindings,
         recheckPatternSources,
+        reportPhase,
       }: {
         profile: ControllerProfile
         profiles: ControllerProfile[]
@@ -829,6 +839,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         isCurrentSession: () => boolean
         protectedBindings: ReadonlySet<string>
         recheckPatternSources: boolean
+        reportPhase: (phase: 'pending' | 'current' | 'attention') => void
       }): Promise<ReconciliationOutcome> => {
         const profileId = profile.id
 
@@ -980,19 +991,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
             state: 'queued' as const,
           })),
         ]
-        set((state) => ({
-          controllerReconciliations: {
-            ...state.controllerReconciliations,
-            [profileId]: {
-              phase: plan.jobs.length > 0 ? 'running' : 'current',
-              managedCount: plan.managedCount,
-              unmanagedCount: plan.unmanaged.length,
-              completedCount: plan.current.length,
-              programs: initialPrograms,
-            },
-          },
+        setReconciliation(profileId, (state) => ({
+          ...state,
+          ...(plan.jobs.length > 0 ? { phase: 'running' } : {}),
+          managedCount: plan.managedCount,
+          unmanagedCount: plan.unmanaged.length,
+          completedCount: plan.current.length,
+          programs: initialPrograms,
         }))
-        if (plan.jobs.length === 0) return 'finished'
+        if (plan.jobs.length === 0) {
+          reportPhase('current')
+          return 'finished'
+        }
 
         const compiledLibraries = compileLibraries(LIBRARIES, libraryState.userLibraries)
         const reconciliationSignature = controllerProfileReconciliationSignature(profile)
@@ -1014,6 +1024,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
           jobs: plan.jobs,
           activeProgramId: config?.activeProgramId,
           shouldContinue: async () => {
+            const mayStartJob = () => isCurrentSession() && !get().controllerReconciliations[profileId]?.paused
+            if (!mayStartJob()) return false
             const latestProfiles = await getPersonalContentProvider()
               .listControllerProfiles()
               .catch(() => [])
@@ -1022,8 +1034,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ? controllerForProfile(latest, get().controllers)
               : null
             return Boolean(
-              latest?.keepPatternsUpToDate &&
-              isCurrentSession() &&
+              latest &&
+              mayStartJob() &&
               latestLive?.ip === live.ip &&
               controllerProfileReconciliationSignature(latest) === reconciliationSignature,
             )
@@ -1133,23 +1145,51 @@ export const useControllerStore = create<ControllerConnectionState>()(
         if (result.timedOut) return 'timeout'
         if (rereadNeeded) rereadController(live.ip)
         if (result.stopped) {
-          setReconciliationPhase(profileId, 'pending')
+          reportPhase('pending')
           return 'interrupted'
         }
 
-        setReconciliationPhase(profileId, result.failed.length ? 'attention' : result.deferred ? 'pending' : 'current')
         if (!rereadNeeded && get().activeIp === live.ip && isCurrentSession()) {
           await useControllerPanelStore.getState().refreshPrograms(live.ip)
         }
+        reportPhase(result.failed.length ? 'attention' : result.deferred ? 'pending' : 'current')
         return 'finished'
       }
 
       const requestReconciliation = (profileId: string, request: ReconciliationRequest) =>
-        reconciliationQueue.request(profileId, request, (next, followUp) =>
-          runReconciliation(profileId, next, followUp))
+        reconciliationQueue.request(profileId, request, async (run) => {
+          let followUp = false
+          let failed: { error: unknown } | undefined
+          let phase: 'pending' | 'current' | 'attention' | undefined
+          for (let next = run.next(); next; next = run.next()) {
+            try {
+              await runReconciliation(profileId, next, followUp, run, (settled) => { phase = settled })
+            } catch (error) {
+              failed ??= { error }
+            }
+            followUp = true
+          }
+          // A timeout, missing profile or disconnected session can already have
+          // replaced the displayed phase. A trailing read failure leaves the
+          // last pass's rows and completion intact.
+          if (phase && get().controllerReconciliations[profileId]?.phase !== 'not-responding') {
+            setReconciliationPhase(profileId, phase)
+          }
+          if (failed) throw failed.error
+        })
 
       const reportBackgroundReconciliationError = (error: unknown) => {
         console.error('Managed Pattern reconciliation failed', error)
+      }
+
+      const reconcileConnectedController = async (ip: string) => {
+        const live = get().controllers[ip]
+        if (live?.phase !== 'live') return
+        const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+        const current = get().controllers[ip]
+        if (current?.phase !== 'live' || current.liveEpoch !== live.liveEpoch) return
+        const profile = findProfileForLiveController(profiles, current)
+        if (profile) get().scheduleControllerReconciliation(profile.id)
       }
 
       const updateStall = (profileId: string, stall: ReconciliationStall | undefined): void => {
@@ -1185,6 +1225,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
         profileId: string,
         request: ReconciliationRequest,
         followUp: boolean,
+        run: ControllerReconciliationRun,
+        reportPhase: (phase: 'pending' | 'current' | 'attention' | undefined) => void,
       ): Promise<void> {
         const scheduled = request.kind === 'automatic' ? request.scheduled : undefined
         const clearStall = () => {
@@ -1196,6 +1238,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         for (;;) {
           if (scheduled && reconciliationStalls.get(profileId) !== scheduled) return
+          if (get().controllerReconciliations[profileId]?.paused) {
+            if (scheduled) settleReconciliation(profileId, scheduled.target, true, 'interrupted')
+            return
+          }
           await waitForControllerProfileWrites()
           const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => null)
           if (!profiles) {
@@ -1203,9 +1249,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
             return
           }
           const profile = profiles.find((candidate) => candidate.id === profileId)
-          if (!profile?.keepPatternsUpToDate) {
+          if (!profile) {
             updateStall(profileId, undefined)
             setReconciliation(profileId, idleReconciliation)
+            reportPhase(undefined)
             return
           }
 
@@ -1219,16 +1266,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
           }
           if (request.kind === 'background') {
             if (stall && !replaced) return
-            if (request.stalledTarget && (!live || sameReconciliationTarget(live, request.stalledTarget))) return
+            if (request.stalledTarget && !request.profileChanged
+              && (!live || sameReconciliationTarget(live, request.stalledTarget))) return
           }
           const provider = live?.phase === 'live' ? reconciliationProvider(live.ip) : null
           if (!live || !provider) {
             if (scheduled) settleReconciliation(profileId, scheduled.target, true, 'interrupted')
-            else setReconciliationPhase(profileId, 'pending')
+            else reportPhase('pending')
             return
           }
 
-          const claim = reconciliationQueue.claim(live)
+          const claim = run.claim(live)
           if ('wait' in claim) {
             await claim.wait
             followUp = true
@@ -1254,16 +1302,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
               isCurrentSession,
               protectedBindings: lease.protectedBindings,
               recheckPatternSources: followUp || Boolean(initialStall),
+              reportPhase,
             })
           } catch (error) {
             if (!isReconciliationTimeout(error)) throw error
             if (isCurrentSession()) outcome = 'timeout'
           } finally {
-            try {
-              settleReconciliation(profileId, live, Boolean(scheduled), outcome)
-            } finally {
-              lease.release()
-            }
+            settleReconciliation(profileId, live, Boolean(scheduled), outcome)
           }
           return
         }
@@ -1410,8 +1455,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 if (status.kind === 'error' && status.reason === 'multiple-helpers') {
                   set({ extensionPresent: true, helperConflict: true })
                 }
+                const previousEpoch = get().controllers[target]?.liveEpoch
                 const patch = phaseFromStatus(status)
                 if (patch) patchController(target, patch)
+                if (status.kind === 'connected' && previousEpoch !== undefined
+                  && get().controllers[target]?.liveEpoch !== previousEpoch) {
+                  void reconcileConnectedController(target)
+                }
                 if (status.kind === 'connecting' || status.kind === 'error') {
                   invalidateRendererState(target)
                 }
@@ -1514,17 +1564,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // owns the polling interval (started on open); this is a one-shot seed.
           useControllerPanelStore.getState().seed(target)
 
-          // A disconnected Controller cannot be reconciled. Re-evaluate an opted-in
-          // profile as soon as its device returns; the planner still excludes every
-          // foreign or otherwise unmanaged program before any write is queued.
-          const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
-          const connectedProfile = findProfileForLiveController(
-            profiles,
-            get().controllers[target],
-          )
-          if (connectedProfile?.keepPatternsUpToDate) {
-            get().scheduleControllerReconciliation(connectedProfile.id)
-          }
+          await reconcileConnectedController(target)
 
           // The Controller owns compatibility and release selection. Keep this
           // best-effort and off the connection's critical path; reconnect churn
@@ -1748,30 +1788,51 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         reportArtifactPushFailure: (result) => set({ artifactPushResult: result }),
 
-        scheduleControllerReconciliation: (profileId) => {
+        scheduleControllerReconciliation: (profileId, profileChanged) => {
           clearReconciliationTimer(reconciliationTimers, profileId)
+          const state = get().controllerReconciliations[profileId]
+          if (state?.paused) return
           const request: ReconciliationRequest = {
             kind: 'background',
             stalledTarget: reconciliationStalls.get(profileId)?.target,
+            profileChanged,
           }
           const enqueue = () => {
             void requestReconciliation(profileId, request).catch(reportBackgroundReconciliationError)
           }
           if (reconciliationQueue.busy(profileId)) {
+            if (profileChanged && state?.phase === 'running' && !state.restarted) {
+              setReconciliation(profileId, (state) => ({ ...state, restarted: true }))
+            }
             enqueue()
             return
           }
-          if (!get().controllerReconciliations[profileId]) {
-            setReconciliation(profileId, (state) => ({ ...state, phase: 'pending' }))
-          }
+          if (!state) setReconciliationPhase(profileId, 'pending')
           reconciliationTimers.set(profileId, setTimeout(() => {
             reconciliationTimers.delete(profileId)
             enqueue()
           }, 600))
         },
 
+        pauseControllerReconciliation: (profileId) => {
+          clearReconciliationTimer(reconciliationTimers, profileId)
+          setReconciliation(profileId, (state) => ({ ...state, paused: true }))
+        },
+
+        resumeControllerReconciliation: (profileId) => {
+          if (!get().controllerReconciliations[profileId]?.paused) return
+          setReconciliation(profileId, (state) => ({ ...state, paused: false }))
+          const request = reconciliationStalls.has(profileId)
+            ? { kind: 'manual' } as const
+            : { kind: 'background' } as const
+          void requestReconciliation(profileId, request).catch(reportBackgroundReconciliationError)
+        },
+
         reconcileControllerProfile: (profileId) => {
           clearReconciliationTimer(reconciliationTimers, profileId)
+          if (get().controllerReconciliations[profileId]?.paused) {
+            setReconciliation(profileId, (state) => ({ ...state, paused: false }))
+          }
           return requestReconciliation(profileId, { kind: 'manual' })
         },
 

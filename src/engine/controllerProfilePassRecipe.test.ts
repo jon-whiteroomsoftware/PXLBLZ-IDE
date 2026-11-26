@@ -8,6 +8,7 @@ import {
   readStoredArtifactSignature,
 } from './controllerProfilePassRecipe'
 import type { ControllerProfile } from './controllerProfile'
+import { bundleWithPasses } from './passEngine'
 import {
   LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
   LEGACY_SIGNATURE_MAP_DIM,
@@ -69,6 +70,22 @@ describe('controller profile pass recipe', () => {
       controllerProfileReconciliationSignature(profile),
     )
     expect(controllerProfileReconciliationSignature(rebound)).not.toBe(
+      controllerProfileReconciliationSignature(profile),
+    )
+  })
+
+  it('signs the binding ID used in emitted helper names', () => {
+    const profile = patternBindingProfile()
+    const renamedBinding = {
+      ...profile,
+      patternBindings: profile.patternBindings.map((binding) => ({ ...binding, id: `${binding.id}-new` })),
+    }
+    const source = 'export function sliderSpeed(v) {} export function render(i) { rgb(0.2, 0.3, 0.4) }'
+    const generated = (input: ControllerProfile) =>
+      bundleWithPasses(source, {}, controllerProfilePassRecipe(input, source, profile.patternBindings[0].patternId)).code
+
+    expect(generated(renamedBinding)).not.toBe(generated(profile))
+    expect(controllerProfileReconciliationSignature(renamedBinding)).not.toBe(
       controllerProfileReconciliationSignature(profile),
     )
   })

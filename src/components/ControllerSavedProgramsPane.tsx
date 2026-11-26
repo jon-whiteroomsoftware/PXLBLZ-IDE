@@ -78,7 +78,6 @@ import {
   ControllerProgramDeletionError,
   useControllerPanelStore,
 } from '@/store/controllerPanelStore'
-import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -275,23 +274,36 @@ function SavedProgramNameCell({
 
 function ManagedPatternReconciliation({
   profile,
+  connected,
   reconciliation,
   statuses,
+  onPause,
+  onResume,
   onRetry,
 }: {
   profile: ControllerProfile
+  connected: boolean
   reconciliation?: ControllerReconciliationState
   /** The same per-program status projection the inventory rows render (#874). */
   statuses: Readonly<Record<string, ControllerSavedPatternStatus>>
+  onPause: () => void
+  onResume: () => void
   onRetry: () => void
 }) {
-  const updateProfile = useControllerProfileStore((state) => state.updateProfile)
   const summary = summarizeControllerSavedPatternStatuses(statuses)
   const { current, stale, updating, queued, failed, unmanaged } = summary
+  const total = summary.total - unmanaged
+  const waiting = total - current
   const phase = reconciliation?.phase ?? 'idle'
-  const stalled = profile.keepPatternsUpToDate && phase === 'not-responding'
-  const showProgress = profile.keepPatternsUpToDate
-    && (phase === 'pending' || phase === 'running' || phase === 'attention' || stalled)
+  const stalled = phase === 'not-responding'
+  const offline = !connected
+  const paused = connected && reconciliation?.paused === true && updating === 0
+  const running = connected && phase === 'running' && !paused
+  const showProgress = (offline && waiting > 0) || running || paused || phase === 'attention' || stalled
+  let progress = `${current} of ${total} up to date`
+  if (offline) progress = `${waiting} waiting for ${profile.name}`
+  else if (paused && waiting > 0) progress = `Paused at ${current} of ${total}`
+  else if (running) progress = `Updating ${current} of ${total}${reconciliation?.restarted ? ' · restarted' : ''}`
   const retryAt = stalled ? reconciliation?.retryAt : undefined
   const [retryClock, setRetryClock] = useState(() => Date.now())
   useEffect(() => {
@@ -304,34 +316,15 @@ function ManagedPatternReconciliation({
       clearInterval(tick)
     }
   }, [retryAt])
-  const total = Math.max(summary.total, 1)
-  const width = (count: number) => ({ width: `${(count / total) * 100}%` })
+  const width = (count: number) => ({ width: `${(count / Math.max(total, 1)) * 100}%` })
 
   return (
     <section className="border-b border-seam bg-zinc-950/55 px-4 py-2">
-      <label className="flex cursor-pointer items-center justify-between gap-4">
-        <span className="text-xs font-medium text-zinc-200">
-          Keep PXLBLZ Patterns up to date when Controller settings change
-        </span>
-        <span className="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center">
-          <input
-            type="checkbox"
-            aria-label="Keep PXLBLZ Patterns up to date when Controller settings change"
-            checked={profile.keepPatternsUpToDate === true}
-            onChange={(event) => void updateProfile(profile.id, {
-              keepPatternsUpToDate: event.target.checked,
-            })}
-            className="peer sr-only"
-          />
-          <span className="pointer-events-none absolute inset-0 rounded-full border border-zinc-700 bg-zinc-900 transition peer-checked:border-emerald-600/70 peer-checked:bg-emerald-950 peer-focus-visible:ring-2 peer-focus-visible:ring-live/60" />
-          <span className="pointer-events-none relative ml-0.5 h-4 w-4 rounded-full bg-zinc-500 transition-transform peer-checked:translate-x-4 peer-checked:bg-emerald-400" />
-        </span>
-      </label>
-      {showProgress && (
-        <div className="mt-2 flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {showProgress && (
           <div
             aria-label="Managed Pattern refresh progress"
-            className="flex h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-900"
+            className="flex h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-zinc-900"
           >
             <span className="sr-only">
               {current} current, {stale} to push again, {updating} updating, {queued} queued, {failed} failed
@@ -343,19 +336,31 @@ function ManagedPatternReconciliation({
             {queued > 0 && <span className="bg-zinc-700" style={width(queued)} />}
             {failed > 0 && <span className="bg-red-500" style={width(failed)} />}
           </div>
-          {phase === 'attention' && (
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              className={`h-5 bg-red-950/30 px-1.5 text-red-300 hover:bg-red-950/60 ${IDE_MICROTYPE.required.sizeClassName}`}
-              onClick={onRetry}
-            >
-              Retry failed updates
-            </Button>
-          )}
-        </div>
-      )}
+        )}
+        <span aria-live="polite" className="min-w-0 break-words text-xs text-zinc-200">{progress}</span>
+        {(running || paused) && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            disabled={running && reconciliation?.paused === true}
+            onClick={paused ? onResume : onPause}
+          >
+            {paused ? 'Resume' : 'Pause'}
+          </Button>
+        )}
+        {phase === 'attention' && connected && !paused && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className={`h-5 bg-red-950/30 px-1.5 text-red-300 hover:bg-red-950/60 ${IDE_MICROTYPE.required.sizeClassName}`}
+            onClick={onRetry}
+          >
+            Retry failed updates
+          </Button>
+        )}
+      </div>
       {stalled && (
         <div role="status" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-300">
           <span>Controller not responding</span>
@@ -985,6 +990,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const setActiveController = useControllerStore((state) => state.setActive)
   const reconciliation = useControllerStore((state) => state.controllerReconciliations[profile.id])
   const reconcileControllerProfile = useControllerStore((state) => state.reconcileControllerProfile)
+  const pauseReconciliation = useControllerStore((state) => state.pauseControllerReconciliation)
+  const resumeReconciliation = useControllerStore((state) => state.resumeControllerReconciliation)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const showV2Rows = useShowStore((state) => state.showV2Rows)
   const addPattern = usePatternStore((state) => state.addPattern)
@@ -1107,13 +1114,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       : null
 
   useEffect(() => {
-    if (!liveIp) {
-      clearSavedPrograms(profile.id)
-      return
-    }
+    if (!liveIp) return
     if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
     useControllerPanelStore.getState().seed(liveIp)
-  }, [clearSavedPrograms, liveIp, profile.id, setActiveController])
+  }, [liveIp, setActiveController])
 
   useEffect(() => {
     if (!liveIp) return
@@ -1149,19 +1153,22 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     ? savedProgramsRead
     : null
   const hasInventorySnapshot = inventoryRead?.hasSnapshot === true
+  // The last inventory can inform the offline progress line. Actions still
+  // require inventory and a running-program read for the current live epoch.
+  const progressRead = !liveIp && savedProgramsRead?.hasSnapshot ? savedProgramsRead : inventoryRead
   const installedMapStatus = profileController?.installedMap?.status
   const profileSignatureReady = readStatus === 'ready'
     && installedMapStatus !== 'loading'
     && installedMapStatus !== 'error'
 
   const programs = describeControllerSavedPrograms({
-    controllerId: liveIp ?? '',
-    programs: inventoryRead?.programs ?? EMPTY_CONTROLLER_PROGRAMS,
-    bindings: inventoryRead?.bindings ?? {},
-    pushRecords: inventoryRead?.pushRecords ?? {},
+    controllerId: progressRead?.controllerId ?? '',
+    programs: progressRead?.programs ?? EMPTY_CONTROLLER_PROGRAMS,
+    bindings: progressRead?.bindings ?? {},
+    pushRecords: progressRead?.pushRecords ?? {},
     profile,
-    mapDim: profileController?.mapDim ?? null,
-    profileSignatureReady,
+    mapDim: liveIp ? profileController?.mapDim ?? null : profile.lastKnownMapDim ?? null,
+    profileSignatureReady: liveIp ? profileSignatureReady : progressRead !== null,
     studioPatterns: [
       ...userPatterns.map((pattern) => ({
         bindingKey: pattern.id,
@@ -1196,6 +1203,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     programs.owned,
     reconciliation?.programs ?? [],
   )
+  const unavailableProgramIds = new Set(programs.owned
+    .filter((program) => program.studioPatternMissing || program.showOutputContract?.kind === 'installation')
+    .map((program) => program.programId))
+  const managedStatuses = Object.fromEntries(Object.entries(savedPatternStatuses)
+    .filter(([programId]) => !unavailableProgramIds.has(programId)))
   const sectionPrograms = selection.section === 'saved' ? programs.owned : programs.foreign
   const eligibleIds = deleteSessionKnown
     ? sectionPrograms.filter((program) => program.programId !== activeProgramId && program.programId !== activatingProgramId).map((program) => program.programId)
@@ -1577,8 +1589,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       />
       <ManagedPatternReconciliation
         profile={profile}
+        connected={liveIp !== undefined}
         reconciliation={reconciliation}
-        statuses={savedPatternStatuses}
+        statuses={managedStatuses}
+        onPause={() => pauseReconciliation(profile.id)}
+        onResume={() => resumeReconciliation(profile.id)}
         onRetry={() => {
           void reconcileControllerProfile(profile.id).catch((error: unknown) => {
             console.error('Managed Pattern reconciliation failed', error)

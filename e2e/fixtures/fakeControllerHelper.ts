@@ -14,6 +14,8 @@ export interface FakeControllerHelperOptions {
   runSequencer?: boolean
   /** Encoded PBP fixtures, read through the production recovery decoder. */
   savedProgramData?: Record<string, string>
+  /** Persist confirmed Saves and expose transport controls for reconciliation tests. */
+  trackSavedPrograms?: boolean
   /** Hold the first permission grant beyond the ordinary socket deadline. */
   permissionDelayMs?: number
   /** Saved Pattern ids whose delete command is recorded but not applied. */
@@ -52,6 +54,47 @@ export async function installFakeControllerHelper(
     let deleteCommands = 0
     let releasedProgramLists = false
     const heldProgramLists: string[] = []
+    const savedPrograms = { ...fixture.savedProgramData }
+    const saveFrames = new Map<string, string>()
+    const heldSaves: Array<{ connId: string; programId: string; encoded: string }> = []
+    const heldConnections: Array<() => void> = []
+    let holdSaves = false
+    let online = true
+    let dropProgramLists = false
+    const confirmSave = ({ connId, programId, encoded }: typeof heldSaves[number]) => {
+      savedPrograms[programId] = encoded
+      reply(connId, { saveProgramSourceFile: true })
+    }
+    if (fixture.trackSavedPrograms) {
+      Object.defineProperty(window, '__fakeControllerReconciliation', {
+        value: {
+          holdSaves: () => { holdSaves = true },
+          acknowledgeSave: () => {
+            const save = heldSaves.shift()
+            if (!save) throw new Error('No Save is waiting for an acknowledgement')
+            confirmSave(save)
+          },
+          releaseSaves: () => {
+            holdSaves = false
+            for (const save of heldSaves.splice(0)) confirmSave(save)
+          },
+          waitingSaveIds: () => heldSaves.map(({ programId }) => programId),
+          savedBytes: () => ({ ...savedPrograms }),
+          disconnect: () => {
+            online = false
+            heldSaves.length = 0
+            saveFrames.clear()
+            for (const connId of connections) emit({ type: 'close', connId, code: 1006 })
+            connections.clear()
+          },
+          reconnect: () => {
+            online = true
+            for (const open of heldConnections.splice(0)) open()
+          },
+          dropProgramLists: () => { dropProgramLists = true },
+        },
+      })
+    }
     Object.defineProperty(window, '__fakeControllerReleaseProgramLists', {
       configurable: true,
       value: () => {
@@ -122,7 +165,8 @@ export async function installFakeControllerHelper(
         if (fixture.permissionDelayMs) {
           emit({ type: 'permission-needed', address: new URL(String(message.url)).hostname, connId })
           setTimeout(open, fixture.permissionDelayMs)
-        } else open()
+        } else if (online) open()
+        else heldConnections.push(open)
         return
       }
       if (message.type === 'close') {
@@ -147,7 +191,7 @@ export async function installFakeControllerHelper(
       if (message.type === 'get-program') {
         if (fixture.address && message.address !== fixture.address) return
         emit({ type: 'program-data', reqId: message.reqId, ok: true,
-          programData: fixture.savedProgramData?.[String(message.programId)] ?? null })
+          programData: savedPrograms[String(message.programId)] ?? null })
         return
       }
       if (message.type === 'compile') {
@@ -168,7 +212,21 @@ export async function installFakeControllerHelper(
         // Type 1 carries the saved PBP. Firmware confirms on the last frame (flag 4).
         if (frame.charCodeAt(0) === 1) {
           writes.push({ save: true })
-          if (frame.charCodeAt(1) & 4) reply(message.connId, { saveProgramSourceFile: true })
+          const last = (frame.charCodeAt(1) & 4) !== 0
+          if (fixture.trackSavedPrograms) {
+            const connId = message.connId
+            const payload = (saveFrames.get(connId) ?? '') + frame.slice(2)
+            if (last) {
+              saveFrames.delete(connId)
+              const programId = payload.slice(0, 17)
+              const save = { connId, programId, encoded: btoa(payload.slice(17)) }
+              writes.push({ savedProgramId: programId })
+              if (holdSaves) heldSaves.push(save)
+              else confirmSave(save)
+            } else {
+              saveFrames.set(connId, payload)
+            }
+          } else if (last) reply(message.connId, { saveProgramSourceFile: true })
         }
         return
       }
@@ -206,6 +264,7 @@ export async function installFakeControllerHelper(
       if (command.listPrograms) {
         const hold = !releasedProgramLists && fixture.holdProgramListsAfterDeletes !== undefined
           && deleteCommands >= fixture.holdProgramListsAfterDeletes
+        if (dropProgramLists) return
         if (hold) heldProgramLists.push(message.connId)
         else replyPrograms(message.connId)
       }

@@ -5,9 +5,9 @@ import {
 } from '@/engine/controllerReconciliationPolicy'
 
 interface ProfileFlight {
-  request: ReconciliationRequest
+  active?: ReconciliationRequest
+  pending?: ReconciliationRequest
   done: Promise<void>
-  next?: { request: ReconciliationRequest; done: Promise<void> }
 }
 
 interface ControllerLease {
@@ -15,6 +15,11 @@ interface ControllerLease {
   released: Promise<void>
   protectedBindings: Set<string>
   release: () => void
+}
+
+export interface ControllerReconciliationRun {
+  next: () => ReconciliationRequest | undefined
+  claim: (target: ReconciliationTarget) => { wait: Promise<void> } | { lease: ControllerLease }
 }
 
 const priority = { background: 0, automatic: 1, manual: 2 } as const
@@ -37,38 +42,54 @@ export class ControllerReconciliationQueue {
   request(
     profileId: string,
     request: ReconciliationRequest,
-    run: (request: ReconciliationRequest, followUp: boolean) => Promise<void>,
+    run: (run: ControllerReconciliationRun) => Promise<void>,
   ): Promise<void> {
-    const start = (request: ReconciliationRequest, followUp: boolean): Promise<void> => {
-      const flight: ProfileFlight = {
-        request,
-        done: Promise.resolve().then(() => run(request, followUp)).finally(() => {
-          if (!flight.next && this.flights.get(profileId) === flight) this.flights.delete(profileId)
-        }),
-      }
-      this.flights.set(profileId, flight)
-      return flight.done
-    }
-
     const active = this.flights.get(profileId)
-    if (!active) return start(request, false)
-    if (active.request.kind === 'manual' && request.kind === 'manual') return active.done
-    if (active.next) {
-      if (priority[request.kind] >= priority[active.next.request.kind]) active.next.request = request
-      return active.next.done
+    if (active) {
+      if (active.active?.kind === 'manual' && request.kind === 'manual') return active.done
+      const pending = active.pending
+      if (!pending || priority[request.kind] >= priority[pending.kind]) {
+        active.pending = request.kind === 'background' && pending?.kind === 'background' && pending.profileChanged
+          ? { ...request, profileChanged: true }
+          : request
+      }
+      return active.done
     }
 
-    const next: NonNullable<ProfileFlight['next']> = {
-      request,
-      done: active.done.catch(() => undefined).then(() => {
-        if (this.flights.get(profileId) === active) return start(next.request, true)
-      }),
+    let lease: ControllerLease | undefined
+    const finish = () => {
+      lease?.release()
+      lease = undefined
+      if (this.flights.get(profileId) === flight) this.flights.delete(profileId)
     }
-    active.next = next
-    return next.done
+    const flight: ProfileFlight = {
+      pending: request,
+      done: Promise.resolve().then(() => run({
+        next: () => {
+          flight.active = flight.pending
+          flight.pending = undefined
+          // Close admission in the same turn as observing an empty queue.
+          if (!flight.active) finish()
+          return flight.active
+        },
+        claim: (target) => {
+          if (lease && lease.target.ip === target.ip && sameReconciliationTarget(lease.target, target)) {
+            this.protectCurrentSaves(lease)
+            return { lease }
+          }
+          lease?.release()
+          lease = undefined
+          const claim = this.claim(target)
+          if ('lease' in claim) lease = claim.lease
+          return claim
+        },
+      })).finally(finish),
+    }
+    this.flights.set(profileId, flight)
+    return flight.done
   }
 
-  claim(target: ReconciliationTarget): { wait: Promise<void> } | { lease: ControllerLease } {
+  private claim(target: ReconciliationTarget): { wait: Promise<void> } | { lease: ControllerLease } {
     for (const lease of this.leases) {
       if (targetsOverlap(lease.target, target)) return { wait: lease.released }
     }
@@ -83,11 +104,16 @@ export class ControllerReconciliationQueue {
         finish()
       },
     }
-    for (const save of this.foregroundSaves) {
-      if (targetsOverlap(save.target, target)) lease.protectedBindings.add(save.binding)
-    }
+    this.protectCurrentSaves(lease)
     this.leases.add(lease)
     return { lease }
+  }
+
+  private protectCurrentSaves(lease: ControllerLease): void {
+    lease.protectedBindings.clear()
+    for (const save of this.foregroundSaves) {
+      if (targetsOverlap(save.target, lease.target)) lease.protectedBindings.add(save.binding)
+    }
   }
 
   beginForegroundSave(target: ReconciliationTarget, binding: string): () => void {

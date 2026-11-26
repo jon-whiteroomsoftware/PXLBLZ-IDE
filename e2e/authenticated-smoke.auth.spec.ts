@@ -438,7 +438,6 @@ test('Controller surfaces keep live state and switch saved Patterns in place (#8
         maxDuty: 0.35,
       },
     ],
-    keepPatternsUpToDate: false,
     patternBindings: [],
     zones: [],
     updatedAt: Date.now(),
@@ -692,7 +691,6 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
     electricalProfile: null,
     inputs: [],
     globalTransforms: [],
-    keepPatternsUpToDate: false,
     patternBindings: [],
     zones: [],
     updatedAt: Date.now(),
@@ -1135,7 +1133,6 @@ test('edits and persists a Controller input use across responsive and keyboard f
           maxDuty: 0.25,
         },
       ],
-      keepPatternsUpToDate: false,
       patternBindings: [],
       zones: [],
       updatedAt: Date.now(),
@@ -1302,7 +1299,6 @@ test('saved Pattern freshness follows the full profile through a real managed ov
         maxDuty: 0.25,
       },
     ],
-    keepPatternsUpToDate: false,
     patternBindings: [],
     zones: [],
     updatedAt: Date.now(),
@@ -1391,10 +1387,6 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   expect(badgeGeometry!.badgeLeft).toBeGreaterThanOrEqual(badgeGeometry!.cellLeft)
   expect(badgeGeometry!.badgeRight).toBeLessThanOrEqual(badgeGeometry!.cellRight)
 
-  await page.getByText(
-    'Keep PXLBLZ Patterns up to date when Controller settings change',
-    { exact: true },
-  ).click()
   await expect.poll(async () => {
     const response = await page.context().request.get('/api/controller-metadata/controller-push-records')
     if (!response.ok()) return null
@@ -1749,7 +1741,6 @@ test.describe('silent save-failure feedback (#810)', () => {
           maxDuty: 0.25,
         },
       ],
-      keepPatternsUpToDate: false,
       patternBindings: [],
       zones: [],
       updatedAt: Date.now(),
@@ -2169,7 +2160,7 @@ test('Controller menus escape the panel and narrow Power telemetry aligns (#968)
   const created = await page.context().request.post('/api/controllers', { data: {
     id: 'e2e-968-no-power-profile', name: 'Menu bench', deviceId: 'pixelblaze_pb32_99d4ee549434', lastSeenIp: '192.168.8.224',
     board: { kind: 'pixelblaze-v3-standard' },
-    inputs: [], globalTransforms: [], keepPatternsUpToDate: false, patternBindings: [], zones: [], updatedAt: Date.now(),
+    inputs: [], globalTransforms: [], patternBindings: [], zones: [], updatedAt: Date.now(),
   } })
   expect(created.ok(), await created.text()).toBe(true)
   await installFakeControllerHelper(page, {

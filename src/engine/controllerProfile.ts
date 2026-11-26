@@ -204,9 +204,6 @@ export interface ControllerProfile {
   /** Optional installation-level power model. It remains useful for
    * telemetry even when the power-cap transform is disabled. */
   electricalProfile?: ControllerElectricalProfile
-  /** Opt-in non-destructive reconciliation of PXLBLZ-managed saved artifacts.
-   * Missing on legacy records and therefore treated as false. */
-  keepPatternsUpToDate?: boolean
   patternBindings: PatternBinding[]
   updatedAt: number
 }

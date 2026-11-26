@@ -58,7 +58,6 @@ export function legacySignatureProfile(): ControllerProfile {
         maxDuty: 0.25,
       },
     ],
-    keepPatternsUpToDate: true,
     patternBindings: [{
       id: 'b1',
       patternId: LEGACY_SIGNATURE_PATTERN_ID,

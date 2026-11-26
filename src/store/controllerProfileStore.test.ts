@@ -134,10 +134,6 @@ beforeEach(() => {
 })
 
 describe('controllerProfileStore', () => {
-  it('defaults automatic managed-pattern reconciliation off', () => {
-    expect(defaultControllerProfile({ id: 'profile-1' }).keepPatternsUpToDate).toBe(false)
-  })
-
   it('creates a valid default profile with disabled global transforms', () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
@@ -229,7 +225,7 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
   })
 
-  it('schedules reconciliation only when managed generated code or the opt-in changes', async () => {
+  it('schedules reconciliation only when a durable profile edit changes generated code', async () => {
     const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
     const scheduled: string[] = []
     setPersonalContentProvider(memoryProvider([profile]))
@@ -242,9 +238,11 @@ describe('controllerProfileStore', () => {
     expect(scheduled).toEqual([])
 
     await useControllerProfileStore.getState().updateProfile('ctrl-1', {
-      keepPatternsUpToDate: true,
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'power-cap' ? { ...transform, maxDuty: 0.4 } : transform),
     })
-    expect(scheduled).toEqual(['ctrl-1'])
+    await useControllerProfileStore.getState().addInput('ctrl-1')
+    expect(scheduled).toEqual([])
 
     const enabled = useControllerProfileStore.getState().profiles[0].globalTransforms.map(
       (transform) => transform.type === 'power-cap'
@@ -254,7 +252,9 @@ describe('controllerProfileStore', () => {
     await useControllerProfileStore.getState().updateProfile('ctrl-1', {
       globalTransforms: enabled,
     })
-    expect(scheduled).toEqual(['ctrl-1', 'ctrl-1'])
+    expect(scheduled).toEqual(['ctrl-1'])
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { globalTransforms: enabled })
+    expect(scheduled).toEqual(['ctrl-1'])
   })
 
   it('keeps bindings consistent when removing an input', async () => {
@@ -606,13 +606,13 @@ describe('controllerProfileStore', () => {
 
     const refresh = useControllerProfileStore.getState().refreshLiveMetadata(profile.id)
     await Promise.resolve()
-    await useControllerProfileStore.getState().updateProfile(profile.id, { keepPatternsUpToDate: true })
+    await useControllerProfileStore.getState().updateProfile(profile.id, { lastKnownMapDim: 3 })
     resolveConfig({ name: 'Burner bag', pixelCount: 200 })
     await refresh
 
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       name: 'Burner bag',
-      keepPatternsUpToDate: true,
+      lastKnownMapDim: 3,
       lastKnownPixelCount: 200,
       lastSeenIp: '192.168.8.224',
     })
@@ -1543,7 +1543,7 @@ describe('profile save-failure clearing scope (#810 review round 3)', () => {
 
     // A different, successful edit to the same profile: the rename is still
     // not durable, so its notice must survive.
-    await useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true })
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { lastKnownMapDim: 3 })
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
       { profileId: 'ctrl-1', patches: [{ name: 'Unsaved' }] },
     ])
@@ -1570,11 +1570,11 @@ describe('concurrent profile failure merging (#810 review round 4)', () => {
 
     await Promise.allSettled([
       useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }),
-      useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true }),
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { lastKnownMapDim: 3 }),
     ])
 
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
-      { profileId: 'ctrl-1', patches: [{ name: 'Renamed' }, { keepPatternsUpToDate: true }] },
+      { profileId: 'ctrl-1', patches: [{ name: 'Renamed' }, { lastKnownMapDim: 3 }] },
     ])
 
     offline = false
@@ -1582,7 +1582,7 @@ describe('concurrent profile failure merging (#810 review round 4)', () => {
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       name: 'Renamed',
-      keepPatternsUpToDate: true,
+      lastKnownMapDim: 3,
     })
   })
 })
@@ -1610,16 +1610,16 @@ describe('key-level profile rollback (#810 review round 5)', () => {
 
     const renamePending = useControllerProfileStore.getState()
       .updateProfile('ctrl-1', { name: 'Failing rename' }).catch(() => {})
-    const togglePending = useControllerProfileStore.getState()
-      .updateProfile('ctrl-1', { keepPatternsUpToDate: true })
+    const dimensionPending = useControllerProfileStore.getState()
+      .updateProfile('ctrl-1', { lastKnownMapDim: 3 })
     rejectFirst(new Error('save failed'))
     await renamePending
-    await togglePending
+    await dimensionPending
 
-    // The failed rename really reverted; the successful toggle survived.
+    // The dimension saved while the failed rename reverted.
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       name: 'Original',
-      keepPatternsUpToDate: true,
+      lastKnownMapDim: 3,
     })
     // The rename stays retryable.
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
@@ -1762,18 +1762,18 @@ describe('independent failed edits (#810 review round 8)', () => {
     await useControllerProfileStore.getState().loadProfiles()
 
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' }).catch(() => {})
-    await useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true }).catch(() => {})
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { lastKnownMapDim: 3 }).catch(() => {})
 
     // Connectivity returns; the user manually redoes only the rename. The
-    // toggle's failed edit must keep its notice and Retry path.
+    // dimension's failed edit must keep its notice and Retry path.
     offline = false
     await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' })
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([
-      { profileId: 'ctrl-1', patches: [{ keepPatternsUpToDate: true }] },
+      { profileId: 'ctrl-1', patches: [{ lastKnownMapDim: 3 }] },
     ])
 
     await useControllerProfileStore.getState().retryProfileSaveFailure('ctrl-1')
-    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(true)
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownMapDim).toBe(3)
     expect(useControllerProfileStore.getState().profileSaveFailures).toEqual([])
   })
 
@@ -1920,7 +1920,7 @@ describe('landed-write repair scope (#810 review round 10)', () => {
 
 describe('operation-owned rollback (#810 review round 11)', () => {
   it('a newer edit back to the durable value survives an older write landing', async () => {
-    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const profile = { ...defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 }), lastKnownMapDim: 1 as const }
     const provider = memoryProvider([profile])
     const durableUpdate = provider.updateControllerProfile
     let releaseFirst!: () => void
@@ -1935,17 +1935,16 @@ describe('operation-owned rollback (#810 review round 11)', () => {
     }
     setPersonalContentProvider(provider)
     await useControllerProfileStore.getState().loadProfiles()
-    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownMapDim).toBe(1)
 
-    // A sets true (slow); B sets it back to durable false while A is pending.
-    // Neither A's landing nor any repair may resurrect true.
-    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: true })
-    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { keepPatternsUpToDate: false })
+    // B restores the already-durable dimension while A's write is pending.
+    const first = useControllerProfileStore.getState().updateProfile('ctrl-1', { lastKnownMapDim: 3 })
+    const second = useControllerProfileStore.getState().updateProfile('ctrl-1', { lastKnownMapDim: 1 })
     releaseFirst()
     await first
     await second
 
-    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+    expect(useControllerProfileStore.getState().profiles[0].lastKnownMapDim).toBe(1)
   })
 
   it('a failed write does not revert a key a newer edit owns, even at equal values', async () => {
@@ -2073,7 +2072,6 @@ it('reuses a legacy profile across canonical reconnects and retains its authored
     ...defaultControllerProfile({ id: 'legacy', name: 'PBX Fresh 1' }),
     deviceId: 'pixelblaze_pb32_aabbccdd02',
     board: { kind: 'pixelblaze-v3-standard' as const, firmwareVersion: '3.51' },
-    keepPatternsUpToDate: true,
   }
   const provider = memoryProvider([legacy])
   setPersonalContentProvider(provider)
@@ -2088,7 +2086,7 @@ it('reuses a legacy profile across canonical reconnects and retains its authored
   await useControllerProfileStore.getState().ensureProfileForLiveController({ ...target, deviceId: legacy.deviceId })
   const profiles = await provider.listControllerProfiles()
   expect(profiles).toHaveLength(1)
-  expect(profiles[0]).toMatchObject({ id: 'legacy', keepPatternsUpToDate: true,
+  expect(profiles[0]).toMatchObject({ id: 'legacy',
     board: { firmwareVersion: '3.67', firmwareUpdate: { state: 'current' } } })
   expect(profiles[0].globalTransforms).toEqual(legacy.globalTransforms)
 })
@@ -2097,7 +2095,7 @@ it('refreshes hardware facts on existing equivalent profiles without merging aut
   const first = { ...defaultControllerProfile({ id: 'first', now: 1 }), deviceId: 'pixelblaze_pb32_aabbccdd02',
     board: { kind: 'pixelblaze-v3-standard' as const, firmwareVersion: '3.51',
       firmwareUpdate: { state: 'available' as const, checkedAt: 1, firmwareVersion: '3.51' } } }
-  const second = { ...defaultControllerProfile({ id: 'second', now: 2 }), deviceId: 'pixelblaze_pb32_00aabbccdd02', keepPatternsUpToDate: true }
+  const second = { ...defaultControllerProfile({ id: 'second', now: 2 }), deviceId: 'pixelblaze_pb32_00aabbccdd02', lastKnownMapDim: 3 as const }
   const provider = memoryProvider([first, second])
   setPersonalContentProvider(provider)
   await useControllerProfileStore.getState().loadProfiles()
@@ -2110,5 +2108,5 @@ it('refreshes hardware facts on existing equivalent profiles without merging aut
   expect(saved).toHaveLength(2)
   for (const profile of saved) expect(profile.board).toMatchObject({ firmwareVersion: '3.67', firmwareUpdate: { state: 'current' } })
   expect(saved.find(p => p.id === 'first')?.globalTransforms).toEqual(first.globalTransforms)
-  expect(saved.find(p => p.id === 'second')?.keepPatternsUpToDate).toBe(true)
+  expect(saved.find(p => p.id === 'second')?.lastKnownMapDim).toBe(3)
 })

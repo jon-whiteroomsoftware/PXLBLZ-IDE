@@ -139,8 +139,7 @@ describe('planControllerReconciliation', () => {
   it('schedules nothing for a record whose signature only predates the role retirement (#772)', () => {
     // The profile did not change; #772 changed how its inputs are serialized.
     // Reading that as staleness would rewrite the physical Controller over a
-    // difference that never reached a byte of generated code — and a profile
-    // with keepPatternsUpToDate would do it again on every reconnect.
+    // difference that never reached a byte of generated code.
     const profile = legacySignatureProfile()
 
     const plan = planControllerReconciliation({

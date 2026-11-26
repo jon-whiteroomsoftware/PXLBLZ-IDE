@@ -154,7 +154,6 @@ export function defaultControllerProfile(seed: {
         maxDuty: 0.25,
       },
     ],
-    keepPatternsUpToDate: false,
     patternBindings: [],
     updatedAt,
   }
@@ -451,7 +450,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       throw error
     }
     profileSettleGeneration += 1
-    lastDurableProfiles.set(id, patchProfile(lastDurableProfiles.get(id) ?? previous ?? optimistic!, patch))
+    const previousDurable = lastDurableProfiles.get(id) ?? previous ?? optimistic!
+    const nextDurable = patchProfile(previousDurable, patch)
+    lastDurableProfiles.set(id, nextDurable)
     // Re-assert the keys this operation still owns, then release them: a
     // concurrent loadProfiles can have installed a pre-write durable snapshot
     // while the write was in flight, and ownership proves no newer edit holds
@@ -490,14 +491,9 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ],
       }
     })
-    if (previous && optimistic) {
-      const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
-      const generatedCodeChanged =
-        controllerProfileReconciliationSignature(previous) !==
-        controllerProfileReconciliationSignature(optimistic)
-      if (optInChanged || (optimistic.keepPatternsUpToDate && generatedCodeChanged)) {
-        useControllerStore.getState().scheduleControllerReconciliation(id)
-      }
+    if (previousDurable && controllerProfileReconciliationSignature(previousDurable)
+      !== controllerProfileReconciliationSignature(nextDurable)) {
+      useControllerStore.getState().scheduleControllerReconciliation(id, true)
     }
   },
 

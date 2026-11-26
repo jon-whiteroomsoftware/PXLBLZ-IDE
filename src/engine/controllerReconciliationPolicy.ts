@@ -20,7 +20,7 @@ export type ReconciliationStall = ScheduledReconciliationRetry | {
 }
 
 export type ReconciliationRequest =
-  | { kind: 'background'; stalledTarget?: ReconciliationTarget }
+  | { kind: 'background'; stalledTarget?: ReconciliationTarget; profileChanged?: boolean }
   | { kind: 'automatic'; scheduled: ScheduledReconciliationRetry }
   | { kind: 'manual' }
 

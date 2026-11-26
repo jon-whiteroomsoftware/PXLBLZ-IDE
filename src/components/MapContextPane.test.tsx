@@ -83,7 +83,6 @@ describe('MapContextPane', () => {
         board: { kind: 'pixelblaze-v3-standard' },
         inputs: [],
         globalTransforms: [],
-        keepPatternsUpToDate: false,
         patternBindings: [],
         mapFingerprints: [{
           hash: '9a0c9e7f',
