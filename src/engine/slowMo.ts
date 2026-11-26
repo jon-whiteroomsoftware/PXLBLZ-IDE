@@ -242,8 +242,7 @@ function emitWrapperSource(
   const nativeClockFlag = preview ? '' : `var ${p}nativeTime = 1\n`
   const nativeClockRead = preview ? '' : `if (${p}nativeTime) return time(interval); `
   const slowMoPrelude = slowMo ? `var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}cap = 0
-var ${p}rate = 1
-var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
+${preview ? `var ${p}rate = 1\n` : ''}var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
 ${speedControl}
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
 var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
@@ -261,39 +260,56 @@ function ${p}persist(current,target) {
 ${slowMoPrelude}
 ${dreamyPrelude}
 var ${p}phase = 0, ${p}r = 0, ${p}g = 0, ${p}b = 0
-${emitColorCapture(p, nativeOutput)}`
+${emitColorCapture(p, nativeOutput, preview, dreamy)}`
   // The untouched path uses the native clock in both numeric modes. Once an
   // effect engages, keep the existing combined wrapper's clock and continuity.
   const clockEngaged = dreamy ? `${p}position < 1 || ${p}decay > 0` : `!${p}bypass`
   const enterSlowClock = preview ? '' : `\n  if (${clockEngaged}) ${p}nativeTime = 0`
-  const advanceSlowMo = slowMo ? `
-  ${p}cap = 0
-  ${p}refresh = 0
-  ${p}rate = pow(2,-4*(1-${p}position))
-  if (${p}position >= 0.97) ${p}bypass = 1
-  else if (${p}position < 0.94) ${p}bypass = 0${enterSlowClock}
-  if (${p}bypass) ${p}rate = 1
-  if (${p}bypass) {
+  const rate = `pow(2,-4*(1-${p}position))`
+  const selectBypass = `if (${p}position >= 0.97) ${p}bypass = 1
+  else if (${p}position < 0.94) ${p}bypass = 0${enterSlowClock}`
+  const liveStep = `
     ${p}T += delta * 0.0000152587890625
     if (${p}T >= 16384) ${p}T -= 16384
-    ${p}in_beforeRender(delta)
+    ${p}in_beforeRender(delta)`
+  const fixedStep = (indent: string) => `if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
+${indent}else {
+${indent}  ${p}acc += delta * ${preview ? `${p}rate` : rate}
+${indent}  var ${p}n = 0
+${indent}  while (${p}acc >= 16 && ${p}n < 4) {
+${indent}    ${p}acc -= 16
+${indent}    ${p}T += 16 * 0.0000152587890625
+${indent}    if (${p}T >= 16384) ${p}T -= 16384
+${indent}    ${p}in_beforeRender(16); ${p}n += 1
+${indent}  }
+${indent}  if (${p}acc >= 16) ${p}acc = ${p}acc % 16
+${indent}  ${p}cap = ${p}n > 0
+${indent}}`
+  const advancePreviewSlowMo = `
+  ${p}cap = 0
+  ${p}refresh = 0
+  ${p}rate = ${rate}
+  ${selectBypass}
+  if (${p}bypass) ${p}rate = 1
+  if (${p}bypass) {${liveStep}
   }
-  else if (${p}phase == 0) { ${p}in_beforeRender(0); ${p}cap = 1 }
-  else {
-    ${p}acc += delta * ${p}rate
-    var ${p}n = 0
-    while (${p}acc >= 16 && ${p}n < 4) {
-      ${p}acc -= 16
-      ${p}T += 16 * 0.0000152587890625
-      if (${p}T >= 16384) ${p}T -= 16384
-      ${p}in_beforeRender(16); ${p}n += 1
-    }
-    if (${p}acc >= 16) ${p}acc = ${p}acc % 16
-    ${p}cap = ${p}n > 0
-  }
+  else ${fixedStep('  ')}
   if (${p}wasBypass && !${p}bypass) { ${p}cap = 1; ${p}refresh = 1 }
   ${p}wasBypass = ${p}bypass
-  ${p}f = ${p}acc / 16` : `\n  ${p}in_beforeRender(delta)`
+  ${p}f = ${p}acc / 16`
+  const advanceNativeSlowMo = `
+  ${selectBypass}
+  if (${p}bypass) {${liveStep}
+  } else {
+    ${fixedStep('    ')}
+    ${p}refresh = ${p}wasBypass
+    if (${p}refresh) ${p}cap = 1
+    ${p}f = ${p}acc / 16
+  }
+  ${p}wasBypass = ${p}bypass`
+  const advanceSlowMo = slowMo
+    ? (preview ? advancePreviewSlowMo : advanceNativeSlowMo)
+    : `\n  ${p}in_beforeRender(delta)`
   const advanceDreamy = dreamy ? `
   ${p}displayDelta = delta
   ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1` : ''
@@ -321,14 +337,15 @@ ${channels.map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${tar
     if (${p}decay > 0) ${persistenceOutput}` : ''
   const wrappers = renderFns.map(name => {
     const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
-    const draw = `${p}r = 0; ${p}g = 0; ${p}b = 0; ${p}in_${name}(${args})`
+    const invoke = `${p}in_${name}(${args})`
+    const draw = `${p}r = 0; ${p}g = 0; ${p}b = 0; ${invoke}`
     if (!slowMo) return `export function ${name}(${args}) {
   ${draw}${liveDreamy}
   ${endFrame}
 }`
     return `export function ${name}(${args}) {
   if (${p}bypass) {
-    ${draw}${liveDreamy}
+    ${dreamy ? draw : invoke}${liveDreamy}
     ${endFrame}
     return
   }
@@ -339,29 +356,42 @@ ${channels.map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${tar
   return `${prelude}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`
 }
 
-function emitColorCapture(p: string, nativeOutput: string): string {
+function emitColorCapture(p: string, nativeOutput: string, preview: boolean, dreamy: boolean): string {
+  // Only Dreamy consumes captured colors while the native renderer is active.
+  const passthrough = (call: string) => dreamy
+    ? `if (${nativeOutput}) ${call}`
+    : `if (${nativeOutput}) { ${call}; return }`
+  const afterPassthrough = dreamy ? '; ' : ' '
+  const q = `v * (1-s*${p}hf)`
+  const t = `v * (1-s*(1-${p}hf))`
+  const hsvCapture = preview
+    ? `var ${p}hp = v * (1-s), ${p}hq = ${q}, ${p}ht = ${t}`
+    : `var ${p}hp = v * (1-s), ${p}sector = ${p}i % 6`
+  const sector = preview ? `${p}i % 6` : `${p}sector`
+  const falling = preview ? `${p}hq` : q
+  const rising = preview ? `${p}ht` : t
   return `var ${p}palette = 0
 function ${p}setPalette(pal) { ${p}palette = pal; setPalette(pal) }
 function ${p}paint(pos,v) {
-  if (${nativeOutput}) paint(pos,v)
+  ${passthrough('paint(pos,v)')}
   if (!${p}palette) return
 ${emitPaletteLookup(`${p}palette`, `${p}captureRgb`)}
 }
-function ${p}hsv24(h,s,v) { if (${nativeOutput}) hsv24(h,s,v); ${p}captureHsv(h,s,v) }
-function ${p}rgb(r,g,b) { if (${nativeOutput}) rgb(r,g,b); ${p}captureRgb(r,g,b) }
+function ${p}hsv24(h,s,v) { ${passthrough('hsv24(h,s,v)')}${afterPassthrough}${p}captureHsv(h,s,v) }
+function ${p}rgb(r,g,b) { ${passthrough('rgb(r,g,b)')}${afterPassthrough}${p}captureRgb(r,g,b) }
 function ${p}captureRgb(r,g,b) { ${p}r = clamp(r,0,1); ${p}g = clamp(g,0,1); ${p}b = clamp(b,0,1) }
-function ${p}hsv(h,s,v) { if (${nativeOutput}) hsv(h,s,v); ${p}captureHsv(h,s,v) }
+function ${p}hsv(h,s,v) { ${passthrough('hsv(h,s,v)')}${afterPassthrough}${p}captureHsv(h,s,v) }
 function ${p}captureHsv(h,s,v) {
   if (s == 0) { ${p}captureRgb(v,v,v); return }
   var ${p}h6 = ((h % 1) + 1) % 1 * 6
   var ${p}i = floor(${p}h6), ${p}hf = ${p}h6 - ${p}i
-  var ${p}hp = v * (1-s), ${p}hq = v * (1-s*${p}hf), ${p}ht = v * (1-s*(1-${p}hf))
-  if (${p}i % 6 == 0) ${p}captureRgb(v,${p}ht,${p}hp)
-  else if (${p}i % 6 == 1) ${p}captureRgb(${p}hq,v,${p}hp)
-  else if (${p}i % 6 == 2) ${p}captureRgb(${p}hp,v,${p}ht)
-  else if (${p}i % 6 == 3) ${p}captureRgb(${p}hp,${p}hq,v)
-  else if (${p}i % 6 == 4) ${p}captureRgb(${p}ht,${p}hp,v)
-  else ${p}captureRgb(v,${p}hp,${p}hq)
+  ${hsvCapture}
+  if (${sector} == 0) ${p}captureRgb(v,${rising},${p}hp)
+  else if (${sector} == 1) ${p}captureRgb(${falling},v,${p}hp)
+  else if (${sector} == 2) ${p}captureRgb(${p}hp,v,${rising})
+  else if (${sector} == 3) ${p}captureRgb(${p}hp,${falling},v)
+  else if (${sector} == 4) ${p}captureRgb(${rising},${p}hp,v)
+  else ${p}captureRgb(v,${p}hp,${falling})
 }`
 }
 
