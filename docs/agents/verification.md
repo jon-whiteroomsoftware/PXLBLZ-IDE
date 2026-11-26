@@ -20,7 +20,7 @@ review context. Native approvals retain the policy and reviewer
 facts that authorized their exact ranges; later policy changes do not revoke
 those approvals. Rewrites still require new coverage or supported carry.
 
-`package.json` and `package-lock.json` pin WRSP 1.5.14 (#1281).
+`package.json` and `package-lock.json` pin WRSP 1.5.15 (#1282).
 Runner adoption was delivered in #962. The release-specific sections below
 retain historical adoption evidence. See
 [WRSP 0.5.2 review packet adoption](#wrsp-052-review-packet-adoption-961) for
@@ -76,6 +76,29 @@ laptops may export the same names. Authenticated Playwright refuses a Shows
 worker count above the authenticated worker count before reserving a runtime.
 Its 64-account pool per worker keeps the 360 s reuse window unchanged as the
 worker count grows.
+
+## WRSP 1.5.15 adoption (#1282)
+
+This update advances from 1.5.14 on local `main` to 1.5.15.
+
+| Field | Value |
+| --- | --- |
+| Release | `@whiteroom/software-process` 1.5.15, tag `v1.5.15` |
+| Source | `6a4b6aec0570` |
+| Tarball | `vendor/whiteroom-software-process-1.5.15.tgz` |
+| SHA256 | `6d98caac8b5d668a19f3028a4aeeb9edd6dae98008b2f1702d80f6d51fe21b9c` |
+
+Developer lanes run uncontained as the ordinary agent account (WRSP #642).
+Codex and agy (Gemini Neon) use ordinary hooked `git commit`, and agy's
+terminal sandbox is off. Lane hooks have host loopback and Chromium access
+for `test:layout`. WRSP #632 reports native status when login keychain unlock
+fails. The lane keychain still needs a manual unlock after reboot.
+
+Lane dispatch can refuse with `DISPATCH_TRUST_PATH` (WRSP #639). A Neon
+review can intermittently fail with `tool refused: invoke_subagent` (WRSP
+#643). WRSP #558 updates upstream documentation. This adoption retains the
+project configuration and required suite definitions. See the
+[WRSP release proof](http://Agent-Mini.local:8642/files/briefs/644-release-1515/release-proof.md).
 
 ## WRSP 1.5.14 adoption (#1281)
 
