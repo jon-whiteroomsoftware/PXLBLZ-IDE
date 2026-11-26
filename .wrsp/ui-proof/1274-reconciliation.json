@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "issue": "1274",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "Changed the power cap while the Controller transport double held a Save, paused and resumed, disconnected mid-update, and let an inventory request time out. Captured rest, updating, restarted, paused, waiting offline, and not responding at 1440px and 768px.",
+  "captures": [
+    ".wrsp/ui-proof/1274-desktop-not-responding.png",
+    ".wrsp/ui-proof/1274-desktop-paused.png",
+    ".wrsp/ui-proof/1274-desktop-rest.png",
+    ".wrsp/ui-proof/1274-desktop-restarted.png",
+    ".wrsp/ui-proof/1274-desktop-running.png",
+    ".wrsp/ui-proof/1274-desktop-waiting.png",
+    ".wrsp/ui-proof/1274-narrow-not-responding.png",
+    ".wrsp/ui-proof/1274-narrow-paused.png",
+    ".wrsp/ui-proof/1274-narrow-rest.png",
+    ".wrsp/ui-proof/1274-narrow-restarted.png",
+    ".wrsp/ui-proof/1274-narrow-running.png",
+    ".wrsp/ui-proof/1274-narrow-waiting.png"
+  ],
+  "capturedAtCommit": "612dacd74e73a417652da21dd3d5f24aed442ffd"
+}
