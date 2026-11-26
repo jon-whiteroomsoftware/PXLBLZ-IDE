@@ -1160,6 +1160,9 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const profileSignatureReady = readStatus === 'ready'
     && installedMapStatus !== 'loading'
     && installedMapStatus !== 'error'
+  const offlineMapDim = profile.lastKnownInstalledMap?.status === 'absent'
+    ? null
+    : profile.lastKnownMapDim ?? null
 
   const programs = describeControllerSavedPrograms({
     controllerId: progressRead?.controllerId ?? '',
@@ -1167,7 +1170,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     bindings: progressRead?.bindings ?? {},
     pushRecords: progressRead?.pushRecords ?? {},
     profile,
-    mapDim: liveIp ? profileController?.mapDim ?? null : profile.lastKnownMapDim ?? null,
+    mapDim: liveIp ? profileController?.mapDim ?? null : offlineMapDim,
     profileSignatureReady: liveIp ? profileSignatureReady : progressRead !== null,
     studioPatterns: [
       ...userPatterns.map((pattern) => ({

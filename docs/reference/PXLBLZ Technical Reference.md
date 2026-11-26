@@ -1024,10 +1024,12 @@ signature with a freshly computed per-artifact signature (global transforms,
 referenced inputs, bindings, renderer dimension). The signature carries a
 compatibility rule: **a field that cannot change generated code must never
 change the signature, and a retired field is normalized on read rather than
-paid for in device writes.** `normalizeStoredArtifactSignature` re-reads
-stored signatures in today's terms (drop `role`, promote to the version-1
-envelope) and returns unrecognized bytes verbatim - the safe direction, which
-can cost one re-push but can never read stale data as current.
+paid for in device writes.** Freshly computed and stored signatures use the
+same projection. It drops input names and legacy `role`, treats both kinds
+of function call alike, and excludes hardware brightness that cannot sample
+an analog input. `normalizeStoredArtifactSignature` preserves unrecognized
+bytes for conservative reconciliation. Offline freshness uses a confirmed
+absent map snapshot in preference to a previously recorded dimension.
 
 One run owns a Controller from planning through the last job. Profiles reaching
 the same IP or a known identical device ID share that ownership. Edits during

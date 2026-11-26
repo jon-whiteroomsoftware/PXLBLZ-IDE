@@ -8,6 +8,8 @@ import {
   readStoredArtifactSignature,
 } from './controllerProfilePassRecipe'
 import type { ControllerProfile } from './controllerProfile'
+import { planControllerReconciliation } from './controllerReconciliation'
+import { describeProfileFreshness } from './controllerSavedPrograms'
 import { bundleWithPasses } from './passEngine'
 import {
   LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
@@ -72,6 +74,78 @@ describe('controller profile pass recipe', () => {
     expect(controllerProfileReconciliationSignature(rebound)).not.toBe(
       controllerProfileReconciliationSignature(profile),
     )
+  })
+
+  it('preserves saved freshness when an input is renamed or its call kind changes (#1274)', () => {
+    const profile = legacySignatureProfile()
+    const patternId = LEGACY_SIGNATURE_PATTERN_ID
+    const renderer = { mapDim: LEGACY_SIGNATURE_MAP_DIM }
+    const source = 'export function sliderSpeed(v) {} export function render(i) { rgb(i, 0, 0) }'
+    const delivered = (candidate: ControllerProfile) =>
+      bundleWithPasses(source, {}, controllerProfilePassRecipe(candidate, source, patternId)).code
+    const editedProfiles: ControllerProfile[] = [
+      { ...profile, inputs: profile.inputs.map((input) => ({ ...input, name: 'Renamed input' })) },
+      {
+        ...profile,
+        patternBindings: profile.patternBindings.map((binding) => ({
+          ...binding, target: { kind: 'call-function', name: binding.target.name },
+        })),
+      },
+    ]
+    const saved = {
+      name: 'Line Dancer',
+      transforms: [],
+      profileSignature: LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE,
+      artifactHash: 'stored',
+      stampedAt: '2026-11-25T00:00:00.000Z',
+    }
+
+    for (const edited of editedProfiles) {
+      const generated = delivered(edited)
+      expect(generated).toBe(delivered(profile))
+      expect(controllerProfileReconciliationSignature(edited)).toBe(controllerProfileReconciliationSignature(profile))
+      const profileSignature = controllerProfileArtifactSignature(edited, patternId, renderer)
+      expect(describeProfileFreshness(saved, profileSignature)).toBe('current')
+      const plan = planControllerReconciliation({
+        controllerId: 'ctrl-1',
+        programs: [{ id: 'DEV_LINE', name: saved.name }],
+        bindings: { 'ctrl-1': { [patternId]: 'DEV_LINE' } },
+        pushRecords: { 'ctrl-1': { [patternId]: saved } },
+        artifacts: [{ bindingKey: patternId, name: saved.name, source: generated, profileSignature }],
+      })
+      expect(plan.jobs).toEqual([])
+      expect(plan.current.map(({ programId }) => programId)).toEqual(['DEV_LINE'])
+    }
+
+    const resampled: ControllerProfile = {
+      ...profile,
+      inputs: profile.inputs.map((input) => ({ ...input, pin: 34 })),
+    }
+    expect(delivered(resampled)).not.toBe(delivered(profile))
+    expect(describeProfileFreshness(saved, controllerProfileArtifactSignature(resampled, patternId, renderer))).toBe('stale')
+  })
+
+  it('compares old digital brightness metadata as an unapplied transform (#1274)', () => {
+    const profile = legacySignatureProfile()
+    const inputs = profile.inputs.map((input) => ({ ...input, signal: 'digital' as const }))
+    const digitalProfile: ControllerProfile = { ...profile, inputs, patternBindings: [] }
+    const withoutBrightness = { ...digitalProfile, globalTransforms: [] }
+    const renderer = { mapDim: null }
+    const oldSignature = JSON.stringify({
+      version: 1,
+      transforms: [{ type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness', inputId: 'pot0', mode: 'multiply-output' }],
+      inputs,
+      bindings: [],
+      renderer,
+    })
+    const source = 'export function render(i) { rgb(i, 0, 0) }'
+    expect(bundleWithPasses(source, {}, controllerProfilePassRecipe(digitalProfile, source)).code).toBe(
+      bundleWithPasses(source, {}, controllerProfilePassRecipe(withoutBrightness, source)).code,
+    )
+    expect(controllerProfileReconciliationSignature(digitalProfile)).toBe(controllerProfileReconciliationSignature(withoutBrightness))
+    const current = controllerProfileArtifactSignature(withoutBrightness, null, renderer)
+    expect(controllerProfileArtifactSignature(digitalProfile, null, renderer)).toBe(current)
+    expect(normalizeStoredArtifactSignature(oldSignature)).toBe(current)
   })
 
   it('signs the binding ID used in emitted helper names', () => {
@@ -452,7 +526,12 @@ describe('normalizeStoredArtifactSignature', () => {
     expect(normalizeStoredArtifactSignature(stored)).toBe(current)
   })
 
-  it('strips a stray role wherever it sits among the inputs, and nowhere else (#772)', () => {
+  it('keeps sampling fields and function names when normalizing legacy inputs (#772)', () => {
+    const bindings = [
+      { id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } },
+      { id: 'b2', patternId: 'p', inputId: 'b', target: { kind: 'call-function', name: 'sliderSpeed' } },
+      { id: 'b3', patternId: 'p', inputId: 'c', target: { kind: 'call-function', name: 'next' } },
+    ]
     const stored = JSON.stringify({
       transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
       inputs: [
@@ -460,8 +539,7 @@ describe('normalizeStoredArtifactSignature', () => {
         { id: 'b', name: 'B', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: true },
         { id: 'c', name: 'C', pin: 35, signal: 'digital', role: 'next-pattern', smoothing: 0, fallback: 0, invert: false },
       ],
-      // A `role` outside `inputs` is not the retired annotation and must survive.
-      bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
+      bindings,
       renderer: { mapDim: null },
     })
 
@@ -469,11 +547,11 @@ describe('normalizeStoredArtifactSignature', () => {
       version: 1,
       transforms: [{ type: 'power-cap', mixinId: 'builtin:power-cap', maxDuty: 0.25 }],
       inputs: [
-        { id: 'a', name: 'A', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
-        { id: 'b', name: 'B', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: true },
-        { id: 'c', name: 'C', pin: 35, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
+        { id: 'a', pin: 33, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false },
+        { id: 'b', pin: 34, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: true },
+        { id: 'c', pin: 35, signal: 'digital', smoothing: 0, fallback: 0, invert: false },
       ],
-      bindings: [{ id: 'b1', patternId: 'p', inputId: 'a', target: { kind: 'call-function', name: 'role' } }],
+      bindings,
       renderer: { mapDim: null },
     }))
   })

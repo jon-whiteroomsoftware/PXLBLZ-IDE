@@ -5,12 +5,9 @@ import type { ControllerProfile } from './controllerProfile'
  * pre-#772 code persisted — never recomputed from today's model — so a test can
  * compare it against a signature the current code produces and mean something.
  *
- * Two facts fix the bytes. `controllerProfileArtifactSignature` serialized whole
- * `ControllerInput` objects and has not changed since; and the pre-#772 input
+ * The old signature serialized whole `ControllerInput` objects. The pre-#772
  * constructor built them as `id, name, pin, signal, role, smoothing, fallback,
- * invert`, which is the key order `JSON.stringify` then preserved through
- * storage and back. `role` is therefore the single difference between this
- * string and the one `legacySignatureProfile()` produces today. */
+ * invert`, which is the key order `JSON.stringify` preserved through storage. */
 export const LEGACY_ARTIFACT_SIGNATURE_WITH_ROLE =
   '{"transforms":[{"type":"hardware-brightness","mixinId":"builtin:hardware-brightness","inputId":"pot0","mode":"multiply-output"}],'
   + '"inputs":[{"id":"pot0","name":"Front pot","pin":33,"signal":"analog","role":"brightness","smoothing":0.2,"fallback":0.5,"invert":false}],'

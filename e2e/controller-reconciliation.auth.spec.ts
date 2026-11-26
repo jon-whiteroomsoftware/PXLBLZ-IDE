@@ -53,14 +53,14 @@ function relay<K extends keyof RelayControls>(page: Page, action: K): Promise<Re
   }, action)
 }
 
-async function seed(page: Page) {
+async function seed(page: Page, seedProfile = profile) {
   const request = page.context().request
   await installFakeControllerHelper(page, {
     address: ip, programs, activeProgramId: programs[3].id, deviceName: profile.name,
     boardType: 'pb32', mac: '11:22:33:44:55:66', pixelCount: 64,
     savedProgramData, trackSavedPrograms: true,
   })
-  expect((await request.post('/api/controllers', { data: profile })).ok()).toBe(true)
+  expect((await request.post('/api/controllers', { data: seedProfile })).ok()).toBe(true)
   for (const { binding, name, source } of managed) {
     expect((await request.post('/api/patterns', {
       data: { id: binding, name, src: source, controls: {}, updatedAt: 1 },
@@ -69,13 +69,14 @@ async function seed(page: Page) {
   const bindings = Object.fromEntries(programs.flatMap(({ id, binding }) => binding ? [[binding, id]] : []))
   const pushRecords = Object.fromEntries(programs.flatMap(({ binding, name, source }) => binding ? [[binding, {
     name, transforms: [], artifactHash: artifactHash(source), sourceHash: artifactHash(source),
-    profileSignature: controllerProfileArtifactSignature(profile, binding, { mapDim: null }),
+    profileSignature: controllerProfileArtifactSignature(seedProfile, binding, { mapDim: null }),
     stampedAt: '2026-11-25T00:00:00.000Z',
   }]] : []))
   for (const [key, value] of Object.entries({ 'controller-bindings': bindings, 'controller-push-records': pushRecords })) {
     expect((await request.put(`/api/controller-metadata/${key}`, { data: { value: { [ip]: value } } })).ok()).toBe(true)
   }
-  await page.goto(`studio/controllers/${profile.id}`)
+  await page.goto(`studio/controllers/${seedProfile.id}`)
+  await expect(page.getByTestId('controller-saved-programs-pane')).toBeVisible()
 }
 
 async function observeRunStarts(page: Page) {
@@ -117,6 +118,25 @@ async function expectSavedDelivery(page: Page, finalDuty: number) {
 }
 
 for (const [viewport, width] of [['desktop', 1440], ['narrow', 768]] as const) {
+  test(`confirmed map absence keeps saved programs current offline at ${viewport} width (#1274)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 })
+    await seed(page, {
+      ...profile,
+      lastKnownMapDim: 2,
+      lastKnownInstalledMap: { status: 'absent', observedAt: 1 },
+    })
+    const pane = page.getByTestId('controller-saved-programs-pane')
+    await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
+    await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
+    await page.getByTestId('controller-go').click()
+    await expect(pane.getByText('2 of 2 up to date', { exact: true })).toBeVisible()
+    await relay(page, 'disconnect')
+    await expect(pane.getByText(`0 waiting for ${profile.name}`, { exact: true })).toBeVisible()
+    expect(await relay(page, 'savedBytes')).toEqual(savedProgramData)
+    const directory = process.env.PXLBLZ_RECONCILIATION_PROOF_DIR
+    if (directory) await pane.screenshot({ path: `${directory}/1274-${viewport}-offline-current.png`, animations: 'disabled' })
+  })
+
   test(`managed saved programs reconcile through the Controller transport at ${viewport} width (#1274)`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 })
     await seed(page)

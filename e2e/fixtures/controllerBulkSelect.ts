@@ -44,6 +44,7 @@ export async function seedBulkSelectFixture(page: Page, fake: Pick<FakeControlle
   }
   await check(await request.put('/api/controller-metadata/controller-bindings', { data: { value: { [bulkControllerIp]: bindings } } }))
   await page.goto(`studio/controllers/${bulkProfileId}`)
+  await expect(page.getByTestId('controller-saved-programs-pane')).toBeVisible()
   await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill(bulkControllerIp)
   await page.getByTestId('controller-go').click()

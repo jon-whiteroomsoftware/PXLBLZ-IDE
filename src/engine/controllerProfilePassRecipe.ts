@@ -22,19 +22,22 @@ export interface LiveControllerIdentity {
   deviceId?: string | null
 }
 
+type ArtifactTransformSignature =
+  | { type: 'power-cap'; mixinId: string; maxDuty: number }
+  | { type: 'hardware-brightness'; mixinId: string; inputId: string; mode: string }
+type ArtifactInputSignature = Omit<ControllerInput, 'name'>
+type ArtifactRendererSignature = { mapDim: MapDimension | null }
+
 /** Stable signature of the profile fields that can change generated pattern code.
  * Descriptive/controller-only metadata is deliberately excluded so renaming a
  * profile does not make Send dirty. */
 export function controllerProfileArtifactSignature(
   profile: ControllerProfile | null | undefined,
   patternId?: string | null,
-  renderer?: { mapDim: MapDimension | null },
+  renderer?: ArtifactRendererSignature,
 ): string {
   if (!profile && !renderer) return ''
-  const transforms: Array<
-    | { type: 'power-cap'; mixinId: string; maxDuty: number }
-    | { type: 'hardware-brightness'; mixinId: string; inputId: string; mode: string }
-  > = []
+  const transforms: ArtifactTransformSignature[] = []
   for (const transform of profile?.globalTransforms ?? []) {
     if (!transform.enabled) continue
     if (transform.type === 'power-cap') {
@@ -55,26 +58,49 @@ export function controllerProfileArtifactSignature(
   const bindings = patternId
     ? (profile?.patternBindings ?? []).filter((binding) => binding.patternId === patternId)
     : []
+  return serializeArtifactSignature(transforms, profile?.inputs ?? [], bindings, renderer)
+}
+
+function serializeArtifactSignature(
+  transforms: ArtifactTransformSignature[],
+  inputs: ArtifactInputSignature[],
+  bindings: PatternBinding[],
+  renderer?: ArtifactRendererSignature,
+): string {
+  const relevantTransforms = transforms.filter((transform) =>
+    transform.type === 'power-cap' || inputs.some((input) =>
+      input.id === transform.inputId && samplesHardwareBrightness(transform.mode, input.signal),
+    ),
+  )
   const inputIds = new Set<string>()
-  for (const transform of transforms) {
+  for (const transform of relevantTransforms) {
     if ('inputId' in transform) inputIds.add(transform.inputId)
   }
   for (const binding of bindings) inputIds.add(binding.inputId)
-  const inputs = (profile?.inputs ?? []).filter((input) => inputIds.has(input.id))
-  return JSON.stringify({ version: 1, transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
+  return JSON.stringify({
+    version: 1,
+    transforms: relevantTransforms,
+    inputs: inputs.filter((input) => inputIds.has(input.id)).map((input) => ({
+      id: input.id,
+      ...samplingSettings(input),
+    })),
+    bindings: bindings.map((binding) => ({
+      id: binding.id,
+      patternId: binding.patternId,
+      inputId: binding.inputId,
+      target: binding.target.kind === 'assign-variable'
+        ? binding.target
+        : { kind: 'call-function', name: binding.target.name },
+    })),
+    ...(renderer ? { renderer } : {}),
+  })
 }
 
 /** Stored artifact signatures must be read in today's terms before comparison.
  *
- * The signature serializes whole `ControllerInput` objects, and inputs written
- * before #772 carried a `role` that never reached a byte of generated code.
- * Retiring `role` therefore changed every stored signature for an input-driven
- * Pattern while the emitted Pattern stayed identical. Left alone, that reads as
- * staleness and would trigger a rewrite of the same artifact on reconnect.
- *
- * The rule this establishes: a field that cannot change generated code must
- * never change the signature, and when one is retired its removal is normalized
- * here rather than paid for in device writes.
+ * Older signatures recorded whole inputs, the two spellings of a function
+ * call, and hardware brightness wired to digital inputs. Those differences
+ * leave the generated code unchanged and are normalized before comparison.
  *
  * Only the compared value is adjusted — the stored record is left as written,
  * and the next real push replaces it in the current shape.
@@ -110,29 +136,9 @@ export function readStoredArtifactSignature(signature: string): StoredArtifactSi
     return { kind: 'unrecognized' }
   }
 
-  let strayRole = false
-  const inputs = record.inputs.map((input) => {
-    if (!('role' in input)) return input
-    strayRole = true
-    const { role: _retiredRole, ...rest } = input
-    return rest
-  })
-  // A current signature with nothing to migrate stays byte-exact. An
-  // unversioned signature is a recognised pre-version envelope and is promoted
-  // without changing its generated-code meaning.
-  if (!strayRole && record.version === 1) {
-    return { kind: 'recognized', normalized: signature }
-  }
-  try {
-    return { kind: 'recognized', normalized: JSON.stringify({
-      version: 1,
-      transforms: record.transforms,
-      inputs,
-      bindings: record.bindings,
-      ...(record.renderer !== undefined ? { renderer: record.renderer } : {}),
-    }) }
-  } catch {
-    return { kind: 'unrecognized' }
+  return {
+    kind: 'recognized',
+    normalized: serializeArtifactSignature(record.transforms, record.inputs, record.bindings, record.renderer),
   }
 }
 
@@ -147,24 +153,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isTransformSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+function isTransformSignatureList(value: unknown): value is ArtifactTransformSignature[] {
   return Array.isArray(value) && value.every((transform) => {
     if (!isRecord(transform) || typeof transform.type !== 'string' || typeof transform.mixinId !== 'string') {
       return false
     }
-    return transform.type === 'power-cap'
-      ? typeof transform.maxDuty === 'number'
-      : transform.type === 'hardware-brightness'
-        && typeof transform.inputId === 'string'
-        && typeof transform.mode === 'string'
+    const fields = Object.keys(transform).filter((key) => key !== 'type' && key !== 'mixinId')
+    if (transform.type === 'power-cap') {
+      return fields.length === 1 && typeof transform.maxDuty === 'number'
+    }
+    return transform.type === 'hardware-brightness'
+      && fields.length === 2
+      && typeof transform.inputId === 'string'
+      && transform.mode === 'multiply-output'
   })
 }
 
-function isInputSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+const INPUT_SIGNATURE_KEYS = new Set(['id', 'name', 'role', 'pin', 'signal', 'smoothing', 'fallback', 'invert'])
+
+function isInputSignatureList(value: unknown): value is ArtifactInputSignature[] {
   return Array.isArray(value) && value.every((input) => (
     isRecord(input)
       && typeof input.id === 'string'
-      && typeof input.name === 'string'
+      && (input.name === undefined || typeof input.name === 'string')
+      && Object.keys(input).every((key) => INPUT_SIGNATURE_KEYS.has(key))
       && typeof input.pin === 'number'
       && (input.signal === 'analog' || input.signal === 'digital')
       && typeof input.smoothing === 'number'
@@ -173,19 +185,32 @@ function isInputSignatureList(value: unknown): value is Array<Record<string, unk
   ))
 }
 
-function isBindingSignatureList(value: unknown): value is Array<Record<string, unknown>> {
+const BINDING_SIGNATURE_KEYS = new Set(['id', 'patternId', 'inputId', 'target'])
+
+function isBindingSignatureList(value: unknown): value is PatternBinding[] {
   return Array.isArray(value) && value.every((binding) => (
     isRecord(binding)
       && typeof binding.id === 'string'
       && typeof binding.patternId === 'string'
       && typeof binding.inputId === 'string'
-      && isRecord(binding.target)
-      && typeof binding.target.kind === 'string'
-      && typeof binding.target.name === 'string'
+      && Object.keys(binding).every((key) => BINDING_SIGNATURE_KEYS.has(key))
+      && isBindingTargetSignature(binding.target)
   ))
 }
 
-function isRendererSignature(value: unknown): boolean {
+function isBindingTargetSignature(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.name !== 'string') return false
+  if (value.kind === 'call-exported-slider' || value.kind === 'call-function') {
+    return Object.keys(value).every((key) => key === 'kind' || key === 'name')
+  }
+  return value.kind === 'assign-variable'
+    && typeof value.min === 'number'
+    && typeof value.max === 'number'
+    && (value.quantize === undefined || typeof value.quantize === 'number')
+    && Object.keys(value).every((key) => ['kind', 'name', 'min', 'max', 'quantize'].includes(key))
+}
+
+function isRendererSignature(value: unknown): value is ArtifactRendererSignature {
   return isRecord(value)
     && Object.keys(value).every((key) => key === 'mapDim')
     && (value.mapDim === null || value.mapDim === 1 || value.mapDim === 2 || value.mapDim === 3)
@@ -219,7 +244,7 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
   })
 }
 
-function samplingSettings({ pin, signal, smoothing, fallback, invert }: ControllerInput) {
+function samplingSettings({ pin, signal, smoothing, fallback, invert }: Omit<ArtifactInputSignature, 'id'>) {
   return { pin, signal, smoothing, fallback, invert }
 }
 
@@ -236,9 +261,13 @@ function hardwareBrightnessInput(profile: ControllerProfile): ControllerInput | 
   const transform = profile.globalTransforms.find(
     (candidate) => candidate.type === 'hardware-brightness' && candidate.enabled,
   )
-  if (transform?.type !== 'hardware-brightness' || transform.mode !== 'multiply-output') return undefined
+  if (transform?.type !== 'hardware-brightness') return undefined
   const input = profile.inputs.find((candidate) => candidate.id === transform.inputId)
-  return input?.signal === 'analog' ? input : undefined
+  return samplesHardwareBrightness(transform.mode, input?.signal) ? input : undefined
+}
+
+function samplesHardwareBrightness(mode: string, signal: ControllerInput['signal'] | undefined): boolean {
+  return mode === 'multiply-output' && signal === 'analog'
 }
 
 export function findProfileForLiveController(
