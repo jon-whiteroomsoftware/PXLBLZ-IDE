@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "#1275",
+  "route": "/PXLBLZ-IDE/studio/patterns/wrappers-retry-user",
+  "operation": "On a synthetic personal Pattern at 1440px, saved Slow-mo at 0.5, returned it to off, and injected an HTTP 500 on the reset. Captured Unsaved preview settings and Retry with the slider off, then retried by keyboard and verified off after reload.",
+  "captures": [".wrsp/ui-proof/1275-unsaved-pattern.png"],
+  "capturedAtCommit": "dd220f585945283a1ec234e89d1914441ad47764"
+}
