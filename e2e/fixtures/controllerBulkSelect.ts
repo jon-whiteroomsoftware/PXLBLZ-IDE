@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { encodePbp } from '../../src/engine/pbpEncode'
 import { installFakeControllerHelper, type FakeControllerHelperOptions } from './fakeControllerHelper'
 
@@ -48,6 +48,13 @@ export async function seedBulkSelectFixture(page: Page, fake: Pick<FakeControlle
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill(bulkControllerIp)
   await page.getByTestId('controller-go').click()
   await page.getByRole('table', { name: 'Other Patterns', exact: true }).waitFor()
+  // Connect schedules a separate inventory read. Finish it before the tests
+  // count the reads belonging to a bulk delete.
+  await expect.poll(() => page.evaluate(async (profileId) => {
+    const path = new URL('/PXLBLZ-IDE/src/store/controllerStore.ts', location.origin).href
+    const { useControllerStore } = await import(/* @vite-ignore */ path) as typeof import('../../src/store/controllerStore')
+    return useControllerStore.getState().controllerReconciliations[profileId]?.phase
+  }, bulkProfileId)).toBe('current')
 }
 
 export async function fakeControllerMutations(page: Page) {
