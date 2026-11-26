@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "#1275",
+  "route": "/PXLBLZ-IDE/studio/patterns/wrappers-proof-declined",
+  "operation": "Opened a user Pattern with top-level var time = 1 without ?slowmo=1 at desktop (1440x1000) and narrow (900x1000) widths as local-agent-03, expanded Wrappers (preview only), set slow-mo to 0.5 (1/4x), and verified the unwrapped preview renders alongside the decline reason.",
+  "captures": [
+    ".wrsp/ui-proof/1275-desktop-declined.png",
+    ".wrsp/ui-proof/1275-narrow-declined.png"
+  ],
+  "capturedAtCommit": "78b08476c6c6b5f74c90cb8a3aa13ec9e764abde"
+}

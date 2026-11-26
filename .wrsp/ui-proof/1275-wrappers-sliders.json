@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "#1275",
+  "route": "/PXLBLZ-IDE/studio/patterns/KaleidoBloom",
+  "operation": "Opened KaleidoBloom without ?slowmo=1 at desktop (1440x1000) and narrow (900x1000) widths as local-agent-03, expanded Wrappers (preview only), captured defaults (slow-mo off, dreamy 0%), then set slow-mo to 0.5 (1/4x) and dreamy to 0.4 (40%) and captured the active state.",
+  "captures": [
+    ".wrsp/ui-proof/1275-desktop-defaults.png",
+    ".wrsp/ui-proof/1275-desktop-values-set.png",
+    ".wrsp/ui-proof/1275-narrow-defaults.png",
+    ".wrsp/ui-proof/1275-narrow-values-set.png"
+  ],
+  "capturedAtCommit": "78b08476c6c6b5f74c90cb8a3aa13ec9e764abde"
+}
