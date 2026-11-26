@@ -1,20 +1,30 @@
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PreviewDeck, PreviewViewportSection, SlowMoSection } from './PreviewDeck'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
-import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { hasPendingSettingsPersistence, usePatternStore, patternInitialState } from '@/store/patternStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
+import { demoPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
 import { AUTO_MAP_ID } from '@/engine/settings'
 
 beforeEach(() => {
+  setPersonalContentProvider({ ...demoPersonalContentProvider, updatePattern: async () => {} })
   usePanelPreferencesStore.setState({ expanded: { 'pattern:pixelblaze': true, 'pattern:preview': true, 'pattern:wrappers': true } })
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+})
+
+afterEach(async () => {
+  try {
+    await expect.poll(hasPendingSettingsPersistence).toBe(false)
+  } finally {
+    resetPersonalContentProvider()
+  }
 })
 
 describe('Preview Wrappers section', () => {

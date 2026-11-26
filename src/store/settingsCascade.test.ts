@@ -1,7 +1,8 @@
-import { beforeEach, describe, it, expect } from 'vitest'
-import { usePatternStore, patternInitialState } from './patternStore'
+import { afterEach, beforeEach, describe, it, expect } from 'vitest'
+import { hasPendingSettingsPersistence, usePatternStore, patternInitialState } from './patternStore'
 import { usePreviewStore, previewInitialState } from './previewStore'
 import { useMapStore, mapInitialState } from './mapStore'
+import { demoPersonalContentProvider, resetPersonalContentProvider, setPersonalContentProvider } from '@/engine/personalContentProvider'
 import { AUTO_MAP_ID } from '@/engine/settings'
 import {
   resolveActiveSettings,
@@ -15,9 +16,18 @@ import {
 } from './settingsCascade'
 
 beforeEach(() => {
+  setPersonalContentProvider({ ...demoPersonalContentProvider, updatePattern: async () => {} })
   usePatternStore.setState(patternInitialState)
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
+})
+
+afterEach(async () => {
+  try {
+    await expect.poll(hasPendingSettingsPersistence).toBe(false)
+  } finally {
+    resetPersonalContentProvider()
+  }
 })
 
 function seedPattern(settings?: Record<string, unknown>) {
