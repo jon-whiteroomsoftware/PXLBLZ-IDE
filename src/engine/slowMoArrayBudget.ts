@@ -314,8 +314,13 @@ export function boundPatternArrayWords(
     // through scalar and native leaf calls only, and handle nested loops below.
     let stableCounter = true
     function inspectBody(node: AnyNode) {
-      if (writes.get(counter)?.includes(node) || (node.type === 'VariableDeclarator' && declarations.get(counter) !== 1
-        && node.id.type === 'Identifier' && node.id.name === counter)) stableCounter = false
+      if (writes.get(counter)?.includes(node)) stableCounter = false
+      if (node.type === 'VariableDeclarator') {
+        // A hoisted var or nested iteration binding can reset the counter.
+        const boundNames = new Set<string>()
+        namesWrittenBy(node.id, boundNames)
+        if (boundNames.has(counter)) stableCounter = false
+      }
       if (node.type === 'CallExpression' && (node.callee.type !== 'Identifier'
         || !nativeLeafCalls.has(node.callee.name) || declarations.has(node.callee.name)
         || writes.has(node.callee.name))) stableCounter = false

@@ -141,6 +141,18 @@ ${render}`,
 function init() { for (var i = 0; i < 2; i++) { a[i] = array(3); i-- } }
 init()
 ${render}`,
+    `var a = array(2)
+function init() { for (row = 0; row < 2; row++) { a[row] = array(3); var row = 0 } }
+init()
+${render}`,
+    `var a = array(2)
+function init() { for (var row = 0; row < 2; row++) { a[row] = array(3); var [row] = [0] } }
+init()
+${render}`,
+    `var a = array(2), keys = array(1)
+function init() { for (row = 0; row < 2; row++) { a[row] = array(3); for (var row in keys) {} } }
+init()
+${render}`,
     `var a
 function init() { a = array(18 - width) }
 init()
