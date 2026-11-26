@@ -6,20 +6,21 @@ failure modes that most often look like software bugs.
 
 ## Reaching the controller
 
-The current bench Controller is at `192.168.8.249` — HTTP on port 80, the
-Pixelblaze WebSocket on port 81. Host observations on 2026-10-24 verified pb32,
-firmware 3.70, and 256 pixels. The historical address `192.168.8.224` was
-unreachable that day; this does not predict its future availability. Hardware
-scripts read `PIXELBLAZE_IP`; set it explicitly because existing defaults may
-still use the historical address. See the [#1215 evidence](../reference/evidence/issue-1215-bytecode-measurement.md)
-for the dated storage/activation confirmation and restoration.
+The bench Controller was reachable at `192.168.8.161` on 2026-11-26 over HTTP
+on port 80 and the Pixelblaze WebSocket on port 81. The protocol identified
+Proto 3, a pb32 running firmware 3.70 with 256 pixels. Set `PIXELBLAZE_IP`
+explicitly because existing scripts may default to an earlier address. Verify
+the Controller identity and pixel count over the protocol before writing.
+See [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+for the address and [#1215](../reference/evidence/issue-1215-bytecode-measurement.md)
+for the earlier measurements at `192.168.8.249`.
 
 It does **not** answer `ping` or a bare `nc -z` probe. Those fail on a perfectly
 healthy device, so never treat them as an availability check. Verify with a real
 connection instead:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://192.168.8.249/   # expect 200
+curl -s -o /dev/null -w '%{http_code}\n' http://192.168.8.161/   # expect 200
 ```
 
 LAN access requires running outside the command sandbox; a sandboxed failure is
@@ -39,8 +40,8 @@ only then samples the firmware's reported `fps`. The active-program guard is
 deliberate: without it the number could describe whatever was already running.
 
 ```bash
-PIXELBLAZE_IP=192.168.8.249 npm run devbench -- Kishimisu
-PIXELBLAZE_IP=192.168.8.249 npm run devbench -- /tmp/base.js Kishimisu   # before/after
+PIXELBLAZE_IP=192.168.8.161 npm run devbench -- Kishimisu
+PIXELBLAZE_IP=192.168.8.161 npm run devbench -- /tmp/base.js Kishimisu   # before/after
 ```
 
 Stock Patterns live in `src/pixelblaze/stock/patterns/`, which is the directory

@@ -144,6 +144,33 @@ dragging is how the control gets its first real value. The custom thumb styling
 lives in `.deck-slider-unset`. An earlier attempt that dimmed and disabled the
 control was rejected: the unset state has to look interactive.
 
+On the bench pb32 with firmware 3.70, a freshly saved Pattern with five
+recording slider handlers returned an empty stored map and zero calls to
+all five handlers. This held after activating the saved Pattern, pushing its
+bytecode under the same id, and opening the Controller's web UI. The live map
+included zeros and values above one. In the web UI, four untouched thumbs
+appeared at the right edge and one at the left. A thumb at either edge can
+therefore coexist with a handler that has never received a value. Dragging the
+sliders invoked the handlers and the web UI saved the resulting values.
+[#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
+The same firmware showed `slider__pxlblz_slowmo_speed` as “Pxlblz Slowmo
+Speed”, `sliderSlowMo` as “Slow Mo”, and `sliderPxlblzSlowMo` as “Pxlblz
+Slow Mo”. `sliderDreamy` and `sliderPxlblzDreamy` appeared as “Dreamy”
+and “Pxlblz Dreamy”. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
+## Saved slider values survive an in-place Pattern rewrite
+
+On the bench pb32 with firmware 3.70, overwriting an inactive saved Pattern
+under the same id preserved its stored controls with identical bytes and
+with changed bytecode. Removing a slider export kept its old entry in the
+stored map. Activating that version applied the surviving slider's value
+and left the newly added slider's handler uncalled. Restoring the removed
+export under its original name applied its old value again. A fresh
+connection and a switch away and back confirmed the result through both a raw
+protocol Save and the IDE's nonactivating Save transport. Power-cycle survival
+remains unmeasured. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
 ## Saved Pattern selection, deletion, and sequencer fields
 
 The saved-Pattern protocol uses two fire-and-forget JSON commands:

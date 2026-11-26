@@ -78,19 +78,22 @@ function buildBytecode(program: CompiledProgram): Uint8Array {
   return new Uint8Array(buffer)
 }
 
-export async function fetchControllerCompilerEnvironment(ip: string): Promise<string> {
+export async function fetchControllerCompilerEnvironment(ip: string, attempts = 3): Promise<string> {
   let webUi = ''
   let lastError: unknown
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const response = await fetch(`http://${ip}/index.html.gz`)
+      const response = await fetch(
+        `http://${ip}/index.html.gz`,
+        attempts === 1 ? { signal: AbortSignal.timeout(15_000) } : undefined,
+      )
       if (!response.ok) throw new Error(`GET index.html.gz -> ${response.status}`)
       const stream = new Response(await response.arrayBuffer()).body!.pipeThrough(new DecompressionStream('gzip'))
       webUi = await new Response(stream).text()
       break
     } catch (error) {
       lastError = error
-      if (attempt < 3) await sleep(500)
+      if (attempt < attempts) await sleep(500)
     }
   }
   if (!webUi) throw lastError instanceof Error ? lastError : new Error('Controller compiler download failed')
@@ -101,9 +104,9 @@ export async function fetchControllerCompilerEnvironment(ip: string): Promise<st
   return buildCompilerEnv(components)
 }
 
-export async function fetchControllerCompiler(ip: string): Promise<(source: string) => Uint8Array> {
+export async function fetchControllerCompiler(ip: string, attempts?: number): Promise<(source: string) => Uint8Array> {
   const context = vm.createContext({ window: {} })
-  vm.runInContext(await fetchControllerCompilerEnvironment(ip), context, { filename: 'device-compiler.js' })
+  vm.runInContext(await fetchControllerCompilerEnvironment(ip, attempts), context, { filename: 'device-compiler.js' })
   const compilePattern = (context as { compilePattern?: (source: string) => CompiledProgram }).compilePattern
   if (!compilePattern) throw new Error('device compiler did not define compilePattern')
   return (source: string) => {
