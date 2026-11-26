@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1274",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "Connected to a Controller transport double with current saved Patterns and confirmed map absence, then disconnected while the profile retained an older 2D dimension. At 1440px and 768px the pane reports zero waiting and the saved program bytes are unchanged.",
+  "captures": [
+    ".wrsp/ui-proof/1274-desktop-offline-current.png",
+    ".wrsp/ui-proof/1274-narrow-offline-current.png"
+  ],
+  "capturedAtCommit": "7b9cb29677d8e59ff189d3d6ef5066159eea4923"
+}
