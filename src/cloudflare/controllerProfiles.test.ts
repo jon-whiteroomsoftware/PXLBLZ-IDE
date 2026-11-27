@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
+import { createSessionToken, sessionCookieName } from './auth'
 import {
   assertValidControllerProfile,
   createD1ControllerProfile,
@@ -10,7 +11,8 @@ import {
   controllerProfileFromRow,
   type D1DatabaseControllerProfilesLike,
 } from './controllerProfiles'
-import type { ControllerProfile } from '../engine/controllerProfile'
+import type { ControllerProfile, GlobalTransform } from '../engine/controllerProfile'
+import { onRequestGet, onRequestPatch } from '../worker/routes/controllers/[id]'
 
 const profile: ControllerProfile = {
   id: 'ctrl-1',
@@ -124,6 +126,24 @@ function fakeDb(rows: Record<string, unknown>[] = []): {
   }
 }
 
+function sqliteD1(sqlite: DatabaseSync): D1DatabaseControllerProfilesLike {
+  return {
+    prepare(sql) {
+      const statement = sqlite.prepare(sql)
+      let values: SQLInputValue[] = []
+      return {
+        bind(...bound) {
+          values = bound as SQLInputValue[]
+          return this
+        },
+        async all<T>() { return { results: statement.all(...values) as T[] } },
+        async first<T>() { return (statement.get(...values) as T | undefined) ?? null },
+        async run() { return statement.run(...values) },
+      }
+    },
+  }
+}
+
 describe('D1 controller profile persistence', () => {
   it('drops the legacy flag from profiles with values 0 and 1 and preserves the rest of each row and schema', async () => {
     using sqlite = new DatabaseSync(':memory:')
@@ -135,21 +155,7 @@ describe('D1 controller profile persistence', () => {
     }
     const user = 'github:123'
     sqlite.prepare('INSERT INTO users (id, created_at, updated_at) VALUES (?, ?, ?)').run(user, 1, 1)
-    const db: D1DatabaseControllerProfilesLike = {
-      prepare(sql) {
-        const statement = sqlite.prepare(sql)
-        let values: SQLInputValue[] = []
-        return {
-          bind(...bound) {
-            values = bound as SQLInputValue[]
-            return this
-          },
-          async all<T>() { return { results: statement.all(...values) as T[] } },
-          async first<T>() { return (statement.get(...values) as T | undefined) ?? null },
-          async run() { return statement.run(...values) },
-        }
-      },
-    }
+    const db = sqliteD1(sqlite)
     const setLegacyFlag = sqlite.prepare(
       'UPDATE controller_profiles SET keep_patterns_up_to_date = ? WHERE user_id = ? AND id = ?',
     )
@@ -346,5 +352,62 @@ describe('D1 controller profile persistence', () => {
       /IO25 for analog input/,
     )
     expect(calls).toEqual([])
+  })
+
+  it('rejects each invalid Wrapper edit over authenticated PATCH and reads back the whole prior row', async () => {
+    using sqlite = new DatabaseSync(':memory:')
+    for (const migration of readdirSync('migrations').filter((name) => /^\d+.*\.sql$/.test(name)).sort()) {
+      sqlite.exec(readFileSync(`migrations/${migration}`, 'utf8'))
+    }
+    const db = sqliteD1(sqlite)
+    const userId = 'github:123'
+    sqlite.prepare('INSERT INTO users (id, created_at, updated_at) VALUES (?, ?, ?)').run(userId, 1, 1)
+    const existing: ControllerProfile = {
+      ...profile,
+      inputs: [...profile.inputs, { ...profile.inputs[0], id: 'pot1', pin: 34 }],
+    }
+    await createD1ControllerProfile(db, userId, existing)
+    const token = await createSessionToken({
+      userId, primaryProvider: 'github', primaryHandle: 'test',
+      githubUserId: '123', githubLogin: 'test', displayName: 'Test', avatarUrl: null,
+    }, 'test-secret')
+    const context = {
+      params: { id: existing.id },
+      env: { SESSION_SECRET: 'test-secret', PXLBLZ_DB: db },
+    }
+    function request(method: string, changes?: Partial<ControllerProfile>) {
+      return new Request(`https://pxlblz.example/api/controllers/${existing.id}`, {
+        method,
+        headers: { cookie: `${sessionCookieName}=${encodeURIComponent(token)}`, 'content-type': 'application/json' },
+        body: changes === undefined ? undefined : JSON.stringify(changes),
+      })
+    }
+    const slowMo = { id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'pot1' } as const
+    const dreamy = { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'pot1' } as const
+    const invalid: Array<{ additions: GlobalTransform[]; error: RegExp }> = [
+      { additions: [{ ...slowMo, inputId: 'missing' }], error: /missing input "missing"/ },
+      { additions: [slowMo, dreamy], error: /drives Slow-mo and Dreamy/ },
+      { additions: [{ ...dreamy, inputId: 'pot0' }], error: /drives Brightness and Dreamy/ },
+      { additions: [{ ...dreamy, enabled: false }], error: /Dreamy is off/ },
+      { additions: [slowMo, { ...slowMo, id: 'duplicate', inputId: 'pot0' }], error: /a single slow-mo/ },
+    ]
+    for (const { additions, error } of invalid) {
+      const response = await onRequestPatch({
+        ...context, request: request('PATCH', { name: 'Rejected rename', globalTransforms: [...existing.globalTransforms, ...additions] }),
+      })
+      expect(response.status).toBe(400)
+      expect((await response.json()).error).toMatch(error)
+      const read = await onRequestGet({ ...context, request: request('GET') })
+      expect(read.status).toBe(200)
+      await expect(read.json()).resolves.toEqual({ controller: existing })
+    }
+    const response = await onRequestPatch({
+      ...context, request: request('PATCH', { globalTransforms: [...existing.globalTransforms, slowMo] }),
+    })
+    expect(response.status).toBe(200)
+    const read = await onRequestGet({ ...context, request: request('GET') })
+    await expect(read.json()).resolves.toEqual({
+      controller: { ...existing, globalTransforms: [...existing.globalTransforms, slowMo] },
+    })
   })
 })

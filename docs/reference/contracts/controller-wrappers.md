@@ -65,8 +65,10 @@ recipe, both signatures and the saved outcome read it.
   Wrapper's input ID and its name at save time. The artifact signature
   gains `wrapperInputs` for those Wrappers: type, pin, signal, smoothing,
   fallback and invert. The input's ID and name are left out, because
-  neither reaches the bytes. The reconciliation signature gains the bound
-  inputs and each binding's overridden Wrappers. All three keys appear only
+  neither reaches the bytes. The reconciliation signature gains bound input
+  IDs, sampling settings and each binding's overridden Wrappers. An equivalent
+  sampler with a different input ID can refresh saved metadata without writing
+  the program. All three keys appear only
   when nonempty, so an unbound profile keeps its earlier bytes and
   signatures.
 

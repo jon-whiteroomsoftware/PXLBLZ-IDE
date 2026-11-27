@@ -1,6 +1,9 @@
 import { assertValidControllerProfile } from '@/cloudflare/controllerProfiles'
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
 import { prepareControllerArtifactDelivery } from './controllerArtifactDelivery'
+import { createRemoteControllerMetadataStorage } from './controllerMetadataStorage'
+import { savedControllerWrapperOutcome, withPushRecord } from './controllerPushRecord'
+import { describeProfileFreshness } from './controllerSavedPrograms'
 import {
   bindGlobalInputUse,
   controllerProfileRecordIssues,
@@ -94,12 +97,14 @@ describe('Wrapper input validation (V1, B5)', () => {
   })
 
   it.each(invalid)('emits no input sample for a stored record with %s', (_name, make) => {
-    const profile = make(baseProfile())
-    // A bad stored row never emits two samplers: a conflicted input drives nothing.
-    const sampled = Object.values(wrapperInputsFor(profile, 'pat-1')).map((candidate) => candidate!.id)
-    expect(new Set(sampled).size).toBe(sampled.length)
-    expect(sampled).not.toContain('ghost')
-    expect(sampled.filter((id) => id === 'a').length).toBeLessThanOrEqual(1)
+    const profile = make(bound(baseProfile(), 'dreamy', 'b'))
+    expect(wrapperInputsFor(profile, 'pat-1')).toEqual({})
+    const sliders = withTransforms(profile, (transform) => {
+      if (transform.type !== 'slow-mo' && transform.type !== 'dreamy') return transform
+      const { inputId: _inputId, ...unbound } = transform
+      return unbound
+    })
+    expect(deliver(profile).source).toBe(deliver(sliders).source)
   })
 
   it('D3: a digital input on a Wrapper is a storable configuration issue, and the Wrapper keeps its slider', () => {
@@ -154,6 +159,12 @@ describe('Binding one to one (B5, B6)', () => {
     expect(globalInputUsesOverriddenBy(slowMo, binding)).toEqual(['slow-mo'])
     expect(patternBindingOverridesHardwareBrightness(slowMo, binding)).toBe(false)
     expect(globalInputUsesOverriddenBy(baseProfile(), binding)).toEqual([])
+  })
+
+  it('preserves the legacy Brightness behavior when its transform is absent', () => {
+    const profile = bound(baseProfile(), 'slow-mo', 'a')
+    const withoutBrightness = profile.globalTransforms.filter((transform) => transform.type !== 'hardware-brightness')
+    expect(bindGlobalInputUse(withoutBrightness, 'hardware-brightness', 'a')).toEqual(withoutBrightness)
   })
 })
 
@@ -211,6 +222,35 @@ describe('Wrapper input delivery (B1, B4, R2, G2)', () => {
     expect(prepareControllerArtifactDelivery({ ...args, profile: bound(baseProfile(), 'slow-mo', 'a') }))
       .toEqual(prepareControllerArtifactDelivery({ ...args, profile: baseProfile() }))
   })
+
+  it('reads bound input evidence from the saved record for its confirmed program (G2)', async () => {
+    const profile = bound(bound(baseProfile(), 'slow-mo', 'a'), 'dreamy', 'b')
+    const delivery = deliver(profile)
+    const record = {
+      transforms: [], profileSignature: delivery.profileSignature, artifactHash: 'saved-artifact',
+      stampedAt: '2026-11-26T01:00:00.000Z', name: 'Pattern', wrapperProgramId: 'PROGRAM',
+      wrapperOutcome: delivery.wrapperOutcome,
+    }
+    let savedJson = '{}'
+    const storage = createRemoteControllerMetadataStorage({
+      fetcher: async (_url, init) => {
+        if (init?.method === 'PUT') {
+          savedJson = String(init.body)
+          return Response.json({ ok: true })
+        }
+        return new Response(savedJson)
+      },
+    })
+    await storage.setPushRecords(withPushRecord({}, 'ctrl', 'pat-1', record))
+    const reopened = (await storage.getPushRecords()).ctrl['pat-1']
+    expect(reopened).toEqual(record)
+    expect(savedControllerWrapperOutcome(reopened, 'PROGRAM')?.inputs).toEqual({
+      'slow-mo': { inputId: 'a', name: 'Knob a' },
+      dreamy: { inputId: 'b', name: 'Knob b' },
+    })
+    expect(savedControllerWrapperOutcome(reopened, 'OTHER')).toBeUndefined()
+    expect(describeProfileFreshness(reopened, delivery.profileSignature)).toBe('current')
+  })
 })
 
 describe('Wrapper input signatures (B7, G1)', () => {
@@ -244,9 +284,12 @@ describe('Wrapper input signatures (B7, G1)', () => {
       .toBe(signature({ ...unbound, patternBindings: [ownBinding] }, 'pat-own'))
   })
 
-  it('keeps unbound signatures in #1279 form and reads bound ones back as recognized', () => {
-    expect(signature(baseProfile())).not.toContain('wrapperInputs')
-    expect(controllerProfileReconciliationSignature(baseProfile())).not.toContain('wrapperInputs')
+  it('keeps unbound signatures byte-identical to #1279 and reads bound ones back as recognized', () => {
+    const earlier = '{"version":1,"transforms":[],"inputs":[],"bindings":[],"renderer":{"mapDim":1},"wrappers":["slow-mo","dreamy"]}'
+    expect(signature(baseProfile())).toBe(earlier)
+    expect(readStoredArtifactSignature(earlier)).toEqual({ kind: 'recognized', normalized: earlier, appliedWrappers: ['slow-mo', 'dreamy'] })
+    expect(controllerProfileReconciliationSignature(baseProfile()))
+      .toBe('{"patternBindings":[],"wrappers":["slow-mo","dreamy"],"pixelCount":8}')
     const saved = deliver(bound(baseProfile(), 'dreamy', 'b')).profileSignature
     expect(readStoredArtifactSignature(saved)).toEqual({ kind: 'recognized', normalized: saved, appliedWrappers: ['slow-mo', 'dreamy'] })
     const parsed = JSON.parse(saved)
@@ -255,6 +298,7 @@ describe('Wrapper input signatures (B7, G1)', () => {
       { ...parsed, wrapperInputs: [{ ...parsed.wrapperInputs[0], name: 'x' }] },
       { ...parsed, wrapperInputs: [parsed.wrapperInputs[0], parsed.wrapperInputs[0]] },
       { ...parsed, wrapperInputs: [{ ...parsed.wrapperInputs[0], signal: 'digital' }] },
+      { ...parsed, wrappers: ['slow-mo'] },
     ]) expect(readStoredArtifactSignature(JSON.stringify(broken))).toEqual({ kind: 'unrecognized' })
   })
 
@@ -264,9 +308,22 @@ describe('Wrapper input signatures (B7, G1)', () => {
     const reconciliation = controllerProfileReconciliationSignature
     expect(reconciliation(boundA)).not.toBe(reconciliation(unbound))
     expect(reconciliation(bound(boundA, 'slow-mo', null))).toBe(reconciliation(unbound))
-    const smoother = { ...boundA, inputs: boundA.inputs.map((entry) => entry.id === 'a' ? { ...entry, smoothing: 0.9 } : entry) }
-    expect(reconciliation(smoother)).not.toBe(reconciliation(boundA))
+    for (const change of [{ smoothing: 0.5 }, { fallback: 0 }, { invert: true }, { pin: 35 }]) {
+      const updated = { ...boundA, inputs: boundA.inputs.map((entry) => entry.id === 'a' ? { ...entry, ...change } : entry) }
+      expect(reconciliation(updated)).not.toBe(reconciliation(boundA))
+    }
     const own = { id: 'own', patternId: 'pat-own', inputId: 'a', target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' } }
     expect(reconciliation({ ...boundA, patternBindings: [own] })).toContain('"overridesWrappers":["slow-mo"]')
+  })
+
+  it('schedules a receipt refresh for an equivalent sampler on a different input without changing saved bytes', () => {
+    const unbound = baseProfile()
+    unbound.inputs.push(input('same-settings'))
+    const first = bound(unbound, 'slow-mo', 'a')
+    const second = bound(unbound, 'slow-mo', 'same-settings')
+    expect(signature(second)).toBe(signature(first))
+    expect(deliver(second).source).toBe(deliver(first).source)
+    expect(deliver(second).wrapperOutcome?.inputs?.['slow-mo']?.inputId).toBe('same-settings')
+    expect(controllerProfileReconciliationSignature(second)).not.toBe(controllerProfileReconciliationSignature(first))
   })
 })

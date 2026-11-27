@@ -175,15 +175,17 @@ export interface PatternBinding {
 
 /** Each enabled profile-wide use of an input, keyed by input ID. A valid
  * profile lists at most one use per input. */
-function globalInputUses(profile: ControllerProfile): Map<string, GlobalInputUse[]> {
-  const uses = new Map<string, GlobalInputUse[]>()
+function globalInputUses(profile: ControllerProfile): Map<string, Set<GlobalInputUse>> {
+  const uses = new Map<string, Set<GlobalInputUse>>()
   for (const transform of profile.globalTransforms) {
     if (!transform.enabled) continue
-    const inputId = transform.type === 'hardware-brightness' && transform.mode === 'multiply-output'
-      ? transform.inputId
-      : transform.type === 'slow-mo' || transform.type === 'dreamy' ? transform.inputId : undefined
-    if (!inputId) continue
-    uses.set(inputId, [...(uses.get(inputId) ?? []), transform.type as GlobalInputUse])
+    if (transform.type !== 'hardware-brightness' && transform.type !== 'slow-mo' && transform.type !== 'dreamy') continue
+    if (transform.type === 'hardware-brightness' && transform.mode !== 'multiply-output') continue
+    const { inputId } = transform
+    if (inputId === undefined) continue
+    const assigned = uses.get(inputId) ?? new Set<GlobalInputUse>()
+    assigned.add(transform.type)
+    uses.set(inputId, assigned)
   }
   return uses
 }
@@ -195,7 +197,7 @@ export function globalInputUsesOverriddenBy(
   profile: ControllerProfile,
   binding: PatternBinding,
 ): GlobalInputUse[] {
-  return globalInputUses(profile).get(binding.inputId) ?? []
+  return [...(globalInputUses(profile).get(binding.inputId) ?? [])]
 }
 
 export function patternBindingOverridesHardwareBrightness(
@@ -205,10 +207,9 @@ export function patternBindingOverridesHardwareBrightness(
   return globalInputUsesOverriddenBy(profile, binding).includes('hardware-brightness')
 }
 
-/** The analog input that drives each enabled Wrapper. A Wrapper gets no input
- * when its input is missing, digital, or shared with another profile-wide use,
- * or when the Pattern binds that input to one of its own Controls. Such a
- * Wrapper keeps its slider. Without `patternId`, Pattern bindings are ignored. */
+/** Resolve inputs only when the profile's Wrapper bindings are coherent.
+ * Digital inputs and inputs the Pattern uses on its own Controls leave the
+ * affected Wrapper on its slider. Omit `patternId` for the profile-wide view. */
 export function wrapperInputsFor(
   profile: ControllerProfile | null | undefined,
   patternId?: string | null,
@@ -216,12 +217,16 @@ export function wrapperInputsFor(
   const result: Partial<Record<ControllerWrapperType, ControllerInput>> = {}
   if (!profile || patternId?.startsWith('show:')) return result
   const uses = globalInputUses(profile)
+  const seen = new Set<ControllerWrapperType>()
   for (const transform of profile.globalTransforms) {
     if (transform.type !== 'slow-mo' && transform.type !== 'dreamy') continue
-    if (!transform.enabled || !transform.inputId) continue
+    if (seen.has(transform.type) || typeof transform.enabled !== 'boolean') return {}
+    seen.add(transform.type)
     const inputId = transform.inputId
+    if (inputId === undefined) continue
     const input = profile.inputs.find((candidate) => candidate.id === inputId)
-    if (!input || input.signal !== 'analog' || (uses.get(inputId)?.length ?? 0) !== 1) continue
+    if (!transform.enabled || !input || uses.get(inputId)?.size !== 1) return {}
+    if (input.signal !== 'analog') continue
     if (patternId && profile.patternBindings.some((binding) =>
       binding.patternId === patternId && binding.inputId === inputId)) continue
     result[transform.type] = input
@@ -245,6 +250,9 @@ export function bindGlobalInputUse(
   use: GlobalInputUse,
   inputId: string | null,
 ): GlobalTransform[] {
+  if (use === 'hardware-brightness' && !transforms.some((transform) => transform.type === use)) {
+    return [...transforms]
+  }
   const next = transforms.map((transform): GlobalTransform => {
     if (transform.type === 'hardware-brightness') {
       if (use === 'hardware-brightness') return { ...transform, enabled: inputId !== null, inputId: inputId ?? '' }
@@ -500,10 +508,10 @@ export function validateControllerProfile(
   }
 
   for (const [inputId, uses] of globalInputUses(profile)) {
-    if (uses.length < 2) continue
+    if (uses.size < 2) continue
     errors.push({
       path: `inputs.${inputId}`,
-      message: `Input "${inputId}" drives ${uses.map(globalInputUseLabel).join(' and ')}. An input drives one of Brightness, Slow-mo and Dreamy.`,
+      message: `Input "${inputId}" drives ${[...uses].map(globalInputUseLabel).join(' and ')}. An input drives one of Brightness, Slow-mo and Dreamy.`,
     })
   }
 

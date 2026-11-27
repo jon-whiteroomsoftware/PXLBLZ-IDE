@@ -1,7 +1,9 @@
 import { bundle } from './bundle'
+import { fx } from './fixedpoint'
 import { loadPattern } from './loadPattern'
 import { bundleWithPasses, type PassRecipe } from './passEngine'
 import { createFxShim, createShim } from './shim'
+import { PIXELBLAZE_ARRAY_HEADER_WORDS, PIXELBLAZE_VM_ARRAY_WORDS } from './showVmResourceLedger'
 import {
   emitPatternWrappers,
   WRAPPER_INPUT_OFF_BELOW,
@@ -36,15 +38,21 @@ function wrapped(source: string, enabled: readonly PatternWrapper[], inputs?: In
 function frames(artifact: ReturnType<typeof bundle>, mode: typeof modes[number]) {
   let clock = 0
   const readings = new Map<number, number>()
+  const readCounts = new Map<number, number>()
   const config = { mapPoints: points, pixelCount: points.length, dimensions: 1 as const, getVirtualTime: () => clock }
   const shim = mode === 'fast' ? createShim(config) : createFxShim(config)
   const pinOf = (pin: number) => Math.round(shim.decodeScalar(pin))
-  const analogRead = (pin: number) => shim.encodeScalar(readings.get(pinOf(pin)) ?? 0)
+  const analogRead = (pin: number) => {
+    const decoded = pinOf(pin)
+    readCounts.set(decoded, (readCounts.get(decoded) ?? 0) + 1)
+    return shim.encodeScalar(readings.get(decoded) ?? 0)
+  }
   const handle = loadPattern(
     mode === 'fast' ? artifact.code : artifact.fxCode, artifact.metadata, { ...shim.builtins, analogRead },
   )
   return {
     read(pin: number, value: number) { readings.set(pin, value) },
+    readCount(pin: number) { return readCounts.get(pin) ?? 0 },
     set(name: string, value: number) { handle.controls[name](shim.encodeScalar(value)) },
     frame(delta: number) {
       clock += delta
@@ -93,6 +101,15 @@ describe('Wrapper input emission (E1)', () => {
     expect(result.code).toBe(emitPatternWrappers(source, points.length, both).code)
   })
 
+  it('keeps the array budget decision when a Wrapper has an input', () => {
+    const pixels = Math.floor((PIXELBLAZE_VM_ARRAY_WORDS - 6 * PIXELBLAZE_ARRAY_HEADER_WORDS) / 6)
+    const result = emitPatternWrappers(timeDriven, pixels, both, { dreamy: sample(DREAM_PIN) })
+    const unbound = emitPatternWrappers(timeDriven, pixels, both)
+    expect(result.applied).toEqual(['slow-mo'])
+    expect(result.skipped.dreamy?.reason).toBe('array-budget')
+    expect(result).toEqual(unbound)
+  })
+
   it('emits identical bytes with no inputs, an empty map, or inputs for disabled Wrappers', () => {
     const plain = emitPatternWrappers(timeDriven, points.length, ['dreamy'])
     expect(emitPatternWrappers(timeDriven, points.length, ['dreamy'], {})).toEqual(plain)
@@ -104,11 +121,15 @@ for (const mode of modes) {
   describe(`Wrapper input frames (${mode})`, () => {
     // Slow-mo's reading steps; with both bound, Dreamy's pin holds 0.5, which
     // inverts to itself.
-    const cases: Array<{ name: string; inputs: Inputs; reads: (r: number) => Record<number, number>; sliders: (a: number) => Record<string, number> }> = [
-      { name: 'Slow-mo', inputs: { 'slow-mo': sample(SLOW_PIN) }, reads: (r) => ({ [SLOW_PIN]: r }), sliders: (a) => ({ sliderSlowMo: a }) },
-      { name: 'Dreamy', inputs: { dreamy: sample(DREAM_PIN) }, reads: (r) => ({ [DREAM_PIN]: r }), sliders: (a) => ({ sliderDreamy: a }) },
+    const cases: Array<{
+      name: string; enabled: readonly PatternWrapper[]; inputs: Inputs
+      reads: (r: number) => Record<number, number>; sliders: (a: number) => Record<string, number>
+    }> = [
+      { name: 'Slow-mo alone', enabled: ['slow-mo'], inputs: { 'slow-mo': sample(SLOW_PIN) }, reads: (r) => ({ [SLOW_PIN]: r }), sliders: (a) => ({ sliderSlowMo: a }) },
+      { name: 'Dreamy alone', enabled: ['dreamy'], inputs: { dreamy: sample(DREAM_PIN) }, reads: (r) => ({ [DREAM_PIN]: r }), sliders: (a) => ({ sliderDreamy: a }) },
       {
         name: 'both, Dreamy held at 0.5',
+        enabled: both,
         inputs: { 'slow-mo': sample(SLOW_PIN), dreamy: sample(DREAM_PIN) },
         reads: (r) => ({ [SLOW_PIN]: r, [DREAM_PIN]: 0.5 }),
         sliders: (a) => ({ sliderSlowMo: a, sliderDreamy: 0.5 }),
@@ -117,16 +138,17 @@ for (const mode of modes) {
 
     it.each(cases.flatMap((entry) => [false, true].map((invert) => ({ ...entry, invert }))))(
       'B2: $name renders as its slider at the reading (invert $invert)',
-      ({ inputs, reads, sliders, invert }) => {
+      ({ enabled, inputs, reads, sliders, invert }) => {
         const invertedInputs = Object.fromEntries(
           Object.entries(inputs).map(([type, input]) => [type, { ...input!, invert }]),
         )
         for (const reading of [0.25, 0.5, 1]) {
-          const bound = frames(wrapped(timeDriven, both, invertedInputs), mode)
-          const slider = frames(wrapped(timeDriven, both), mode)
+          const bound = frames(wrapped(timeDriven, enabled, invertedInputs), mode)
+          const slider = frames(wrapped(timeDriven, enabled), mode)
           for (const [pin, value] of Object.entries(reads(reading))) bound.read(Number(pin), value)
           for (const [name, value] of Object.entries(sliders(invert ? 1 - reading : reading))) slider.set(name, value)
           for (const delta of deltas) expect(bound.frame(delta)).toEqual(slider.frame(delta))
+          for (const input of Object.values(inputs)) expect(bound.readCount(input.pin)).toBe(deltas.length)
         }
       },
     )
@@ -145,7 +167,7 @@ for (const mode of modes) {
       }
     })
 
-    it.each([WRAPPER_INPUT_OFF_BELOW, 0.06])('renders a reading of %s as the slider at that value', (reading) => {
+    it.each([0.03, 0.06])('renders a reading of %s as the slider at that value', (reading) => {
       const bound = frames(wrapped(timeDriven, both, { 'slow-mo': sample(SLOW_PIN), dreamy: sample(DREAM_PIN) }), mode)
       const slider = frames(wrapped(timeDriven, both), mode)
       bound.read(SLOW_PIN, reading)
@@ -160,25 +182,37 @@ for (const mode of modes) {
 describe('Wrapper input smoothing and fallback (E2 sequence, E4)', () => {
   // The expected value follows the hardware-brightness sample exactly: it
   // starts at the fallback and moves toward each reading once per outer frame.
-  function smoothedAgainstSlider(type: PatternWrapper, input: WrapperInputSample, readings: number[]) {
+  function smoothedAgainstSlider(
+    type: PatternWrapper, input: WrapperInputSample, readings: number[], mode: typeof modes[number],
+  ) {
     const control = type === 'slow-mo' ? 'sliderSlowMo' : 'sliderDreamy'
-    const bound = frames(wrapped(timeDriven, both, { [type]: input }), 'fast')
-    const slider = frames(wrapped(timeDriven, both), 'fast')
+    const bound = frames(wrapped(timeDriven, both, { [type]: input }), mode)
+    const slider = frames(wrapped(timeDriven, both), mode)
     let value = input.fallback
     readings.forEach((reading, index) => {
-      value = value + ((input.invert ? 1 - reading : reading) - value) * input.smoothing
+      const target = input.invert ? 1 - reading : reading
+      if (mode === 'fidelity') {
+        const prior = fx.fromFloat(value)
+        value = fx.toFloat(fx.add(prior, fx.mul(fx.sub(fx.fromFloat(target), prior), fx.fromFloat(input.smoothing))))
+      } else {
+        value += (target - value) * input.smoothing
+      }
       bound.read(input.pin, reading)
-      slider.set(control, value < WRAPPER_INPUT_OFF_BELOW ? 0 : value)
+      const offBelow = mode === 'fidelity' ? fx.toFloat(fx.fromFloat(WRAPPER_INPUT_OFF_BELOW)) : WRAPPER_INPUT_OFF_BELOW
+      slider.set(control, value < offBelow ? 0 : value)
       const delta = deltas[index % deltas.length]
       expect(bound.frame(delta)).toEqual(slider.frame(delta))
+      expect(bound.readCount(input.pin)).toBe(index + 1)
     })
   }
 
   const stepped = [...Array(12).fill(0), ...Array(24).fill(0.5), ...Array(30).fill(0)]
 
-  it.each(['slow-mo', 'dreamy'] as const)('%s follows a stepped reading 0, 0.5, 0 with smoothing 0.2', (type) => {
-    smoothedAgainstSlider(type, sample(type === 'slow-mo' ? SLOW_PIN : DREAM_PIN, { smoothing: 0.2 }), stepped)
-  })
+  for (const mode of modes) {
+    it.each(both)(`%s follows a stepped reading 0, 0.5, 0 with smoothing 0.2 (${mode})`, (type) => {
+      smoothedAgainstSlider(type, sample(type === 'slow-mo' ? SLOW_PIN : DREAM_PIN, { smoothing: 0.2 }), stepped, mode)
+    })
+  }
 
   it.each([
     { fallback: 0.5, smoothing: 0.2, invert: false },
@@ -186,7 +220,9 @@ describe('Wrapper input smoothing and fallback (E2 sequence, E4)', () => {
     { fallback: 0.5, smoothing: 0, invert: false },
   ])('D4: starts at fallback $fallback and converges by smoothing $smoothing (invert $invert)', (settings) => {
     for (const type of both) {
-      smoothedAgainstSlider(type, sample(type === 'slow-mo' ? SLOW_PIN : DREAM_PIN, settings), Array(20).fill(1))
+      for (const mode of modes) {
+        smoothedAgainstSlider(type, sample(type === 'slow-mo' ? SLOW_PIN : DREAM_PIN, settings), Array(20).fill(1), mode)
+      }
     }
   })
 })

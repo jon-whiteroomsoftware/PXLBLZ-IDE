@@ -173,13 +173,17 @@ export function readStoredArtifactSignature(signature: string): StoredArtifactSi
   if (record.wrapperInputs !== undefined && !isWrapperInputSignatureList(record.wrapperInputs)) {
     return { kind: 'unrecognized' }
   }
+  const appliedWrappers = record.wrappers
+  if (record.wrapperInputs?.some((input) => !appliedWrappers?.includes(input.type))) {
+    return { kind: 'unrecognized' }
+  }
 
   return {
     kind: 'recognized',
     normalized: serializeArtifactSignature(
-      record.transforms, record.inputs, record.bindings, record.renderer, record.wrappers, record.wrapperInputs,
+      record.transforms, record.inputs, record.bindings, record.renderer, appliedWrappers, record.wrapperInputs,
     ),
-    ...(record.wrappers?.length ? { appliedWrappers: record.wrappers } : {}),
+    ...(appliedWrappers?.length ? { appliedWrappers } : {}),
   }
 }
 
@@ -279,9 +283,8 @@ function isRendererSignature(value: unknown): value is ArtifactRendererSignature
     && (value.mapDim === null || value.mapDim === 1 || value.mapDim === 2 || value.mapDim === 3)
 }
 
-/** Stable signature of every profile field that can change at least one
- * generated Pattern. It is used only to decide whether reconciliation needs
- * to be scheduled; each Pattern still gets its narrower artifact signature. */
+/** Scheduling identity for generated Patterns and saved Wrapper outcomes.
+ * Each Pattern still gets its narrower artifact signature. */
 export function controllerProfileReconciliationSignature(profile: ControllerProfile): string {
   const powerCap = activePowerCap(profile)
   const wrappers = enabledControllerWrappers(profile)
@@ -289,7 +292,8 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
   const driven = wrapperInputsFor(profile)
   const wrapperInputs = CONTROLLER_WRAPPER_TYPES.flatMap((type) => {
     const input = driven[type]
-    return input ? [{ type, ...samplingSettings(input) }] : []
+    // An equivalent sampler still changes which input the saved outcome names.
+    return input ? [{ type, inputId: input.id, ...samplingSettings(input) }] : []
   })
   const patternBindings = new Map<string, unknown[]>()
   for (const binding of profile.patternBindings) {
@@ -297,13 +301,14 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
     if (!input) continue
     const bindings = patternBindings.get(binding.patternId) ?? []
     const { id: _id, ...drive } = patternBindingDrivePass(binding, '')
+    const overridden = CONTROLLER_WRAPPER_TYPES.filter((type) => driven[type]?.id === binding.inputId)
     bindings.push({
       id: binding.id,
       sample: samplingSettings(input),
       valueName: identifierStem(input.id),
       drive,
       overridesBrightness: Boolean(brightnessInput && patternBindingOverridesHardwareBrightness(profile, binding)),
-      ...(overridesWrappers(driven, binding).length ? { overridesWrappers: overridesWrappers(driven, binding) } : {}),
+      ...(overridden.length ? { overridesWrappers: overridden } : {}),
     })
     patternBindings.set(binding.patternId, bindings)
   }
@@ -314,13 +319,6 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
     ...(wrappers.length ? { wrappers, pixelCount: profile.lastKnownPixelCount ?? null } : {}),
     ...(wrapperInputs.length ? { wrapperInputs } : {}),
   })
-}
-
-function overridesWrappers(
-  driven: Partial<Record<ControllerWrapperType, ControllerInput>>,
-  binding: PatternBinding,
-): ControllerWrapperType[] {
-  return CONTROLLER_WRAPPER_TYPES.filter((type) => driven[type]?.id === binding.inputId)
 }
 
 function samplingSettings({ pin, signal, smoothing, fallback, invert }: Omit<ArtifactInputSignature, 'id'>) {
