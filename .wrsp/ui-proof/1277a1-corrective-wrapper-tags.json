@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1277",
+  "route": "/PXLBLZ-IDE/studio/controllers/wrapper-tags-1277",
+  "operation": "Opened the authenticated Controller profile with the repository's synthetic Controller transport. At 641 and 1440 px, verified that a long saved binding's tag and text stayed inside the Profile cell, its Status stayed visible, and Run and Delete passed Playwright actionability checks.",
+  "captures": [
+    ".wrsp/ui-proof/1277a1-corrective-tags-641.png",
+    ".wrsp/ui-proof/1277a1-corrective-tags-1440.png"
+  ],
+  "capturedAtCommit": "e0510f2a67c6cf152ff0739ad5bb71ef52edaab0"
+}
