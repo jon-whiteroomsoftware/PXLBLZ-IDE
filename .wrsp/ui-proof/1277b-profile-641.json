@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "issue": "1277",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "At 641 px, opened the authenticated synthetic Controller profile, switched Slow-mo on and held the resulting Save, opened the memory skip reason by hover and by focus, and inspected Power limit settings. Bound then unbound Brightness and checked the Shows timing line across switch states.",
+  "captures": [
+    ".wrsp/ui-proof/1277b-641-rest.png",
+    ".wrsp/ui-proof/1277b-641-updating.png",
+    ".wrsp/ui-proof/1277b-641-skip-hover.png",
+    ".wrsp/ui-proof/1277b-641-skip-focus.png",
+    ".wrsp/ui-proof/1277b-641-brightness.png",
+    ".wrsp/ui-proof/1277b-641-unbound.png",
+    ".wrsp/ui-proof/1277b-641-power.png"
+  ],
+  "capturedAtCommit": "76b24375e5be5c5f965a68011c7c0f0d1fb2e398"
+}

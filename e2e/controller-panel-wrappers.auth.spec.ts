@@ -263,7 +263,7 @@ test('moving a Wrapper Control during an in-flight rewrite adds no queued pass (
   }, action)
   await relay('holdSaves')
   try {
-    await page.getByRole('checkbox', { name: 'Limit power', exact: true }).check()
+    await page.getByRole('switch', { name: 'Power limit', exact: true }).check()
     await expect.poll(() => relay('waitingSaveIds')).toEqual([rewriteTarget.id])
     const inFlight = await observeRuns()
     expect(inFlight.pending).toBe(1)
