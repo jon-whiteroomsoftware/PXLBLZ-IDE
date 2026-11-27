@@ -550,6 +550,7 @@ function rememberSaveOutcome(target: ReconciliationTarget, delivery: PushPattern
 
 type ReconciliationOutcome = Parameters<typeof stallAfterReconciliation>[2]
 class ReconciliationWriteCancelled extends Error {}
+class ReconciliationPlanInvalidated extends Error {}
 
 function clearReconciliationTimer(
   timers: Map<string, ReturnType<typeof setTimeout>>,
@@ -1163,12 +1164,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 }
               : undefined
             const assertWriteAllowed = () => {
-              if (!isCurrentSession() || protectedBindings.has(job.bindingKey) || (deliveryInputs && !patternSourceIsCurrent(job))) {
-                if (deliveryInputs && isCurrentSession() && !patternSourceIsCurrent(job)) {
-                  get().scheduleControllerReconciliation(profileId, true)
-                }
+              if (!isCurrentSession() || protectedBindings.has(job.bindingKey)) {
                 throw new ReconciliationWriteCancelled()
               }
+              if (deliveryInputs && !patternSourceIsCurrent(job)) throw new ReconciliationPlanInvalidated()
             }
             const attempt = beginSaveAttempt(live.ip, job.bindingKey, job.source, false)
             try {
@@ -1176,8 +1175,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 if (deliveryInputs) {
                   const currentConfig = await provider.getConfig()
                   if (currentConfig.pixelCount !== pixelCount || !await planIsCurrent()) {
-                    if (isCurrentSession()) get().scheduleControllerReconciliation(profileId, true)
-                    throw new ReconciliationWriteCancelled()
+                    throw new ReconciliationPlanInvalidated()
                   }
                 }
                 assertWriteAllowed()
@@ -1223,6 +1221,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
             } catch (error) {
               forgetSaveAttempt(attempt)
               if (!isCurrentSession()) return false
+              if (error instanceof ReconciliationPlanInvalidated) {
+                // Stop this pass with the preceding source intact for the recheck.
+                get().scheduleControllerReconciliation(profileId, true)
+                return false
+              }
               if (error instanceof ReconciliationWriteCancelled) {
                 // Preserve precedence for the overlapping foreground Save.
                 rememberPatternSource(job)

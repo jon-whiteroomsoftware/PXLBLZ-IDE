@@ -497,10 +497,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     }
     if (session !== panelSession) return
     if (config) {
-      const previousCount = get().pixelCount
       set((state) => configPatch(state, config))
-      if (typeof config.pixelCount === 'number' && config.pixelCount !== previousCount
-        && controllerSessionMatches(session, provider)) {
+      if (typeof config.pixelCount === 'number' && controllerSessionMatches(session, provider)) {
         refreshMatchedProfileMetadata(config.pixelCount)
       }
     }

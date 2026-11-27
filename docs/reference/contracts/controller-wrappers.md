@@ -37,6 +37,11 @@ confirmed profile pixel count. A profile update or connection uses the
 existing single reconciliation run for that Controller. A count change that
 changes fit can change the emitted program. A count change with the same
 applied set and emitted source can settle without a device write.
+Each confirmed panel poll can bring the matching Wrapper-enabled profile's
+count up to date, including after enablement or profile loading. A stale
+Wrapper preparation stops its write pass and requests fresh planning. The
+preceding Pattern source remains available to detect edits the pass left
+unwritten. An overlapping foreground Save retains precedence over its job.
 
 The durable artifact signature records the applied Wrappers when the set is
 nonempty. Skip reasons and slider values are absent from the signature. The
@@ -50,6 +55,11 @@ the applied set as evidence that a native export belongs to a Wrapper. An
 absent record signals unavailable evidence. A no-write reconciliation can
 refresh the skip decision when the current receipt, slot and source identity
 agree. This preserves the flash receipt's hash and timestamp.
+
+Saved-program freshness can show PUSH AGAIN before the current Wrapper
+decision is available when saved evidence establishes a disabled applied
+Wrapper, a changed non-Wrapper signature or an edited source. With Wrappers
+enabled, CURRENT requires a matching decision for the enabled set and count.
 
 Wrapper Control values are firmware state. The IDE uses in-place Save with
 the existing program id. Bench readings on firmware 3.70 confirmed stored

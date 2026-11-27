@@ -2,7 +2,12 @@ import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
 import { savedControllerWrapperOutcome, type ControllerPushRecord, type ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactShowOutputContract } from './artifactStamp'
-import { enabledControllerWrappers, type ControllerProfile, type ControllerWrapperOutcome } from './controllerProfile'
+import {
+  enabledControllerWrappers,
+  type ControllerProfile,
+  type ControllerWrapperOutcome,
+  type ControllerWrapperType,
+} from './controllerProfile'
 import type { MapDimension } from './renderCompatibility'
 import {
   controllerProfileArtifactSignature,
@@ -83,10 +88,37 @@ export function describeProfileFreshness(
   if (!pushRecord?.profileSignature || currentProfileSignature === null) return 'unmanaged'
   const stored = readStoredArtifactSignature(pushRecord.profileSignature)
   if (stored.kind !== 'recognized') return 'unmanaged'
-  if (stored.normalized !== currentProfileSignature) return 'stale'
+  return compareProfileFreshness(pushRecord, stored.normalized, currentProfileSignature, currentSourceHash)
+}
+
+function compareProfileFreshness(
+  pushRecord: ControllerPushRecord,
+  storedProfileSignature: string,
+  currentProfileSignature: string,
+  currentSourceHash?: string,
+): ControllerSavedPatternFreshness {
+  if (storedProfileSignature !== currentProfileSignature) return 'stale'
   if (pushRecord.sourceHash === undefined) return 'current'
   if (currentSourceHash === undefined) return 'unmanaged'
   return pushRecord.sourceHash === currentSourceHash ? 'current' : 'stale'
+}
+
+function describeUnresolvedWrapperFreshness(
+  pushRecord: ControllerPushRecord | undefined,
+  programId: string,
+  enabled: readonly ControllerWrapperType[],
+  signatureFor: (applied: readonly ControllerWrapperType[]) => string,
+  currentSourceHash?: string,
+): ControllerSavedPatternFreshness {
+  if (!pushRecord?.profileSignature) return 'unmanaged'
+  if (pushRecord.wrapperProgramId !== undefined && pushRecord.wrapperProgramId !== programId) return 'unmanaged'
+  const stored = readStoredArtifactSignature(pushRecord.profileSignature)
+  if (stored.kind !== 'recognized') return 'unmanaged'
+  const applied = stored.appliedWrappers ?? []
+  if (applied.some((type) => !enabled.includes(type))) return 'stale'
+  // Hold the applied set fixed to compare the other profile fields and source.
+  const known = compareProfileFreshness(pushRecord, stored.normalized, signatureFor(applied), currentSourceHash)
+  return known === 'stale' ? 'stale' : 'unmanaged'
 }
 
 export interface StudioPatternIdentity {
@@ -290,11 +322,16 @@ export function describeControllerSavedPrograms(input: {
       && evaluated.length === enabled.length
       && enabled.every((type) => evaluated.includes(type))
     )
-    const profileSignature = input.profileSignatureReady === false || !wrapperDecisionReady
-      ? null
-      : controllerProfileArtifactSignature(
-          input.profile, bindingKey, { mapDim: input.mapDim }, enabled.length ? wrapperOutcome?.applied ?? [] : [],
-        )
+    const signatureFor = (applied: readonly ControllerWrapperType[]) =>
+      controllerProfileArtifactSignature(input.profile, bindingKey, { mapDim: input.mapDim }, applied)
+    let freshness: ControllerSavedPatternFreshness = 'unmanaged'
+    if (input.profileSignatureReady !== false) {
+      freshness = wrapperDecisionReady
+        ? describeProfileFreshness(
+            pushRecord, signatureFor(enabled.length ? wrapperOutcome?.applied ?? [] : []), studioPattern?.sourceHash,
+          )
+        : describeUnresolvedWrapperFreshness(pushRecord, program.id, enabled, signatureFor, studioPattern?.sourceHash)
+    }
     owned.push({
       kind: 'owned',
       programId: program.id,
@@ -305,11 +342,7 @@ export function describeControllerSavedPrograms(input: {
       studioPatternMissing: !studioPattern,
       sourceKind: isShow ? 'show' : 'pattern',
       profileFeatures: controllerSavedProgramFeatures(pushRecord),
-      freshness: describeProfileFreshness(
-        pushRecord,
-        profileSignature,
-        studioPattern?.sourceHash,
-      ),
+      freshness,
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
       ...(wrapperOutcome ? { wrapperOutcome } : {}),
     })

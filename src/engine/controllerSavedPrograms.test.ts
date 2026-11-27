@@ -240,6 +240,56 @@ describe('describeControllerSavedPrograms', () => {
     expect(replacement.wrapperOutcome).toBeUndefined()
   })
 
+  it.each([
+    ['disabled Wrapper', 'stale'],
+    ['changed renderer', 'stale'],
+    ['edited source', 'stale'],
+    ['same known inputs', 'unmanaged'],
+    ['unrecognized signature', 'unmanaged'],
+    ['unsettled live read', 'unmanaged'],
+    ['different saved slot', 'unmanaged'],
+  ] as const)('reports known stale rows while the Wrapper decision is unresolved (%s)', (change, freshness) => {
+    const applied = ['slow-mo', 'dreamy'] as const
+    const savedProfile = {
+      ...profile,
+      lastKnownPixelCount: 64,
+      globalTransforms: [
+        ...profile.globalTransforms,
+        ...applied.map((type) => ({ id: type, type, enabled: true })),
+      ],
+    }
+    const currentProfile = {
+      ...savedProfile,
+      lastKnownPixelCount: change === 'disabled Wrapper' ? 64 : 65,
+      globalTransforms: savedProfile.globalTransforms.map((transform) =>
+        change === 'disabled Wrapper' && transform.type === 'dreamy' ? { ...transform, enabled: false } : transform,
+      ),
+    }
+    const edited = ['edited source', 'unrecognized signature', 'unsettled live read', 'different saved slot'].includes(change)
+    const view = describeControllerSavedPrograms({
+      controllerId: 'ctrl',
+      programs: [{ id: 'slot', name: 'Saved' }],
+      bindings: { ctrl: { pattern: 'slot' } },
+      studioPatterns: [{ bindingKey: 'pattern', routeId: 'pattern', name: 'Saved', sourceHash: edited ? 'v2' : 'v1' }],
+      pushRecords: {
+        ctrl: {
+          pattern: {
+            ...pushRecord([], change === 'unrecognized signature'
+              ? 'unknown signature'
+              : controllerProfileArtifactSignature(savedProfile, 'pattern', { mapDim: 2 }, applied), 'v1'),
+            wrapperProgramId: change === 'different saved slot' ? 'old-slot' : 'slot',
+            wrapperPixelCount: 64,
+            wrapperOutcome: { applied: [...applied], skipped: {} },
+          },
+        },
+      },
+      profile: currentProfile,
+      mapDim: change === 'changed renderer' ? 3 : 2,
+      profileSignatureReady: change !== 'unsettled live read',
+    })
+    expect(view.owned[0].freshness).toBe(freshness)
+  })
+
   it('groups binding-owned programs first and resolves Studio names and routes', () => {
     const view = describeControllerSavedPrograms({
       controllerId: 'ctrl-A',

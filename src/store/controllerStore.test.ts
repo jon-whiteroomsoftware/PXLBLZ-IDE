@@ -1043,6 +1043,78 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     author(21, 12)
   }
 
+  it.each(['count', 'profile', 'library'] as const)(
+    'replans stale Wrapper jobs without consuming unwritten edits (%s)', async (changed) => {
+      const fake = await fixture()
+      fake.pixelCount = 64
+      const wrapped: ControllerProfile = {
+        ...profile,
+        lastKnownPixelCount: 64,
+        globalTransforms: [...profile.globalTransforms, { id: 'slow-mo', type: 'slow-mo', enabled: true }],
+      }
+      setControllerProfiles([wrapped])
+      await store().reconcileControllerProfile(profileId)
+      const savedV1 = await getPushRecords()
+      expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
+      expect(savedV1[ip]['pat-1'].wrapperOutcome?.applied).toEqual(['slow-mo'])
+      expect(savedV1[ip]['pat-2'].wrapperOutcome?.applied).toEqual(['slow-mo'])
+
+      const listPrograms = fake.listPrograms.bind(fake)
+      const listing = vi.spyOn(fake, 'listPrograms').mockRejectedValueOnce(timeout())
+      await store().reconcileControllerProfile(profileId)
+      expect(state().phase).toBe('not-responding')
+      author(21, 22)
+
+      const getConfig = fake.getConfig.bind(fake)
+      const config = vi.spyOn(fake, 'getConfig')
+        .mockImplementationOnce(getConfig)
+        .mockImplementationOnce(() => {
+          if (changed === 'count') fake.pixelCount = 65
+          if (changed === 'profile') setControllerProfiles([{ ...wrapped, lastKnownPixelCount: 65 }])
+          if (changed === 'library') {
+            useLibraryStore.setState({
+              userLibraries: [{ id: 'lib-1', name: 'Lights', src: 'function level() { return 1 }', updatedAt: 1 }],
+            })
+          }
+          return getConfig()
+        })
+      const replanning = deferred<void>()
+      const releasePlan = deferred<void>()
+      listing.mockImplementationOnce(listPrograms).mockImplementationOnce(async () => {
+        replanning.resolve()
+        await releasePlan.promise
+        return listPrograms()
+      })
+
+      const recheck = store().reconcileControllerProfile(profileId)
+      await replanning.promise
+      const readsBeforeReplan = config.mock.calls.length
+      const writesBeforeReplan = fake.saved.length
+      const recordsBeforeReplan = await getPushRecords()
+      releasePlan.resolve()
+      await recheck
+
+      expect(recordsBeforeReplan).toEqual(savedV1)
+      expect(writesBeforeReplan).toBe(2)
+      expect.soft(readsBeforeReplan).toBe(2)
+      const savedV2 = await getPushRecords()
+      for (const [index, id] of ['MANAGED1', 'MANAGED2'].entries()) {
+        const writes = writesFor(fake, id)
+        expect.soft(writes).toEqual([
+          expect.stringContaining(`index * ${11 + index}`),
+          expect.stringContaining(`index * ${21 + index}`),
+        ])
+        expect(writes[writes.length - 1]).toContain('export function sliderSlowMo')
+        expect.soft(savedV2[ip][`pat-${index + 1}`]).toMatchObject({
+          sourceHash: artifactHash(source(21 + index)),
+          wrapperProgramId: id,
+          wrapperPixelCount: changed === 'count' ? 65 : 64,
+        })
+      }
+      expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+    },
+  )
+
   it('retries an unconfirmed source-only reconciliation Save after the stall has cleared', async () => {
     const fake = await fixture()
     await stallThenEditFirstPattern(fake)

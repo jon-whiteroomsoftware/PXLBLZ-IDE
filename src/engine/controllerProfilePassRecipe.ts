@@ -124,7 +124,7 @@ function serializeArtifactSignature(
  * its original bytes for the reconciliation planner's conservative re-push
  * behavior. Neither path can mistake malformed or future data for current. */
 export type StoredArtifactSignatureRead =
-  | { kind: 'recognized'; normalized: string }
+  | { kind: 'recognized'; normalized: string; appliedWrappers?: readonly ControllerWrapperType[] }
   | { kind: 'unrecognized' }
 
 /** Classifies a stored signature before it is allowed to support a freshness
@@ -156,6 +156,7 @@ export function readStoredArtifactSignature(signature: string): StoredArtifactSi
   return {
     kind: 'recognized',
     normalized: serializeArtifactSignature(record.transforms, record.inputs, record.bindings, record.renderer, record.wrappers),
+    ...(record.wrappers?.length ? { appliedWrappers: record.wrappers } : {}),
   }
 }
 

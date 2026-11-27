@@ -1123,6 +1123,38 @@ describe('controllerPanelStore', () => {
       useControllerProfileStore.setState(controllerProfileInitialState)
     })
 
+    it.each(['enabled after polling', 'loaded after polling'] as const)(
+      'syncs an unchanged confirmed count once the Wrapper profile is ready (%s)', async (transition) => {
+        const { profile, refreshLiveMetadata } = seedLiveProfile()
+        const wrapped = {
+          ...profile,
+          lastKnownPixelCount: 256,
+          globalTransforms: [
+            ...profile.globalTransforms,
+            { id: 'slow-mo', type: 'slow-mo', enabled: true } as const,
+          ],
+        }
+        if (transition === 'loaded after polling') {
+          useControllerProfileStore.setState({ profiles: [], profilesLoaded: false })
+        }
+        provider.config = { ...provider.config, pixelCount: 1703 }
+        await useControllerPanelStore.getState().poll()
+        expect(useControllerPanelStore.getState().pixelCount).toBe(1703)
+        expect(refreshLiveMetadata).not.toHaveBeenCalled()
+
+        useControllerProfileStore.setState({ profiles: [wrapped], profilesLoaded: true })
+        refreshLiveMetadata.mockImplementation(async () => {
+          useControllerProfileStore.setState({ profiles: [{ ...wrapped, lastKnownPixelCount: 1703 }] })
+        })
+        await useControllerPanelStore.getState().poll()
+        await useControllerPanelStore.getState().poll()
+
+        expect(refreshLiveMetadata).toHaveBeenCalledExactlyOnceWith(profile.id, { reuseInstalledMap: true })
+        expect(useControllerProfileStore.getState().profiles[0].lastKnownPixelCount).toBe(1703)
+        expect(provider.pixelCountWrites).toEqual([])
+      },
+    )
+
     it('refreshes the matched profile once the Controller reports the written count', async () => {
       const { profile, refreshLiveMetadata } = seedLiveProfile()
       useControllerPanelStore.setState({ pixelCount: 256 })
