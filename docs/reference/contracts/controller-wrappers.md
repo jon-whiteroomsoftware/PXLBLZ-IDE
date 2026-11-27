@@ -130,7 +130,10 @@ group when an outcome is present.
 The panel seeds Controls from `getConfig().activeProgram.controls`. An
 in-place activation of the same saved program invalidates that Controller's
 old seed, including when its panel is closed or another Controller is selected.
-Recovery after an uncertain write also refreshes the seed from live config.
+When another Controller is selected, activation leaves the refresh for the next
+visit. Recovery after an uncertain write refreshes the seed from live config.
+If the recovery config request times out, the last known Controls remain visible
+until the next successful config read replaces them.
 On firmware 3.70, removing Dreamy omitted its export from the active report
 while `getControls(programId)` still held the stored value `0.5`.
 [Firmware 3.70 bench readback](http://Agent-Mini.local:8642/files/pxlblz-briefs/1274-always-on-rewrites/b2-bench-readback.json)

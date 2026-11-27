@@ -534,6 +534,8 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     // Advance the read generation, as a confirmed activation does, so a poll
     // reply requested before the failed write cannot overwrite this read.
     panelSession += 1
+    // Keep the displayed Controls while waiting for the next successful config.
+    controlsSeededFor = undefined
     const session = panelSession
     const listing = get().refreshPrograms(controllerIp)
     // refreshPrograms claims its version synchronously; remember it.
@@ -651,7 +653,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       panelSession += 1
       controlsSeededFor = undefined
       set({ activeProgramId: programId, configSourceIp: controllerIp, activeControls: {} })
-      void get().poll()
+      if (updateVisiblePanel) void get().poll()
       return
     }
     if (updateVisiblePanel) set({ activeProgramId: programId, configSourceIp: controllerIp })

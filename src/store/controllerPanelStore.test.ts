@@ -250,6 +250,59 @@ describe('controllerPanelStore', () => {
     },
   )
 
+  it('keeps background activation on its Controller while the active provider changes', async () => {
+    const aIp = '192.168.8.224'
+    const bIp = '192.168.8.225'
+    const panel = useControllerPanelStore.getState()
+    const a = provider
+    const b = new FakeProvider()
+    a.config = { activeProgramId: 'a-program', activeControls: { sliderDreamy: 0.5 } }
+    b.config = { activeProgramId: 'b-program', activeControls: { sliderHue: 0.3 } }
+    const readA = vi.spyOn(a, 'getConfig')
+    const readB = vi.spyOn(b, 'getConfig')
+    panel.seed(aIp)
+    await flush()
+
+    panel.noteProgramActivated('b-program', bIp, { updateVisiblePanel: false })
+    await flush()
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      configSourceIp: aIp,
+      activeProgramId: 'a-program',
+      activeControls: { sliderDreamy: 0.5 },
+    })
+    expect(readA).toHaveBeenCalledTimes(1)
+
+    // The active provider changes before the panel seeds the new Controller.
+    setControllerProvider(b)
+    a.config = { activeProgramId: 'a-program', activeControls: { sliderWash: 0.625 } }
+    panel.noteProgramActivated('a-program', aIp, { updateVisiblePanel: false })
+    await flush()
+    expect(useControllerPanelStore.getState().activeControls).toEqual({})
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      configSourceIp: aIp,
+      activeProgramId: 'a-program',
+    })
+    expect(readA).toHaveBeenCalledTimes(1)
+    expect(readB).not.toHaveBeenCalled()
+
+    panel.seed(bIp)
+    await flush()
+    expect(useControllerPanelStore.getState()).toMatchObject({ configSourceIp: bIp, ...b.config })
+    expect(readB).toHaveBeenCalledTimes(1)
+
+    setControllerProvider(a)
+    panel.seed(aIp)
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      configSourceIp: aIp,
+      activeProgramId: 'a-program',
+    })
+    expect(useControllerPanelStore.getState().activeControls).toEqual({})
+    await flush()
+    expect(useControllerPanelStore.getState().activeControls).toEqual(a.config.activeControls)
+    expect(readA).toHaveBeenCalledTimes(2)
+    expect(readB).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps the newest same-Controller program-list response when requests finish out of order', async () => {
     const first = deferred<ProgramListEntry[]>()
     const second = deferred<ProgramListEntry[]>()
@@ -1752,6 +1805,31 @@ describe('controllerPanelStore', () => {
       provider.config = { activeProgramId: 'def', activeControls: { sliderWash: 0.625 } }
       await panel.rereadAfterFailedWrite(IP)
       expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderWash: 0.625 })
+    })
+
+    it('reseeds the live Controls on the first healthy poll after a recovery config timeout', async () => {
+      const panel = useControllerPanelStore.getState()
+      const before = { sliderDreamy: 0.5, sliderWash: 0.25 }
+      const after = { sliderWash: 0.625, sliderHue: 0.3 }
+      provider.config = { activeProgramId: 'def', activeControls: before }
+      panel.start(IP)
+      await flush()
+      expect(useControllerPanelStore.getState().activeControls).toEqual(before)
+
+      provider.config = { activeProgramId: 'def', activeControls: after }
+      const readConfig = vi.spyOn(provider, 'getConfig')
+        .mockRejectedValueOnce(new Error('Pixelblaze request timed out waiting for "config"'))
+      await panel.rereadAfterFailedWrite(IP)
+      expect(readConfig).toHaveBeenCalledTimes(1)
+      expect(useControllerPanelStore.getState().activeControls).toEqual(before)
+
+      await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+      expect(readConfig).toHaveBeenCalledTimes(2)
+      expect(useControllerPanelStore.getState().activeControls).toEqual(after)
+
+      panel.setControl('sliderWash', 0.75)
+      await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+      expect(useControllerPanelStore.getState().activeControls).toEqual({ ...after, sliderWash: 0.75 })
     })
 
     // A loaded Controller can time out the re-read's list read; one retry after
