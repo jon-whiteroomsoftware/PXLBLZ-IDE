@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "issue": "1277",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "Changed Power limit on an authenticated Controller profile while the synthetic Controller held the first save. At 1440 px, inspected Updating 0 of 2 and Pause below the Saved by PXLBLZ heading and before the Patterns and Shows groups, then exercised restart, pause, resume and reconnection.",
+  "captures": [".wrsp/ui-proof/1277a2-saved-groups-1440-updating.png"],
+  "capturedAtCommit": "7650a2ddea7d6ab81f497f498698b79c8f75d6c9"
+}

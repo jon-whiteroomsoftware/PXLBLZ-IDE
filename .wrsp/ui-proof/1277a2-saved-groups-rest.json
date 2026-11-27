@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1277",
+  "route": "/PXLBLZ-IDE/studio/controllers/wrapper-tags-1277",
+  "operation": "Opened the authenticated Controller profile with the repository's synthetic Controller transport. Inspected the shared heading and progress line above the Patterns and Shows tables at 641 and 1440 px, then selected across both tables and compared the cancelled Delete confirmation against the Controller inventory and write log.",
+  "captures": [
+    ".wrsp/ui-proof/1277a2-saved-groups-641-rest.png",
+    ".wrsp/ui-proof/1277a2-saved-groups-1440-rest.png"
+  ],
+  "capturedAtCommit": "7650a2ddea7d6ab81f497f498698b79c8f75d6c9"
+}
