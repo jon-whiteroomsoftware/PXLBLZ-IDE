@@ -284,9 +284,18 @@ for (const [viewport, width] of [['desktop', 1440], ['narrow', 768]] as const) {
     await expect(pill).toHaveAttribute('data-phase', 'live')
     const capture = async (state: string, line: string | RegExp) => {
       await expect(pane.getByText(line, { exact: true })).toBeVisible()
+      if (state === 'rest' || state === 'running') {
+        await expect(pane.locator('h2, h3, [aria-live="polite"]')).toHaveText([
+          'Saved by PXLBLZ (3)', line, 'Patterns (3)', 'Shows (0)', 'Other Patterns (1)',
+        ])
+      }
       expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
       const directory = process.env.PXLBLZ_RECONCILIATION_PROOF_DIR
       if (directory) await pane.screenshot({ path: `${directory}/1274-${viewport}-${state}.png`, animations: 'disabled' })
+      const groupingProof = process.env.PXLBLZ_1277A2_UI_PROOF_DIR
+      if (groupingProof && state === 'running' && viewport === 'desktop') {
+        await page.screenshot({ path: `${groupingProof}/1277a2-saved-groups-1440-updating.png`, animations: 'disabled' })
+      }
     }
     await expect.poll(runStarts).toBe(1)
     await capture('rest', '2 of 2 up to date')

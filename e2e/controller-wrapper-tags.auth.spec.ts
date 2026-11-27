@@ -13,6 +13,7 @@ import {
 } from '../src/engine/controllerWrapperTags'
 import { encodePbp } from '../src/engine/pbpEncode'
 import { expect, test } from './fixtures/authenticated'
+import { fakeControllerMutations } from './fixtures/controllerBulkSelect'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 
 // #1277 slice 1277a1: saved-row tags against the stored push record and the
@@ -59,10 +60,10 @@ const fixtures: Fixture[] = [
 ]
 const owned = fixtures.filter((fixture) => fixture.binding)
 
-async function seed(page: Page, inventory = fixtures, seededProfile = profile) {
+async function seed(page: Page, inventory = fixtures, seededProfile = profile, activeProgramId = inventory.at(-1)!.id) {
   const request = page.context().request
   await installFakeControllerHelper(page, {
-    address: ip, programs: inventory.map(({ id, name }) => ({ id, name })), activeProgramId: inventory.at(-1)!.id,
+    address: ip, programs: inventory.map(({ id, name }) => ({ id, name })), activeProgramId,
     deviceName: seededProfile.name, boardType: 'pb32', mac: '11:22:33:44:55:77', pixelCount,
     savedProgramData: Object.fromEntries(inventory.map(({ id, name, source }) => [
       id, Buffer.from(encodePbp({ id, name, sourceCode: source, byteCode: new Uint8Array(8) })).toString('base64'),
@@ -332,4 +333,68 @@ test('Long saved binding labels fit inside the Profile column (#1277)', async ({
       await page.screenshot({ path: `${proofDir}/1277a1-corrective-tags-${width}.png` })
     }
   }
+})
+
+test('Saved by PXLBLZ groups share selection across Patterns and Shows (#1277)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const running = 'pxbTagsMemory0001'
+  await seed(page, fixtures, profile, running)
+
+  const pane = page.getByTestId('controller-saved-programs-pane')
+  const patterns = pane.getByRole('table', { name: 'Patterns', exact: true })
+  const shows = pane.getByRole('table', { name: 'Shows', exact: true })
+  const other = pane.getByRole('table', { name: 'Other Patterns', exact: true })
+  const proofDir = process.env.PXLBLZ_1277A2_UI_PROOF_DIR
+  for (const width of [1440, 641]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(pane.getByRole('heading')).toHaveText(['Saved by PXLBLZ (6)', 'Patterns (5)', 'Shows (1)', 'Other Patterns (1)'])
+    await expect(pane.getByText('3 of 3 up to date', { exact: true })).toBeVisible()
+    await expect(patterns.getByRole('row')).toHaveCount(6)
+    await expect(shows.getByRole('row')).toHaveCount(2)
+    await expect(other.getByRole('row')).toHaveCount(2)
+    expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    if (proofDir) {
+      await mkdir(proofDir, { recursive: true })
+      await page.screenshot({ path: `${proofDir}/1277a2-saved-groups-${width}-rest.png`, animations: 'disabled' })
+    }
+  }
+  for (const { id, binding } of owned) {
+    const group = binding?.startsWith('show:') ? shows : patterns
+    await expect(group.locator(`#${savedRowDomId(id)}`)).toHaveCount(1)
+  }
+  await expect(other.getByText('Foreign', { exact: true })).toBeVisible()
+  await expect(shows.getByText('Source Show unavailable', { exact: true })).toBeVisible()
+
+  const selectSaved = pane.getByRole('button', { name: 'Select Saved PXLBLZ Patterns' })
+  const selectOther = pane.getByRole('button', { name: 'Select Other Patterns' })
+  await selectSaved.click()
+  const allSaved = pane.getByRole('checkbox', { name: 'Select all Saved PXLBLZ Patterns' })
+  await expect(allSaved).toHaveCount(1)
+  await expect(patterns.getByRole('checkbox', { name: 'Select Memory heavy' })).toBeDisabled()
+  await patterns.getByRole('checkbox', { name: 'Select Fits' }).check()
+  await expect(allSaved).toHaveJSProperty('indeterminate', true)
+  const writes = await fakeControllerMutations(page)
+
+  await allSaved.check()
+  await expect(allSaved).toHaveJSProperty('indeterminate', false)
+  await expect(pane.getByRole('status')).toHaveText('5 of 6 selected')
+  for (const { id, name, binding } of owned) {
+    const group = binding?.startsWith('show:') ? shows : patterns
+    const checkbox = group.getByRole('checkbox', { name: `Select ${name}`, exact: true })
+    if (id === running) await expect(checkbox).not.toBeChecked()
+    else await expect(checkbox).toBeChecked()
+  }
+  await expect(other.getByRole('checkbox')).toHaveCount(0)
+
+  await pane.getByRole('button', { name: 'Delete', exact: true }).click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog.getByRole('listitem')).toHaveCount(5)
+  const confirmedNames = await dialog.getByRole('listitem').allTextContents()
+  expect(confirmedNames.sort()).toEqual(owned.filter(({ id }) => id !== running).map(({ name }) => name).sort())
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  expect(await fakeControllerMutations(page)).toEqual(writes)
+  await selectOther.click()
+  await expect(pane.getByRole('status')).toHaveText('0 of 1 selected')
+  await selectSaved.click()
+  await expect(pane.getByRole('status')).toHaveText('0 of 6 selected')
 })

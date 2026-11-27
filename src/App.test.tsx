@@ -1753,7 +1753,7 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('controller-profile-page')).toHaveTextContent('Pixelblaze shelf')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Burner bag')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Pixelblaze shelf')
-    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Saved PXLBLZ Patterns (0)')
+    expect(within(screen.getByTestId('preview-pane')).getByRole('heading', { name: 'Saved by PXLBLZ (0)' })).toBeInTheDocument()
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Saved programs')
   })
 

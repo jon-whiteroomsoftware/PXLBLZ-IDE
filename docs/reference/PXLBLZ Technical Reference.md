@@ -973,15 +973,19 @@ rollback.
 
 **Inventory and recovery.** The profile's context pane joins `listPrograms`
 with bindings, push records, and the personal and built-in Pattern/Show
-catalogs. Bound entries appear under Saved PXLBLZ Patterns and link to Studio;
-unbound entries are Other Patterns and are never reconciled. The running id is
-marked in either table. Row actions stay visually hidden until hover or keyboard
-focus; Run delegates to the panel store's transient activation path and never
+catalogs. **Saved by PXLBLZ** counts all bound entries and groups them by
+Pattern or Show source. Bound entries link to Studio when the source is
+available. One line reports reconciliation for eligible rows across both
+groups. **Other Patterns** lists unbound entries, which are exempt from
+reconciliation. The running id is marked in its table. Row actions stay
+visually hidden until hover or keyboard focus. Run delegates to the panel
+store's transient activation path and never
 navigates Studio or changes the open subject or its Run/Save records. Program
 ids move from a column into the name tooltip, and Other Patterns have no
 freshness column.
 
-Both sections share one selection owner. `controllerPatternBatch.ts` provides
+Both sections share one selection owner. Saved select-all spans both the
+Patterns and Shows tables. `controllerPatternBatch.ts` provides
 immutable ID selection, eligibility reconciliation, and an ordered sequential
 runner that collects per-Pattern failures. Selecting a section clears the other;
 running and pending-running IDs are excluded before the confirmation snapshot.
@@ -1031,7 +1035,7 @@ retryable error, so a retry can finish metadata cleanup even when the device
 already confirmed deletion. Deletion never removes Studio content and never
 queues managed-artifact reconciliation.
 
-Saved PXLBLZ Patterns is the sole profile-freshness surface. Each bound row
+**Saved by PXLBLZ** is the sole profile-freshness surface. Each bound row
 compares the recognized, compatibility-normalized signature in its push record
 with a fresh full-profile signature for that binding and the live map dimension:
 exact matches get an emerald status dot, recognized differences amber, and

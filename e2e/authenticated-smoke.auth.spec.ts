@@ -758,7 +758,7 @@ test('deletes an inactive managed Controller Pattern and re-arms Studio Save (#8
 
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
-  const managedTable = page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })
+  const managedTable = page.getByRole('table', { name: 'Patterns', exact: true })
   await expect(managedTable).toBeVisible()
   const targetDelete = managedTable.getByRole('button', {
     name: `Delete ${pattern.name} from the Controller`,
@@ -1370,7 +1370,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await page.getByRole('link', { name: `Open ${profile.name} profile` }).click()
 
   await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
-  await expect(page.getByRole('table', { name: 'Saved PXLBLZ Patterns' })).toBeVisible()
+  await expect(page.getByRole('table', { name: 'Patterns', exact: true })).toBeVisible()
   await expect(page.getByLabel(/^Current:/)).toBeVisible()
 
   await page.getByRole('checkbox', { name: 'Limit power' }).check()

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
   ChevronDown,
   ChevronUp,
@@ -288,7 +288,7 @@ function ManagedPatternReconciliation({
   const width = (count: number) => ({ width: `${(count / Math.max(total, 1)) * 100}%` })
 
   return (
-    <section className="border-b border-seam bg-zinc-950/55 px-4 py-2">
+    <div className="mb-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {showProgress && (
           <div
@@ -348,7 +348,7 @@ function ManagedPatternReconciliation({
           )}
         </div>
       )}
-    </section>
+    </div>
   )
 }
 
@@ -681,6 +681,7 @@ function SortableTableHead({
 function SavedProgramsInventory({
   status,
   programs,
+  managedProgress,
   tagsByProgramId,
   statuses,
   hasSnapshot,
@@ -706,6 +707,7 @@ function SavedProgramsInventory({
 }: {
   status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
+  managedProgress: ReactNode
   /** Tags per owned program id, read from its stored push record (#1277). */
   tagsByProgramId: Readonly<Record<string, readonly WrapperTagModel[]>>
   /** Effective status per program id, shared with the aggregate summary (#874). */
@@ -748,6 +750,13 @@ function SavedProgramsInventory({
     || deletingProgramId !== null
     || batchBusy
   const actionsBusy = activatingProgramId !== null || writesBusy
+  const selectingSaved = selection.section === 'saved'
+  const allCheckbox = (section: ControllerPatternSection) => (
+    <input type="checkbox" className="accent-live" aria-label={`Select all ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}`}
+      checked={eligibleIds.length > 0 && selection.selectedIds.length === eligibleIds.length}
+      ref={(node) => { if (node) node.indeterminate = selection.selectedIds.length > 0 && selection.selectedIds.length < eligibleIds.length }}
+      disabled={writesBusy || eligibleIds.length === 0} onChange={onToggleAll} />
+  )
   const sectionControls = (section: ControllerPatternSection, count: number) => (
     selection.section !== section ? (
       <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
@@ -755,8 +764,11 @@ function SavedProgramsInventory({
         disabled={writesBusy || !showInventory || count === 0}
         onClick={() => onEnterSelection(section)}>Select</Button>
     ) : (
-      <div className="flex flex-1 flex-wrap items-center justify-between gap-1.5">
-        <span className="font-mono text-[11px] text-live" role="status">{selection.selectedIds.length} of {count} selected</span>
+      <div className={`flex flex-1 flex-wrap items-center justify-between gap-1.5${section === 'saved' ? ' basis-full' : ''}`}>
+        <div className="flex items-center gap-2">
+          {section === 'saved' && allCheckbox('saved')}
+          <span className="font-mono text-[11px] text-live" role="status">{selection.selectedIds.length} of {count} selected</span>
+        </div>
         <div className="flex items-center gap-1.5">
         {section === 'other' && <Button type="button" size="xs" variant="ghost" className={sectionActionButtonClass}
           disabled={actionsBusy || selection.selectedIds.length === 0} onClick={onBatchImport}>{importingProgramId !== null ? 'Importing…' : 'Import'}</Button>}
@@ -776,48 +788,17 @@ function SavedProgramsInventory({
         onChange={() => onToggle(program.programId)} />
     </td>
   )
-  const allCheckbox = (section: ControllerPatternSection) => (
-    <th className={`${tableHeadClass} w-7`}>
-      <input type="checkbox" className="accent-live" aria-label={`Select all ${section === 'saved' ? 'Saved PXLBLZ Patterns' : 'Other Patterns'}`}
-        checked={eligibleIds.length > 0 && selection.selectedIds.length === eligibleIds.length}
-        ref={(node) => { if (node) node.indeterminate = selection.selectedIds.length > 0 && selection.selectedIds.length < eligibleIds.length }}
-        disabled={writesBusy || eligibleIds.length === 0} onChange={onToggleAll} />
-    </th>
-  )
-  return (
-    <section className="border-b border-seam px-4 py-4">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h2 className={selection.section === 'saved' ? 'sr-only' : 'font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300'}>
-          Saved PXLBLZ Patterns <span className="text-zinc-500">({presentedPrograms.owned.length})</span>
-        </h2>
-        {sectionControls('saved', presentedPrograms.owned.length)}
-      </div>
-      {error && (
-        <div role="alert" className="mb-2 whitespace-pre-line border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-[11px] text-red-200">
-          {error}
-        </div>
-      )}
-      {status === 'offline' ? (
-        <EmptyState>
-          Nothing to show while offline.{' '}
-          <button
-            type="button"
-            onClick={requestControllerEntryOpen}
-            className="border-b border-live/40 font-mono text-[11.5px] text-live transition-colors hover:border-live hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/70"
-          >
-            Connect this Controller
-          </button>
-        </EmptyState>
-      ) : status === 'loading' && !showInventory ? (
-        <EmptyState>Reading saved Patterns from the Controller…</EmptyState>
-      ) : status === 'error' ? (
-        <EmptyState>Saved Patterns could not be read. Check the connection, then refresh.</EmptyState>
-      ) : presentedPrograms.owned.length === 0 ? (
-        <EmptyState>No PXLBLZ Patterns are saved on this Controller.</EmptyState>
-      ) : (
-        <table className={tableClass} aria-label="Saved PXLBLZ Patterns">
+  const ownedGroup = (sourceKind: ControllerSavedProgramRow['sourceKind']) => {
+    const rows = presentedPrograms.owned.filter((program) => program.sourceKind === sourceKind)
+    const label = sourceKind === 'pattern' ? 'Pattern' : 'Show'
+    return (
+      <section className="mt-3">
+        <h3 className="mb-1.5 font-mono text-xs font-medium text-zinc-300">
+          {label}s <span className="text-zinc-500">({rows.length})</span>
+        </h3>
+        {rows.length > 0 && <table className={tableClass} aria-label={`${label}s`}>
           <colgroup>
-            {selection.section === 'saved' && <col className="w-7" />}
+            {selectingSaved && <col className="w-7" />}
             <col className="w-[48%]" />
             <col className="w-[26%]" />
             <col className="w-[8%]" />
@@ -825,8 +806,8 @@ function SavedProgramsInventory({
           </colgroup>
           <thead>
             <tr>
-              {selection.section === 'saved' && allCheckbox('saved')}
-              <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
+              {selectingSaved && <td className={`${tableHeadClass} w-7`} />}
+              <SortableTableHead field="pattern" label={label} sort={sort} onSort={updateSort} />
               <th className={tableHeadClass}>Profile</th>
               <SortableTableHead
                 field="status"
@@ -840,7 +821,7 @@ function SavedProgramsInventory({
             </tr>
           </thead>
           <tbody>
-            {presentedPrograms.owned.map((program) => {
+            {rows.map((program) => {
               const running = program.programId === activeProgramId
               const deleteDisabledReason = !activeProgramKnown || program.programId === activatingProgramId
                 ? 'Waiting to confirm the running Pattern'
@@ -853,7 +834,7 @@ function SavedProgramsInventory({
                   id={savedRowDomId(program.programId)}
                   className={`group ${selection.selectedIds.includes(program.programId) ? 'bg-live/[0.05]' : running ? 'bg-emerald-500/[0.04]' : ''}`}
                 >
-                  {selection.section === 'saved' && selectionCheckbox(program, deleteDisabledReason)}
+                  {selectingSaved && selectionCheckbox(program, deleteDisabledReason)}
                   <SavedProgramNameCell
                     program={program}
                     running={running}
@@ -875,14 +856,52 @@ function SavedProgramsInventory({
                       onRun={onRun}
                       onDelete={onDelete}
                       deleteDisabledReason={deleteDisabledReason}
-                      selecting={selection.section === 'saved'}
+                      selecting={selectingSaved}
                     />
                   </td>
                 </tr>
               )
             })}
           </tbody>
-        </table>
+        </table>}
+      </section>
+    )
+  }
+  return (
+    <section className="border-b border-seam px-4 py-4">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">
+          Saved by PXLBLZ <span className="text-zinc-500">({presentedPrograms.owned.length})</span>
+        </h2>
+        {sectionControls('saved', presentedPrograms.owned.length)}
+      </div>
+      {managedProgress}
+      {error && (
+        <div role="alert" className="mb-2 whitespace-pre-line border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-[11px] text-red-200">
+          {error}
+        </div>
+      )}
+      {status === 'offline' ? (
+        <EmptyState>
+          Nothing to show while offline.{' '}
+          <button
+            type="button"
+            onClick={requestControllerEntryOpen}
+            className="border-b border-live/40 font-mono text-[11.5px] text-live transition-colors hover:border-live hover:text-amber-300 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live/70"
+          >
+            Connect this Controller
+          </button>
+        </EmptyState>
+      ) : status === 'loading' && !showInventory ? (
+        <EmptyState>Reading saved Patterns from the Controller…</EmptyState>
+      ) : status === 'error' ? (
+        <EmptyState>Saved Patterns could not be read. Check the connection, then refresh.</EmptyState>
+      ) : (
+        <>
+          {presentedPrograms.owned.length === 0 && <EmptyState>No PXLBLZ Patterns are saved on this Controller.</EmptyState>}
+          {ownedGroup('pattern')}
+          {ownedGroup('show')}
+        </>
       )}
       {showInventory && (
         <>
@@ -903,7 +922,9 @@ function SavedProgramsInventory({
               </colgroup>
               <thead>
                 <tr>
-                  {selection.section === 'other' && allCheckbox('other')}
+                  {selection.section === 'other' && (
+                    <th className={`${tableHeadClass} w-7`}>{allCheckbox('other')}</th>
+                  )}
                   <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
                   <th className={`${tableHeadClass} text-right`}><span className="sr-only">Actions</span></th>
                 </tr>
@@ -1564,22 +1585,24 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onConfirm={() => void confirmProgramDelete()}
         onReauthorize={reauthorizeProgramDelete}
       />
-      <ManagedPatternReconciliation
-        profile={profile}
-        connected={liveIp !== undefined}
-        reconciliation={reconciliation}
-        statuses={managedStatuses}
-        onPause={() => pauseReconciliation(profile.id)}
-        onResume={() => resumeReconciliation(profile.id)}
-        onRetry={() => {
-          void reconcileControllerProfile(profile.id).catch((error: unknown) => {
-            console.error('Managed Pattern reconciliation failed', error)
-          })
-        }}
-      />
       <SavedProgramsInventory
         status={readStatus}
         programs={programs}
+        managedProgress={(
+          <ManagedPatternReconciliation
+            profile={profile}
+            connected={liveIp !== undefined}
+            reconciliation={reconciliation}
+            statuses={managedStatuses}
+            onPause={() => pauseReconciliation(profile.id)}
+            onResume={() => resumeReconciliation(profile.id)}
+            onRetry={() => {
+              void reconcileControllerProfile(profile.id).catch((error: unknown) => {
+                console.error('Managed Pattern reconciliation failed', error)
+              })
+            }}
+          />
+        )}
         tagsByProgramId={tagsByProgramId}
         statuses={savedPatternStatuses}
         hasSnapshot={hasInventorySnapshot}

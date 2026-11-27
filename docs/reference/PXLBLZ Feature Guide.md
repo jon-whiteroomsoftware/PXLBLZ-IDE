@@ -296,10 +296,10 @@ at its next interval.
 
 The running Pattern title opens the **Saved Patterns** picker on every route.
 Its face keeps the running name and dimensions visible; when picking is
-unavailable, focusing the title explains why. The menu uses the same
-classification as the profile inventory: **Saved PXLBLZ Patterns** first, then
-**Other Patterns**, each alphabetical. Other Patterns starts expanded and
-remembers its fold per browser. The running Pattern stays visible when that
+unavailable, focusing the title explains why. The menu starts with **Saved
+PXLBLZ Patterns**, the entries the profile lists under **Saved by PXLBLZ**.
+**Other Patterns** follows. Each group is alphabetical. Other Patterns starts
+expanded and remembers its fold per browser. The running Pattern stays visible when that
 group folds. Above eight saved Patterns, a filter searches both groups even
 while folded. When none classify as PXLBLZ Patterns, the menu is one flat list.
 
@@ -338,9 +338,10 @@ hardware knowledge lives:
   that cannot take a Wrapper is still saved with the Wrappers that fit.
   Shows keep their own timing and continue to receive Power limit and
   hardware brightness. Studio Patterns and exports keep their authored source.
-- **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
-  from everything else on the device. The running row has a green marker, and
-  managed rows show whether the copy on the device is current, stale,
+- **Saved by PXLBLZ.** The profile counts saved Patterns and Shows in one
+  heading, with one update line above the **Patterns** and **Shows** groups.
+  **Other Patterns** lists the remaining programs. The running row has a green
+  marker, and managed rows show whether the copy on the device is current, stale,
   syncing, queued, or failed. Each managed row carries a tag for every
   Wrapper and input use saved into it: slow-mo, dreamy, power, bright, and
   one tag per input bound to the Pattern, such as "IO36 → sliderSpeed". A
@@ -368,10 +369,11 @@ hardware knowledge lives:
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 
-  Each inventory section has **Select**. Check individual Patterns or use the
-  header checkbox to select all eligible rows; running and pending-running
-  Patterns cannot be selected. **Run** remains available. Saved PXLBLZ Patterns
-  offer **Delete** and **Done**; Other Patterns also offer **Import**. Switching
+  Each inventory section has **Select**. Check individual rows or use the
+  section's select-all checkbox. **Saved by PXLBLZ** has one selection across
+  Patterns and Shows. Running and pending-running rows cannot be selected.
+  **Run** remains available. Both sections offer **Delete** and **Done**.
+  **Other Patterns** also offers **Import**. Switching
   sections clears the previous selection. Batch Delete confirms the selected
   names once, reads the Controller's inventory and running Pattern once, sends
   each deletion, and then confirms them all with one final inventory read. The

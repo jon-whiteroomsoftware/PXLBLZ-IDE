@@ -61,12 +61,12 @@ test('Controller bulk selection cancels, imports, switches sections, deletes and
   const priorReads = await reads()
   await page.getByRole('button', { name: 'Refresh', exact: true }).click()
   await expect.poll(reads).toBe(priorReads + 1)
-  await expect(pane.getByRole('table', { name: 'Saved PXLBLZ Patterns', exact: true })).toContainText('Owned Aurora')
+  await expect(pane.getByRole('table', { name: 'Patterns', exact: true })).toContainText('Owned Aurora')
   await expect(page.getByRole('button', { name: /Refresh/i })).toHaveCount(1)
-  for (const section of ['Saved PXLBLZ Patterns', 'Other Patterns']) {
-    const header = pane.getByRole('heading', { name: new RegExp(`^${section} \\(\\d+\\)$`) }).locator('..')
+  for (const [heading, select] of [['Saved by PXLBLZ', 'Saved PXLBLZ Patterns'], ['Other Patterns', 'Other Patterns']]) {
+    const header = pane.getByRole('heading', { name: new RegExp(`^${heading} \\(\\d+\\)$`) }).locator('..')
     await expect(header.getByRole('button')).toHaveCount(1)
-    await expect(header.getByRole('button', { name: `Select ${section}`, exact: true })).toHaveCount(1)
+    await expect(header.getByRole('button', { name: `Select ${select}`, exact: true })).toHaveCount(1)
   }
 })
 
