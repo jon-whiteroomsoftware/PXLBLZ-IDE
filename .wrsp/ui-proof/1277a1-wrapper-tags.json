@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "issue": "1277",
+  "route": "/PXLBLZ-IDE/studio/controllers/wrapper-tags-1277",
+  "operation": "Reconciled timing Wrappers on the authenticated Controller profile using a transport double and inspected the Saved table, including memory and structural skip reasons revealed by hover and focus at a 1440 px viewport. The focused memory reason fits inside the pane at 641 px, and the Saved pane is hidden under the existing layout at 420 px.",
+  "captures": [
+    ".wrsp/ui-proof/1277a1-tags-1440-memory-hover.png",
+    ".wrsp/ui-proof/1277a1-tags-1440-structural-hover.png",
+    ".wrsp/ui-proof/1277a1-tags-1440-memory-focus.png",
+    ".wrsp/ui-proof/1277a1-tags-1440-structural-focus.png",
+    ".wrsp/ui-proof/1277a1-tags-641-memory-focus.png",
+    ".wrsp/ui-proof/1277a1-tags-420-page.png"
+  ],
+  "capturedAtCommit": "694bcb4fd35ac2110cc4189bd6a3bf36dba2d37d"
+}
