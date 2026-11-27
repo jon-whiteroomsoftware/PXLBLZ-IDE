@@ -2,11 +2,13 @@ import type { ControllerWrapperOutcome, ControllerWrapperType } from './controll
 import { readStoredArtifactSignature } from './controllerProfilePassRecipe'
 import { savedControllerWrapperOutcome, type ControllerPushRecord } from './controllerPushRecord'
 
+type AppliedWrapperTag = { wrapper: ControllerWrapperType | 'power' | 'bright'; state: 'applied' }
+
 /** One tag on a saved program row (#1277). Tags describe what the saved bytes
  *  carry, read only from the program's stored push record, never from the
  *  current profile switches. */
 export type WrapperTagModel =
-  | { wrapper: ControllerWrapperType | 'power' | 'bright'; state: 'applied' }
+  | AppliedWrapperTag
   | { wrapper: 'binding'; state: 'applied'; label: string }
   | { wrapper: ControllerWrapperType; state: 'skipped'; reason: string }
 
@@ -54,10 +56,9 @@ export function describeWrapperTags({ record, programId, kind }: WrapperTagEvide
 }
 
 /** Picker form (#1280): applied Wrappers only. No skipped tag and no binding. */
-export function appliedWrapperTags(evidence: WrapperTagEvidence): Array<Extract<WrapperTagModel, { wrapper: ControllerWrapperType | 'power' | 'bright' }>> {
+export function appliedWrapperTags(evidence: WrapperTagEvidence): AppliedWrapperTag[] {
   return describeWrapperTags(evidence).filter(
-    (tag): tag is Extract<WrapperTagModel, { wrapper: ControllerWrapperType | 'power' | 'bright' }> =>
-      tag.state === 'applied' && tag.wrapper !== 'binding',
+    (tag): tag is AppliedWrapperTag => tag.state === 'applied' && tag.wrapper !== 'binding',
   )
 }
 

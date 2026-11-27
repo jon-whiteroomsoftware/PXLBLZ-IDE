@@ -19,6 +19,7 @@ import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
 // stored program source on the fake Controller transport.
 const ip = '192.168.8.231'
 const pixelCount = 64
+const speedControl = 'sliderSpeedForTheEntireInstallationAcrossTheLongestMappedSegment'
 const profile: ControllerProfile = {
   id: 'wrapper-tags-1277',
   name: 'Tags test Controller',
@@ -35,14 +36,14 @@ const profile: ControllerProfile = {
     { id: 'brightness', mixinId: 'builtin:hardware-brightness', type: 'hardware-brightness', enabled: true, inputId: 'dimmer', mode: 'multiply-output' },
   ],
   patternBindings: [
-    { id: 'speed-binding', patternId: 'tags-fits', inputId: 'speed-knob', target: { kind: 'call-exported-slider', name: 'sliderSpeed' } },
+    { id: 'speed-binding', patternId: 'tags-fits', inputId: 'speed-knob', target: { kind: 'call-exported-slider', name: speedControl } },
   ],
   updatedAt: 1,
 }
 type Fixture = { id: string; name: string; binding: string | null; source: string; studio: boolean; record?: Partial<ControllerPushRecord> | null }
 const render = 'export function render(i) { rgb(0.9, i/pixelCount, 0.2) }'
 const fixtures: Fixture[] = [
-  { id: 'pxbTagsFits000001', name: 'Fits', binding: 'tags-fits', studio: true, source: `export function sliderSpeed(v) {}\n${render}` },
+  { id: 'pxbTagsFits000001', name: 'Fits', binding: 'tags-fits', studio: true, source: `export function ${speedControl}(v) {}\n${render}` },
   { id: 'pxbTagsMemory0001', name: 'Memory heavy', binding: 'tags-memory', studio: true, source: `var large = array(9700)\nexport function render(i) { rgb(0, 0, large[0]) }` },
   { id: 'pxbTagsNameTaken1', name: 'Name taken', binding: 'tags-name', studio: true, source: `export function sliderSlowMo(v) {}\n${render}` },
   { id: 'pxbTagsShow000001', name: 'Fixture Show', binding: 'show:tags-show', studio: false, source: render, record: {
@@ -144,7 +145,7 @@ test('Saved-row Wrapper tags agree with stored records and sources (#1277)', asy
   }
   // Named cases, independent of the model applied above.
   const texts = (id: string) => expectedTags[id].map(tagText)
-  expect(texts('pxbTagsFits000001')).toEqual(['slow-mo', 'dreamy', 'power', 'bright', 'IO36 → sliderSpeed'])
+  expect(texts('pxbTagsFits000001')).toEqual(['slow-mo', 'dreamy', 'power', 'bright', `IO36 → ${speedControl}`])
   expect(expectedTags.pxbTagsMemory0001.filter((tag) => tag.state === 'skipped').map((tag) => tag.state === 'skipped' && tag.reason))
     .toEqual([expect.stringMatching(/^Skipped: not enough memory\. Needs [\d,]+ array words, [\d,]+ free\.$/)])
   expect(expectedTags.pxbTagsNameTaken1).toContainEqual({ wrapper: 'slow-mo', state: 'skipped', reason: "Skipped: this Pattern's code can't take a Wrapper." })
@@ -297,4 +298,38 @@ test('Saved Patterns picker describes applied Wrappers by saved program ID (#128
   await expect(second).toHaveAttribute('aria-selected', 'true')
   await expect(second).toBeFocused()
   await capture('1280-picker-wrapper-pills-1440-refreshed')
+})
+
+test('Long saved binding labels fit inside the Profile column (#1277)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seed(page)
+
+  const pane = page.getByTestId('controller-saved-programs-pane')
+  const row = pane.locator(`#${savedRowDomId('pxbTagsFits000001')}`)
+  const profileCell = row.getByRole('cell').nth(1)
+  const tag = profileCell.getByText(`IO36 → ${speedControl}`, { exact: true })
+  const status = row.getByRole('cell').nth(2).locator('[aria-label]')
+  const run = row.getByRole('button', { name: 'Run Fits on the Controller' })
+  const remove = row.getByRole('button', { name: 'Delete Fits from the Controller' })
+  const proofDir = process.env.PXLBLZ_UI_PROOF_DIR
+
+  for (const width of [1440, 641]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect(tag).toBeVisible()
+    await expect.poll(() => tag.evaluate((element) => {
+      const cell = element.closest('td')!.getBoundingClientRect()
+      const text = document.createRange()
+      text.selectNodeContents(element)
+      return [element.getBoundingClientRect(), ...Array.from(text.getClientRects())]
+        .every((rect) => rect.left >= cell.left && rect.right <= cell.right)
+    }), { message: `Binding tag and its text fit inside the Profile cell at ${width}px` }).toBe(true)
+    await expect(status).toBeVisible()
+    await run.click({ trial: true })
+    await remove.click({ trial: true })
+    if (proofDir) {
+      await mkdir(proofDir, { recursive: true })
+      await page.mouse.move(0, 0)
+      await page.screenshot({ path: `${proofDir}/1277a1-corrective-tags-${width}.png` })
+    }
+  }
 })

@@ -818,8 +818,8 @@ function SavedProgramsInventory({
         <table className={tableClass} aria-label="Saved PXLBLZ Patterns">
           <colgroup>
             {selection.section === 'saved' && <col className="w-7" />}
-            <col className="w-[58%]" />
-            <col className="w-[16%]" />
+            <col className="w-[48%]" />
+            <col className="w-[26%]" />
             <col className="w-[8%]" />
             <col className="w-[18%]" />
           </colgroup>

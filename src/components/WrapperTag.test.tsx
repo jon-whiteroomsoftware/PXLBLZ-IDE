@@ -12,6 +12,20 @@ describe('WrapperTags (#1277)', () => {
     expect(screen.getByText('IO36 → sliderSpeed')).not.toHaveAttribute('tabindex')
   })
 
+  it('renders repeated binding labels with distinct React keys', () => {
+    const label = 'IO36 → sliderSpeed'
+    const binding = { wrapper: 'binding', state: 'applied', label } as const
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      render(<WrapperTags tags={[binding, { wrapper: 'power', state: 'applied' }, { ...binding }]} />)
+      expect(screen.getAllByText(label)).toHaveLength(2)
+      expect(screen.getByText('power')).toBeVisible()
+      expect(consoleError).not.toHaveBeenCalled()
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
   it('reveals a skipped reason on focus, hides it on Escape and reveals it again on re-focus', () => {
     const sibling = vi.fn()
     render(<div>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import type { ControllerProfile } from './controllerProfile'
 import { controllerProfileArtifactSignature } from './controllerProfilePassRecipe'
 import type { ControllerPushRecord } from './controllerPushRecord'
@@ -167,6 +167,13 @@ describe('describeWrapperTags transforms and bindings', () => {
 })
 
 describe('appliedWrapperTags (#1280 picker, applied only)', () => {
+  it('exposes only applied Wrapper tags to a picker', () => {
+    expectTypeOf<ReturnType<typeof appliedWrapperTags>[number]>().toEqualTypeOf<{
+      wrapper: 'slow-mo' | 'dreamy' | 'power' | 'bright'
+      state: 'applied'
+    }>()
+  })
+
   it('never returns a skipped tag', () => {
     const skipped = withOutcome({ applied: [], skipped: { 'slow-mo': nameTaken, dreamy: memory(1, 0) } })
     expect(appliedWrapperTags({ record: skipped, programId: PROGRAM, kind: 'pattern' })).toEqual([])
