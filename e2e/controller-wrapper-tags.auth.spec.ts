@@ -160,12 +160,12 @@ test('Saved-row Wrapper tags agree with stored records and sources (#1277)', asy
   const tooltip = (tag: Locator) => tag.getByRole('tooltip', { includeHidden: true })
   const proofDir = process.env.PXLBLZ_UI_PROOF_DIR
   if (proofDir) await mkdir(proofDir, { recursive: true })
-  const capture = async (name: string) => {
+  const capture = async (name: string, surface: Page | Locator = pane) => {
     const path = proofDir ? `${proofDir}/${name}.png` : testInfo.outputPath(`${name}.png`)
-    await pane.screenshot({ path })
+    await surface.screenshot({ path })
   }
 
-  for (const { tag, reason } of [memory, structural]) {
+  for (const [name, { tag, reason }] of [['memory', memory], ['structural', structural]] as const) {
     await expect(tag).toHaveAttribute('tabindex', '0')
     await expect(tag).toHaveAccessibleDescription(reason)
     await expect(tooltip(tag)).toBeHidden()
@@ -173,6 +173,7 @@ test('Saved-row Wrapper tags agree with stored records and sources (#1277)', asy
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await expect(tooltip(tag)).toBeVisible()
     await expect(tooltip(tag)).toHaveText(reason)
+    if (proofDir) await capture(`1277a1-tags-1440-${name}-hover`, page)
     await page.keyboard.press('Escape')
     await expect(tooltip(tag)).toBeHidden()
     await page.mouse.move(0, 0)
@@ -195,7 +196,7 @@ test('Saved-row Wrapper tags agree with stored records and sources (#1277)', asy
   await page.setViewportSize({ width: 420, height: 900 })
   await expect(pane).toBeHidden()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
-  await page.screenshot({ path: proofDir ? `${proofDir}/1277a1-tags-420-page.png` : testInfo.outputPath('1277a1-tags-420-page.png') })
+  await capture('1277a1-tags-420-page', page)
   await page.setViewportSize({ width: 641, height: 900 })
   await memory.tag.focus()
   await expect(tooltip(memory.tag)).toBeVisible()

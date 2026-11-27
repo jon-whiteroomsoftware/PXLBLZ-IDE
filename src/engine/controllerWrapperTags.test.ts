@@ -132,6 +132,14 @@ describe('describeWrapperTags transforms and bindings', () => {
     expect(pattern(signatureOnly)).toEqual([{ wrapper: 'bright', state: 'applied' }])
   })
 
+  it('gives no transform tags when the stored field is present but malformed', () => {
+    const malformed = {
+      ...legacy(legacyProfile),
+      transforms: null,
+    } as unknown as ControllerPushRecord
+    expect(pattern(malformed)).toEqual([])
+  })
+
   it('gives a legacy record with no transforms and no recognized signature no tags', () => {
     const { transforms: _absent, ...rest } = record({ profileSignature: '{not json' })
     expect(pattern(rest as ControllerPushRecord)).toEqual([])

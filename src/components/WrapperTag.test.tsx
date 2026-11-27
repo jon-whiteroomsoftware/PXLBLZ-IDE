@@ -19,9 +19,11 @@ describe('WrapperTags (#1277)', () => {
       <button type="button" onClick={sibling}>Run</button>
     </div>)
     const slowMo = screen.getByText('slow-mo')
+    const dreamy = screen.getByText('dreamy')
     expect(slowMo).toHaveAttribute('tabindex', '0')
     expect(slowMo).toHaveAccessibleDescription(memory)
-    expect(screen.getByText('dreamy')).toHaveAccessibleDescription(generic)
+    expect(dreamy).toHaveAccessibleDescription(generic)
+    expect(slowMo.getAttribute('aria-describedby')).not.toBe(dreamy.getAttribute('aria-describedby'))
     expect(screen.queryByRole('tooltip')).toBeNull()
 
     act(() => slowMo.focus())

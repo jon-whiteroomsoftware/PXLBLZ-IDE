@@ -86,8 +86,9 @@ function storedSignature(record: ControllerPushRecord): StoredSignature | undefi
  *  falls back to the Power limit and Brightness settings in its recognized
  *  stored signature, as the earlier profile icons did. */
 function savedTransforms(record: ControllerPushRecord): readonly string[] {
-  const stored: unknown = (record as { transforms?: unknown }).transforms
-  if (Array.isArray(stored)) return stored as string[]
+  if (Object.prototype.hasOwnProperty.call(record, 'transforms')) {
+    return Array.isArray(record.transforms) ? record.transforms : []
+  }
   const signature = storedSignature(record)
   if (!signature) return []
   const transforms: string[] = []
