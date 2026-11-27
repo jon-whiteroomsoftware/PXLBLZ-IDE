@@ -677,7 +677,10 @@ describe('ControllerProfilePage', () => {
           mode: 'multiply-output',
         },
       ],
-      inputs: [],
+      inputs: [
+        { id: 'pot-1', pin: 36, signal: 'analog', smoothing: 0, fallback: 0, invert: false },
+        { id: 'pot-2', pin: 39, signal: 'analog', smoothing: 0, fallback: 0, invert: false },
+      ],
       bindings: [
         {
           id: 'binding-1',
@@ -703,7 +706,7 @@ describe('ControllerProfilePage', () => {
       bindings: { 'pat-1': 'DEV1' },
       pushRecords: {
         'pat-1': {
-          transforms: ['hardware-brightness'],
+          transforms: ['power-cap', 'hardware-brightness'],
           artifactHash: 'twinkle-hash',
           stampedAt: '2026-08-16T00:00:00.000Z',
           name: 'Twinkle',
@@ -721,10 +724,11 @@ describe('ControllerProfilePage', () => {
     expect(within(statusSort).getByTestId('controller-status-sort-target')).toBeInTheDocument()
     expect(screen.getByTitle(/Program id DEV1/)).toHaveTextContent('Twinkle')
     expect(screen.getByLabelText('Running now')).toBeInTheDocument()
-    expect(screen.getByTitle('Power cap is baked into this saved Pattern')).toBeInTheDocument()
-    expect(screen.getByTitle('Hardware brightness input is baked into this saved Pattern')).toBeInTheDocument()
-    expect(screen.getByTitle("A hardware input drives one of this Pattern's controls")).toBeInTheDocument()
-    expect(screen.getByTitle("A hardware input assigns one of this Pattern's variables")).toBeInTheDocument()
+    // Saved-row tags read the stored record (#1277): transforms, then bindings.
+    const twinkleTags = within(managed).getByText('power').parentElement!
+    expect(Array.from(twinkleTags.children, (tag) => tag.textContent)).toEqual([
+      'power', 'bright', 'IO36 → setSpeed', expect.stringMatching(/^IO39 → /),
+    ])
 
     const runningRun = screen.getByRole('button', { name: 'Run Twinkle on the Controller' })
     expect(runningRun).toBeDisabled()

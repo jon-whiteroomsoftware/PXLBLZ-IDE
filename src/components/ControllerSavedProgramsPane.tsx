@@ -5,13 +5,10 @@ import {
   Download,
   Play,
   RefreshCw,
-  SlidersHorizontal,
-  Sun,
   Trash2,
-  Variable,
-  Zap,
 } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
+import { WrapperTags } from '@/components/WrapperTag'
 import { Button } from '@/components/ui/button'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
@@ -55,12 +52,12 @@ import {
   resolveControllerSavedPatternStatuses,
   sortControllerSavedPrograms,
   summarizeControllerSavedPatternStatuses,
-  type ControllerSavedProgramFeatures,
   type ControllerSavedPatternStatus,
   type ControllerSavedProgramSort,
   type ControllerSavedProgramRow,
   type ControllerSavedProgramsView,
 } from '@/engine/controllerSavedPrograms'
+import { describeWrapperTags, savedRowDomId, type WrapperTagModel } from '@/engine/controllerWrapperTags'
 import { artifactHash } from '@/engine/artifactStamp'
 import {
   createSavedProgramPatternRecord,
@@ -153,34 +150,6 @@ function PatternStatusDot({ status }: { status: ControllerSavedPatternStatus }) 
       className="inline-flex h-4 items-center"
     >
       <span aria-hidden className={`size-2 rounded-full ${presentation.className}`} />
-    </span>
-  )
-}
-
-const EMPTY_PROFILE_FEATURES: ControllerSavedProgramFeatures = {
-  powerCap: false,
-  hardwareBrightness: false,
-  controlBinding: false,
-  variableBinding: false,
-}
-
-function ProfileFeatureIcons({ features }: { features?: ControllerSavedProgramFeatures }) {
-  const resolved = features ?? EMPTY_PROFILE_FEATURES
-  const items = [
-    [resolved.powerCap, Zap, 'Power cap is baked into this saved Pattern'],
-    [resolved.hardwareBrightness, Sun, 'Hardware brightness input is baked into this saved Pattern'],
-    [resolved.controlBinding, SlidersHorizontal, "A hardware input drives one of this Pattern's controls"],
-    [resolved.variableBinding, Variable, "A hardware input assigns one of this Pattern's variables"],
-  ] as const
-  const shown = items.filter(([visible]) => visible)
-  if (shown.length === 0) return <span className="text-zinc-700">·</span>
-  return (
-    <span className="inline-flex items-center gap-1 text-zinc-400">
-      {shown.map(([, Icon, title]) => (
-        <span key={title} title={title} aria-label={title} className="inline-flex">
-          <Icon size={12} aria-hidden />
-        </span>
-      ))}
     </span>
   )
 }
@@ -712,6 +681,7 @@ function SortableTableHead({
 function SavedProgramsInventory({
   status,
   programs,
+  tagsByProgramId,
   statuses,
   hasSnapshot,
   activeProgramId,
@@ -736,6 +706,8 @@ function SavedProgramsInventory({
 }: {
   status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
+  /** Tags per owned program id, read from its stored push record (#1277). */
+  tagsByProgramId: Readonly<Record<string, readonly WrapperTagModel[]>>
   /** Effective status per program id, shared with the aggregate summary (#874). */
   statuses: Readonly<Record<string, ControllerSavedPatternStatus>>
   hasSnapshot: boolean
@@ -855,12 +827,7 @@ function SavedProgramsInventory({
             <tr>
               {selection.section === 'saved' && allCheckbox('saved')}
               <SortableTableHead field="pattern" label="Pattern" sort={sort} onSort={updateSort} />
-              <th
-                className={tableHeadClass}
-                title="Profile features baked into the saved artifact: power cap, hardware brightness, input-driven control, input-assigned variable"
-              >
-                Profile
-              </th>
+              <th className={tableHeadClass}>Profile</th>
               <SortableTableHead
                 field="status"
                 label="Status"
@@ -883,6 +850,7 @@ function SavedProgramsInventory({
               return (
                 <tr
                   key={program.programId}
+                  id={savedRowDomId(program.programId)}
                   className={`group ${selection.selectedIds.includes(program.programId) ? 'bg-live/[0.05]' : running ? 'bg-emerald-500/[0.04]' : ''}`}
                 >
                   {selection.section === 'saved' && selectionCheckbox(program, deleteDisabledReason)}
@@ -892,7 +860,7 @@ function SavedProgramsInventory({
                     onOpen={onOpen}
                   />
                   <td className={tableCellClass}>
-                    <ProfileFeatureIcons features={program.profileFeatures} />
+                    <WrapperTags tags={tagsByProgramId[program.programId] ?? []} />
                   </td>
                   <td className={tableCellClass}>
                     <PatternStatusDot status={statusFor(program)} />
@@ -1200,6 +1168,12 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       })),
     ],
   })
+  const savedPushRecords = progressRead?.pushRecords[progressRead.controllerId] ?? {}
+  const tagsByProgramId = Object.fromEntries(programs.owned.map((program) => [program.programId, describeWrapperTags({
+    record: program.bindingKey ? savedPushRecords[program.bindingKey] : undefined,
+    programId: program.programId,
+    kind: program.sourceKind,
+  })]))
   // One status projection for the rows and the aggregate summary (#874): a
   // completed reconciliation snapshot never outranks the rows' fresh comparison.
   const savedPatternStatuses = resolveControllerSavedPatternStatuses(
@@ -1606,6 +1580,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       <SavedProgramsInventory
         status={readStatus}
         programs={programs}
+        tagsByProgramId={tagsByProgramId}
         statuses={savedPatternStatuses}
         hasSnapshot={hasInventorySnapshot}
         activeProgramId={activeProgramId}

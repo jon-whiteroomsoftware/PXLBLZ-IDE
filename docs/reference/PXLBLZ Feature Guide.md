@@ -330,8 +330,14 @@ hardware knowledge lives:
   hardware brightness. Studio Patterns and exports keep their authored source.
 - **Saved Patterns.** The profile's inventory separates what PXLBLZ manages
   from everything else on the device. The running row has a green marker, and
-  managed rows show which profile features were baked in and whether the
-  copy on the device is current, stale, syncing, queued, or failed. **Run**
+  managed rows show whether the copy on the device is current, stale,
+  syncing, queued, or failed. Each managed row carries a tag for every
+  Wrapper and input use saved into it: slow-mo, dreamy, power, bright, and
+  one tag per input bound to the Pattern, such as "IO36 → sliderSpeed". A
+  Wrapper that was skipped for that Pattern shows as a greyed tag; hover or
+  keyboard focus shows why, for example "Skipped: not enough memory. Needs
+  2,340 array words, 512 free." or "Skipped: this Pattern's code can't take
+  a Wrapper." Shows never carry a slow-mo or dreamy tag. **Run**
   runs the saved Pattern now without changing the startup Pattern or opening
   anything in Studio. **Delete**
   removes a saved Pattern that is not running, after a confirmation; deleting

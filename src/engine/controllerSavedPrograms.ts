@@ -26,60 +26,6 @@ export const CONTROLLER_SAVED_PATTERN_STATUS_LABELS: Record<ControllerSavedPatte
   failed: 'FAILED',
 }
 
-export interface ControllerSavedProgramFeatures {
-  powerCap: boolean
-  hardwareBrightness: boolean
-  controlBinding: boolean
-  variableBinding: boolean
-}
-
-/** Report only profile features supported by durable artifact evidence. */
-export function controllerSavedProgramFeatures(
-  pushRecord: ControllerPushRecord | undefined,
-): ControllerSavedProgramFeatures {
-  const features: ControllerSavedProgramFeatures = {
-    powerCap: pushRecord?.transforms.includes('power-cap') === true,
-    hardwareBrightness: pushRecord?.transforms.includes('hardware-brightness') === true,
-    controlBinding: false,
-    variableBinding: false,
-  }
-  if (!pushRecord?.profileSignature) return features
-  const stored = readStoredArtifactSignature(pushRecord.profileSignature)
-  if (stored.kind !== 'recognized') return features
-
-  const signature = JSON.parse(stored.normalized) as {
-    transforms: Array<{
-      type: string
-      inputId?: string
-      mode?: string
-      maxDuty?: number
-    }>
-    inputs: Array<{ id: string; signal: string }>
-    bindings: Array<{ inputId: string; target: { kind: string } }>
-  }
-  for (const transform of signature.transforms) {
-    if (transform.type === 'power-cap' && (transform.maxDuty ?? -1) >= 0) {
-      features.powerCap = true
-    }
-    if (
-      transform.type === 'hardware-brightness'
-      && transform.mode === 'multiply-output'
-      && signature.inputs.some((input) => (
-        input.id === transform.inputId && input.signal === 'analog'
-      ))
-      && !signature.bindings.some((binding) => binding.inputId === transform.inputId)
-    ) features.hardwareBrightness = true
-  }
-  for (const binding of signature.bindings) {
-    if (
-      binding.target.kind === 'call-exported-slider'
-      || binding.target.kind === 'call-function'
-    ) features.controlBinding = true
-    if (binding.target.kind === 'assign-variable') features.variableBinding = true
-  }
-  return features
-}
-
 export function describeProfileFreshness(
   pushRecord: ControllerPushRecord | undefined,
   currentProfileSignature: string | null,
@@ -143,8 +89,6 @@ export interface ControllerSavedProgramRow {
   /** Which Studio entity produced this program; foreign rows default to pattern. */
   sourceKind: 'pattern' | 'show'
   freshness: ControllerSavedPatternFreshness
-  /** Profile features baked into the durable Controller artifact. */
-  profileFeatures?: ControllerSavedProgramFeatures
   showOutputContract?: ArtifactShowOutputContract
   wrapperOutcome?: ControllerWrapperOutcome
 }
@@ -341,7 +285,6 @@ export function describeControllerSavedPrograms(input: {
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
       sourceKind: isShow ? 'show' : 'pattern',
-      profileFeatures: controllerSavedProgramFeatures(pushRecord),
       freshness,
       ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
       ...(wrapperOutcome ? { wrapperOutcome } : {}),

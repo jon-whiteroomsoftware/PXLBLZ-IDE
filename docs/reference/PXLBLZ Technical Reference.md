@@ -1026,11 +1026,22 @@ with a fresh full-profile signature for that binding and the live map dimension:
 exact matches get an emerald status dot, recognized differences amber, and
 missing or unrecognized evidence zinc; queued and syncing pulse, and failures
 are red. The tooltip and accessible label retain the full status explanation.
-`controllerSavedProgramFeatures` separately derives up to four artifact facts
-from durable evidence: power-cap and hardware-brightness transforms, a
-call-exported-slider or call-function control binding, and an assign-variable
-binding. Unrecognized signatures make no feature claim. Saved Show rows retain
-their Show-output contract summary and any source-unavailable note.
+Each row's tags come from `describeWrapperTags`
+(`src/engine/controllerWrapperTags.ts`, #1277), read only from that program's
+stored push record and never from the current switches. The Wrapper outcome
+counts only when its `wrapperProgramId` is the displayed program: applied
+Slow-mo and Dreamy in stored order, then skipped ones as greyed tags, then
+`power` and `bright` from the record's `transforms` (a legacy record with no
+`transforms` field falls back to the Power limit and Brightness settings in
+its recognized stored signature), then one
+`IO<pin> → <target>` tag per binding in the recognized stored signature. An
+absent or empty outcome gives no timing tag, and a Show never carries one. A
+greyed tag takes focus; hover or focus reveals its reason, which is also its
+accessible description, and Escape hides it. `formatWrapperSkipReason` gives
+the memory form with both counts and one generic line for every other skip.
+`appliedWrapperTags` is the applied-only form for pickers. Unrecognized
+signatures give no binding tags. Saved Show rows retain their Show-output
+contract summary and any source-unavailable note.
 
 The read identity includes the connection epoch, push-record revision, and
 manual-refresh generation. Reconnects, successful push-record writes, and
