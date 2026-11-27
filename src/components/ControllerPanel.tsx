@@ -277,6 +277,7 @@ export function ControllerPanel() {
       pushRecords: savedEvidence?.pushRecords ?? null,
     }),
     enabled: enabledControllerWrappers(activeProfile),
+    inputs: activeProfile?.inputs,
   })
   const wrapperGroup = wrappers.group
   const controls = shapeControllerControls(wrappers.ownReported, controlDescriptions)
@@ -335,7 +336,11 @@ export function ControllerPanel() {
           summary={<PanelReadout items={describeControllerWrappersReadout(wrapperGroup.rows)} />}
         >
           <DeckGrid>
-            {wrapperGroup.rows.map((row) => (
+            {wrapperGroup.rows.map((row) => row.input ? (
+              <DeckCell key={row.exportName} label={row.label.toLowerCase()} labelClassName="shrink-0">
+                <span className="min-w-0 [overflow-wrap:anywhere] text-right text-zinc-200">{row.input.name}</span>
+              </DeckCell>
+            ) : (
               <DeckSlider
                 key={row.exportName}
                 label={row.label.toLowerCase()}

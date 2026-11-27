@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   controllerPanelShowWrapperLine,
+  describeControllerWrappersReadout,
   deriveControllerPanelWrappers,
   resolveControllerPanelWrapperEvidence,
   type ControllerPanelWrapperEvidence,
@@ -13,6 +14,10 @@ const pattern = (outcome?: ControllerWrapperOutcome): ControllerPanelWrapperEvid
   outcome ? { sourceKind: 'pattern', outcome } : { sourceKind: 'pattern' }
 const unknown: ControllerPanelWrapperEvidence = { sourceKind: 'unknown' }
 const both: ControllerWrapperOutcome = { applied: ['slow-mo', 'dreamy'], skipped: {} }
+const inputDriven: ControllerWrapperOutcome = {
+  ...both,
+  inputs: { 'slow-mo': { inputId: 'dial', name: 'Saved dial' } },
+}
 const memorySkip = { reason: 'array-budget' as const, message: 'Skipped: not enough memory.' }
 const clash = { reason: 'control-name-taken' as const, message: 'Skipped: name taken.' }
 
@@ -38,6 +43,41 @@ const authorOnly = {
 }
 
 describe('deriveControllerPanelWrappers', () => {
+  it.each([
+    [[{ id: 'dial', name: 'Current dial' }], 'Current dial'],
+    [[{ id: 'another-id', name: 'Unrelated dial' }], 'Saved dial'],
+  ])('describes an applied input by ID and falls back to its saved name (#1278 P1)', (inputs, name) => {
+    const { group, ownReported } = deriveControllerPanelWrappers({
+      reported: interleaved,
+      evidence: pattern(inputDriven),
+      enabled: [],
+      inputs,
+    })
+    expect(group).toEqual({
+      kind: 'rows',
+      rows: [
+        { type: 'slow-mo', label: 'Slow-mo', exportName: 'sliderSlowMo', input: { name } },
+        { type: 'dreamy', label: 'Dreamy', exportName: 'sliderDreamy', value: 0.6 },
+      ],
+    })
+    expect(ownReported).toEqual(authorOnly)
+    if (group.kind !== 'rows') throw new Error('Expected Wrapper rows')
+    expect(describeControllerWrappersReadout(group.rows)[0]).toEqual({ label: 'slow-mo', value: name, live: false })
+  })
+
+  it('keeps the slider for a saved Pattern that opts out of the profile input (#1278 P1)', () => {
+    const { group } = deriveControllerPanelWrappers({
+      reported: { sliderSlowMo: 0.3 },
+      evidence: pattern({ applied: ['slow-mo'], skipped: {} }),
+      enabled: ['slow-mo'],
+      inputs: [{ id: 'dial', name: 'Current dial' }],
+    })
+    expect(group).toEqual({
+      kind: 'rows',
+      rows: [{ type: 'slow-mo', label: 'Slow-mo', exportName: 'sliderSlowMo', value: 0.3 }],
+    })
+  })
+
   it.each([
     ['saved record', pattern(both)],
     ['reported names (no record)', unknown],
@@ -218,7 +258,7 @@ describe('resolveControllerPanelWrapperEvidence', () => {
     '10.0.0.5': {
       'pattern-a': record({ wrapperOutcome: both, wrapperProgramId: 'prog-a' }),
       // A receipt for an earlier slot: its outcome does not describe prog-b.
-      'pattern-b': record({ wrapperOutcome: both, wrapperProgramId: 'prog-old' }),
+      'pattern-b': record({ wrapperOutcome: inputDriven, wrapperProgramId: 'prog-old' }),
     },
   }
   const resolve = (activeProgramId: string | undefined, overrides: Partial<Parameters<typeof resolveControllerPanelWrapperEvidence>[0]> = {}) =>
@@ -228,7 +268,14 @@ describe('resolveControllerPanelWrapperEvidence', () => {
     expect(resolve('prog-a')).toEqual({ sourceKind: 'pattern', outcome: both })
   })
   it('has no outcome when the receipt names another program ID', () => {
-    expect(resolve('prog-b')).toEqual({ sourceKind: 'pattern' })
+    const evidence = resolve('prog-b')
+    expect(evidence).toEqual({ sourceKind: 'pattern' })
+    expect(deriveControllerPanelWrappers({
+      evidence, reported: { sliderSlowMo: 0.3 }, enabled: ['slow-mo'],
+    }).group).toEqual({
+      kind: 'rows',
+      rows: [{ type: 'slow-mo', label: 'Slow-mo', exportName: 'sliderSlowMo', value: 0.3 }],
+    })
   })
   it('identifies a Show from its binding key, not from its controls', () => {
     expect(resolve('prog-s')).toEqual({ sourceKind: 'show' })

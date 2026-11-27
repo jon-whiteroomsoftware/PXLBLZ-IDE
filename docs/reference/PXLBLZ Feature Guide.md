@@ -325,15 +325,19 @@ hardware knowledge lives:
 
 - **Wrappers.** Switch Slow-mo, Dreamy, or Power limit on the Controller
   profile. A timing Wrapper adds a native Pixelblaze slider to each saved
-  Pattern it fits. Select the skipped count next to a Wrapper to reach the
-  affected Patterns. Set Power limit from a fixed value or derive it from your
-  supply budget and full-white load. When an input drives Brightness, its
-  Wrappers row shows the input and offers **Unbind**. Studio Patterns and
-  exports keep their authored source.
+  Pattern it fits. Select **Bind input** to let an analog input drive it.
+  The row shows the input and which Patterns use it. The Controller panel
+  shows the input name in place of the slider for the running Pattern.
+  **Unbind** brings back each Pattern's slider. Select the skipped count
+  next to a Wrapper to reach the affected Patterns. Set Power limit from
+  a fixed value or derive it from your supply budget and full-white load.
+  Studio Patterns and exports keep their authored source.
 - **Inputs.** Describe a potentiometer or button once (pin, signal,
-  smoothing). Open **Use for a Wrapper** and select **Brightness**, or route
-  the input to a Pattern's exported Control. A Pattern binding on the same
-  input takes precedence for that Pattern. Validation flags problems on the
+  smoothing). Open **Use for a Wrapper** on an analog input and select
+  **Brightness**, **Slow-mo**, or **Dreamy**. Each input drives one Wrapper
+  at a time. Picking an assigned input from a Wrapper row moves it to that
+  Wrapper. A Pattern binding on the same input takes precedence for that
+  Pattern and keeps its timing slider. Validation flags problems on the
   input that owns them, with one-click fixes.
 - **Saved by PXLBLZ.** The profile counts saved Patterns and Shows in one
   heading, with one update line above the **Patterns** and **Shows** groups.

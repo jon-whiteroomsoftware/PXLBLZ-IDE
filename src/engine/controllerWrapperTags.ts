@@ -3,6 +3,7 @@ import type {
   ControllerProfile,
   ControllerWrapperOutcome,
   ControllerWrapperType,
+  GlobalInputUse,
 } from './controllerProfile'
 import { readStoredArtifactSignature } from './controllerProfilePassRecipe'
 import { savedControllerWrapperOutcome, type ControllerPushRecord } from './controllerPushRecord'
@@ -133,8 +134,50 @@ export const TIMING_WRAPPER_NAMES: Record<ControllerWrapperType, string> = {
   dreamy: 'Dreamy',
 }
 
+export const WRAPPER_INPUT_NAMES: Record<GlobalInputUse, string> = {
+  'hardware-brightness': 'Brightness',
+  ...TIMING_WRAPPER_NAMES,
+}
+
 export function wrapperEnabled(profile: ControllerProfile, type: ControllerWrapperType): boolean {
   return profile.globalTransforms.some((transform) => transform.type === type && transform.enabled)
+}
+
+/** The assigned input and the scope shared by the Wrapper row and input card. */
+export function wrapperRowSource(
+  profile: ControllerProfile,
+  type: ControllerWrapperType,
+  patternNames: Readonly<Record<string, string>> = {},
+): { input: ControllerInput; scope: string } | null {
+  const transform = profile.globalTransforms.find((entry) => entry.type === type && entry.enabled)
+  if (transform?.type !== type) return null
+  const input = profile.inputs.find(({ id }) => id === transform.inputId)
+  if (!input) return null
+  const exceptions = new Set(profile.patternBindings
+    .filter(({ inputId }) => inputId === input.id)
+    .map(({ patternId }) => patternNames[patternId]?.trim() || patternId))
+  const scope = exceptions.size
+    ? `every Pattern except ${[...exceptions].join(', ')}`
+    : 'every Pattern'
+  return { input, scope }
+}
+
+export function wrapperBindingChoices(profile: ControllerProfile, type: ControllerWrapperType) {
+  const assigned = new Map<string, GlobalInputUse>()
+  const brightness = brightnessRowInput(profile)
+  if (brightness) assigned.set(brightness.id, 'hardware-brightness')
+  for (const wrapper of TIMING_ORDER) {
+    if (wrapper === type) continue
+    const source = wrapperRowSource(profile, wrapper)
+    if (source) assigned.set(source.input.id, wrapper)
+  }
+  return profile.inputs.filter(({ signal }) => signal === 'analog').map((input) => {
+    const current = assigned.get(input.id)
+    return {
+      id: input.id,
+      label: `IO${input.pin} ${input.name}${current ? ` (now ${WRAPPER_INPUT_NAMES[current]})` : ''}`,
+    }
+  })
 }
 
 export function brightnessRowInput(profile: ControllerProfile): ControllerInput | null {

@@ -8,8 +8,11 @@ import { formatWrapperSkipReason, savedRowDomId } from '../src/engine/controller
 import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { parseEpe } from '../src/engine/epeImport'
 import { bundleWithPasses } from '../src/engine/passEngine'
+import { createShowWithOutputContract } from '../src/engine/showModel'
+import { createPortableShowOutputContract } from '../src/engine/showOutputContract'
 import { expect, test } from './fixtures/authenticated'
 import { installFakeControllerHelper } from './fixtures/fakeControllerHelper'
+import { seedShowV2 } from './support/showBackingRecords'
 
 const proofStorageState = process.env.PXLBLZ_RECONCILIATION_STORAGE_STATE
 if (proofStorageState) test.use({ storageState: proofStorageState })
@@ -45,6 +48,8 @@ interface RelayControls {
   releaseSaves: () => void
   waitingSaveIds: () => string[]
   savedBytes: () => Record<string, string>
+  savedControls: () => Record<string, Record<string, number>>
+  controlWrites: () => Array<{ programId: string; values: Record<string, number>; save: boolean }>
   disconnect: () => void
   reconnect: () => void
   dropProgramLists: () => void
@@ -78,7 +83,9 @@ async function seed(page: Page, seedProfile = profile, fixturePrograms = program
   const bindings = Object.fromEntries(fixturePrograms.flatMap(({ id, binding }) => binding ? [[binding, id]] : []))
   const pushRecords = Object.fromEntries(fixturePrograms.flatMap(({ binding, name, source }) => binding ? [[binding, {
     name, transforms: [], artifactHash: artifactHash(source), sourceHash: artifactHash(source),
-    profileSignature: controllerProfileArtifactSignature(seedProfile, binding, { mapDim: null }),
+    // A Show fixture starts with placeholder bytes and has to earn its receipt
+    // through a Save when the Studio source is available.
+    profileSignature: binding.startsWith('show:') ? undefined : controllerProfileArtifactSignature(seedProfile, binding, { mapDim: null }),
     stampedAt: '2026-11-25T00:00:00.000Z',
   }]] : []))
   for (const [key, value] of Object.entries({ 'controller-bindings': bindings, 'controller-push-records': pushRecords })) {
@@ -278,7 +285,7 @@ for (const width of [1440, 641]) {
     const trigger = profilePage.getByRole('button', { name: 'Use Wash knob for a Wrapper' })
     await trigger.click()
     const picker = profilePage.getByRole('group', { name: 'Wrapper for Wash knob' })
-    await expect(picker.getByRole('button')).toHaveText(['Brightness', 'Cancel'])
+    await expect(picker.getByRole('button')).toHaveText(['Brightness', 'Slow-mo', 'Dreamy', 'Cancel'])
     await picker.getByRole('button', { name: 'Cancel' }).click()
     await expect(trigger).toBeFocused()
     await expect(unbind).toHaveCount(0)
@@ -471,19 +478,260 @@ test('Wrapper profile reconciliation writes only effective changes at the Contro
   expect(stripPxlblzBanner(exported.src)).toBe(fit.source)
 })
 
+for (const width of [1440, 641]) {
+  test(`Wrapper input binding reconciles saved Patterns at ${width}px (#1278 F1)`, async ({ page }) => {
+    // Six real transport reconnects and a fresh profile load share this flow.
+    test.setTimeout(60_000)
+    const source = 'export function sliderWash(v) {}\nexport function render(i) { rgb(i/pixelCount, 0.3, 0.1) }'
+    const fit = { ...managed[0], source }
+    const optOut = { ...managed[1], source }
+    const independent = { id: 'pxbDifferentInput', name: 'Ripple', binding: 'rewrite-ripple', source }
+    const clash = { ...independent, id: 'pxbNameCollision1', name: 'Name collision', binding: 'rewrite-clash',
+      source: `export function sliderSlowMo(v) {}\n${source}` }
+    const memory = { ...independent, id: 'pxbMemoryRefusal1', name: 'Memory skip', binding: 'rewrite-memory',
+      source: 'var heavy = array(10200)\nexport function render(i) { rgb(0, 0, heavy[0]) }' }
+    const show = { ...independent, id: 'pxbPortableShow01', name: 'Fixture Show', binding: 'show:fixture-1278' }
+    const foreign = programs[3]
+    const fixturePrograms = [fit, optOut, independent, clash, memory, show, foreign]
+    const input = { id: 'tempo', name: 'Tempo dial', pin: 33, signal: 'analog' as const, smoothing: 0.2, fallback: 0, invert: false }
+    const seedProfile: ControllerProfile = {
+      ...profile,
+      lastKnownPixelCount: 64,
+      inputs: [input, { ...input, id: 'wash', name: 'Wash dial', pin: 36 }],
+      globalTransforms: [...profile.globalTransforms, { id: 'slow-mo', type: 'slow-mo', enabled: true }],
+      patternBindings: [
+        { id: 'opt-out', patternId: optOut.binding!, inputId: input.id, target: { kind: 'call-exported-slider', name: 'sliderWash' } },
+        { id: 'independent', patternId: independent.binding, inputId: 'wash', target: { kind: 'call-exported-slider', name: 'sliderWash' } },
+      ],
+    }
+    await page.setViewportSize({ width, height: 1000 })
+    await seed(page, seedProfile, fixturePrograms)
+    const request = page.context().request
+    const showFixture = createShowWithOutputContract(show.binding.slice(5), show.name,
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 64 }))
+    await seedShowV2(page, showFixture, show.name)
+
+    const runStarts = await observeRunStarts(page)
+    const activeRuns = () => page.evaluate(() => (
+      window as unknown as { __reconciliationActiveRuns: number }
+    ).__reconciliationActiveRuns)
+    const pane = page.getByTestId('controller-saved-programs-pane')
+    const pill = page.getByTestId('controller-pill')
+    const done = pane.getByText('6 of 6 up to date', { exact: true })
+    const waitForRun = async (previous: number) => {
+      await expect.poll(runStarts).toBe(previous + 1)
+      await expect.poll(activeRuns).toBe(0)
+      await expect(done).toBeVisible()
+    }
+    const saves = () => page.evaluate(() => (
+      window as unknown as { __fakeControllerWrites: Array<{ savedProgramId?: string }> }
+    ).__fakeControllerWrites.flatMap(({ savedProgramId }) => savedProgramId ? [savedProgramId] : []))
+    // Activation sends an empty volatile setControls to clear its temporary
+    // Control map. Count all value writes and any request to persist Controls.
+    const valueWrites = async () => (await relay(page, 'controlWrites'))
+      .filter(({ values, save }) => save || Object.keys(values).length > 0)
+    const readPrograms = () => page.evaluate(async (ids) => {
+      const path = new URL('/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts', location.origin).href
+      const { getControllerProvider } = await import(/* @vite-ignore */ path) as typeof import('../src/engine/controllerProviderRegistry')
+      return Promise.all(ids.map((id) => getControllerProvider().readSavedProgram(id)))
+    }, fixturePrograms.map(({ id }) => id))
+    const storedProfile = async (id = seedProfile.id) => {
+      const response = await request.get('/api/controllers')
+      expect(response.ok()).toBe(true)
+      const { controllers } = await response.json() as { controllers: ControllerProfile[] }
+      const stored = controllers.find((item) => item.id === id)
+      if (!stored) throw new Error(`Profile ${id} is missing after write`)
+      return stored
+    }
+    const reconnectWithoutSave = async () => {
+      const writeLog = await saves()
+      const started = await runStarts()
+      await relay(page, 'disconnect')
+      await expect(pill).not.toHaveAttribute('data-phase', 'live')
+      await relay(page, 'reconnect')
+      await expect(pill).toHaveAttribute('data-phase', 'live')
+      await waitForRun(started)
+      expect(await saves()).toEqual(writeLog)
+    }
+    const capture = async (state: string) => {
+      const proofDir = process.env.PXLBLZ_1278B_UI_PROOF_DIR
+      if (proofDir) await page.screenshot({ path: `${proofDir}/1278b-${width}-${state}.png` })
+    }
+    const wrappers = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Wrappers', exact: true }) })
+    const bindSlow = wrappers.getByRole('button', { name: 'Bind input to Slow-mo' })
+    const unbindSlow = wrappers.getByRole('button', { name: 'Unbind Slow-mo', exact: true })
+    const picker = wrappers.getByRole('group', { name: 'Input for Slow-mo' })
+    const tempoChoice = (name: string) => picker.getByRole('button', { name: `IO${input.pin} ${name}`, exact: true })
+
+    await connectFixture(page)
+    await waitForRun(0)
+    const baselineBytes = await relay(page, 'savedBytes')
+    const baselinePrograms = await readPrograms()
+    expect(baselinePrograms.map((program) => program?.programId)).toEqual(fixturePrograms.map(({ id }) => id))
+    expect(baselinePrograms[0]?.sourceCode).toContain('export function sliderSlowMo')
+    expect(baselinePrograms[5]?.stamp).toMatchObject({ kind: 'show', id: showFixture.id })
+    expect(baselinePrograms[5]?.sourceCode).not.toContain('export function sliderSlowMo')
+    expect(await saves()).toContain(show.id)
+    await reconnectWithoutSave()
+
+    await page.evaluate(async (id) => {
+      const path = new URL('/PXLBLZ-IDE/src/engine/controllerProviderRegistry.ts', location.origin).href
+      const { getControllerProvider } = await import(/* @vite-ignore */ path) as typeof import('../src/engine/controllerProviderRegistry')
+      const provider = getControllerProvider()
+      await provider.setActiveProgram(id, { save: false })
+      await provider.setControls({ sliderSlowMo: 0.3 }, true)
+      await provider.getConfig()
+    }, fit.id)
+    const valueWrite = { programId: fit.id, values: { sliderSlowMo: 0.3 }, save: true }
+    expect(await valueWrites()).toEqual([valueWrite])
+
+    const baselineSaves = await saves()
+    const beforeBind = await runStarts()
+    await bindSlow.press('Space')
+    await expect(picker.getByRole('button')).toHaveText(['IO33 Tempo dial', 'IO36 Wash dial', 'Cancel'])
+    await wrappers.scrollIntoViewIfNeeded()
+    await capture('wrapper-picker')
+    await tempoChoice(input.name).click()
+    await expect(wrappers.getByText('every Pattern except Embers')).toBeVisible()
+    await expect(unbindSlow).toBeFocused()
+    await waitForRun(beforeBind)
+    await wrappers.scrollIntoViewIfNeeded()
+    await capture('bound-wrapper')
+    const rowBinding = await storedProfile()
+    expect(rowBinding.patternBindings).toEqual(seedProfile.patternBindings)
+    expect(rowBinding.globalTransforms).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: input.id })
+
+    const appliedIds = [fit.id, independent.id]
+    expect((await saves()).slice(baselineSaves.length).sort()).toEqual([...appliedIds].sort())
+    const boundPrograms = await readPrograms()
+    const boundBytes = await relay(page, 'savedBytes')
+    const exportNames = (source: string | null | undefined) =>
+      Array.from((source ?? '').matchAll(/^export function (\w+)/gm), ([, name]) => name)
+    for (const index of [0, 2]) {
+      expect(boundPrograms[index]?.sourceCode).toContain('analogRead(33)')
+      expect(exportNames(boundPrograms[index]?.sourceCode)).toEqual(
+        exportNames(baselinePrograms[index]?.sourceCode).filter((name) => name !== 'sliderSlowMo'),
+      )
+      expect(boundBytes[fixturePrograms[index].id]).not.toBe(baselineBytes[fixturePrograms[index].id])
+    }
+    expect(boundPrograms[1]?.sourceCode).toContain('export function sliderSlowMo')
+    expect(await relay(page, 'savedControls')).toEqual({ [fit.id]: valueWrite.values })
+    for (const index of [1, 3, 4, 5, 6]) {
+      expect(boundPrograms[index]).toEqual(baselinePrograms[index])
+      const { id } = fixturePrograms[index]
+      expect(boundBytes[id]).toBe(baselineBytes[id])
+    }
+    await reconnectWithoutSave()
+
+    const togglePanel = page.getByRole('button', { name: `Toggle ${profile.name} panel`, exact: true })
+    await togglePanel.click()
+    const panel = page.getByTestId('controller-panel-popover')
+    const panelInput = (name: string) => panel.locator('[data-deck="cell"]').getByText(name, { exact: true })
+    await expect(panelInput(input.name)).toBeVisible()
+    await expect(panel.getByRole('slider', { name: 'Slow-mo', exact: true })).toHaveCount(0)
+    await capture('panel-input')
+    await togglePanel.click()
+
+    const afterBindSaves = await saves()
+    const beforeSample = await runStarts()
+    await page.getByRole('button', { name: 'Adjust Tempo dial' }).click()
+    await page.getByRole('checkbox', { name: 'Tempo dial invert' }).check()
+    await waitForRun(beforeSample)
+    // Embers opts out of the Wrapper input but its own Control still samples it.
+    const samplingIds = [...appliedIds, optOut.id]
+    expect((await saves()).slice(afterBindSaves.length).sort()).toEqual(samplingIds.sort())
+    const sampledBytes = await relay(page, 'savedBytes')
+    for (const id of samplingIds) expect(sampledBytes[id]).not.toBe(boundBytes[id])
+    const sampledPrograms = await readPrograms()
+    expect(sampledPrograms[1]?.sourceCode).toContain('export function sliderSlowMo')
+    await reconnectWithoutSave()
+
+    const afterSampleSaves = await saves()
+    const name = page.getByRole('textbox', { name: 'Tempo dial input name' })
+    const renamedInput = 'Renamed tempo dial'
+    await name.fill(renamedInput)
+    await name.press('Enter')
+    await expect.poll(async () => (await storedProfile()).inputs[0].name).toBe(renamedInput)
+    await togglePanel.click()
+    await expect(panelInput(renamedInput)).toBeVisible()
+    await togglePanel.click()
+    expect(await saves()).toEqual(afterSampleSaves)
+    expect(await relay(page, 'savedBytes')).toEqual(sampledBytes)
+    await reconnectWithoutSave()
+
+    const beforeUnbind = await runStarts()
+    await unbindSlow.click()
+    await waitForRun(beforeUnbind)
+    expect((await saves()).slice(afterSampleSaves.length).sort()).toEqual([...appliedIds].sort())
+    const restoredPrograms = await readPrograms()
+    expect(restoredPrograms.map((program) => program?.sourceCode)).toEqual(
+      baselinePrograms.map((program, index) => index === 1 ? sampledPrograms[index]?.sourceCode : program?.sourceCode),
+    )
+    expect(await relay(page, 'savedControls')).toEqual({ [fit.id]: valueWrite.values })
+    expect(await valueWrites()).toEqual([valueWrite])
+    await reconnectWithoutSave()
+    await togglePanel.click()
+    await expect(panel.getByRole('slider', { name: 'Slow-mo', exact: true })).toHaveValue('0.3')
+    await togglePanel.click()
+
+    const beforeOverlap = await runStarts()
+    await relay(page, 'holdSaves')
+    await wrappers.getByRole('switch', { name: 'Dreamy' }).check()
+    await expect.poll(() => relay(page, 'waitingSaveIds')).toHaveLength(1)
+    const held = await relay(page, 'waitingSaveIds')
+    await bindSlow.click()
+    await tempoChoice(renamedInput).click()
+    await expect(pane.getByText(/Updating .* · restarted/)).toBeVisible()
+    expect(await runStarts()).toBe(beforeOverlap + 1)
+    expect(await relay(page, 'waitingSaveIds')).toEqual(held)
+    await relay(page, 'releaseSaves')
+    await waitForRun(beforeOverlap)
+    const finalPrograms = await readPrograms()
+    expect(finalPrograms[0]?.sourceCode).toContain('analogRead(33)')
+    expect(finalPrograms[0]?.sourceCode).not.toContain('export function sliderSlowMo')
+    expect(finalPrograms[5]).toEqual(baselinePrograms[5])
+    expect(finalPrograms[6]).toEqual(baselinePrograms[6])
+    expect(await valueWrites()).toEqual([valueWrite])
+    await reconnectWithoutSave()
+
+    const fresh = { ...seedProfile, id: 'rewrites-1278-fresh', deviceId: 'pixelblaze_pb32_665544332212', lastSeenIp: '192.168.8.225' }
+    expect((await request.post('/api/controllers', { data: fresh })).ok()).toBe(true)
+    await page.goto(`studio/controllers/${fresh.id}`)
+    const inputOffer = page.getByRole('button', { name: 'Use Tempo dial for a Wrapper' })
+    await inputOffer.click()
+    const inputPicker = page.getByRole('group', { name: 'Wrapper for Tempo dial' })
+    await expect(inputPicker.getByRole('button')).toHaveText(['Brightness', 'Slow-mo', 'Dreamy', 'Cancel'])
+    await inputPicker.scrollIntoViewIfNeeded()
+    await capture('input-offer')
+    await inputPicker.getByRole('button', { name: 'Slow-mo', exact: true }).click()
+    await expect.poll(async () => {
+      const { globalTransforms, patternBindings, inputs } = await storedProfile(fresh.id)
+      return { globalTransforms, patternBindings, inputs }
+    }).toEqual({ globalTransforms: rowBinding.globalTransforms, patternBindings: rowBinding.patternBindings, inputs: rowBinding.inputs })
+  })
+}
+
 async function observeRunStarts(page: Page) {
   await page.evaluate(async (profileId) => {
     const path = new URL('/PXLBLZ-IDE/src/store/controllerReconciliationQueue.ts', location.origin).href
     const { ControllerReconciliationQueue } = await import(/* @vite-ignore */ path) as typeof import('../src/store/controllerReconciliationQueue')
     const request = ControllerReconciliationQueue.prototype.request
     let starts = 0
+    let active = 0
     ControllerReconciliationQueue.prototype.request = function (id, trigger, run) {
-      return request.call(this, id, trigger, (flight) => {
-        if (id === profileId) starts += 1
-        return run(flight)
+      if (id !== profileId) return request.call(this, id, trigger, run)
+      return request.call(this, id, trigger, async (flight) => {
+        starts += 1
+        active += 1
+        try {
+          await run(flight)
+        } finally {
+          active -= 1
+        }
       })
     }
     Object.defineProperty(window, '__reconciliationRunStarts', { get: () => starts })
+    Object.defineProperty(window, '__reconciliationActiveRuns', { get: () => active })
   }, profile.id)
   return () => page.evaluate(() => (window as unknown as { __reconciliationRunStarts: number }).__reconciliationRunStarts)
 }

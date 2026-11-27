@@ -6,6 +6,7 @@
 import type { BindingStore } from './controllerBinding'
 import {
   CONTROLLER_WRAPPER_TYPES,
+  type ControllerInput,
   type ControllerWrapperOutcome,
   type ControllerWrapperType,
 } from './controllerProfile'
@@ -20,14 +21,16 @@ export const CONTROLLER_PANEL_WRAPPER_LABELS: Record<ControllerWrapperType, stri
   dreamy: 'Dreamy',
 }
 
-export interface ControllerPanelWrapperRow {
+export type ControllerPanelWrapperRow = {
   type: ControllerWrapperType
   label: string
   /** The reserved native export the slider writes. */
   exportName: string
+} & (
+  | { input: { name: string }; value?: never }
   /** The reported 0..1 position, or `null` while no usable value is known. */
-  value: number | null
-}
+  | { input?: never; value: number | null }
+)
 
 export type ControllerPanelWrapperGroup =
   | { kind: 'absent' }
@@ -89,6 +92,8 @@ function wrapperRowValue(raw: unknown): number | null {
 export function deriveControllerPanelWrappers(input: {
   reported: Readonly<Record<string, unknown>>
   evidence: ControllerPanelWrapperEvidence
+  /** Names in the current profile, matched to saved evidence by input ID. */
+  inputs?: readonly Pick<ControllerInput, 'id' | 'name'>[]
   /** Wrappers on in the Controller's profile, ignoring the Show exception. */
   enabled: readonly ControllerWrapperType[]
 }): { group: ControllerPanelWrapperGroup; ownReported: Record<string, number> } {
@@ -119,12 +124,11 @@ export function deriveControllerPanelWrappers(input: {
   }
   const rows = members.map((type): ControllerPanelWrapperRow => {
     const exportName = PATTERN_WRAPPER_CONTROLS[type].exportName
-    return {
-      type,
-      label: CONTROLLER_PANEL_WRAPPER_LABELS[type],
-      exportName,
-      value: wrapperRowValue(reported[exportName]),
-    }
+    const row = { type, label: CONTROLLER_PANEL_WRAPPER_LABELS[type], exportName }
+    const bound = outcome?.inputs?.[type]
+    if (!bound) return { ...row, value: wrapperRowValue(reported[exportName]) }
+    const name = input.inputs?.find(({ id }) => id === bound.inputId)?.name ?? bound.name
+    return { ...row, input: { name } }
   })
   return {
     group: rows.length ? { kind: 'rows', rows } : { kind: 'absent' },
@@ -157,7 +161,7 @@ export function adoptReportedWrapperValues(
 export function describeControllerWrappersReadout(rows: readonly ControllerPanelWrapperRow[]): PanelReadout[] {
   return rows.map((row) => ({
     label: row.label.toLowerCase(),
-    value: row.value === null ? '—' : formatPercentageValue(row.value, 0.01),
-    live: true,
+    value: row.input ? row.input.name : row.value === null ? '—' : formatPercentageValue(row.value, 0.01),
+    live: !row.input,
   }))
 }

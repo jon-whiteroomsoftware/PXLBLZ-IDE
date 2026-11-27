@@ -40,8 +40,11 @@ export async function installFakeControllerHelper(
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
     let pixelCount = fixture.pixelCount
+    // Firmware keeps saved values by program ID even while a rewrite omits
+    // the corresponding export. Save confirmation updates program bytes only.
     const savedControls = new Map(Object.entries(fixture.programControls ?? {}))
     const liveControls = new Map<string, Record<string, number>>()
+    const controlWrites: Array<{ programId: string; values: object; save: boolean }> = []
     const controlsFor = (id: string) => savedControls.get(id) ?? fixture.controls ?? {}
     let pendingProgramId: string | null = null
     let programs = fixture.programs.map((program) => ({ ...program }))
@@ -86,6 +89,8 @@ export async function installFakeControllerHelper(
           },
           waitingSaveIds: () => heldSaves.map(({ programId }) => programId),
           savedBytes: () => ({ ...savedPrograms }),
+          savedControls: () => Object.fromEntries(savedControls),
+          controlWrites: () => [...controlWrites],
           disconnect: () => {
             online = false
             heldSaves.length = 0
@@ -261,6 +266,7 @@ export async function installFakeControllerHelper(
       if (typeof command.pixelCount === 'number') pixelCount = command.pixelCount
       if (fixture.trackSavedPrograms && command.setControls && typeof command.setControls === 'object') {
         const values = command.setControls
+        controlWrites.push({ programId: activeProgramId, values, save: command.save === true })
         liveControls.set(activeProgramId, { ...(liveControls.get(activeProgramId) ?? controlsFor(activeProgramId)), ...values })
         if (command.save === true) {
           savedControls.set(activeProgramId, { ...controlsFor(activeProgramId), ...values })

@@ -8,11 +8,13 @@ import { ExternalLink, Plus } from 'lucide-react'
 import { controlIcon, inlineIcon } from '@/components/iconScale'
 import { Button } from '@/components/ui/button'
 import {
+  CONTROLLER_WRAPPER_TYPES,
   type ControllerBindingTarget,
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
   type ControllerWrapperType,
+  type GlobalInputUse,
   type PowerCapTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
@@ -22,7 +24,10 @@ import {
   savedRowDomId,
   skippedProgramIdsByWrapper,
   TIMING_WRAPPER_NAMES,
+  WRAPPER_INPUT_NAMES,
+  wrapperBindingChoices,
   wrapperEnabled,
+  wrapperRowSource,
   type WrapperTagEvidence,
 } from '@/engine/controllerWrapperTags'
 import {
@@ -345,6 +350,7 @@ function SmallButton({
   icon,
   buttonRef,
   expanded,
+  wrap = false,
   danger = false,
 }: {
   label: string
@@ -355,6 +361,7 @@ function SmallButton({
   icon?: React.ReactNode
   buttonRef?: React.Ref<HTMLButtonElement>
   expanded?: boolean
+  wrap?: boolean
   danger?: boolean
 }) {
   return (
@@ -367,7 +374,7 @@ function SmallButton({
       aria-expanded={expanded}
       className={danger
         ? 'border border-zinc-700 bg-zinc-900/70 text-xs text-zinc-300 hover:border-red-400/55 hover:bg-red-950/25 hover:text-red-300 disabled:opacity-35'
-        : sectionActionButtonClass}
+        : `${sectionActionButtonClass}${wrap ? ' h-auto min-h-6 max-w-full whitespace-normal [overflow-wrap:anywhere]' : ''}`}
       disabled={disabled}
       onClick={onClick}
       onKeyDown={keepNativeButtonSpace}
@@ -431,6 +438,82 @@ function WrapperRow({ name, toggle, source, action }: {
         {action && <span className="ml-auto">{action}</span>}
       </div>
     </div>
+  )
+}
+
+function TimingWrapperRow({ profile, type, source, skipped, onToggle, onBind }: {
+  profile: ControllerProfile
+  type: ControllerWrapperType
+  source: ReturnType<typeof wrapperRowSource>
+  skipped: readonly string[]
+  onToggle: (enabled: boolean) => void
+  onBind: (inputId: string | null) => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const trigger = useRef<HTMLButtonElement>(null)
+  const enabled = wrapperEnabled(profile, type)
+  const name = TIMING_WRAPPER_NAMES[type]
+  const choices = wrapperBindingChoices(profile, type)
+  const expanded = pickerOpen && !source && choices.length > 0
+  const closePicker = () => {
+    setPickerOpen(false)
+    trigger.current?.focus()
+  }
+  return (
+    <>
+      <WrapperRow
+        name={name}
+        toggle={<Switch ariaLabel={name} checked={enabled} onChange={onToggle} />}
+        source={enabled && (
+          <>
+            {source?.input.signal === 'analog' ? (
+              <>
+                <span>IO{source.input.pin}</span>
+                <span className="[overflow-wrap:anywhere]">{source.input.name}</span>
+                <span className="[overflow-wrap:anywhere]">{source.scope}</span>
+              </>
+            ) : (
+              <span>slider, set per Pattern</span>
+            )}
+            {skipped.length > 0 && (
+              <button
+                type="button"
+                aria-label={`${skipped.length} skipped for ${name}`}
+                className="rounded-sm text-amber-400 underline decoration-amber-400/40 underline-offset-2 hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-live"
+                onClick={() => focusSkippedPrograms(type, skipped)}
+                onKeyDown={keepNativeButtonSpace}
+              >
+                {skipped.length} skipped
+              </button>
+            )}
+          </>
+        )}
+        action={(
+          <SmallButton
+            label={source ? 'Unbind' : 'Bind input'}
+            ariaLabel={source ? `Unbind ${name}` : `Bind input to ${name}`}
+            buttonRef={trigger}
+            disabled={!source && choices.length === 0}
+            expanded={source ? undefined : expanded}
+            onClick={() => {
+              if (source) onBind(null)
+              else setPickerOpen(!expanded)
+            }}
+          />
+        )}
+      />
+      {expanded && (
+        <div role="group" aria-label={`Input for ${name}`} className="flex flex-wrap items-center gap-2 pb-2 pl-[38px]">
+          {choices.map(({ id, label }) => (
+            <SmallButton key={id} label={label} wrap onClick={() => {
+              closePicker()
+              onBind(id)
+            }} />
+          ))}
+          <SmallButton label="Cancel" onClick={closePicker} />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -1219,15 +1302,26 @@ function PatternUseEditor({
   )
 }
 
+type TimingWrapperUse = {
+  kind: 'timing-wrapper'
+  wrapper: ControllerWrapperType
+  label: string
+  scope: string
+  state: 'live' | 'blocked'
+}
+
+type InputCardUse = ControllerInputUse | TimingWrapperUse
+
 function InputCard({
   profile,
   input,
   presentation,
+  timingUse,
   patternOptions,
   online,
   onUpdateInput,
   onRemoveInput,
-  onAssignBrightness,
+  onBindWrapper,
   onAddPatternUse,
   onUpdateBinding,
   onRemoveBinding,
@@ -1235,11 +1329,12 @@ function InputCard({
   profile: ControllerProfile
   input: ControllerInput
   presentation: ControllerInputPresentation
+  timingUse?: TimingWrapperUse
   patternOptions: SelectOption<string>[]
   online: boolean
   onUpdateInput: (changes: Partial<ControllerInput>) => void
   onRemoveInput: () => void
-  onAssignBrightness: (inputId: string | null) => void
+  onBindWrapper: (wrapper: GlobalInputUse, inputId: string | null) => void
   onAddPatternUse: (patternId: string) => void
   onUpdateBinding: (bindingId: string, changes: Partial<PatternBinding>) => void
   onRemoveBinding: (bindingId: string) => void
@@ -1260,10 +1355,16 @@ function InputCard({
   }))
   const pinTone = presentation.state === 'error'
     ? 'text-red-400'
-    : presentation.state === 'live'
+    : presentation.state === 'live' || timingUse?.state === 'live'
       ? 'text-live'
       : 'text-zinc-500'
-  const rowCount = presentation.uses.length
+  const uses = timingUse
+    ? [timingUse, ...presentation.uses.filter((use) => use.kind !== 'none')]
+    : presentation.uses
+  const canAssignWrapper = !presentation.brightnessAssigned && !timingUse
+  const wrapperOptions: readonly GlobalInputUse[] = input.signal === 'analog'
+    ? ['hardware-brightness', ...CONTROLLER_WRAPPER_TYPES]
+    : ['hardware-brightness']
 
   return (
     <article
@@ -1363,12 +1464,12 @@ function InputCard({
       )}
 
       <div className="mt-2 grid">
-        {presentation.uses.map((use, index) => (
+        {uses.map((use, index) => (
           <UseBlock
             key={rowKeyForUse(use, index)}
             use={use}
             index={index}
-            count={rowCount}
+            count={uses.length}
             inputName={input.name}
             inputState={presentation.state}
             profile={profile}
@@ -1378,7 +1479,7 @@ function InputCard({
             onToggleEditing={(bindingId) => setEditingBindingId((current) => (
               current === bindingId ? null : bindingId
             ))}
-            onAssignBrightness={onAssignBrightness}
+            onBindWrapper={onBindWrapper}
             onUpdateBinding={onUpdateBinding}
             onRemoveBinding={onRemoveBinding}
           />
@@ -1448,7 +1549,7 @@ function InputCard({
           <div className="mt-2 grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
             <span />
             <div className="flex flex-wrap items-center gap-2">
-              {!presentation.brightnessAssigned && (
+              {canAssignWrapper && (
                 <SmallButton
                   label="Use for a Wrapper"
                   ariaLabel={`Use ${input.name} for a Wrapper`}
@@ -1458,17 +1559,19 @@ function InputCard({
                   onClick={() => setWrapperPickerOpen((open) => !open)}
                 />
               )}
-              {!presentation.brightnessAssigned && wrapperPickerOpen && (
+              {canAssignWrapper && wrapperPickerOpen && (
                 <div
                   role="group"
                   aria-label={`Wrapper for ${input.name}`}
                   className="flex flex-wrap items-center gap-2"
                 >
-                  <SmallButton label="Brightness" onClick={() => {
-                    setWrapperPickerOpen(false)
-                    patternUseTrigger.current?.focus()
-                    onAssignBrightness(presentation.inputId)
-                  }} />
+                  {wrapperOptions.map((wrapper) => (
+                    <SmallButton key={wrapper} label={WRAPPER_INPUT_NAMES[wrapper]} onClick={() => {
+                      setWrapperPickerOpen(false)
+                      patternUseTrigger.current?.focus()
+                      onBindWrapper(wrapper, input.id)
+                    }} />
+                  ))}
                   <SmallButton label="Cancel" onClick={() => {
                     setWrapperPickerOpen(false)
                     wrapperPickerTrigger.current?.focus()
@@ -1493,7 +1596,7 @@ function InputCard({
   )
 }
 
-function rowKeyForUse(use: ControllerInputUse, index: number): string {
+function rowKeyForUse(use: InputCardUse, index: number): string {
   if (use.kind === 'pattern') return use.bindingId
   return `${use.kind}-${index}`
 }
@@ -1509,11 +1612,11 @@ function UseBlock({
   online,
   editing,
   onToggleEditing,
-  onAssignBrightness,
+  onBindWrapper,
   onUpdateBinding,
   onRemoveBinding,
 }: {
-  use: ControllerInputUse
+  use: InputCardUse
   index: number
   count: number
   inputName: string
@@ -1523,7 +1626,7 @@ function UseBlock({
   online: boolean
   editing: boolean
   onToggleEditing: (bindingId: string) => void
-  onAssignBrightness: (inputId: string | null) => void
+  onBindWrapper: (wrapper: GlobalInputUse, inputId: string | null) => void
   onUpdateBinding: (bindingId: string, changes: Partial<PatternBinding>) => void
   onRemoveBinding: (bindingId: string) => void
 }) {
@@ -1540,7 +1643,7 @@ function UseBlock({
     )
   }
 
-  if (use.kind === 'brightness') {
+  if (use.kind === 'brightness' || use.kind === 'timing-wrapper') {
     return (
       <UseRow
         index={index}
@@ -1548,9 +1651,9 @@ function UseBlock({
         traceColor={traceColorFor(inputState, use.state === 'live')}
         right={(
           <SmallButton
-            ariaLabel={`Unbind Brightness from ${inputName}`}
+            ariaLabel={`Unbind ${use.label} from ${inputName}`}
             label="Unbind"
-            onClick={() => onAssignBrightness(null)}
+            onClick={() => onBindWrapper(use.kind === 'brightness' ? 'hardware-brightness' : use.wrapper, null)}
           />
         )}
       >
@@ -1622,7 +1725,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const addInput = useControllerProfileStore((state) => state.addInput)
   const updateInput = useControllerProfileStore((state) => state.updateInput)
   const removeInput = useControllerProfileStore((state) => state.removeInput)
-  const assignHardwareBrightness = useControllerProfileStore((state) => state.assignHardwareBrightness)
+  const bindWrapperInput = useControllerProfileStore((state) => state.bindWrapperInput)
   const addPatternBinding = useControllerProfileStore((state) => state.addPatternBinding)
   const updatePatternBinding = useControllerProfileStore((state) => state.updatePatternBinding)
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
@@ -1717,6 +1820,19 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const usesView = describeControllerInputUses(profile, { patternNames })
   const presentationById = new Map(usesView.inputs.map((entry) => [entry.inputId, entry]))
   const brightness = brightnessRowInput(profile)
+  const timingRows = CONTROLLER_WRAPPER_TYPES.map((type) => ({ type, source: wrapperRowSource(profile, type, patternNames) }))
+  const timingUseByInput = new Map<string, TimingWrapperUse>()
+  for (const { type, source } of timingRows) {
+    if (!source) continue
+    timingUseByInput.set(source.input.id, {
+      kind: 'timing-wrapper',
+      wrapper: type,
+      label: TIMING_WRAPPER_NAMES[type],
+      scope: source.scope,
+      state: source.input.signal === 'analog' ? 'live' : 'blocked',
+    })
+  }
+  const bind = (type: GlobalInputUse, inputId: string | null) => void bindWrapperInput(profile.id, type, inputId)
   const savedWrapperRows: WrapperTagEvidence[] = []
   if (liveIp && savedProgramsRead?.hasSnapshot
     && savedProgramsRead.controllerId === liveIp && savedProgramsRead.liveEpoch === liveEpoch) {
@@ -1758,40 +1874,17 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         title="Wrappers"
         lede="Added to every Pattern PXLBLZ saves on this Controller."
       >
-        {(['slow-mo', 'dreamy'] as const).map((type) => {
-          const enabled = wrapperEnabled(profile, type)
-          const name = TIMING_WRAPPER_NAMES[type]
-          const skipped = skippedByWrapper[type]
-          return (
-            <WrapperRow
-              key={type}
-              name={name}
-              toggle={(
-                <Switch
-                  ariaLabel={name}
-                  checked={enabled}
-                  onChange={(next) => void setWrapperEnabled(profile.id, type, next)}
-                />
-              )}
-              source={enabled && (
-                <>
-                  <span>slider, set per Pattern</span>
-                  {skipped.length > 0 && (
-                    <button
-                      type="button"
-                      aria-label={`${skipped.length} skipped for ${name}`}
-                      className="rounded-sm text-amber-400 underline decoration-amber-400/40 underline-offset-2 hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-live"
-                      onClick={() => focusSkippedPrograms(type, skipped)}
-                      onKeyDown={keepNativeButtonSpace}
-                    >
-                      {skipped.length} skipped
-                    </button>
-                  )}
-                </>
-              )}
-            />
-          )
-        })}
+        {timingRows.map(({ type, source }) => (
+          <TimingWrapperRow
+            key={`${profile.id}:${type}`}
+            profile={profile}
+            type={type}
+            source={source}
+            skipped={skippedByWrapper[type]}
+            onToggle={(next) => void setWrapperEnabled(profile.id, type, next)}
+            onBind={(inputId) => bind(type, inputId)}
+          />
+        ))}
         {/* Keyed by profile so a pending slider commit (draft + flush-on-unmount)
             can never cross into another profile after rapid navigation. */}
         <PowerSection
@@ -1803,7 +1896,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           <WrapperRow
             name="Brightness"
             source={<><span>IO{brightness.pin}</span><span className="[overflow-wrap:anywhere]">{brightness.name}</span></>}
-            action={<SmallButton label="Unbind" ariaLabel="Unbind Brightness" onClick={() => void assignHardwareBrightness(profile.id, null)} />}
+            action={<SmallButton label="Unbind" ariaLabel="Unbind Brightness" onClick={() => bind('hardware-brightness', null)} />}
           />
         )}
       </Section>
@@ -1844,11 +1937,12 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
                     profile={profile}
                     input={input}
                     presentation={presentation}
+                    timingUse={timingUseByInput.get(input.id)}
                     patternOptions={bindingPatternOptions}
                     online={Boolean(liveIp)}
                     onUpdateInput={(changes) => void updateInput(profile.id, input.id, changes)}
                     onRemoveInput={() => void removeInput(profile.id, input.id)}
-                    onAssignBrightness={(inputId) => void assignHardwareBrightness(profile.id, inputId)}
+                    onBindWrapper={bind}
                     onAddPatternUse={(patternId) => void addPatternBinding(profile.id, patternId, input.id)}
                     onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
                     onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}

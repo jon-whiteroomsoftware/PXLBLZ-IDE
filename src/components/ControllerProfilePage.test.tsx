@@ -1563,7 +1563,8 @@ describe('ControllerProfilePage', () => {
     expect(wrappers.queryByText('Brightness')).not.toBeInTheDocument()
     fireEvent.click(trigger)
     const picker = screen.getByRole('group', { name: 'Wrapper for Front pot' })
-    expect(within(picker).getAllByRole('button').map((button) => button.textContent)).toEqual(['Brightness', 'Cancel'])
+    expect(within(picker).getAllByRole('button').map((button) => button.textContent))
+      .toEqual(['Brightness', 'Slow-mo', 'Dreamy', 'Cancel'])
     fireEvent.click(within(picker).getByRole('button', { name: 'Cancel' }))
     expect(picker).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
@@ -1590,6 +1591,79 @@ describe('ControllerProfilePage', () => {
         .toMatchObject({ enabled: false, inputId: '' })
     })
     expect(wrappers.queryByText('Brightness')).not.toBeInTheDocument()
+  })
+
+  it('offers all analog inputs and moves their Wrapper assignment in one edit (#1278 U1)', async () => {
+    const base = seedProfile()
+    const analog = { signal: 'analog' as const, smoothing: 0.2, fallback: 0, invert: false }
+    const binding = {
+      id: 'binding', inputId: 'front', patternId: 'pat-line',
+      target: { kind: 'call-exported-slider' as const, name: 'sliderSpeed' },
+    }
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...base,
+        inputs: [
+          { ...analog, id: 'front', name: 'Front pot', pin: 33 },
+          { ...analog, id: 'side', name: 'Side pot', pin: 34 },
+          { ...analog, id: 'spare', name: 'Spare pot', pin: 35 },
+          { ...analog, id: 'button', name: 'Push button', pin: 25, signal: 'digital' },
+        ],
+        globalTransforms: [
+          { id: 'brightness', type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness', enabled: true, mode: 'multiply-output', inputId: 'front' },
+          { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'side' },
+        ],
+        patternBindings: [binding],
+      }],
+    })
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    const wrappers = within(screen.getByRole('heading', { name: 'Wrappers' }).closest('section')!)
+    const stored = () => useControllerProfileStore.getState().profiles[0]
+    const source = (name: string) => within(screen.getByRole('textbox', { name: `${name} input name` }).closest('article')!)
+    const trigger = wrappers.getByRole('button', { name: 'Bind input to Slow-mo' })
+    fireEvent.click(trigger)
+    const picker = within(wrappers.getByRole('group', { name: 'Input for Slow-mo' }))
+    expect(picker.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'IO33 Front pot (now Brightness)', 'IO34 Side pot (now Dreamy)', 'IO35 Spare pot', 'Cancel',
+    ])
+    fireEvent.click(picker.getByRole('button', { name: /Front pot/ }))
+    await waitFor(() => expect(stored().globalTransforms).toEqual([
+      { id: 'brightness', type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness', enabled: false, mode: 'multiply-output', inputId: '' },
+      { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'side' },
+      { id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'front' },
+    ]))
+    expect(wrappers.getByText('IO33')).toBeVisible()
+    expect(wrappers.getByText('Front pot')).toBeVisible()
+    expect(wrappers.getByText('every Pattern except pat-line')).toBeVisible()
+    expect(source('Front pot').getByText('Slow-mo')).toBeVisible()
+    expect(source('Front pot').getByText('every Pattern except pat-line')).toBeVisible()
+    expect(stored().patternBindings).toEqual([binding])
+
+    fireEvent.click(wrappers.getByRole('button', { name: 'Unbind Dreamy' }))
+    fireEvent.click(wrappers.getByRole('button', { name: 'Bind input to Dreamy' }))
+    const dreamyPicker = within(wrappers.getByRole('group', { name: 'Input for Dreamy' }))
+    fireEvent.click(dreamyPicker.getByRole('button', { name: 'IO33 Front pot (now Slow-mo)' }))
+    await waitFor(() => expect(stored().globalTransforms).toEqual([
+      { id: 'brightness', type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness', enabled: false, mode: 'multiply-output', inputId: '' },
+      { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'front' },
+      { id: 'slow-mo', type: 'slow-mo', enabled: true },
+    ]))
+    expect(wrappers.getByText('slider, set per Pattern')).toBeVisible()
+    expect(source('Front pot').getByText('Dreamy')).toBeVisible()
+    fireEvent.click(source('Spare pot').getByRole('button', { name: 'Use Spare pot for a Wrapper' }))
+    const inputPicker = within(source('Spare pot').getByRole('group', { name: 'Wrapper for Spare pot' }))
+    fireEvent.click(inputPicker.getByRole('button', { name: 'Dreamy' }))
+    await waitFor(() => expect(stored().globalTransforms.find((transform) => transform.type === 'dreamy'))
+      .toMatchObject({ enabled: true, inputId: 'spare' }))
+    expect(source('Spare pot').getByText('every Pattern')).toBeVisible()
+    expect(source('Front pot').queryByText('Dreamy')).not.toBeInTheDocument()
+    expect(stored().patternBindings).toEqual([binding])
+    fireEvent.click(source('Spare pot').getByRole('button', { name: 'Adjust Spare pot' }))
+    fireEvent.change(source('Spare pot').getByRole('combobox', { name: 'Spare pot signal' }), { target: { value: 'digital' } })
+    expect(await source('Spare pot').findByText(/Dreamy, which needs an analog signal/)).toBeVisible()
+    expect(wrappers.getAllByText('slider, set per Pattern')).toHaveLength(2)
+    expect(wrappers.getByRole('button', { name: 'Unbind Dreamy' })).toBeVisible()
+    await settleProfileAsync()
   })
 
   it('keeps brightness reachable on an input that already drives a Pattern (#772)', async () => {

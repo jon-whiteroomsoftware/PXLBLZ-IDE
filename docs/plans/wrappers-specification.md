@@ -249,11 +249,13 @@ The panel lists a wrapped Pattern's Wrapper Controls in a "Wrappers" group,
 above and apart from the Pattern's own Controls. A Pattern with its own "speed"
 Control and a Slow-mo Wrapper Control shows both without confusion. A Wrapper
 Control driven by an input shows the input's name in place of the slider.
+The panel looks up the saved input ID in the current profile and uses the
+name from the saved outcome if the profile no longer has that input.
 
 The saved outcome for the active program determines which Wrapper Controls
 appear. When that outcome is unavailable, the panel uses the reserved export
-names the Controller reports. The Controller supplies the value in either
-case. A slider without a usable reported value shows a dash and can still be
+names the Controller reports. The Controller supplies each slider value.
+A slider without a usable reported value shows a dash and can still be
 moved. Moving it sends a live Control update and leaves the saved code alone.
 
 The panel reads the active Control report from `getConfig()` and reseeds it
