@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1287",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "At 1440 and 641 px in Playwright with the issue synthetic session, enable Power limit and hold the Save through the Controller transport double to show Updating and the steady green pill dot. Release the Save, then disable Power limit with fake compile rejections armed to show the red attention action. Press Enter on that action from Patterns to return to this profile.",
+  "captures": [
+    ".wrsp/ui-proof/1287-1440-running.png",
+    ".wrsp/ui-proof/1287-1440-attention.png",
+    ".wrsp/ui-proof/1287-641-running.png",
+    ".wrsp/ui-proof/1287-641-attention.png"
+  ],
+  "capturedAtCommit": "b7e3d53a779ed01bf399a08035500867e5c3e76b"
+}
