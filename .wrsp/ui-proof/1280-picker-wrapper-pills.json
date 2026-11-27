@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1280",
+  "route": "/PXLBLZ-IDE/studio/controllers/wrapper-tags-1277",
+  "operation": "Opened the Saved Patterns picker at 1440 px with a synthetic Controller, checked the applied Wrapper pills and option names, and selected a tagged option by keyboard. Refreshed one of two same-named saved records and reopened the picker to verify its updated pills and the sibling's pills.",
+  "captures": [
+    ".wrsp/ui-proof/1280-picker-wrapper-pills-1440.png",
+    ".wrsp/ui-proof/1280-picker-wrapper-pills-1440-refreshed.png"
+  ],
+  "capturedAtCommit": "87699efe11faf5565d6ab904107458f47fd7b201"
+}
