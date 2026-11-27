@@ -222,15 +222,6 @@ function ControllerPillButton({
         )}
       </span>
 
-      {(managedRefreshPhase === 'pending' || managedRefreshPhase === 'running') && (
-        <button
-          type="button"
-          aria-label="Refreshing managed Patterns"
-          title="Refreshing managed Patterns - open Controller profile"
-          onClick={onManagedRefresh}
-          className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full border border-zinc-950 bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
-        />
-      )}
       {(managedRefreshPhase === 'attention' || managedRefreshPhase === 'not-responding') && (
         <button
           type="button"

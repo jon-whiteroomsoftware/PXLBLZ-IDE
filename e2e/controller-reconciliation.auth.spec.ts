@@ -53,6 +53,7 @@ interface RelayControls {
   disconnect: () => void
   reconnect: () => void
   dropProgramLists: () => void
+  rejectCompiles: () => void
 }
 
 function relay<K extends keyof RelayControls>(page: Page, action: K): Promise<ReturnType<RelayControls[K]>> {
@@ -100,6 +101,53 @@ async function connectFixture(page: Page) {
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
   await page.getByTestId('controller-go').click()
   await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+}
+
+for (const width of [1440, 641]) {
+  test(`Controller pill marks refresh attention at ${width}px (#1287)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 950 })
+    await seed(page)
+    await connectFixture(page)
+
+    const bar = page.getByTestId('controller-bar')
+    const dot = bar.getByTestId('controller-pill-dot')
+    const attention = bar.getByRole('button', { name: 'Managed Pattern refresh needs attention' })
+    const barButtons = bar.getByRole('button')
+    const pane = page.getByTestId('controller-saved-programs-pane')
+    const current = pane.getByText('2 of 2 up to date', { exact: true })
+    const powerLimit = page.getByRole('switch', { name: 'Power limit', exact: true })
+    const directory = process.env.PXLBLZ_1287_UI_PROOF_DIR
+
+    await expect(current).toBeVisible()
+    await expect(dot).toHaveClass(/\bbg-ok\b/)
+    await expect(barButtons).toHaveCount(2)
+
+    await relay(page, 'holdSaves')
+    await powerLimit.check()
+    await expect.poll(() => relay(page, 'waitingSaveIds')).toEqual([first])
+    await expect(pane.getByText('Updating 0 of 2', { exact: true })).toBeVisible()
+    await expect(dot).toHaveClass(/\bbg-ok\b/)
+    await expect(barButtons).toHaveCount(2)
+    if (directory) await page.screenshot({ path: `${directory}/1287-${width}-running.png`, animations: 'disabled' })
+
+    await relay(page, 'releaseSaves')
+    await expect(current).toBeVisible()
+    await relay(page, 'rejectCompiles')
+    await powerLimit.uncheck()
+    await expect(pane.getByRole('button', { name: 'Retry failed updates' })).toBeVisible()
+    await expect(dot).toHaveClass(/\bbg-ok\b/)
+    await expect(barButtons).toHaveCount(3)
+    await expect(attention).toBeVisible()
+    await expect(attention).toHaveClass(/\bbg-red-400\b/)
+    if (directory) await page.screenshot({ path: `${directory}/1287-${width}-attention.png`, animations: 'disabled' })
+
+    await page.getByRole('button', { name: 'Controllers', exact: true }).click()
+    await page.getByRole('option', { name: /^Patterns\b/ }).click()
+    await expect(page).toHaveURL(/\/studio\/patterns(?:\/|$)/)
+    await attention.press('Enter')
+    await expect(page).toHaveURL(new RegExp(`/studio/controllers/${profile.id}$`))
+    await expect(pane.getByRole('button', { name: 'Retry failed updates' })).toBeVisible()
+  })
 }
 
 async function profileTestSource(page: Page, id: string) {
@@ -853,6 +901,9 @@ for (const [viewport, width] of [['desktop', 1440], ['narrow', 768]] as const) {
     await relay(page, 'dropProgramLists')
     await cap.uncheck()
     await capture('not-responding', 'Controller not responding')
+    await expect(pill.getByTestId('controller-pill-dot')).toHaveClass(/\bbg-ok\b/)
+    await expect(page.getByTestId('controller-bar').getByRole('button', { name: 'Managed Pattern refresh needs attention' }))
+      .toHaveClass(/\bbg-red-400\b/)
     await expect(pane.getByText(/Retrying in \d+ s/)).toBeVisible()
   })
 }

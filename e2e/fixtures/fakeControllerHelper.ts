@@ -70,6 +70,7 @@ export async function installFakeControllerHelper(
     let holdSaves = false
     let online = true
     let dropProgramLists = false
+    let rejectCompiles = false
     const confirmSave = ({ connId, programId, encoded }: typeof heldSaves[number]) => {
       savedPrograms[programId] = encoded
       reply(connId, { saveProgramSourceFile: true })
@@ -103,6 +104,7 @@ export async function installFakeControllerHelper(
             for (const open of heldConnections.splice(0)) open()
           },
           dropProgramLists: () => { dropProgramLists = true },
+          rejectCompiles: () => { rejectCompiles = true },
         },
       })
     }
@@ -211,8 +213,9 @@ export async function installFakeControllerHelper(
         emit({
           type: 'compile-result',
           reqId: message.reqId,
-          ok: true,
-          bytecode: bytesToBase64(new Uint8Array(8)),
+          ...(rejectCompiles
+            ? { ok: false, error: 'Fixture compile rejected' }
+            : { ok: true, bytecode: bytesToBase64(new Uint8Array(8)) }),
         })
         return
       }

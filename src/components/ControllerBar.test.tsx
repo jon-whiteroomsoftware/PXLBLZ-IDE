@@ -9,6 +9,7 @@ import { ControllerProfilePage } from './ControllerProfilePage'
 import {
   useControllerStore,
   __resetControllerProviders,
+  type ControllerReconciliationState,
 } from '@/store/controllerStore'
 import {
   controllerProfileInitialState,
@@ -349,7 +350,14 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-entry-button')).toHaveTextContent('+')
   })
 
-  it('keeps managed Pattern refresh activity visible after leaving the profile page', async () => {
+  it.each([
+    ['idle', false],
+    ['pending', false],
+    ['running', false],
+    ['current', false],
+    ['attention', true],
+    ['not-responding', true],
+  ] satisfies [ControllerReconciliationState['phase'], boolean][])('shows the expected refresh badge in %s with a live Controller', async (phase, needsAttention) => {
     const controllerProfile = profile('profile-1', 'device-1', 1, 'Desk')
     seedSignedInProfiles([controllerProfile])
     useControllerStore.setState({
@@ -366,7 +374,7 @@ describe('ControllerBar', () => {
       },
       controllerReconciliations: {
         'profile-1': {
-          phase: 'running',
+          phase,
           managedCount: 2,
           unmanagedCount: 1,
           completedCount: 1,
@@ -377,13 +385,18 @@ describe('ControllerBar', () => {
 
     render(<ControllerBar />)
 
-    const activity = screen.getByRole('button', { name: 'Refreshing managed Patterns' })
-    expect(activity).toBeInTheDocument()
-    fireEvent.click(activity)
-    expect(useRouterStore.getState().route).toEqual({
-      kind: 'studio',
-      entity: { kind: 'controllers', id: 'profile-1' },
-    })
+    const bar = within(screen.getByTestId('controller-bar'))
+    expect(screen.getByTestId('controller-pill-dot')).toHaveClass('bg-ok')
+    expect(bar.getAllByRole('button')).toHaveLength(needsAttention ? 3 : 2)
+    const attentionName = 'Managed Pattern refresh needs attention'
+    if (needsAttention) {
+      const attention = bar.getByRole('button', { name: attentionName })
+      expect(attention).toHaveClass('bg-red-400')
+      fireEvent.click(attention)
+      expect(window.location.pathname).toBe('/studio/controllers/profile-1')
+    } else {
+      expect(bar.queryByRole('button', { name: attentionName })).not.toBeInTheDocument()
+    }
     await settleControllerAsync()
   })
 

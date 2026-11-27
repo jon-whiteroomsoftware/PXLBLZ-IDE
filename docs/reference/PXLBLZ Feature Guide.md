@@ -368,6 +368,9 @@ hardware knowledge lives:
   after 10 seconds. If it still cannot finish, the pane shows **Controller not
   responding** with **Retry**. Reconnecting or editing settings on the same
   Controller during this wait leaves the notice in place.
+  The Controller pill shows a red badge when an update needs attention.
+  Select it to open the profile. During a healthy update, progress appears
+  on the profile page.
   Installation Shows are sent only explicitly from the editor, because PXLBLZ
   cannot verify the Controller's installed map at the moment it writes.
 
