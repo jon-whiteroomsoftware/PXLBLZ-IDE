@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "issue": "1280",
+  "route": "/PXLBLZ-IDE/studio/controllers/panel-wrappers-1280",
+  "operation": "Opened the Controller panel at 1440 px and 420 px with both Wrappers and the Pattern's own Controls. Moved Slow-mo, switched saved programs and back, then checked the Pattern with one skipped Wrapper and an unset Dreamy slider and the Show message.",
+  "captures": [
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-1440-both.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-1440-speed.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-1440-skipped.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-1440-show.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-420-both.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-420-speed.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-420-skipped.png",
+    ".wrsp/ui-proof/1280-panel-wrapper-controls-420-show.png"
+  ],
+  "capturedAtCommit": "e1d7659796faa1bdf40a5998e1b9998d9503bedf"
+}
