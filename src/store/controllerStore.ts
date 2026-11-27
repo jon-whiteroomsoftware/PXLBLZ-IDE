@@ -1163,11 +1163,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   ])],
                 }
               : undefined
+            let deviceWriteEntered = false
             const assertWriteAllowed = () => {
               if (!isCurrentSession() || protectedBindings.has(job.bindingKey)) {
                 throw new ReconciliationWriteCancelled()
               }
-              if (deliveryInputs && !patternSourceIsCurrent(job)) throw new ReconciliationPlanInvalidated()
+              if (deliveryInputs && !deviceWriteEntered && !patternSourceIsCurrent(job)) {
+                throw new ReconciliationPlanInvalidated()
+              }
             }
             const attempt = beginSaveAttempt(live.ip, job.bindingKey, job.source, false)
             try {
@@ -1205,6 +1208,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                   savePushRecords: setPushRecords,
                   updatePushRecords,
                   assertDeviceSession: assertWriteAllowed,
+                  onDeviceWrite: () => { deviceWriteEntered = true },
                   onLateSaveConfirmation: recordLateSave(attempt, live, profileSignature, isCurrentSession),
                 })
                 rememberSaveOutcome(live, result)
@@ -1218,6 +1222,10 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }
               if (delivery.activation === 'unconfirmed') rereadNeeded = true
               else if (activate) assumeRendererPlaying(live.ip)
+              // Finish activation and publish the captured receipt before replanning an edit.
+              if (deliveryInputs && !patternSourceIsCurrent(job)) {
+                get().scheduleControllerReconciliation(profileId, true)
+              }
             } catch (error) {
               forgetSaveAttempt(attempt)
               if (!isCurrentSession()) return false

@@ -451,6 +451,17 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     .filter(({ opts }) => opts.id === id)
     .map(({ blob }) => decodePbp(blob)?.sourceCode)
 
+  function enableSlowMo(fake: FakeProvider): ControllerProfile {
+    fake.pixelCount = 64
+    const wrapped: ControllerProfile = {
+      ...profile,
+      lastKnownPixelCount: 64,
+      globalTransforms: [...profile.globalTransforms, { id: 'slow-mo', type: 'slow-mo', enabled: true }],
+    }
+    setControllerProfiles([wrapped])
+    return wrapped
+  }
+
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
     vi.setSystemTime(100_000)
@@ -1046,13 +1057,7 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
   it.each(['count', 'profile', 'library'] as const)(
     'replans stale Wrapper jobs without consuming unwritten edits (%s)', async (changed) => {
       const fake = await fixture()
-      fake.pixelCount = 64
-      const wrapped: ControllerProfile = {
-        ...profile,
-        lastKnownPixelCount: 64,
-        globalTransforms: [...profile.globalTransforms, { id: 'slow-mo', type: 'slow-mo', enabled: true }],
-      }
-      setControllerProfiles([wrapped])
+      const wrapped = enableSlowMo(fake)
       await store().reconcileControllerProfile(profileId)
       const savedV1 = await getPushRecords()
       expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED1', 'MANAGED2'])
@@ -1112,6 +1117,75 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
         })
       }
       expect(state()).toMatchObject({ phase: 'current', completedCount: 2 })
+    },
+  )
+
+  it.each(['drain activation', 'flash Save'] as const)(
+    'finishes the active Wrapper Save before replanning an edit during %s', async (mutation) => {
+      const fake = await fixture()
+      enableSlowMo(fake)
+      fake.programs.splice(1)
+      const programId = 'MANAGED1'
+      let activeId = programId
+      vi.spyOn(fake, 'getConfig').mockImplementation(async () => ({
+        activeProgramId: activeId,
+        pixelCount: fake.pixelCount,
+      }))
+      const drainFirst = mutation === 'drain activation'
+      fake.activeProgramBytecodeSize = drainFirst ? null : 0
+      const mutated = deferred<void>()
+      const confirmed = deferred<void>()
+      const holdConfirmation = async () => {
+        mutated.resolve()
+        await confirmed.promise
+      }
+      const activate = fake.pushBytecode.bind(fake)
+      vi.spyOn(fake, 'pushBytecode').mockImplementation(async (bytecode, options) => {
+        await activate(bytecode, options)
+        activeId = options.id
+        if (drainFirst && fake.pushed.length === 1) await holdConfirmation()
+      })
+      if (!drainFirst) {
+        const save = fake.saveProgram.bind(fake)
+        vi.spyOn(fake, 'saveProgram').mockImplementationOnce(async (...args) => {
+          const result = await save(...args)
+          await holdConfirmation()
+          return result
+        })
+      }
+
+      const listPrograms = fake.listPrograms.bind(fake)
+      let stateAtReplan: { activeId: string; sourceHash?: string } | undefined
+      vi.spyOn(fake, 'listPrograms')
+        .mockImplementationOnce(listPrograms)
+        .mockImplementationOnce(listPrograms)
+        .mockImplementationOnce(async () => {
+          stateAtReplan = { activeId, sourceHash: (await getPushRecords())[ip]['pat-1']?.sourceHash }
+          return listPrograms()
+        })
+
+      const previousRecords = await getPushRecords()
+      const reconciliation = store().reconcileControllerProfile(profileId)
+      await mutated.promise
+      const recordsWhileHeld = await getPushRecords()
+      const activeWhileHeld = activeId
+      author(21, 12)
+      confirmed.resolve()
+      await reconciliation
+
+      expect(recordsWhileHeld).toEqual(previousRecords)
+      if (drainFirst) expect(activeWhileHeld).not.toBe(programId)
+      expect.soft(stateAtReplan).toEqual({ activeId: programId, sourceHash: artifactHash(source(11)) })
+      expect.soft(writesFor(fake, programId)).toEqual([
+        expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+      ])
+      expect.soft(fake.pushed.slice(drainFirst ? 1 : 0).map(({ opts }) => opts.id)).toEqual([programId, programId])
+      expect.soft(activeId).toBe(programId)
+      expect((await getPushRecords())[ip]['pat-1']).toMatchObject({
+        sourceHash: artifactHash(source(21)),
+        wrapperProgramId: programId,
+        wrapperOutcome: { applied: ['slow-mo'], skipped: {} },
+      })
     },
   )
 

@@ -39,9 +39,12 @@ changes fit can change the emitted program. A count change with the same
 applied set and emitted source can settle without a device write.
 Each confirmed panel poll can bring the matching Wrapper-enabled profile's
 count up to date, including after enablement or profile loading. A stale
-Wrapper preparation stops its write pass and requests fresh planning. The
-preceding Pattern source remains available to detect edits the pass left
-unwritten. An overlapping foreground Save retains precedence over its job.
+Wrapper preparation detected before the first device mutation stops its write
+pass and requests fresh planning. The preceding Pattern source remains
+available to detect edits the pass left unwritten. Once a device mutation
+starts, an intervening source edit waits for Save confirmation, activation
+when required, and receipt publication before replanning. An overlapping
+foreground Save retains precedence over its job.
 
 The durable artifact signature records the applied Wrappers when the set is
 nonempty. Skip reasons and slider values are absent from the signature. The
