@@ -232,14 +232,15 @@ function emitWrapperSource(
 ): string {
   const slowMo = applied.includes('slow-mo')
   const dreamy = applied.includes('dreamy')
+  const coldDreamy = dreamy && !preview
   const p = `${reservedStem('slowmo')}_`
   const rewritten = rewriteSlowMoSource(code, p, slowMo)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const speedControl = preview
     ? `export function ${SLOW_MO_SPEED_SLIDER}(v) { ${p}position = clamp(v,0,1) }`
     : `export function ${PATTERN_WRAPPER_CONTROLS['slow-mo'].exportName}(a) { ${p}position = 1-clamp(a,0,1) }`
-  const dreamControl = preview ? '' : `export function ${PATTERN_WRAPPER_CONTROLS.dreamy.exportName}(v) { v = clamp(v,0,1); ${p}decay = 10000*v*v }`
-  const nativeClockFlag = preview ? '' : `var ${p}nativeTime = 1\n`
+  const nativeClockFlag = preview ? '' : `var ${p}nativeTime = 1\n${coldDreamy && slowMo
+    ? `var ${p}slowNativeTime = 1, ${p}combinedNativeTime = 1\n` : ''}`
   const nativeClockRead = preview ? '' : `if (${p}nativeTime) return time(interval); `
   const slowMoPrelude = slowMo ? `var ${p}T = 0, ${p}acc = 0, ${p}f = 0, ${p}cap = 0
 ${preview ? `var ${p}rate = 1\n` : ''}var ${p}bypass = 0, ${p}wasBypass = 0, ${p}refresh = 0
@@ -247,24 +248,47 @@ ${speedControl}
 var ${p}ar = array(pixelCount), ${p}ag = array(pixelCount), ${p}ab = array(pixelCount)
 var ${p}br = array(pixelCount), ${p}bg = array(pixelCount), ${p}bb = array(pixelCount)
 ${nativeClockFlag}function ${p}time(interval) { ${nativeClockRead}return (${p}T % interval) / interval }` : ''
+  const coldHistory = coldDreamy ? `
+var ${p}nativeOutput = ${slowMo ? 0 : 1}, ${p}dreamPrimed = 0
+function ${p}selectOutput() {
+  ${p}nativeOutput = ${slowMo ? `${p}bypass && ` : ''}${p}decay == 0${slowMo
+    ? `\n  ${p}nativeTime = ${p}decay == 0 ? ${p}slowNativeTime : ${p}combinedNativeTime` : ''}
+}
+export function ${PATTERN_WRAPPER_CONTROLS.dreamy.exportName}(v) {
+  var wasOff = ${p}decay == 0
+  v = clamp(v,0,1)
+  ${p}decay = 10000*v*v
+  if (wasOff && ${p}decay > 0) {
+    for (var i = 0; i < pixelCount; i++) {
+      ${p}pr[i] = 0
+      ${p}pg[i] = 0
+      ${p}pb[i] = 0
+    }
+    ${p}dreamPrimed = 0
+  }
+  ${p}selectOutput()
+}` : ''
   const dreamyPrelude = dreamy ? `var ${p}pr = array(pixelCount), ${p}pg = array(pixelCount), ${p}pb = array(pixelCount)
-${dreamControl}
+${coldHistory}
 var ${p}kDn = 1, ${p}displayDelta = 0
 function ${p}persist(current,target) {
   current += (target-current) * (target>current ? 1 : ${p}kDn)
   if (abs(target-current) < 0.015625) current = target
   return current
 }` : ''
-  const nativeOutput = [slowMo && `${p}bypass`, dreamy && `${p}decay == 0`].filter(Boolean).join(' && ')
+  const nativeOutput = coldDreamy ? `${p}nativeOutput`
+    : [slowMo && `${p}bypass`, dreamy && `${p}decay == 0`].filter(Boolean).join(' && ')
   const prelude = `${initializers}
 ${slowMoPrelude}
 ${dreamyPrelude}
-var ${p}phase = 0, ${p}r = 0, ${p}g = 0, ${p}b = 0
-${emitColorCapture(p, nativeOutput, preview, dreamy)}`
-  // The untouched path uses the native clock in both numeric modes. Once an
-  // effect engages, keep the existing combined wrapper's clock and continuity.
-  const clockEngaged = dreamy ? `${p}position < 1 || ${p}decay > 0` : `!${p}bypass`
-  const enterSlowClock = preview ? '' : `\n  if (${clockEngaged}) ${p}nativeTime = 0`
+var ${slowMo ? `${p}phase = 0, ` : ''}${p}r = 0, ${p}g = 0, ${p}b = 0
+${emitColorCapture(p, nativeOutput, preview)}`
+  // Track the two clock policies separately. A near-full-speed amount can
+  // keep Slow-mo bypassed while engaging the combined clock for active Dreamy.
+  const enterSlowClock = preview ? '' : coldDreamy ? `
+  if (!${p}bypass) ${p}slowNativeTime = 0
+  if (${p}position < 1 || ${p}decay > 0) ${p}combinedNativeTime = 0
+  ${p}selectOutput()` : `\n  if (!${p}bypass) ${p}nativeTime = 0`
   const rate = `pow(2,-4*(1-${p}position))`
   const selectBypass = `if (${p}position >= 0.97) ${p}bypass = 1
   else if (${p}position < 0.94) ${p}bypass = 0${enterSlowClock}`
@@ -320,10 +344,17 @@ ${indent}}`
     else { ${p}a${c}[index] = ${p}b${c}[index]; ${p}b${c}[index] = ${p}${c} }`).join('')
   const mix = (c: string) => `${p}a${c}[index] + (${p}b${c}[index] - ${p}a${c}[index]) * ${p}c`
   const persistenceOutput = `rgb(${channels.map(c => `${p}p${c}[index]/255`).join(', ')})`
-  const persist = (target: (channel: string) => string) => `if (${p}displayDelta > 0 || ${p}phase == 0) {
+  const persist = (target: (channel: string) => string) => `if (${p}displayDelta > 0 || ${p}${coldDreamy ? 'dreamPrimed' : 'phase'} == 0) {
 ${channels.map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${target(c)}) * 255)`).join('\n')}
   }`
-  const output = dreamy ? `${persist(mix)}\n  ${persistenceOutput}` : `rgb(${channels.map(mix).join(', ')})`
+  const blendOutput = `rgb(${channels.map(mix).join(', ')})`
+  const coldOutput = (target: (channel: string) => string) => `if (${p}decay > 0) {
+    ${persist(target)}
+    ${persistenceOutput}
+    if (index == pixelCount-1) ${p}dreamPrimed = 1
+  }`
+  const output = coldDreamy ? `${coldOutput(mix)} else { ${blendOutput} }`
+    : dreamy ? `${persist(mix)}\n  ${persistenceOutput}` : blendOutput
   const endFrame = `if (index == pixelCount-1) ${p}phase = 1`
   const out = slowMo ? `function ${p}out(index) {
   if (${p}cap) {${update}
@@ -332,18 +363,22 @@ ${channels.map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${tar
   ${output}
   ${endFrame}
 }` : ''
-  const liveDreamy = dreamy ? `
+  const liveDreamy = coldDreamy ? `\n    ${coldOutput(c => `${p}${c}`)}` : dreamy ? `
     ${persist(c => `${p}${c}`)}
     if (${p}decay > 0) ${persistenceOutput}` : ''
   const wrappers = renderFns.map(name => {
     const args = name === 'render' ? 'index' : name === 'render2D' ? 'index,x,y' : 'index,x,y,z'
     const invoke = `${p}in_${name}(${args})`
     const draw = `${p}r = 0; ${p}g = 0; ${p}b = 0; ${invoke}`
-    if (!slowMo) return `export function ${name}(${args}) {
+    const coldBypass = coldDreamy ? `
+  if (${p}nativeOutput) {
+    ${invoke}${slowMo ? `\n    ${endFrame}` : ''}
+    return
+  }` : ''
+    if (!slowMo) return `export function ${name}(${args}) {${coldBypass}
   ${draw}${liveDreamy}
-  ${endFrame}
 }`
-    return `export function ${name}(${args}) {
+    return `export function ${name}(${args}) {${coldBypass}
   if (${p}bypass) {
     ${dreamy ? draw : invoke}${liveDreamy}
     ${endFrame}
@@ -356,12 +391,12 @@ ${channels.map(c => `    ${p}p${c}[index] = ${p}persist(${p}p${c}[index], (${tar
   return `${prelude}\n${rewritten}\n${beforeRender}\n${out}\n${wrappers}`
 }
 
-function emitColorCapture(p: string, nativeOutput: string, preview: boolean, dreamy: boolean): string {
-  // Only Dreamy consumes captured colors while the native renderer is active.
-  const passthrough = (call: string) => dreamy
+function emitColorCapture(p: string, nativeOutput: string, preview: boolean): string {
+  // The legacy preview consumes captured colors during native output.
+  const passthrough = (call: string) => preview
     ? `if (${nativeOutput}) ${call}`
     : `if (${nativeOutput}) { ${call}; return }`
-  const afterPassthrough = dreamy ? '; ' : ' '
+  const afterPassthrough = preview ? '; ' : ' '
   const q = `v * (1-s*${p}hf)`
   const t = `v * (1-s*(1-${p}hf))`
   const hsvCapture = preview

@@ -125,8 +125,8 @@ needs to know: the code, which Wrappers were applied, and why any was skipped.
 
 **Two Wrappers from one emitter.** The emitter takes Slow-mo and Dreamy as
 independent switches and allocates only the buffers the enabled set needs: six
-for Slow-mo, three for Dreamy, nine for both. With both on, the output is the
-wrapper that exists today.
+for Slow-mo, three for Dreamy, nine for both. Active Dreamy uses the output of
+Slow-mo when both Wrappers are applied.
 
 **Wrapper Controls.** Each applied Wrapper exports one slider. Slow-mo uses
 `sliderSlowMo` (“Slow Mo”) and Dreamy uses `sliderDreamy` (“Dreamy”), the two
@@ -138,6 +138,14 @@ Slow-mo inverts today's `position`, where 1 is full speed: an amount `a` plays
 at rate `2 ** (-4 * a)`, and the blend is bypassed near zero as it is near
 full speed today. At the left end a Wrapper Control leaves the Pattern looking
 as it does unwrapped, so a slider nobody has touched is off on every surface.
+
+**Dreamy at zero.** Given the same Pattern state and Slow-mo inputs, both
+Wrappers produce the same frames as Slow-mo alone while Dreamy is at zero,
+including engagement, release and 0 ms frames. Dreamy bypasses its color
+capture and history updates while off. Each activation clears its history and
+seeds it from the first eligible active render, including at 0 ms. After
+priming, 0 ms frames hold the active history.
+[#1283](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1283)
 
 **The skip decision.** The engine decides, per Pattern, which enabled Wrappers
 can be applied. A structural refusal (no render function, a shadowed built-in,

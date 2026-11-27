@@ -320,6 +320,10 @@ export function render3D(i,x,y,z) { paint(time(0.0623) + z) }`],
 export function render2D(i,x,y) { hsv24(time(0.046)+y, 0.7, 0.6) }`],
 ] as const
 
+const levelPattern = `var level = 1
+export function sliderLevel(v) { level = v }
+export function render(i) { rgb(level, 0, 0) }`
+
 for (const fidelity of modes) {
   describe(`native Wrapper frames (${fidelity})`, () => {
     const sameFrame = (source: string, enabled: readonly PatternWrapper[], dimension: 1 | 2 | 3) => {
@@ -359,7 +363,7 @@ export function render(i) { rgb(t, i/4, 0.3) }`
       for (const delta of deltas) expect(wrapped.frame(delta)).toEqual(legacy.frame(delta))
     })
 
-    it('preserves Dreamy history and fixed-step refresh across Control changes', () => {
+    it('preserves active Dreamy history and fixed-step refresh across positive amount changes', () => {
       const source = `var hue = -0.17
 var colors = [0, 1,0,0, 0.5, 0,1,0, 1, 0,0,1]
 setPalette(colors)
@@ -370,11 +374,12 @@ export function render(i) {
   else paint(hue)
 }`
       const legacy = directFrames(bundleWithPasses(source, {}, [
-        { kind: 'slowmo', pixelCount: points.length, settings: { position: 1, dreamy: 0 } },
+        { kind: 'slowmo', pixelCount: points.length, settings: { position: 1, dreamy: 0.5 } },
       ]), fidelity)
       const wrapped = directFrames(wrapperArtifact(source, both), fidelity)
+      wrapped.set('sliderDreamy', 0.5)
       for (const delta of deltas) expect(wrapped.frame(delta)).toEqual(legacy.frame(delta))
-      for (const [amount, dreamy] of [[0, 0.5], [1, 1], [0.046875, 0], [0.015625, 0], [0.046875, 0], [0.25, 0.75]]) {
+      for (const [amount, dreamy] of [[0, 0.75], [1, 1], [0.046875, 0.5], [0.015625, 0.75], [0.046875, 1], [0.25, 0.75]]) {
         legacy.set('slider__pxlblz_slowmo_speed', 1 - amount)
         legacy.setRuntime('__pxlblz_slowmo_decay', 10000 * dreamy * dreamy)
         wrapped.set('sliderSlowMo', amount)
@@ -383,39 +388,86 @@ export function render(i) {
       }
     })
 
+    it('matches Slow-mo alone throughout a zero-Dreamy Control sequence', () => {
+      const source = `var hue = 0
+export function beforeRender(d) { hue = time(0.044) }
+export function render(i) { hsv(hue + time(0.081), i/4, 0.8) }`
+      const slow = directFrames(wrapperArtifact(source, ['slow-mo']), fidelity)
+      const combined = directFrames(wrapperArtifact(source, both), fidelity)
+      for (const delta of deltas) expect(combined.frame(delta)).toEqual(slow.frame(delta))
+      combined.set('sliderDreamy', 0.5)
+      combined.frame(16)
+      slow.frame(16)
+      combined.set('sliderDreamy', 0)
+      for (const amount of [0, 0.015625, 0.046875, 1, 0.046875, 0.015625, 0, 0.25, 0]) {
+        slow.set('sliderSlowMo', amount)
+        combined.set('sliderSlowMo', amount)
+        if (amount === 1) combined.set('sliderDreamy', 0)
+        for (const delta of deltas) expect(combined.frame(delta)).toEqual(slow.frame(delta))
+      }
+    })
+
+    it('shows refreshed Slow-mo output on zero-delta entry with Dreamy at zero', () => {
+      const slow = directFrames(wrapperArtifact(levelPattern, ['slow-mo']), fidelity)
+      const combined = directFrames(wrapperArtifact(levelPattern, both), fidelity)
+      for (const runtime of [slow, combined]) {
+        expect(runtime.frame(16)).toEqual(points.map(() => [1, 0, 0]))
+        runtime.set('sliderLevel', 0)
+        runtime.set('sliderSlowMo', 1)
+      }
+      for (const delta of [0, 0, 16]) {
+        const frame = slow.frame(delta)
+        expect(frame).toEqual(points.map(() => [0, 0, 0]))
+        expect(combined.frame(delta)).toEqual(frame)
+      }
+    })
+
     it.each([{ enabled: ['dreamy'] as const }, { enabled: both }])(
-      'starts Dreamy decay from the color displayed while $enabled was untouched',
+      'seeds a fresh Dreamy history on each activation ($enabled)',
       ({ enabled }) => {
-        const source = `var level = 1
-export function sliderLevel(v) { level = v }
-export function render(i) { rgb(level, 0, 0) }`
-        const wrapped = directFrames(wrapperArtifact(source, enabled), fidelity)
-        expect(wrapped.frame(0)).toEqual(points.map(() => [1, 0, 0]))
+        const wrapped = directFrames(wrapperArtifact(levelPattern, enabled), fidelity)
         expect(wrapped.frame(16)).toEqual(points.map(() => [1, 0, 0]))
         wrapped.set('sliderLevel', 0)
         wrapped.set('sliderDreamy', 1)
-        for (const [red, green, blue] of wrapped.frame(16)) {
-          expect(red).toBeGreaterThan(0.99)
-          expect(red).toBeLessThan(1)
-          expect([green, blue]).toEqual([0, 0])
-        }
+        expect(wrapped.frame(16)).toEqual(points.map(() => [0, 0, 0]))
+        wrapped.set('sliderLevel', 1)
+        expect(wrapped.frame(16)).toEqual(points.map(() => [1, 0, 0]))
+        wrapped.set('sliderLevel', 0)
+        const [[trail]] = wrapped.frame(16)
+        expect(trail).toBeGreaterThan(0.99)
+        expect(trail).toBeLessThan(1)
+
+        wrapped.set('sliderDreamy', 0)
+        expect(wrapped.frame(16)).toEqual(points.map(() => [0, 0, 0]))
+        wrapped.set('sliderLevel', 0.5)
+        wrapped.set('sliderDreamy', 0.5)
+        expect(wrapped.frame(0)).toEqual(points.map(() => [0.5, 0, 0]))
+        wrapped.set('sliderLevel', 1)
+        expect(wrapped.frame(0)).toEqual(points.map(() => [0.5, 0, 0]))
+        wrapped.set('sliderLevel', 0)
+        const [[restartedTrail]] = wrapped.frame(16)
+        expect(restartedTrail).toBeGreaterThan(0.49)
+        expect(restartedTrail).toBeLessThan(0.5)
       },
     )
   })
 }
 
-it('bypasses Slow-mo rate calculation and HSV capture with an untouched Slow-mo Control', () => {
-  const artifact = wrapperArtifact('export function render(i) { hsv(0, 1, 1) }', ['slow-mo'])
-  const shim = createShim({ mapPoints: points, pixelCount: points.length, dimensions: 1, getVirtualTime: () => 0 })
-  const floor = vi.fn(Math.floor)
-  const pow = vi.fn(Math.pow)
-  const runtime = loadPattern(artifact.code, artifact.metadata, { ...shim.builtins, floor, pow })
-  runtime.beforeRender(16)
-  runtime.render(0)
-  expect(shim.capturedPixel()).toEqual([1, 0, 0])
-  expect(floor).not.toHaveBeenCalled()
-  expect(pow).not.toHaveBeenCalled()
-})
+it.each([{ enabled: ['slow-mo'] as const }, { enabled: ['dreamy'] as const }, { enabled: both }])(
+  'bypasses rate calculation and HSV capture with untouched $enabled',
+  ({ enabled }) => {
+    const artifact = wrapperArtifact('export function render(i) { hsv(0, 1, 1) }', enabled)
+    const shim = createShim({ mapPoints: points, pixelCount: points.length, dimensions: 1, getVirtualTime: () => 0 })
+    const floor = vi.fn(Math.floor)
+    const pow = vi.fn(Math.pow)
+    const runtime = loadPattern(artifact.code, artifact.metadata, { ...shim.builtins, floor, pow })
+    runtime.beforeRender(16)
+    runtime.render(0)
+    expect(shim.capturedPixel()).toEqual([1, 0, 0])
+    expect(floor).not.toHaveBeenCalled()
+    expect(pow).not.toHaveBeenCalled()
+  },
+)
 
 it('captures the Pattern binding before Dreamy, then applies Brightness and Power limit', () => {
   const source = 'export var level = 0; export function render(i) { rgb(level, 0, 0) }'

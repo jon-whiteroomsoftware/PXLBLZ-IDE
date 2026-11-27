@@ -1903,9 +1903,17 @@ or device FPS; those still require hardware proof.
 
 The #1273 Controller bench measured the combined Slow-mo and Dreamy wrapper
 with both Controls off at 14.4–73.9% of unwrapped FPS across six Patterns at
-256 pixels. The target was 90%. Jon accepted that cost for this release at
-12:43 -07:00 on 2026-11-26. The bench measured the prior combined emitter.
+256 pixels. Jon accepted that cost for the prior emitter at 12:43 -07:00 on
+2026-11-26. The target for the follow-up is 90%.
 [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
+Native Dreamy now starts with empty history on each activation and seeds it
+from the first eligible active render. With Dreamy at zero, a Pattern with
+both Wrappers uses the Slow-mo-only clock and output. Entering Slow-mo from
+full bypass at 0 ms displays the refreshed Slow-mo frame. The prior emitter
+held the RGB it had captured while bypassed. Controller FPS for the cold
+bypass awaits a bench measurement.
+[#1283](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1283)
 
 ## 32. Evidence and further reading
 
