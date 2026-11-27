@@ -9,6 +9,8 @@ export interface FakeControllerHelperOptions {
   mac: string
   pixelCount: number
   controls?: Record<string, number>
+  /** Initial saved Control values by program, with controls as the fallback. */
+  programControls?: Record<string, Record<string, number>>
   vars?: Record<string, number>
   sequencerMode?: number
   runSequencer?: boolean
@@ -38,7 +40,8 @@ export async function installFakeControllerHelper(
     const RELAY_SOURCE = 'pblz-relay'
     let activeProgramId = fixture.activeProgramId
     let pixelCount = fixture.pixelCount
-    const savedControls = new Map<string, Record<string, number>>()
+    const savedControls = new Map(Object.entries(fixture.programControls ?? {}))
+    const liveControls = new Map<string, Record<string, number>>()
     const controlsFor = (id: string) => savedControls.get(id) ?? fixture.controls ?? {}
     let pendingProgramId: string | null = null
     let programs = fixture.programs.map((program) => ({ ...program }))
@@ -250,18 +253,18 @@ export async function installFakeControllerHelper(
           runSequencer: fixture.runSequencer,
         })
         reply(message.connId, {
-          activeProgram: { activeProgramId, controls: controlsFor(activeProgramId) },
+          activeProgram: { activeProgramId, controls: liveControls.get(activeProgramId) ?? controlsFor(activeProgramId) },
           sequencerMode: fixture.sequencerMode,
           runSequencer: fixture.runSequencer,
         })
       }
       if (typeof command.pixelCount === 'number') pixelCount = command.pixelCount
-      if (fixture.trackSavedPrograms && command.save === true
-        && command.setControls && typeof command.setControls === 'object') {
-        savedControls.set(activeProgramId, {
-          ...controlsFor(activeProgramId),
-          ...command.setControls,
-        })
+      if (fixture.trackSavedPrograms && command.setControls && typeof command.setControls === 'object') {
+        const values = command.setControls
+        liveControls.set(activeProgramId, { ...(liveControls.get(activeProgramId) ?? controlsFor(activeProgramId)), ...values })
+        if (command.save === true) {
+          savedControls.set(activeProgramId, { ...controlsFor(activeProgramId), ...values })
+        }
       }
       if (command.ping) reply(message.connId, { ack: 1 })
       if (typeof command.name === 'string') {

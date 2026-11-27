@@ -987,7 +987,7 @@ describe('controllerPanelStore', () => {
   })
 
   it('adopts a Wrapper value first reported after the seed, without touching moved or own Controls (#1280 S2)', async () => {
-    provider.config = { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSpeed: 0.3 } }
+    provider.config = { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSpeed: 0.3, sliderDreamy: 1.2 } }
     useControllerPanelStore.getState().start()
     await flush()
     useControllerPanelStore.getState().setControl('sliderSpeed', 0.8)
@@ -998,7 +998,7 @@ describe('controllerPanelStore', () => {
     }
     await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSpeed: 0.8, sliderSlowMo: 0, sliderDreamy: 0.4 })
-    // Once present, the Wrapper value is slider-owned like any Control.
+    // Once usable, the Wrapper value is slider-owned like any Control.
     useControllerPanelStore.getState().setControl('sliderSlowMo', 0.7)
     provider.config = {
       brightness: 0.5,

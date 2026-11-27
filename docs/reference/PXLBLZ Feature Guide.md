@@ -279,8 +279,15 @@ reads `0%`; a positive value below 0.5% reads `<1%`.
 **Play/Pause** freezes or resumes the Controller's renderer without touching
 flash.
 
-The panel folds the same way the preview does: **Controls** starts open, and
-**Pixelblaze**, **Power**, and **Variables** fold to one-line summaries.
+On a wrapped Pattern, **Wrappers** shows Slow-mo and Dreamy sliders above the
+Pattern's own **Controls**. A dash means the Controller has yet to report a
+usable value. You can still move the slider to set it live without rewriting
+the Pattern. On a Show, the group names the profile's enabled Slow-mo or
+Dreamy Wrappers and says they are off for Shows.
+[Controller Wrapper delivery](contracts/controller-wrappers.md#live-panel)
+
+**Wrappers** and **Controls** start open. **Pixelblaze**, **Power**, and
+**Variables** start folded to one-line summaries.
 Power's summary keeps the limiter, recent duty, and estimated draw in view. A
 grey **limiting** label means the cap is idle; amber means it is holding
 output down. If the Controller is shuffling or playing a playlist, an icon in

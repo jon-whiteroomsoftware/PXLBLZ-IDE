@@ -81,11 +81,11 @@ function wrapperRowValue(raw: unknown): number | null {
 
 /** Split the reported controls into the Wrappers group and the Pattern's own
  *  Controls. Membership is the saved applied record when known; otherwise the
- *  reported reserved exports (Jon, 2026-11-26: "Saved record first"). A reserved
- *  export the record skipped for any reason but `control-name-taken` is a stored
- *  value the saved code no longer exports, so it is not shown; an author-owned or
- *  unevaluated name stays an own Control as it does today. A Show is never wrapped: its controls are all
- *  its own, and the group is the Show line while a Wrapper is on. */
+ *  reported reserved exports. A memory refusal follows the Control-name check,
+ *  so a reported value for that skipped export is leftover state. A name clash,
+ *  a structural refusal, or an unevaluated Wrapper leaves the reported name in
+ *  the Pattern's own Controls. Show Controls stay together, with the Show line
+ *  while a Wrapper is on. */
 export function deriveControllerPanelWrappers(input: {
   reported: Readonly<Record<string, unknown>>
   evidence: ControllerPanelWrapperEvidence
@@ -115,7 +115,7 @@ export function deriveControllerPanelWrappers(input: {
   for (const type of CONTROLLER_WRAPPER_TYPES) {
     const exportName = PATTERN_WRAPPER_CONTROLS[type].exportName
     const skip = outcome?.skipped[type]
-    if (members.includes(type) || (skip && skip.reason !== 'control-name-taken')) omitted.add(exportName)
+    if (members.includes(type) || skip?.reason === 'array-budget') omitted.add(exportName)
   }
   const rows = members.map((type): ControllerPanelWrapperRow => {
     const exportName = PATTERN_WRAPPER_CONTROLS[type].exportName
@@ -133,21 +133,22 @@ export function deriveControllerPanelWrappers(input: {
 }
 
 /** Add Wrapper values the Controller reports for the same program after the seed.
- *  A never-set Wrapper slider is indeterminate until a known value arrives (Jon,
- *  2026-11-26, recorded on #1276); present values stay slider-owned, and other
- *  newly reported names keep today's seed-only behaviour. Returns `local` itself
- *  when nothing is added. */
+ *  An unset Wrapper slider remains indeterminate until a usable value arrives.
+ *  Usable local values stay slider-owned. Other newly reported names keep the
+ *  seed-only behaviour. Returns `local` itself when nothing changes. */
 export function adoptReportedWrapperValues(
   local: Record<string, number>,
   reported: Readonly<Record<string, number>> | undefined,
 ): Record<string, number> {
+  if (!reported) return local
   let next = local
   for (const type of CONTROLLER_WRAPPER_TYPES) {
     const exportName = PATTERN_WRAPPER_CONTROLS[type].exportName
-    if (reported && exportName in reported && !(exportName in local)) {
-      if (next === local) next = { ...local }
-      next[exportName] = reported[exportName]
-    }
+    if (!(exportName in reported)) continue
+    const incoming = reported[exportName]
+    if (exportName in local && (wrapperRowValue(local[exportName]) !== null || wrapperRowValue(incoming) === null)) continue
+    if (next === local) next = { ...local }
+    next[exportName] = incoming
   }
   return next
 }

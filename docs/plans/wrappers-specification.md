@@ -250,9 +250,23 @@ above and apart from the Pattern's own Controls. A Pattern with its own "speed"
 Control and a Slow-mo Wrapper Control shows both without confusion. A Wrapper
 Control driven by an input shows the input's name in place of the slider.
 
-A Pattern for which a Wrapper was skipped has no row for it (decision 27).
-While a Show is selected and Slow-mo or Dreamy is on, the group reads "Slow-mo
-and Dreamy are off for Shows."
+The saved outcome for the active program determines which Wrapper Controls
+appear. When that outcome is unavailable, the panel uses the reserved export
+names the Controller reports. The Controller supplies the value in either
+case. A slider without a usable reported value shows a dash and can still be
+moved. Moving it sends a live Control update and leaves the saved code alone.
+
+A skipped Wrapper has neither a row nor a note (decision 27). A memory skip
+confirms the reserved name was free, so the panel hides a leftover value for
+that export. A reported reserved name stays in the Pattern's own Controls
+when the Wrapper was skipped for a name clash, refused before the name check,
+or unevaluated in the saved outcome.
+
+The group shows "Slow-mo and Dreamy are off for Shows." when a Show is selected
+and both Wrappers are on. If only one is on, the line names that Wrapper.
+
+The Saved Patterns picker shows tags for applied Wrappers only. Show rows
+carry their applied Power limit and Brightness tags (decision 31).
 
 ## 8. Shows
 

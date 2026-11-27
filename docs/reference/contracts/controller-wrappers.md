@@ -117,3 +117,18 @@ confirmed stored value survival across inactive rewrites and removed and
 restored exports.
 The same export name recovers its previous value. The probe did not measure
 power-cycle survival. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+
+## Live panel
+
+The active program's confirmed outcome determines membership in the Wrappers
+group. Without an outcome, the panel uses exact reserved exports from the live
+report. A value for an export skipped for memory is treated as leftover state
+because that skip follows a successful name check. Name conflicts, structural
+refusals, and unevaluated exports keep the reported Control in the Pattern's own
+group when an outcome is present.
+
+Wrapper slider positions come from the live report. The panel displays an
+indeterminate slider until it has a usable position. Moving a slider sends a
+volatile Control write and leaves the rewrite queue untouched. The saved Show
+binding identifies Shows and the panel names only the profile's enabled
+Slow-mo and Dreamy Wrappers in its Show message.

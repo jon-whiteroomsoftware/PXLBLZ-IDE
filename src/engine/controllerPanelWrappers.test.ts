@@ -17,12 +17,13 @@ const memorySkip = { reason: 'array-budget' as const, message: 'Skipped: not eno
 const clash = { reason: 'control-name-taken' as const, message: 'Skipped: name taken.' }
 
 // The author's controls interleaved with both reserved exports, a near-match, the
-// legacy preview name and a toggle (plan review M1).
+// legacy preview name and an author toggle with the same rendered label.
 const interleaved = {
   sliderSpeed: 0.4,
   sliderSlowMo: 0.3,
   toggleMirror: 1,
   sliderSlowMoX: 0.2,
+  toggleSlowMo: 0,
   sliderDreamy: 0.6,
   slider__pxlblz_slowmo_speed: 0.5,
   sliderHue: 0.9,
@@ -31,6 +32,7 @@ const authorOnly = {
   sliderSpeed: 0.4,
   toggleMirror: 1,
   sliderSlowMoX: 0.2,
+  toggleSlowMo: 0,
   slider__pxlblz_slowmo_speed: 0.5,
   sliderHue: 0.9,
 }
@@ -53,7 +55,7 @@ describe('deriveControllerPanelWrappers', () => {
     // Own Controls keep today's order, labels and kinds, including "speed".
     expect(shapeControllerControls(ownReported)).toEqual(shapeControllerControls(authorOnly))
     expect(shapeControllerControls(ownReported).map((c) => c.label)).toEqual([
-      'Speed', 'Mirror', 'Slow Mo X', '__pxlblz_slowmo_speed', 'Hue',
+      'Speed', 'Mirror', 'Slow Mo X', 'Slow Mo', '__pxlblz_slowmo_speed', 'Hue',
     ])
   })
 
@@ -69,6 +71,14 @@ describe('deriveControllerPanelWrappers', () => {
     expect(types).toEqual(expected)
     if (!expected.length) expect(group).toEqual({ kind: 'absent' })
     expect(ownReported).toEqual({ sliderSpeed: 0.4 })
+  })
+
+  it('keeps an author Control with the same display label when no reserved name is reported', () => {
+    const reported = { toggleSlowMo: 1 }
+    expect(deriveControllerPanelWrappers({ reported, evidence: unknown, enabled: ['slow-mo'] })).toEqual({
+      group: { kind: 'absent' },
+      ownReported: reported,
+    })
   })
 
   it('takes membership from the saved record: an applied Wrapper with no reported value is indeterminate', () => {
@@ -113,6 +123,19 @@ describe('deriveControllerPanelWrappers', () => {
     expect(ownReported).toEqual({ sliderSlowMo: 0.3 })
   })
 
+  it('preserves reported reserved names when a structural refusal preempts the name check', () => {
+    const reported = { sliderSlowMo: 0.3, sliderSpeed: 0.4 }
+    const { group, ownReported } = deriveControllerPanelWrappers({
+      reported,
+      evidence: pattern({ applied: [], skipped: {
+        'slow-mo': { reason: 'shadowed-builtin', message: 'A top-level binding shadows rgb.' },
+      } }),
+      enabled: ['slow-mo'],
+    })
+    expect(group).toEqual({ kind: 'absent' })
+    expect(ownReported).toEqual(reported)
+  })
+
   it('keeps an unevaluated reserved name as an own Control when the record applies nothing', () => {
     const reported = { sliderSlowMo: 0.3, sliderSpeed: 0.4 }
     const { group, ownReported } = deriveControllerPanelWrappers({
@@ -133,7 +156,7 @@ describe('deriveControllerPanelWrappers', () => {
     ['nonfinite', Number.POSITIVE_INFINITY, null],
     ['NaN', Number.NaN, null],
     ['nonnumeric', 'fast', null],
-  ])('reads a %s value as %s', (_, raw, expected) => {
+  ])('displays a %s report with the expected slider value', (_, raw, expected) => {
     const { group } = deriveControllerPanelWrappers({
       reported: { sliderSlowMo: raw },
       evidence: unknown,
