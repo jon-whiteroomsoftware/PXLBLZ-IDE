@@ -335,6 +335,66 @@ test('Long saved binding labels fit inside the Profile column (#1277)', async ({
   }
 })
 
+test('Saved Patterns and Shows fill the pane and keep Wrapper tags in their column (#1286)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const inventory = fixtures.map((fixture) => fixture.id === 'pxbTagsFits000001' ? {
+    ...fixture,
+    record: { wrapperOutcome: { applied: ['slow-mo', 'dreamy'], skipped: {} }, wrapperProgramId: fixture.id },
+  } satisfies Fixture : fixture)
+  await seed(page, inventory)
+
+  const pane = page.getByTestId('controller-saved-programs-pane')
+  for (const width of [1440, 641]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const { tableName, rowName, labels } of [
+      { tableName: 'Patterns', rowName: 'Fits', labels: ['slow-mo', 'dreamy'] },
+      { tableName: 'Shows', rowName: 'Fixture Show', labels: ['power', 'bright'] },
+    ]) {
+      const table = pane.getByRole('table', { name: tableName, exact: true })
+      const row = table.getByRole('row').filter({ has: page.getByText(rowName, { exact: true }) })
+      const profileCell = row.getByRole('cell').nth(1)
+      for (const label of labels) {
+        await expect(profileCell.getByText(label, { exact: true })).toBeVisible()
+      }
+
+      const geometry = await row.evaluate((element) => {
+        const table = element.closest('table')!
+        const pane = table.closest<HTMLElement>('[data-testid="controller-saved-programs-pane"]')!
+        const paneBounds = pane.getBoundingClientRect()
+        const content = getComputedStyle(table.parentElement!.parentElement!)
+        const tableBounds = table.getBoundingClientRect()
+        const [, profile, status, actions] = Array.from(element.children, (cell) => cell.getBoundingClientRect())
+        const tags = Array.from(element.children[1].querySelectorAll(':scope > span > span'), (tag) => {
+          const { left, right, top } = tag.getBoundingClientRect()
+          return { left, right, top }
+        })
+        return {
+          leftGap: tableBounds.left - (paneBounds.left + parseFloat(content.paddingLeft)),
+          rightGap: paneBounds.left + pane.clientWidth - parseFloat(content.paddingRight) - tableBounds.right,
+          tagsInsideProfile: tags.every((tag) => tag.left >= profile.left && tag.right <= profile.right),
+          tagsClearOfControls: tags.every((tag) => tag.right <= status.left && tag.right <= actions.left),
+          horizontalOverflow: Math.max(
+            pane.scrollWidth - pane.clientWidth,
+            document.documentElement.scrollWidth - window.innerWidth,
+          ),
+          tags,
+        }
+      })
+      const description = `${tableName} at ${width}px`
+      expect(Math.abs(geometry.leftGap), description).toBeLessThanOrEqual(1)
+      expect(Math.abs(geometry.rightGap), description).toBeLessThanOrEqual(1)
+      expect(geometry.tagsInsideProfile, description).toBe(true)
+      expect(geometry.tagsClearOfControls, description).toBe(true)
+      expect(geometry.horizontalOverflow, description).toBeLessThanOrEqual(1)
+      if (width === 1440) {
+        const [first, second] = geometry.tags
+        expect(Math.abs(first.top - second.top), description).toBeLessThanOrEqual(1)
+        expect(second.left, description).toBeGreaterThan(first.right)
+      }
+    }
+  }
+})
+
 test('Saved by PXLBLZ groups share selection across Patterns and Shows (#1277)', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const running = 'pxbTagsMemory0001'

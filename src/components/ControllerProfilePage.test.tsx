@@ -2486,11 +2486,6 @@ describe('ControllerProfilePage', () => {
       'tracking-[0.16em]',
     )
     expect(within(savedInventory).getByRole('button', { name: 'Twinkle' })).toHaveClass('font-sans')
-    const columnClasses = (table: HTMLElement) => (
-      Array.from(table.querySelectorAll('col')).map((column) => column.className)
-    )
-    expect(columnClasses(savedInventory)).toEqual(['w-[48%]', 'w-[26%]', 'w-[8%]', 'w-[18%]'])
-    expect(columnClasses(showsInventory)).toEqual(columnClasses(savedInventory))
     const importButton = screen.getByRole('button', { name: 'Import sound bar kit' })
     expect(importButton).toHaveClass('h-6', 'w-6')
     expect(importButton.parentElement).toHaveClass('opacity-0', 'group-focus-within:opacity-100')

@@ -803,10 +803,10 @@ function SavedProgramsInventory({
         {rows.length > 0 && <table className={tableClass} aria-label={`${label}s`}>
           <colgroup>
             {selectingSaved && <col className="w-7" />}
-            <col className="w-[48%]" />
-            <col className="w-[26%]" />
-            <col className="w-[8%]" />
-            <col className="w-[18%]" />
+            <col />
+            <col />
+            <col className="w-7" />
+            <col className={selectingSaved ? 'w-8' : 'w-[3.625rem]'} />
           </colgroup>
           <thead>
             <tr>
