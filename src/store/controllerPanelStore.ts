@@ -20,6 +20,7 @@ import {
 } from '@/engine/limitingSmoothing'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
 import { enabledControllerWrappers } from '@/engine/controllerProfile'
+import { adoptReportedWrapperValues } from '@/engine/controllerPanelWrappers'
 import {
   confirmControllerBatchDelete,
   planControllerBatchDelete,
@@ -323,7 +324,9 @@ function configPatch(
       state.pixelCountPending != null
         ? state.pixelCountPending
         : config.pixelCount ?? state.pixelCount,
-    activeControls: reseed ? config.activeControls ?? {} : state.activeControls,
+    activeControls: reseed
+      ? config.activeControls ?? {}
+      : adoptReportedWrapperValues(state.activeControls, config.activeControls),
   }
 }
 

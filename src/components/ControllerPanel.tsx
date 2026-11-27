@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Map as MapIcon } from 'lucide-react'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
@@ -27,6 +27,20 @@ import {
 import { DeckSlider } from '@/components/DeckSlider'
 import { PixelCountPopover } from '@/components/PixelCountPopover'
 import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
+import { enabledControllerWrappers } from '@/engine/controllerProfile'
+import type { BindingStore } from '@/engine/controllerBinding'
+import type { ControllerPushRecords } from '@/engine/controllerPushRecord'
+import {
+  getControllerBindings,
+  getControllerPushRecordsRevision,
+  getPushRecords,
+  subscribeControllerPushRecordsRevision,
+} from '@/engine/controllerMetadataStorage'
+import {
+  deriveControllerPanelWrappers,
+  describeControllerWrappersReadout,
+  resolveControllerPanelWrapperEvidence,
+} from '@/engine/controllerPanelWrappers'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useMapStore } from '@/store/mapStore'
 import { describeInstalledMap } from '@/engine/installedMapObservation'
@@ -143,6 +157,25 @@ function ControllerSection({ label, hint, summary, children }: { label: string; 
   return <div className={`controller-section-${label.toLowerCase()}`}><DeckSection label={label} hint={hint} summary={summary} collapsible summaryRow expanded={expanded} onExpandedChange={setExpanded}>{children}</DeckSection></div>
 }
 
+// The saved bindings and receipts the Wrappers group reads (#1280). Re-read when
+// the live session or a confirmed receipt changes; the last read for the same
+// session stays in use meanwhile, so a Pattern switch does not flicker the group.
+function useControllerSavedEvidence(controllerId: string | null, liveEpoch: number | undefined) {
+  const revision = useSyncExternalStore(subscribeControllerPushRecordsRevision, getControllerPushRecordsRevision)
+  const session = JSON.stringify([controllerId, liveEpoch ?? null])
+  const [read, setRead] = useState<{ session: string; bindings: BindingStore; pushRecords: ControllerPushRecords } | null>(null)
+  useEffect(() => {
+    if (!controllerId) return
+    let current = true
+    Promise.all([getControllerBindings(), getPushRecords()]).then(
+      ([bindings, pushRecords]) => { if (current) setRead({ session, bindings, pushRecords }) },
+      () => { if (current) setRead(null) },
+    )
+    return () => { current = false }
+  }, [controllerId, session, revision])
+  return read?.session === session ? read : null
+}
+
 export function ControllerPanelBrightness() {
   // Rebind when the active device changes, matching the panel's availability.
   useControllerStore(s => s.activeIp)
@@ -204,6 +237,7 @@ export function ControllerPanel() {
     ? controllerEntry.installedMap.pointCount
     : null
   const installedMapCandidates = useInstalledMapCandidates(userMaps, installedMapPointCount)
+  const savedEvidence = useControllerSavedEvidence(activeIp, liveEpoch)
 
   const limitingNow = limitingSmoothing?.active ?? false
 
@@ -234,7 +268,18 @@ export function ControllerPanel() {
       pixelCount,
       mapPointCount,
     })
-  const controls = shapeControllerControls(activeControls, controlDescriptions)
+  const wrappers = deriveControllerPanelWrappers({
+    reported: activeControls,
+    evidence: resolveControllerPanelWrapperEvidence({
+      controllerId: activeIp,
+      activeProgramId,
+      bindings: savedEvidence?.bindings ?? null,
+      pushRecords: savedEvidence?.pushRecords ?? null,
+    }),
+    enabled: enabledControllerWrappers(activeProfile),
+  })
+  const wrapperGroup = wrappers.group
+  const controls = shapeControllerControls(wrappers.ownReported, controlDescriptions)
   const controlsHint = buildControlsHint(controls)
   const powerCapSettings = activeProfile?.globalTransforms.find(
     (transform) => transform.type === 'power-cap',
@@ -277,6 +322,36 @@ export function ControllerPanel() {
           <div className="controller-field-wide"><DeckTelemetry label="IP" value={status.controller.address} /></div>
         </DeckGrid>
       </ControllerSection>
+
+      {wrapperGroup.kind === 'show-line' && (
+        <ControllerSection label="Wrappers" summary={<span className="text-zinc-400">{wrapperGroup.text}</span>}>
+          <p className="text-zinc-400" data-testid="controller-wrappers-show-line">{wrapperGroup.text}</p>
+        </ControllerSection>
+      )}
+
+      {wrapperGroup.kind === 'rows' && (
+        <ControllerSection
+          label="Wrappers"
+          summary={<PanelReadout items={describeControllerWrappersReadout(wrapperGroup.rows)} />}
+        >
+          <DeckGrid>
+            {wrapperGroup.rows.map((row) => (
+              <DeckSlider
+                key={row.exportName}
+                label={row.label.toLowerCase()}
+                ariaLabel={row.label}
+                value={row.value}
+                min={0}
+                max={1}
+                step={0.01}
+                presentation="percentage"
+                unsetHint="Not set: the Controller reports no usable position for this control; drag to set it."
+                onChange={(v) => setControl(row.exportName, v)}
+              />
+            ))}
+          </DeckGrid>
+        </ControllerSection>
+      )}
 
       {controls.length > 0 && (
         <ControllerSection

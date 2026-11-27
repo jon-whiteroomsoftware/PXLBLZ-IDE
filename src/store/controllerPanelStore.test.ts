@@ -986,6 +986,43 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderHue: 0.1 })
   })
 
+  it('adopts a Wrapper value first reported after the seed, without touching moved or own Controls (#1280 S2)', async () => {
+    provider.config = { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSpeed: 0.3 } }
+    useControllerPanelStore.getState().start()
+    await flush()
+    useControllerPanelStore.getState().setControl('sliderSpeed', 0.8)
+    provider.config = {
+      brightness: 0.5,
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3, sliderSlowMo: 0, sliderDreamy: 0.4, sliderHue: 0.2 },
+    }
+    await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSpeed: 0.8, sliderSlowMo: 0, sliderDreamy: 0.4 })
+    // Once present, the Wrapper value is slider-owned like any Control.
+    useControllerPanelStore.getState().setControl('sliderSlowMo', 0.7)
+    provider.config = {
+      brightness: 0.5,
+      activeProgramId: 'def',
+      activeControls: { sliderSpeed: 0.3, sliderSlowMo: 0.1, sliderDreamy: 0.9 },
+    }
+    await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSpeed: 0.8, sliderSlowMo: 0.7, sliderDreamy: 0.4 })
+  })
+
+  it("shows each Pattern's own Wrapper values across a switch and return (#1280 S1)", async () => {
+    provider.config = { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSlowMo: 0.3 } }
+    useControllerPanelStore.getState().start()
+    await flush()
+    useControllerPanelStore.getState().setControl('sliderSlowMo', 0.7)
+    provider.config = { brightness: 0.5, activeProgramId: 'abc', activeControls: { sliderSlowMo: 0.1 } }
+    await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSlowMo: 0.1 })
+    provider.config = { brightness: 0.5, activeProgramId: 'def', activeControls: { sliderSlowMo: 0.7 } }
+    await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSlowMo: 0.7 })
+    expect(provider.controlWrites).toEqual([{ controls: { sliderSlowMo: 0.7 }, save: false }])
+  })
+
   it('setControl writes through volatile (never save:true) and updates locally', () => {
     useControllerPanelStore.getState().setControl('sliderSpeed', 0.7)
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSpeed: 0.7 })

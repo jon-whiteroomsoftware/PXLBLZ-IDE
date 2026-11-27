@@ -3,7 +3,7 @@ import { formatPercentageValue } from './percentageValue'
 
 export interface PanelReadout { glyph?: 'light' | 'diffusion' | 'renderer' | 'fps' | 'elapsed' | 'layout' | 'view' | 'fit' | 'pixels'; value: string; label?: string; live?: boolean }
 export function panelSectionKey(mode: string, section: string): string { return `${mode}:${section.toLowerCase()}` }
-export function panelSectionDefault(section: string): boolean { return section === 'Controls' }
+export function panelSectionDefault(section: string): boolean { return section === 'Controls' || section === 'Wrappers' }
 /** CSS container queries use the same 380px panel breakpoint. */
 export function panelFieldColumns(width: number): 1 | 2 { return width < 380 ? 1 : 2 }
 export function describePreviewReadout(s: { lightSize: number; diffusion: number; fidelity: string; fps: number | null; elapsed: number | null; layout: string | null }): PanelReadout[] {
