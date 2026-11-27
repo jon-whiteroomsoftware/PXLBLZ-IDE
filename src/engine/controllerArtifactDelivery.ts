@@ -1,4 +1,9 @@
-import { enabledControllerWrappers, type ControllerProfile, type ControllerWrapperOutcome } from './controllerProfile'
+import {
+  enabledControllerWrappers,
+  wrapperInputsFor,
+  type ControllerProfile,
+  type ControllerWrapperOutcome,
+} from './controllerProfile'
 import { controllerProfileArtifactSignature, controllerProfilePassRecipe } from './controllerProfilePassRecipe'
 import type { MapDimension } from './renderCompatibility'
 import {
@@ -69,6 +74,15 @@ export function prepareControllerArtifactDelivery({
     const decision = candidate.summary.passes.find((pass) => pass.kind === 'wrappers')?.wrappers
     if (!decision) throw new Error('Controller Wrapper decision is unavailable.')
     wrapperOutcome = { applied: decision.applied, skipped: decision.skipped }
+    if (decision.inputs?.length) {
+      const driven = wrapperInputsFor(profile, artifactId)
+      const inputs: NonNullable<ControllerWrapperOutcome['inputs']> = {}
+      for (const type of decision.inputs) {
+        const input = driven[type]
+        if (input) inputs[type] = { inputId: input.id, name: input.name }
+      }
+      wrapperOutcome.inputs = inputs
+    }
     if (decision.applied.length > 0) bundled = candidate
   }
   if (!bundled) {

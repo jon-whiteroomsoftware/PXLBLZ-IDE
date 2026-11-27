@@ -76,10 +76,12 @@ applied. The authored Pattern remains the source for Studio and exports.
 
 **Wrapper Control**:
 A native Pixelblaze slider added by an applied Wrapper. Firmware stores its
-value per saved Pattern under its export name.
+value per saved Pattern under its export name. When a **hardware input**
+drives the Wrapper, the Pattern has no Wrapper Control for it, and the input
+sets the amount.
 
 **Effective input use**:
-One thing a **hardware input** actually drives, derived from the authoritative records rather than annotated on the input. Exactly two kinds exist: the profile's single hardware-brightness transform, whose scope is every Pattern except those with a Pattern binding on that same input; and one Pattern binding, which drives an exported slider, function, or variable for one Pattern. An input with no uses says so explicitly. Uses are derived, never stored, and deriving them never mutates the profile. The retired `role` field was an annotation that looked like a use and drove nothing.
+One thing a **hardware input** actually drives, derived from the authoritative records rather than annotated on the input. Exactly two kinds exist. A profile-wide use is the hardware-brightness transform or one Wrapper (Slow-mo or Dreamy); an input has at most one, and its scope is every Pattern except those with a Pattern binding on that same input. A Pattern binding is the other kind, which drives an exported slider, function, or variable for one Pattern. An input with no uses says so explicitly. Uses are derived, never stored, and deriving them never mutates the profile. The retired `role` field was an annotation that looked like a use and drove nothing.
 _Avoid_: calling a stored annotation a use; per-use push staleness — re-push freshness is a (Controller, Pattern) fact and belongs to the Pattern; restating the brightness/Pattern precedence in more than one place.
 
 **Controller power profile**:

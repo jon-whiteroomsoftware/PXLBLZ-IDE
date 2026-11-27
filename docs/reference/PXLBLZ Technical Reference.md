@@ -815,7 +815,9 @@ expose a drain barrier that Pattern push waits on.
 The Slow-mo and Dreamy entries are independent enabled flags in the profile
 JSON. Delivery evaluates both against each Pattern and the Controller's
 reported pixel count. The [Controller Wrapper contract](contracts/controller-wrappers.md)
-defines order, refusal, signatures and saved evidence.
+defines order, refusal, signatures and saved evidence. Each entry may name an
+analog input that drives the Wrapper in place of its slider, one to one with
+Brightness and the other Wrapper (#1278).
 
 **Inputs and effective uses.** Input records carry pin, signal, smoothing,
 fallback, and inversion; bindings target an exported slider, function, or

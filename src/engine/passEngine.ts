@@ -10,6 +10,7 @@ import {
   type PatternWrapperDecision,
   type SlowMoSettings,
   type SlowMoDeclineReason,
+  type WrapperInputSample,
 } from './slowMo'
 import {
   selectRenderCompatibility,
@@ -37,6 +38,8 @@ export interface WrappersPassRecipe extends BasePassRecipe {
   kind: 'wrappers'
   enabled: readonly PatternWrapper[]
   pixelCount: number
+  /** Wrappers driven by an input sample. A bound Wrapper exports no slider. */
+  inputs?: Partial<Record<PatternWrapper, WrapperInputSample>>
 }
 
 export interface BasePassRecipe {
@@ -246,12 +249,15 @@ function applySlowMoPass(ctx: PassContext, pass: SlowMoPassRecipe, passId: strin
 }
 
 function applyWrappersPass(ctx: PassContext, pass: WrappersPassRecipe, passId: string): PassSummary {
-  const { code, applied, arrayWords, skipped, tunables } = emitPatternWrappers(ctx.code, pass.pixelCount, pass.enabled)
+  const { code, applied, arrayWords, skipped, tunables, inputs } = emitPatternWrappers(
+    ctx.code, pass.pixelCount, pass.enabled, pass.inputs,
+  )
   const summary: PassSummary = {
     id: passId, kind: pass.kind, estimatedPixelCost: 0,
-    wrappers: { applied, skipped, arrayWords },
+    wrappers: { applied, skipped, arrayWords, ...(inputs ? { inputs } : {}) },
   }
-  return adoptWrappedSource(ctx, summary, code, tunables, applied.map(wrapper => PATTERN_WRAPPER_CONTROLS[wrapper]))
+  const controls = applied.filter(wrapper => !inputs?.includes(wrapper)).map(wrapper => PATTERN_WRAPPER_CONTROLS[wrapper])
+  return adoptWrappedSource(ctx, summary, code, tunables, controls)
 }
 
 function adoptWrappedSource(

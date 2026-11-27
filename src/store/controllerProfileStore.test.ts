@@ -21,7 +21,8 @@ import {
   useControllerProfileStore,
   type ControllerProfile,
 } from './controllerProfileStore'
-import { validateControllerProfile } from '@/engine/controllerProfile'
+import { bindGlobalInputUse, validateControllerProfile } from '@/engine/controllerProfile'
+import { assertValidControllerProfile } from '@/cloudflare/controllerProfiles'
 import { controllerInitialState, useControllerStore } from './controllerStore'
 import { __resetControllerProfileWriteQueue } from '@/engine/controllerProfileWriteQueue'
 import { encodeMapData } from '@/engine/mapPush'
@@ -2143,4 +2144,136 @@ it('refreshes hardware facts on existing equivalent profiles without merging aut
   for (const profile of saved) expect(profile.board).toMatchObject({ firmwareVersion: '3.67', firmwareUpdate: { state: 'current' } })
   expect(saved.find(p => p.id === 'first')?.globalTransforms).toEqual(first.globalTransforms)
   expect(saved.find(p => p.id === 'second')?.lastKnownMapDim).toBe(3)
+})
+
+describe('bindWrapperInput (#1278 S1)', () => {
+  function seededProfile(): ControllerProfile {
+    const profile = defaultControllerProfile({ id: 'ctrl-bind', now: 1 })
+    const knob = (id: string, pin: number) => ({ id, name: `Knob ${id}`, pin, signal: 'analog' as const, smoothing: 0.2, fallback: 0.5, invert: false })
+    return {
+      ...profile,
+      inputs: [knob('a', 36), knob('b', 39), knob('c', 34)],
+      patternBindings: [{ id: 'own-a', patternId: 'pat-1', inputId: 'a', target: { kind: 'call-exported-slider', name: 'sliderSpeed' } }],
+    }
+  }
+
+  /** The provider refuses what the server refuses, so a bad write rolls back. */
+  async function start(seed = seededProfile()) {
+    const provider = memoryProvider([seed])
+    const update = provider.updateControllerProfile
+    const save = vi.spyOn(provider, 'updateControllerProfile').mockImplementation(async (id, changes) => {
+      const existing = (await provider.listControllerProfiles()).find((profile) => profile.id === id)!
+      assertValidControllerProfile({ ...existing, ...changes, id })
+      await update(id, changes)
+    })
+    setPersonalContentProvider(provider)
+    vi.spyOn(useControllerStore.getState(), 'scheduleControllerReconciliation').mockImplementation(() => {})
+    await useControllerProfileStore.getState().loadProfiles()
+    const store = () => useControllerProfileStore.getState()
+    const durable = async () => (await provider.listControllerProfiles())[0]
+    const wrappers = async () => (await durable()).globalTransforms
+      .filter((transform) => transform.type !== 'power-cap')
+      .map((transform) => transform.type === 'hardware-brightness'
+        ? { type: transform.type, enabled: transform.enabled, inputId: transform.inputId }
+        : transform)
+    return { store, save, durable, wrappers, id: seed.id }
+  }
+
+  const brightnessOff = { type: 'hardware-brightness', enabled: false, inputId: '' }
+
+  it('1: binding turns the Wrapper on, and unbinding keeps it on with the slider', async () => {
+    const { store, wrappers, id, durable } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    expect(await wrappers()).toEqual([{ ...brightnessOff, inputId: expect.any(String) }, { id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'a' }])
+    await store().bindWrapperInput(id, 'slow-mo', null)
+    expect(await wrappers()).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: true })
+    expect((await durable()).patternBindings).toEqual(seededProfile().patternBindings)
+    expect((await durable()).inputs).toEqual(seededProfile().inputs)
+  })
+
+  it('2: binding to Dreamy moves the input, and Slow-mo stays on with no input', async () => {
+    const { store, wrappers, id } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    await store().bindWrapperInput(id, 'dreamy', 'a')
+    expect((await wrappers()).slice(1)).toEqual([
+      { id: 'slow-mo', type: 'slow-mo', enabled: true },
+      { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'a' },
+    ])
+  })
+
+  it('3: an input that drives Brightness moves to Slow-mo, and Pattern uses survive', async () => {
+    const { store, wrappers, id, durable } = await start()
+    await store().assignHardwareBrightness(id, 'a')
+    expect((await wrappers())[0]).toEqual({ type: 'hardware-brightness', enabled: true, inputId: 'a' })
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    expect(await wrappers()).toEqual([brightnessOff, { id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'a' }])
+    expect((await durable()).patternBindings).toEqual(seededProfile().patternBindings)
+  })
+
+  it('4: a second input replaces the first, and Brightness input C takes an occupied Dreamy', async () => {
+    const { store, wrappers, id } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    await store().bindWrapperInput(id, 'slow-mo', 'b')
+    expect(await wrappers()).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'b' })
+    await store().bindWrapperInput(id, 'dreamy', 'a')
+    await store().assignHardwareBrightness(id, 'c')
+    await store().bindWrapperInput(id, 'dreamy', 'c')
+    expect(await wrappers()).toEqual([
+      brightnessOff,
+      { id: 'slow-mo', type: 'slow-mo', enabled: true, inputId: 'b' },
+      { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'c' },
+    ])
+  })
+
+  it('5: turning a bound Wrapper off drops its input, and on again restores the slider', async () => {
+    const { store, wrappers, id } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    await store().setWrapperEnabled(id, 'slow-mo', false)
+    expect(await wrappers()).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: false })
+    await store().setWrapperEnabled(id, 'slow-mo', true)
+    expect(await wrappers()).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: true })
+  })
+
+  it('6: deleting the driving input leaves the Wrapper on with its slider, in one update', async () => {
+    const { store, wrappers, id, save, durable } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    save.mockClear()
+    await store().removeInput(id, 'a')
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(await wrappers()).toContainEqual({ id: 'slow-mo', type: 'slow-mo', enabled: true })
+    expect((await durable()).inputs.map((input) => input.id)).toEqual(['b', 'c'])
+    expect((await durable()).patternBindings).toEqual([])
+  })
+
+  it('7 (B6): the setter stores exactly the pure binding, byte for byte after reload', async () => {
+    // Both page entry points (1278b) call this one setter, so they write the
+    // same record; the record itself is the engine's bindGlobalInputUse.
+    const { store, durable, id } = await start()
+    await store().assignHardwareBrightness(id, 'b')
+    const prior = (await durable()).globalTransforms
+    await store().bindWrapperInput(id, 'dreamy', 'b')
+    await store().loadProfiles()
+    const expected = JSON.stringify(bindGlobalInputUse(prior, 'dreamy', 'b'))
+    expect(JSON.stringify((await durable()).globalTransforms)).toBe(expected)
+    expect(JSON.stringify(store().profiles[0].globalTransforms)).toBe(expected)
+  })
+
+  it('V2: a refused write leaves the prior profile in the store and in storage', async () => {
+    const { store, id, durable, save } = await start()
+    await store().bindWrapperInput(id, 'slow-mo', 'a')
+    const before = await durable()
+    save.mockClear()
+    // A record putting one input on two Wrappers is refused whole, with an
+    // unrelated valid edit in the same write.
+    await expect(store().updateProfile(id, {
+      name: 'Renamed',
+      globalTransforms: [...before.globalTransforms, { id: 'dreamy', type: 'dreamy', enabled: true, inputId: 'a' }],
+    })).rejects.toThrow(/Input "a" drives Slow-mo and Dreamy/)
+    expect(save).toHaveBeenCalledTimes(1)
+    const after = await durable()
+    expect(after.globalTransforms).toEqual(before.globalTransforms)
+    expect(store().profiles[0].globalTransforms).toEqual(before.globalTransforms)
+    expect(after.name).toBe(before.name)
+    expect(store().profiles[0].name).toBe(before.name)
+  })
 })

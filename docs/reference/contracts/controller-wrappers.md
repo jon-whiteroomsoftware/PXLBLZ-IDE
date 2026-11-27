@@ -7,8 +7,9 @@ the signature recorded for the saved program.
 ## Profile and delivery
 
 Slow-mo and Dreamy are independent members of `ControllerProfile.globalTransforms`.
-Each has an id, type and enabled flag. A missing member reads as off. The
-profile store writes toggles through its serialized profile update path.
+Each has an id, type and enabled flag, and may name an `inputId`. A missing
+member reads as off. The profile store writes toggles through its serialized
+profile update path.
 
 The delivery engine uses the target Controller's reported pixel count and
 the bundled Pattern source, including libraries and per-Pattern bindings.
@@ -29,6 +30,45 @@ signature. A Show binding bypasses Wrapper evaluation. Brightness and
 Power limit continue through the Show's usual delivery path. The library
 Pattern, its ordinary `.epe` export and its preview remain independent of
 Controller profile settings.
+
+## Input-driven Wrappers
+
+An enabled Slow-mo or Dreamy may name an analog profile input
+([#1278](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1278)).
+`wrapperInputsFor(profile, patternId)` is the single resolver. The pass
+recipe, both signatures and the saved outcome read it.
+
+- **One to one.** Each input has at most one profile-wide use: enabled
+  Brightness, Slow-mo or Dreamy. A disabled Wrapper names no input.
+  Validation refuses a record that breaks either rule, or that names a
+  missing input. The server refuses the whole write, and the store rolls
+  back to the durable profile. `bindGlobalInputUse` and the store's
+  `bindWrapperInput` keep the rule in one update: the input leaves its
+  other use, Brightness turns off, and the Wrapper's previous input is
+  released. A bound Wrapper turns on. Turning a Wrapper off, or deleting
+  its input, releases the input and leaves the slider.
+- **Analog only.** A digital input on a Wrapper is a storable
+  `configuration` issue on the input. The Wrapper keeps its slider.
+- **Opt-out.** A Pattern that binds the same input to one of its own
+  Controls keeps the Wrapper's slider, and its bytes match the unbound
+  Wrapper's. `globalInputUsesOverriddenBy` generalises the Brightness rule,
+  which is unchanged.
+- **Emission.** A bound, applied Wrapper exports no slider. The sample
+  runs inside the Wrapper pass, at the head of the outer `beforeRender`,
+  before Slow-mo's rate and Dreamy's decay. It reads once per real frame,
+  never once per slowed frame. It matches the hardware-brightness sample:
+  it starts at the input's fallback, applies invert, then smooths. A
+  smoothed value below 0.03 counts as exactly off, so a resting knob
+  renders as an untouched slider. The skip decision ignores the binding.
+  Preview emission is unchanged.
+- **Evidence.** `wrapperOutcome.inputs` names each applied, input-driven
+  Wrapper's input ID and its name at save time. The artifact signature
+  gains `wrapperInputs` for those Wrappers: type, pin, signal, smoothing,
+  fallback and invert. The input's ID and name are left out, because
+  neither reaches the bytes. The reconciliation signature gains the bound
+  inputs and each binding's overridden Wrappers. All three keys appear only
+  when nonempty, so an unbound profile keeps its earlier bytes and
+  signatures.
 
 ## Reconciliation and saved evidence
 
@@ -67,7 +107,9 @@ Wrapper, a changed non-Wrapper signature or an edited source. With Wrappers
 enabled, CURRENT requires a matching decision for the enabled set and count.
 
 Wrapper Control values are firmware state. The IDE uses in-place Save with
-the existing program id. Bench readings on firmware 3.70 confirmed stored
-value survival across inactive rewrites and removed and restored exports.
+the existing program id. Binding an input removes the Wrapper's export, and
+unbinding restores it under the same name. Bench readings on firmware 3.70
+confirmed stored value survival across inactive rewrites and removed and
+restored exports.
 The same export name recovers its previous value. The probe did not measure
 power-cycle survival. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)

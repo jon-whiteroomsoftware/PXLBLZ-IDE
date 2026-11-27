@@ -20,14 +20,17 @@ import {
   type ControllerProfileJoinTarget,
 } from '@/engine/controllerProfileJoin'
 import {
+  bindGlobalInputUse,
   normalizeControllerInputs,
   withControllerFirmwareUpdateReport,
+  withoutWrapperInput,
   type ControllerBindingTarget,
   type ControllerFirmwareUpdateObservation,
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
   type ControllerWrapperType,
+  type GlobalInputUse,
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
@@ -78,6 +81,11 @@ interface ControllerProfileState {
   /** Point the profile's single hardware-brightness transform at an input, or
    * disable it with `null`. One transform per profile makes this exclusive. */
   assignHardwareBrightness: (profileId: string, inputId: string | null) => Promise<void>
+  /** Point one profile-wide use at an input, or release that use with `null`.
+   * One update keeps the profile one to one: the input leaves any other use
+   * (Brightness turns off), the use's previous input is released, and a
+   * Wrapper turns on. Releasing a Wrapper's input leaves the Wrapper on. */
+  bindWrapperInput: (profileId: string, use: GlobalInputUse, inputId: string | null) => Promise<void>
   addPatternBinding: (profileId: string, patternId: string, inputId: string) => Promise<void>
   updatePatternBinding: (
     profileId: string,
@@ -564,9 +572,18 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   removeInput: async (profileId, inputId) => {
     const profile = get().profiles.find((p) => p.id === profileId)
     if (!profile) return
+    const drivesWrapper = profile.globalTransforms.some((transform) =>
+      (transform.type === 'slow-mo' || transform.type === 'dreamy') && transform.inputId === inputId)
     await get().updateProfile(profileId, {
       inputs: profile.inputs.filter((input) => input.id !== inputId),
       patternBindings: profile.patternBindings.filter((binding) => binding.inputId !== inputId),
+      // A Wrapper driven by the deleted input stays on with its slider.
+      ...(drivesWrapper ? {
+        globalTransforms: profile.globalTransforms.map((transform) =>
+          (transform.type === 'slow-mo' || transform.type === 'dreamy') && transform.inputId === inputId
+            ? withoutWrapperInput(transform)
+            : transform),
+      } : {}),
     })
   },
 
@@ -583,10 +600,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   setWrapperEnabled: async (profileId, type, enabled) => {
     const profile = get().profiles.find((candidate) => candidate.id === profileId)
     if (!profile) return
-    const wrapper = profile.globalTransforms.find((transform) => transform.type === type)
+    const wrapper = profile.globalTransforms.find(
+      (transform): transform is Extract<GlobalTransform, { type: ControllerWrapperType }> => transform.type === type,
+    )
     if ((wrapper?.enabled ?? false) === enabled) return
+    // Turning a Wrapper off releases its input (B5).
     const globalTransforms: GlobalTransform[] = wrapper
-      ? profile.globalTransforms.map((transform) => transform === wrapper ? { ...transform, enabled } : transform)
+      ? profile.globalTransforms.map((transform) => transform === wrapper
+        ? (enabled ? { ...transform, enabled } : { ...withoutWrapperInput(transform), enabled })
+        : transform)
       : [...profile.globalTransforms, {
           id: profile.globalTransforms.some((transform) => transform.id === type)
             ? nextId(type, profile.globalTransforms)
@@ -598,15 +620,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   },
 
   assignHardwareBrightness: async (profileId, inputId) => {
+    await get().bindWrapperInput(profileId, 'hardware-brightness', inputId)
+  },
+
+  bindWrapperInput: async (profileId, use, inputId) => {
     const profile = get().profiles.find((p) => p.id === profileId)
     if (!profile) return
     if (inputId !== null && !profile.inputs.some((input) => input.id === inputId)) return
     await get().updateProfile(profileId, {
-      globalTransforms: profile.globalTransforms.map((transform) =>
-        transform.type === 'hardware-brightness'
-          ? { ...transform, enabled: inputId !== null, inputId: inputId ?? '' }
-          : transform,
-      ),
+      globalTransforms: bindGlobalInputUse(profile.globalTransforms, use, inputId),
     })
   },
 

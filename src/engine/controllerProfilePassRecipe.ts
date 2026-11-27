@@ -4,6 +4,7 @@ import {
   CONTROLLER_WRAPPER_TYPES,
   enabledControllerWrappers,
   patternBindingOverridesHardwareBrightness,
+  wrapperInputsFor,
   type ControllerInput,
   type ControllerProfile,
   type ControllerWrapperType,
@@ -30,6 +31,8 @@ type ArtifactTransformSignature =
   | { type: 'hardware-brightness'; mixinId: string; inputId: string; mode: string }
 type ArtifactInputSignature = Omit<ControllerInput, 'name'>
 type ArtifactRendererSignature = { mapDim: MapDimension | null }
+/** An input-driven Wrapper. The input's ID and name never reach the bytes. */
+type ArtifactWrapperInputSignature = { type: ControllerWrapperType } & Omit<ArtifactInputSignature, 'id'>
 
 /** Stable signature of the profile fields that can change generated pattern code.
  * Descriptive/controller-only metadata is deliberately excluded so renaming a
@@ -64,10 +67,18 @@ export function controllerProfileArtifactSignature(
   const bindings = patternId
     ? (profile?.patternBindings ?? []).filter((binding) => binding.patternId === patternId)
     : []
-  const signature = serializeArtifactSignature(transforms, profile?.inputs ?? [], bindings, renderer, appliedWrappers)
   // Run/Save dirtiness is checked before preparation. Its requested inputs
   // compare independently from the applied set that goes in a flash receipt.
   const requested = appliedWrappers === undefined ? enabledControllerWrappers(profile, patternId) : []
+  const driven = wrapperInputsFor(profile, patternId)
+  const wrapperInputs = CONTROLLER_WRAPPER_TYPES.flatMap((type): ArtifactWrapperInputSignature[] => {
+    const input = driven[type]
+    const present = appliedWrappers === undefined ? requested.includes(type) : appliedWrappers.includes(type)
+    return input && present ? [{ type, ...samplingSettings(input) }] : []
+  })
+  const signature = serializeArtifactSignature(
+    transforms, profile?.inputs ?? [], bindings, renderer, appliedWrappers, wrapperInputs,
+  )
   return requested.length
     ? JSON.stringify({ signature, requested, pixelCount: profile?.lastKnownPixelCount ?? null })
     : signature
@@ -79,6 +90,7 @@ function serializeArtifactSignature(
   bindings: PatternBinding[],
   renderer?: ArtifactRendererSignature,
   appliedWrappers?: readonly ControllerWrapperType[],
+  wrapperInputs: readonly ArtifactWrapperInputSignature[] = [],
 ): string {
   const relevantTransforms = transforms.filter((transform) =>
     transform.type === 'power-cap' || inputs.some((input) =>
@@ -107,6 +119,12 @@ function serializeArtifactSignature(
     })),
     ...(renderer ? { renderer } : {}),
     ...(appliedWrappers?.length ? { wrappers: CONTROLLER_WRAPPER_TYPES.filter((type) => appliedWrappers.includes(type)) } : {}),
+    ...(wrapperInputs.length ? {
+      wrapperInputs: CONTROLLER_WRAPPER_TYPES.flatMap((type) => {
+        const input = wrapperInputs.find((candidate) => candidate.type === type)
+        return input ? [{ type, ...samplingSettings(input) }] : []
+      }),
+    } : {}),
   })
 }
 
@@ -152,10 +170,15 @@ export function readStoredArtifactSignature(signature: string): StoredArtifactSi
   if (record.wrappers !== undefined && !isAppliedWrapperList(record.wrappers)) {
     return { kind: 'unrecognized' }
   }
+  if (record.wrapperInputs !== undefined && !isWrapperInputSignatureList(record.wrapperInputs)) {
+    return { kind: 'unrecognized' }
+  }
 
   return {
     kind: 'recognized',
-    normalized: serializeArtifactSignature(record.transforms, record.inputs, record.bindings, record.renderer, record.wrappers),
+    normalized: serializeArtifactSignature(
+      record.transforms, record.inputs, record.bindings, record.renderer, record.wrappers, record.wrapperInputs,
+    ),
     ...(record.wrappers?.length ? { appliedWrappers: record.wrappers } : {}),
   }
 }
@@ -165,7 +188,24 @@ export function normalizeStoredArtifactSignature(signature: string): string {
   return read.kind === 'recognized' ? read.normalized : signature
 }
 
-const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer', 'wrappers'])
+const ARTIFACT_SIGNATURE_KEYS = new Set(['version', 'transforms', 'inputs', 'bindings', 'renderer', 'wrappers', 'wrapperInputs'])
+
+const WRAPPER_INPUT_SIGNATURE_KEYS = new Set(['type', 'pin', 'signal', 'smoothing', 'fallback', 'invert'])
+
+function isWrapperInputSignatureList(value: unknown): value is ArtifactWrapperInputSignature[] {
+  return Array.isArray(value) && value.length > 0
+    && new Set(value.map((input) => isRecord(input) ? input.type : undefined)).size === value.length
+    && value.every((input) => (
+      isRecord(input)
+        && CONTROLLER_WRAPPER_TYPES.includes(input.type as ControllerWrapperType)
+        && Object.keys(input).every((key) => WRAPPER_INPUT_SIGNATURE_KEYS.has(key))
+        && typeof input.pin === 'number'
+        && input.signal === 'analog'
+        && typeof input.smoothing === 'number'
+        && typeof input.fallback === 'number'
+        && typeof input.invert === 'boolean'
+    ))
+}
 
 function isAppliedWrapperList(value: unknown): value is ControllerWrapperType[] {
   return Array.isArray(value) && value.length === new Set(value).size
@@ -246,6 +286,11 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
   const powerCap = activePowerCap(profile)
   const wrappers = enabledControllerWrappers(profile)
   const brightnessInput = hardwareBrightnessInput(profile)
+  const driven = wrapperInputsFor(profile)
+  const wrapperInputs = CONTROLLER_WRAPPER_TYPES.flatMap((type) => {
+    const input = driven[type]
+    return input ? [{ type, ...samplingSettings(input) }] : []
+  })
   const patternBindings = new Map<string, unknown[]>()
   for (const binding of profile.patternBindings) {
     const input = profile.inputs.find((candidate) => candidate.id === binding.inputId)
@@ -258,6 +303,7 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
       valueName: identifierStem(input.id),
       drive,
       overridesBrightness: Boolean(brightnessInput && patternBindingOverridesHardwareBrightness(profile, binding)),
+      ...(overridesWrappers(driven, binding).length ? { overridesWrappers: overridesWrappers(driven, binding) } : {}),
     })
     patternBindings.set(binding.patternId, bindings)
   }
@@ -266,7 +312,15 @@ export function controllerProfileReconciliationSignature(profile: ControllerProf
     brightness: brightnessInput && samplingSettings(brightnessInput),
     patternBindings: [...patternBindings.keys()].sort().map((id) => [id, patternBindings.get(id)]),
     ...(wrappers.length ? { wrappers, pixelCount: profile.lastKnownPixelCount ?? null } : {}),
+    ...(wrapperInputs.length ? { wrapperInputs } : {}),
   })
+}
+
+function overridesWrappers(
+  driven: Partial<Record<ControllerWrapperType, ControllerInput>>,
+  binding: PatternBinding,
+): ControllerWrapperType[] {
+  return CONTROLLER_WRAPPER_TYPES.filter((type) => driven[type]?.id === binding.inputId)
 }
 
 function samplingSettings({ pin, signal, smoothing, fallback, invert }: Omit<ArtifactInputSignature, 'id'>) {
@@ -404,9 +458,18 @@ export function controllerProfilePassRecipe(
   if (wrapperPixelCount === undefined) return recipe
   const enabled = enabledControllerWrappers(profile, patternId)
   if (!enabled.length) return recipe
+  const driven = wrapperInputsFor(profile, patternId)
+  const inputs: NonNullable<Extract<PassRecipe[number], { kind: 'wrappers' }>['inputs']> = {}
+  for (const type of enabled) {
+    const input = driven[type]
+    if (input) inputs[type] = { pin: input.pin, smoothing: input.smoothing, fallback: input.fallback, invert: input.invert }
+  }
   return [
     ...recipe.slice(globalPassCount),
-    { id: 'wrappers', kind: 'wrappers', enabled, pixelCount: wrapperPixelCount },
+    {
+      id: 'wrappers', kind: 'wrappers', enabled, pixelCount: wrapperPixelCount,
+      ...(Object.keys(inputs).length ? { inputs } : {}),
+    },
     ...recipe.slice(0, globalPassCount),
   ]
 }

@@ -109,7 +109,12 @@ export interface PowerCapTransform extends PowerCapSettings {
 }
 
 export type ControllerWrapperType = PatternWrapper
-export type ControllerWrapperOutcome = Pick<PatternWrapperDecision, 'applied' | 'skipped'>
+export interface ControllerWrapperOutcome extends Pick<PatternWrapperDecision, 'applied' | 'skipped'> {
+  /** The input that drives each applied Wrapper in these saved bytes. The name
+   * is kept so the saved program can still be described after the input is
+   * deleted. Absent when no applied Wrapper is input-driven. */
+  inputs?: Partial<Record<ControllerWrapperType, { inputId: string; name: string }>>
+}
 
 export const CONTROLLER_WRAPPER_TYPES: readonly ControllerWrapperType[] = ['slow-mo', 'dreamy']
 
@@ -133,7 +138,16 @@ export type GlobalTransform =
       mode: 'multiply-output'
     }
   | PowerCapTransform
-  | { id: string; type: ControllerWrapperType; enabled: boolean }
+  | {
+      id: string
+      type: ControllerWrapperType
+      enabled: boolean
+      /** An analog input that drives this Wrapper in place of its slider. */
+      inputId?: string
+    }
+
+/** A profile-wide use of one input. Each input has at most one. */
+export type GlobalInputUse = 'hardware-brightness' | ControllerWrapperType
 
 export type ControllerBindingTarget =
   | {
@@ -159,18 +173,98 @@ export interface PatternBinding {
   target: ControllerBindingTarget
 }
 
-/** A Pattern-specific use of an input takes precedence over the global
- * hardware-brightness use of that same input while the Pattern is running. */
+/** Each enabled profile-wide use of an input, keyed by input ID. A valid
+ * profile lists at most one use per input. */
+function globalInputUses(profile: ControllerProfile): Map<string, GlobalInputUse[]> {
+  const uses = new Map<string, GlobalInputUse[]>()
+  for (const transform of profile.globalTransforms) {
+    if (!transform.enabled) continue
+    const inputId = transform.type === 'hardware-brightness' && transform.mode === 'multiply-output'
+      ? transform.inputId
+      : transform.type === 'slow-mo' || transform.type === 'dreamy' ? transform.inputId : undefined
+    if (!inputId) continue
+    uses.set(inputId, [...(uses.get(inputId) ?? []), transform.type as GlobalInputUse])
+  }
+  return uses
+}
+
+/** A Pattern-specific use of an input takes precedence over every profile-wide
+ * use of that same input while the Pattern is running: Brightness stops
+ * scaling it, and a Wrapper driven by that input keeps its slider. */
+export function globalInputUsesOverriddenBy(
+  profile: ControllerProfile,
+  binding: PatternBinding,
+): GlobalInputUse[] {
+  return globalInputUses(profile).get(binding.inputId) ?? []
+}
+
 export function patternBindingOverridesHardwareBrightness(
   profile: ControllerProfile,
   binding: PatternBinding,
 ): boolean {
-  return profile.globalTransforms.some((transform) =>
-    transform.type === 'hardware-brightness' &&
-    transform.enabled &&
-    transform.mode === 'multiply-output' &&
-    transform.inputId === binding.inputId,
-  )
+  return globalInputUsesOverriddenBy(profile, binding).includes('hardware-brightness')
+}
+
+/** The analog input that drives each enabled Wrapper. A Wrapper gets no input
+ * when its input is missing, digital, or shared with another profile-wide use,
+ * or when the Pattern binds that input to one of its own Controls. Such a
+ * Wrapper keeps its slider. Without `patternId`, Pattern bindings are ignored. */
+export function wrapperInputsFor(
+  profile: ControllerProfile | null | undefined,
+  patternId?: string | null,
+): Partial<Record<ControllerWrapperType, ControllerInput>> {
+  const result: Partial<Record<ControllerWrapperType, ControllerInput>> = {}
+  if (!profile || patternId?.startsWith('show:')) return result
+  const uses = globalInputUses(profile)
+  for (const transform of profile.globalTransforms) {
+    if (transform.type !== 'slow-mo' && transform.type !== 'dreamy') continue
+    if (!transform.enabled || !transform.inputId) continue
+    const inputId = transform.inputId
+    const input = profile.inputs.find((candidate) => candidate.id === inputId)
+    if (!input || input.signal !== 'analog' || (uses.get(inputId)?.length ?? 0) !== 1) continue
+    if (patternId && profile.patternBindings.some((binding) =>
+      binding.patternId === patternId && binding.inputId === inputId)) continue
+    result[transform.type] = input
+  }
+  return result
+}
+
+type WrapperTransform = Extract<GlobalTransform, { type: ControllerWrapperType }>
+
+export function withoutWrapperInput(transform: WrapperTransform): WrapperTransform {
+  const { inputId: _released, ...rest } = transform
+  return rest
+}
+
+/** Point one profile-wide use at an input, or release the use with `null`,
+ * keeping the profile one to one (#1278). The input leaves every other use:
+ * Brightness turns off, and another Wrapper keeps its on state and slider. A
+ * bound Wrapper turns on, and is added when the profile has none yet. */
+export function bindGlobalInputUse(
+  transforms: readonly GlobalTransform[],
+  use: GlobalInputUse,
+  inputId: string | null,
+): GlobalTransform[] {
+  const next = transforms.map((transform): GlobalTransform => {
+    if (transform.type === 'hardware-brightness') {
+      if (use === 'hardware-brightness') return { ...transform, enabled: inputId !== null, inputId: inputId ?? '' }
+      return inputId !== null && transform.enabled && transform.inputId === inputId
+        ? { ...transform, enabled: false, inputId: '' }
+        : transform
+    }
+    if (transform.type !== 'slow-mo' && transform.type !== 'dreamy') return transform
+    if (transform.type === use) {
+      return inputId === null ? withoutWrapperInput(transform) : { ...transform, enabled: true, inputId }
+    }
+    return inputId !== null && transform.inputId === inputId ? withoutWrapperInput(transform) : transform
+  })
+  if (use === 'hardware-brightness' || inputId === null || next.some((transform) => transform.type === use)) {
+    return next
+  }
+  const ids = new Set(next.map((transform) => transform.id))
+  let id: string = use
+  for (let index = next.length; ids.has(id); index += 1) id = `${use}${index}`
+  return [...next, { id, type: use, enabled: true, inputId }]
 }
 
 /** Inclusive pixel-index ranges. Since #775 zones are Show vocabulary only:
@@ -322,6 +416,27 @@ export function validateControllerProfile(
         })
       }
       wrapperTypes.add(transform.type)
+      if (transform.inputId !== undefined) {
+        const input = profile.inputs.find((candidate) => candidate.id === transform.inputId)
+        if (!transform.enabled) {
+          errors.push({
+            path: `globalTransforms.${transform.id}.inputId`,
+            message: `${wrapperLabel(transform.type)} is off but names input "${transform.inputId}".`,
+          })
+        } else if (!input) {
+          errors.push({
+            path: `globalTransforms.${transform.id}.inputId`,
+            message: `Global transform "${transform.id}" references missing input "${transform.inputId}".`,
+          })
+        } else if (input.signal !== 'analog') {
+          // D3: the Wrapper keeps its slider, and the input card shows why.
+          errors.push({
+            path: `inputs.${input.id}.signal`,
+            message: `Input "${input.id}" drives ${wrapperLabel(transform.type)}, which needs an analog signal. The Wrapper keeps its slider.`,
+            kind: 'configuration',
+          })
+        }
+      }
     }
     if (transform.type === 'hardware-brightness' && transform.enabled && !inputIds.has(transform.inputId)) {
       errors.push({
@@ -382,6 +497,14 @@ export function validateControllerProfile(
         })
       }
     }
+  }
+
+  for (const [inputId, uses] of globalInputUses(profile)) {
+    if (uses.length < 2) continue
+    errors.push({
+      path: `inputs.${inputId}`,
+      message: `Input "${inputId}" drives ${uses.map(globalInputUseLabel).join(' and ')}. An input drives one of Brightness, Slow-mo and Dreamy.`,
+    })
   }
 
   validateElectricalProfile(profile.electricalProfile, errors)
@@ -526,6 +649,14 @@ function normalizeZoneName(name: string): string {
 
 function formatIoList(pins: number[]): string {
   return pins.map((pin) => `IO${pin}`).join(', ')
+}
+
+function wrapperLabel(type: ControllerWrapperType): string {
+  return type === 'slow-mo' ? 'Slow-mo' : 'Dreamy'
+}
+
+function globalInputUseLabel(use: GlobalInputUse): string {
+  return use === 'hardware-brightness' ? 'Brightness' : wrapperLabel(use)
 }
 
 function capitalize(value: string): string {

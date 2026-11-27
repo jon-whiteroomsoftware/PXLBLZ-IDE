@@ -93,7 +93,20 @@ export interface PatternWrapperDecision {
   skipped: Partial<Record<PatternWrapper, WrapperSkip>>
   /** Words added by the applied Wrappers, including array headers. */
   arrayWords: number
+  /** Applied Wrappers driven by an input sample in place of their slider. */
+  inputs?: PatternWrapper[]
 }
+
+/** An analog sample starts at fallback and moves toward each reading by smoothing. */
+export interface WrapperInputSample {
+  pin: number
+  smoothing: number
+  fallback: number
+  invert: boolean
+}
+
+/** A smoothed reading below this counts as off (#1278 D2). */
+export const WRAPPER_INPUT_OFF_BELOW = 0.03
 
 export interface PatternWrapperResult extends PatternWrapperDecision {
   code: string
@@ -176,6 +189,7 @@ export function emitPatternWrappers(
   code: string,
   pixelCount: number,
   enabled: readonly PatternWrapper[],
+  inputs: Partial<Record<PatternWrapper, WrapperInputSample>> = {},
 ): PatternWrapperResult {
   const result: PatternWrapperResult = { code, applied: [], skipped: {}, arrayWords: 0, tunables: {} }
   const requested = wrapperOrder.filter(wrapper => enabled.includes(wrapper))
@@ -216,7 +230,9 @@ export function emitPatternWrappers(
     else result.tunables[`${p}decay`] = 0
   }
   if (result.applied.length > 0) {
-    result.code = emitWrapperSource(code, renderFns, result.tunables, result.applied, false)
+    const bound = result.applied.filter((wrapper) => inputs[wrapper])
+    if (bound.length) result.inputs = bound
+    result.code = emitWrapperSource(code, renderFns, result.tunables, result.applied, false, inputs)
   }
   return result
 }
@@ -229,16 +245,30 @@ function emitWrapperSource(
   tunables: Record<string, number>,
   applied: readonly PatternWrapper[],
   preview: boolean,
+  inputs: Partial<Record<PatternWrapper, WrapperInputSample>> = {},
 ): string {
   const slowMo = applied.includes('slow-mo')
   const dreamy = applied.includes('dreamy')
   const coldDreamy = dreamy && !preview
   const p = `${reservedStem('slowmo')}_`
+  const slowMoInput = slowMo && !preview ? inputs['slow-mo'] : undefined
+  const dreamyInput = coldDreamy ? inputs.dreamy : undefined
   const rewritten = rewriteSlowMoSource(code, p, slowMo)
   const initializers = Object.entries(tunables).map(([name, value]) => `var ${name} = ${value}`).join('\n')
   const speedControl = preview
     ? `export function ${SLOW_MO_SPEED_SLIDER}(v) { ${p}position = clamp(v,0,1) }`
+    : slowMoInput ? `var ${p}inS = ${slowMoInput.fallback}`
     : `export function ${PATTERN_WRAPPER_CONTROLS['slow-mo'].exportName}(a) { ${p}position = 1-clamp(a,0,1) }`
+  const sampleVars = (slowMoInput || dreamyInput ? `var ${p}raw = 0, ${p}v = 0\n` : '')
+    + (dreamyInput ? `var ${p}inD = ${dreamyInput.fallback}\n` : '')
+  // Sample in the outer frame before either Wrapper advances.
+  const sampleInput = (name: string, input: WrapperInputSample | undefined, apply: string) => input ? `
+  ${p}raw = analogRead(${input.pin})${input.invert ? `; ${p}raw = 1 - ${p}raw` : ''}
+  ${name} = ${name} + (${p}raw - ${name}) * ${input.smoothing}
+  ${p}v = ${name} < ${WRAPPER_INPUT_OFF_BELOW} ? 0 : ${name}
+  ${apply}` : ''
+  const sampleInputs = sampleInput(`${p}inS`, slowMoInput, `${p}position = 1-${p}v`)
+    + sampleInput(`${p}inD`, dreamyInput, `${p}driveDreamy(${p}v)`)
   const nativeClockFlag = preview ? '' : `var ${p}nativeTime = 1\n${coldDreamy && slowMo
     ? `var ${p}slowNativeTime = 1, ${p}combinedNativeTime = 1\n` : ''}`
   const nativeClockRead = preview ? '' : `if (${p}nativeTime) return time(interval); `
@@ -254,7 +284,7 @@ function ${p}selectOutput() {
   ${p}nativeOutput = ${slowMo ? `${p}bypass && ` : ''}${p}decay == 0${slowMo
     ? `\n  ${p}nativeTime = ${p}decay == 0 ? ${p}slowNativeTime : ${p}combinedNativeTime` : ''}
 }
-export function ${PATTERN_WRAPPER_CONTROLS.dreamy.exportName}(v) {
+${dreamyInput ? `function ${p}driveDreamy(v)` : `export function ${PATTERN_WRAPPER_CONTROLS.dreamy.exportName}(v)`} {
   var wasOff = ${p}decay == 0
   v = clamp(v,0,1)
   ${p}decay = 10000*v*v
@@ -279,7 +309,7 @@ function ${p}persist(current,target) {
   const nativeOutput = coldDreamy ? `${p}nativeOutput`
     : [slowMo && `${p}bypass`, dreamy && `${p}decay == 0`].filter(Boolean).join(' && ')
   const prelude = `${initializers}
-${slowMoPrelude}
+${sampleVars}${slowMoPrelude}
 ${dreamyPrelude}
 var ${slowMo ? `${p}phase = 0, ` : ''}${p}r = 0, ${p}g = 0, ${p}b = 0
 ${emitColorCapture(p, nativeOutput, preview)}`
@@ -337,7 +367,7 @@ ${indent}}`
   const advanceDreamy = dreamy ? `
   ${p}displayDelta = delta
   ${p}kDn = ${p}decay > 0 ? 1-exp(-delta/${p}decay) : 1` : ''
-  const beforeRender = `export function beforeRender(delta) {${advanceSlowMo}${advanceDreamy}
+  const beforeRender = `export function beforeRender(delta) {${sampleInputs}${advanceSlowMo}${advanceDreamy}
 }`
   const update = channels.map(c => `
     if (${p}phase == 0 || ${p}refresh) { ${p}a${c}[index] = ${p}${c}; ${p}b${c}[index] = ${p}${c} }
