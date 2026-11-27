@@ -303,6 +303,9 @@ remembers its fold per browser. The running Pattern stays visible when that
 group folds. Above eight saved Patterns, a filter searches both groups even
 while folded. When none classify as PXLBLZ Patterns, the menu is one flat list.
 
+Managed rows show pills for the Wrappers applied when the program was saved.
+A saved Show can show **power** and **bright** for Power limit and Brightness.
+
 The picker marks the running saved Pattern and pins a run-only Pattern as
 **unsaved · running** above the saved inventory. A confirmed pick updates the
 title, closes the menu, and returns focus to the title. It runs now without

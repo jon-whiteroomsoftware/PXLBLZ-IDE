@@ -1446,13 +1446,14 @@ describe('ControllerBar', () => {
     await settleControllerAsync()
   })
 
-  it('opens during a binding read and clears ownership when a later open refresh fails', async () => {
+  it('opens during a binding read, groups without receipts and clears ownership when the binding refresh fails', async () => {
     setControllerProvider(new ConnectedProvider())
     seedLiveController()
     seedSignedInProfiles([profile('desk-profile', 'pixelblaze_pb32_3cd4ee549434', 1)])
     let resolveBindings!: (bindings: Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>) => void
     const pendingRead = new Promise<Awaited<ReturnType<typeof controllerMetadata.getControllerBindings>>>(resolve => { resolveBindings = resolve })
     const readBindings = vi.spyOn(controllerMetadata, 'getControllerBindings').mockReturnValue(pendingRead)
+    const readRecords = vi.spyOn(controllerMetadata, 'getPushRecords').mockRejectedValue(new Error('receipts unavailable'))
     const programs = [{ id: 'owned', name: 'Zebra Owned' }, { id: 'foreign', name: 'Alpha Other' }]
     useControllerPanelStore.setState({ programs, programsByController: { '10.0.0.5': programs } })
     render(<ControllerBar />)
@@ -1461,7 +1462,9 @@ describe('ControllerBar', () => {
     expect(screen.getByRole('listbox', { name: 'Saved Patterns' })).toBeVisible()
     expect(screen.queryByText('Saved PXLBLZ Patterns')).not.toBeInTheDocument()
     await act(async () => { resolveBindings({ '10.0.0.5': { binding: 'owned' } }); await pendingRead })
+    expect(readRecords).toHaveBeenCalled()
     expect(screen.getByText('Saved PXLBLZ Patterns')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Zebra Owned' })).toHaveTextContent(/^Zebra Owned$/)
     fireEvent.keyDown(window, { key: 'Escape' })
     readBindings.mockRejectedValue(new Error('metadata unavailable'))
     fireEvent.click(screen.getByRole('button', { name: 'Saved Patterns' }))

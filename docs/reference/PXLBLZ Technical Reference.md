@@ -708,15 +708,14 @@ read; a present empty array means the read succeeded and the Controller has no
 saved Patterns. The menu never substitutes the shared visible list or another
 Controller's cached inventory. The title wrapper consumes
 `describeControllerSavedPrograms`, shared with the profile inventory, for owned
-program ids. Binding reads refresh when the Controller session, profile or
-inventory changes, on metadata revision, and when the picker opens. Late reads
-cannot classify another session's inventory; pending or failed reads leave a
-usable flat list. The pure menu projection sorts each group case-insensitively,
+program ids. Metadata reads refresh when the Controller session, profile or
+inventory changes, on metadata revision, and when the picker opens. Each read
+is scoped to its Controller session. Absent bindings leave a usable flat list.
+The pure menu projection sorts each group case-insensitively,
 retains the running Other Pattern while folded, and searches both groups for an
 active query. Group counts reflect the complete inventory. The Other fold is a
 small browser preference. An active id absent from the inventory stays pinned
-as a disabled run-only row outside filtering. Picking does not read or write
-Pattern Studio selection or delivery records.
+as a disabled run-only row outside filtering.
 The config projection also retains the sequencer packet's optional
 `sequencerMode` (0 off, 1 shuffle, 2 playlist) and `runSequencer` fields when a
 later poll omits them. `activateProgram` sends an explicit `save: false`
@@ -928,6 +927,12 @@ Save can reserve the new id even if the flash write is unconfirmed, so an
 explicit retry reuses the slot if the Controller lists it. When a previous
 push record exists for a missing slot, moving its binding requires a confirmed
 write to the replacement slot.
+
+The Saved Patterns picker follows the current Controller's bindings from
+program IDs to saved push records. Its options describe the applied Wrapper
+tags through `appliedWrapperTags`. Rows without saved evidence show their
+program names alone. Show records can supply Power limit and Brightness.
+The pills are display text and supply the option's accessible description.
 
 **Transient replacement fit.** Steady-state fit and replacement fit are
 different questions: a Pattern can pass every steady-state limit and still

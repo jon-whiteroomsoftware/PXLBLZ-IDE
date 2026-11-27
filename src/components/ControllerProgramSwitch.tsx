@@ -10,11 +10,14 @@ import {
 } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { DisabledReasonTip } from '@/components/ui/disabled-reason'
+import { WrapperTags } from '@/components/WrapperTag'
 import { usePanelPreferencesStore } from '@/store/panelPreferencesStore'
 import {
   projectControllerProgramMenu,
+  type ControllerProgramMenuInput,
   type ControllerProgramMenuRow,
 } from '@/engine/controllerActionRow'
+import { savedRowDomId } from '@/engine/controllerWrapperTags'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { SendGate } from '@/engine/sendToController'
 import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
@@ -27,6 +30,7 @@ interface ControllerProgramSwitchProps {
   programs: ProgramListEntry[]
   controllerId: string
   ownedProgramIds?: readonly string[]
+  wrapperTagsByProgramId?: ControllerProgramMenuInput['wrapperTagsByProgramId']
   onOpen?: () => void
   children: ReactNode
 }
@@ -40,6 +44,7 @@ export function ControllerProgramSwitch({
   programs,
   controllerId,
   ownedProgramIds,
+  wrapperTagsByProgramId,
   onOpen,
   children,
 }: ControllerProgramSwitchProps) {
@@ -64,8 +69,9 @@ export function ControllerProgramSwitch({
     programLabels,
     filter,
     ownedProgramIds,
+    wrapperTagsByProgramId,
     otherExpanded,
-  }), [activeProgramId, filter, programLabels, programs, ownedProgramIds, otherExpanded])
+  }), [activeProgramId, filter, programLabels, programs, ownedProgramIds, wrapperTagsByProgramId, otherExpanded])
 
   const close = useCallback((restoreFocus: boolean) => {
     menuLifecycleRef.current += 1
@@ -183,24 +189,34 @@ export function ControllerProgramSwitch({
     options[next]?.focus()
   }
 
-  const renderRow = (row: ControllerProgramMenuRow) => (
-    <li role="presentation" key={`${row.unsaved ? 'unsaved' : 'saved'}:${row.id}`}>
-      <button
-        type="button"
-        role="option"
-        aria-selected={row.running}
-        disabled={!gate.enabled || row.disabled || switchingId !== null}
-        title={`${row.name} · ${row.id}`}
-        onClick={() => void switchTo(row)}
-        className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-zinc-800/80 disabled:cursor-not-allowed ${row.running ? 'text-amber-300' : 'text-zinc-200'} ${switchingId !== null && switchingId !== row.id ? 'opacity-50' : ''}`}
-      >
-        <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${row.running ? 'bg-emerald-400' : 'bg-transparent'}`} />
-        <span className="min-w-0 break-words font-sans">{row.name}</span>
-        {row.unsaved && <span className="ml-auto shrink-0 text-[10px] text-zinc-500">unsaved · running</span>}
-        {switchingId === row.id && <span className="ml-auto shrink-0 text-[10px] text-zinc-500">switching…</span>}
-      </button>
-    </li>
-  )
+  const renderRow = (row: ControllerProgramMenuRow) => {
+    const switching = switchingId === row.id
+    const rowDomId = row.wrapperTags ? savedRowDomId(row.id) : undefined
+    const tagId = rowDomId && `${menuId}-tags-${rowDomId}`
+    const nameId = rowDomId && `${menuId}-name-${rowDomId}`
+    const statusId = rowDomId && switching ? `${menuId}-status-${rowDomId}` : undefined
+    return (
+      <li role="presentation" key={`${row.unsaved ? 'unsaved' : 'saved'}:${row.id}`}>
+        <button
+          type="button"
+          role="option"
+          aria-selected={row.running}
+          aria-labelledby={statusId ? `${nameId} ${statusId}` : nameId}
+          aria-describedby={tagId}
+          disabled={!gate.enabled || row.disabled || switchingId !== null}
+          title={`${row.name} · ${row.id}`}
+          onClick={() => void switchTo(row)}
+          className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-zinc-800/80 disabled:cursor-not-allowed ${row.running ? 'text-amber-300' : 'text-zinc-200'} ${switchingId !== null && !switching ? 'opacity-50' : ''}`}
+        >
+          <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${row.running ? 'bg-emerald-400' : 'bg-transparent'}`} />
+          <span id={nameId} className="min-w-0 break-words font-sans">{row.name}</span>
+          {row.unsaved && <span className="ml-auto shrink-0 text-[10px] text-zinc-500">unsaved · running</span>}
+          {switching && <span id={statusId} className="ml-auto shrink-0 text-[10px] text-zinc-500">switching…</span>}
+          {row.wrapperTags && <span id={tagId} className="ml-auto"><WrapperTags tags={row.wrapperTags} /></span>}
+        </button>
+      </li>
+    )
+  }
 
   return (
     <>

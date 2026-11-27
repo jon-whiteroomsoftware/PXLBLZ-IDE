@@ -1,4 +1,5 @@
 import type { ControllerStatus } from './ControllerProvider'
+import type { appliedWrapperTags } from './controllerWrapperTags'
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { Route } from './routes'
 import { describeSendToController, type SendGate } from './sendToController'
@@ -134,12 +135,15 @@ export function describeControllerActionRow({
   }
 }
 
+type ControllerProgramWrapperTags = Readonly<ReturnType<typeof appliedWrapperTags>>
+
 export interface ControllerProgramMenuRow {
   id: string
   name: string
   running: boolean
   unsaved: boolean
   disabled: boolean
+  wrapperTags?: ControllerProgramWrapperTags
 }
 
 export interface ControllerProgramMenuView {
@@ -159,6 +163,7 @@ export interface ControllerProgramMenuInput {
   programLabels?: Record<string, string>
   filter: string
   ownedProgramIds?: readonly string[]
+  wrapperTagsByProgramId?: ReadonlyMap<string, ControllerProgramWrapperTags>
   otherExpanded?: boolean
 }
 
@@ -173,6 +178,7 @@ export function projectControllerProgramMenu({
   programLabels,
   filter,
   ownedProgramIds = [],
+  wrapperTagsByProgramId,
   otherExpanded = true,
 }: ControllerProgramMenuInput): ControllerProgramMenuView {
   const query = filter.trim().toLocaleLowerCase()
@@ -186,12 +192,16 @@ export function projectControllerProgramMenu({
       || program.name.toLocaleLowerCase().includes(query)
       || program.id.toLocaleLowerCase().includes(query)
     ))
-    .map((program): ControllerProgramMenuRow => ({
-      ...program,
-      running: program.id === activeProgramId,
-      unsaved: false,
-      disabled: false,
-    }))
+    .map((program): ControllerProgramMenuRow => {
+      const wrapperTags = wrapperTagsByProgramId?.get(program.id)
+      return {
+        ...program,
+        running: program.id === activeProgramId,
+        unsaved: false,
+        disabled: false,
+        ...(wrapperTags?.length ? { wrapperTags } : {}),
+      }
+    })
   const activeIsSaved = !!activeProgramId
     && programs.some((program) => program.id === activeProgramId)
   const runOnlyRow: ControllerProgramMenuRow[] = activeProgramId && !activeIsSaved

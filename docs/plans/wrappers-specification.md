@@ -271,8 +271,9 @@ or unevaluated in the saved outcome.
 The group shows "Slow-mo and Dreamy are off for Shows." when a Show is selected
 and both Wrappers are on. If only one is on, the line names that Wrapper.
 
-The Saved Patterns picker shows tags for applied Wrappers only. Show rows
-carry their applied Power limit and Brightness tags (decision 31).
+The Saved Patterns picker shows only the Wrappers recorded as applied to
+each saved program. Show rows carry their applied Power limit and Brightness
+tags (decision 31).
 
 ## 8. Shows
 

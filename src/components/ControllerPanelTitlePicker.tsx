@@ -6,9 +6,12 @@ import { describeControllerSavedPrograms } from '@/engine/controllerSavedProgram
 import {
   getControllerBindings,
   getControllerPushRecordsRevision,
+  getPushRecords,
   subscribeControllerPushRecordsRevision,
 } from '@/engine/controllerMetadataStorage'
 import type { BindingStore } from '@/engine/controllerBinding'
+import type { ControllerPushRecords } from '@/engine/controllerPushRecord'
+import { appliedWrapperTags } from '@/engine/controllerWrapperTags'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -48,11 +51,18 @@ export function ControllerPanelTitlePicker() {
   // read arrives, the menu can open as an unclassified device inventory.
   const scope = useMemo(() => ({ controllerId: activeIp ?? '', epoch: currentEntry?.liveEpoch, provider, profile, programs }), [activeIp, currentEntry?.liveEpoch, provider, profile, programs])
   const generation = useRef(0)
-  const [snapshot, setSnapshot] = useState<{ scope: typeof scope; bindings: BindingStore } | null>(null)
+  const [snapshot, setSnapshot] = useState<{
+    scope: typeof scope
+    bindings: BindingStore
+    pushRecords: ControllerPushRecords
+  } | null>(null)
   const refresh = useCallback(() => {
     const request = ++generation.current
-    void getControllerBindings().then(bindings => {
-      if (generation.current === request) setSnapshot({ scope, bindings })
+    void Promise.all([
+      getControllerBindings(),
+      getPushRecords().catch(() => ({})),
+    ]).then(([bindings, pushRecords]) => {
+      if (generation.current === request) setSnapshot({ scope, bindings, pushRecords })
     }, () => {
       if (generation.current === request) setSnapshot(null)
     })
@@ -61,19 +71,27 @@ export function ControllerPanelTitlePicker() {
     refresh()
     return () => { generation.current += 1 }
   }, [refresh, revision])
-  const ownedProgramIds = useMemo(() => (
-    profile && snapshot?.scope === scope
-      ? describeControllerSavedPrograms({
-          controllerId: scope.controllerId,
-          programs,
-          bindings: snapshot.bindings,
-          profile,
-          mapDim: currentEntry?.mapDim ?? null,
-          studioPatterns: [],
-          pushRecords: {},
-        }).owned.map(row => row.programId)
-      : []
-  ), [profile, snapshot, scope, programs, currentEntry?.mapDim])
+  const saved = useMemo(() => {
+    if (!profile || snapshot?.scope !== scope) return null
+    const { owned } = describeControllerSavedPrograms({
+      controllerId: scope.controllerId,
+      programs,
+      bindings: snapshot.bindings,
+      profile,
+      mapDim: currentEntry?.mapDim ?? null,
+      studioPatterns: [],
+      pushRecords: snapshot.pushRecords,
+    })
+    const records = snapshot.pushRecords[scope.controllerId]
+    return {
+      ownedProgramIds: owned.map(row => row.programId),
+      wrapperTagsByProgramId: new Map(owned.map(row => [row.programId, appliedWrapperTags({
+        record: row.bindingKey ? records?.[row.bindingKey] : undefined,
+        programId: row.programId,
+        kind: row.sourceKind,
+      })])),
+    }
+  }, [profile, snapshot, scope, programs, currentEntry?.mapDim])
   const gate = describeSwitchGate({
     status,
     working,
@@ -82,7 +100,14 @@ export function ControllerPanelTitlePicker() {
     hasRunOnlyActive: programsRead && !!activeProgramId && !programs.some(program => program.id === activeProgramId),
   })
 
-  return <ControllerProgramSwitch gate={gate} programs={programs} controllerId={activeIp ?? ''} ownedProgramIds={ownedProgramIds} onOpen={refresh}>
+  return <ControllerProgramSwitch
+    gate={gate}
+    programs={programs}
+    controllerId={activeIp ?? ''}
+    ownedProgramIds={saved?.ownedProgramIds}
+    wrapperTagsByProgramId={saved?.wrapperTagsByProgramId}
+    onOpen={refresh}
+  >
     <ControllerPanelTitle />
   </ControllerProgramSwitch>
 }

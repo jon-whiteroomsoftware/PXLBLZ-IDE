@@ -39,7 +39,7 @@ const profile: ControllerProfile = {
   ],
   updatedAt: 1,
 }
-type Fixture = { id: string; name: string; binding: string | null; source: string; studio: boolean; record?: Partial<ControllerPushRecord> }
+type Fixture = { id: string; name: string; binding: string | null; source: string; studio: boolean; record?: Partial<ControllerPushRecord> | null }
 const render = 'export function render(i) { rgb(0.9, i/pixelCount, 0.2) }'
 const fixtures: Fixture[] = [
   { id: 'pxbTagsFits000001', name: 'Fits', binding: 'tags-fits', studio: true, source: `export function sliderSpeed(v) {}\n${render}` },
@@ -58,36 +58,38 @@ const fixtures: Fixture[] = [
 ]
 const owned = fixtures.filter((fixture) => fixture.binding)
 
-async function seed(page: Page) {
+async function seed(page: Page, inventory = fixtures, seededProfile = profile) {
   const request = page.context().request
   await installFakeControllerHelper(page, {
-    address: ip, programs: fixtures.map(({ id, name }) => ({ id, name })), activeProgramId: fixtures.at(-1)!.id,
-    deviceName: profile.name, boardType: 'pb32', mac: '11:22:33:44:55:77', pixelCount,
-    savedProgramData: Object.fromEntries(fixtures.map(({ id, name, source }) => [
+    address: ip, programs: inventory.map(({ id, name }) => ({ id, name })), activeProgramId: inventory.at(-1)!.id,
+    deviceName: seededProfile.name, boardType: 'pb32', mac: '11:22:33:44:55:77', pixelCount,
+    savedProgramData: Object.fromEntries(inventory.map(({ id, name, source }) => [
       id, Buffer.from(encodePbp({ id, name, sourceCode: source, byteCode: new Uint8Array(8) })).toString('base64'),
     ])),
     trackSavedPrograms: true,
   })
-  expect((await request.post('/api/controllers', { data: profile })).ok()).toBe(true)
-  for (const { binding, name, source } of fixtures.filter((fixture) => fixture.studio)) {
+  expect((await request.post('/api/controllers', { data: seededProfile })).ok()).toBe(true)
+  for (const { binding, name, source } of inventory.filter((fixture) => fixture.studio)) {
     expect((await request.post('/api/patterns', { data: { id: binding, name, src: source, controls: {}, updatedAt: 1 } })).ok()).toBe(true)
   }
-  const bindings = Object.fromEntries(owned.map(({ id, binding }) => [binding, id]))
-  const pushRecords = Object.fromEntries(owned.map(({ binding, name, source, record }) => [binding, {
+  const managed = inventory.filter((fixture) => fixture.binding)
+  const bindings = Object.fromEntries(managed.map(({ id, binding }) => [binding, id]))
+  const pushRecords: Record<string, ControllerPushRecord> = Object.fromEntries(managed.filter(({ record }) => record !== null).map(({ binding, name, source, record }) => [binding, {
     name, transforms: [], artifactHash: artifactHash(source), sourceHash: artifactHash(source),
-    profileSignature: controllerProfileArtifactSignature(profile, binding, { mapDim: null }),
+    profileSignature: controllerProfileArtifactSignature(seededProfile, binding, { mapDim: null }),
     stampedAt: '2026-11-26T00:00:00.000Z',
     ...record,
   }]))
   for (const [key, value] of Object.entries({ 'controller-bindings': bindings, 'controller-push-records': pushRecords })) {
     expect((await request.put(`/api/controller-metadata/${key}`, { data: { value: { [ip]: value } } })).ok()).toBe(true)
   }
-  await page.goto(`studio/controllers/${profile.id}`)
+  await page.goto(`studio/controllers/${seededProfile.id}`)
   await expect(page.getByTestId('controller-saved-programs-pane')).toBeVisible()
   await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
   await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
   await page.getByTestId('controller-go').click()
   await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+  return pushRecords
 }
 
 const tagText = (tag: WrapperTagModel) => tag.wrapper === 'binding' ? tag.label : WRAPPER_TAG_LABELS[tag.wrapper]
@@ -207,4 +209,92 @@ test('Saved-row Wrapper tags agree with stored records and sources (#1277)', asy
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
   await capture('1277a1-tags-641-memory-focus')
   expect(consoleErrors).toEqual([])
+})
+
+test('Saved Patterns picker describes applied Wrappers by saved program ID (#1280)', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  const name = 'Same-named Pattern with a long display name'
+  const firstId = 'pxbPickSame00001'
+  const secondId = 'pxbPickSame00002'
+  const showId = 'pxbPickShow00001'
+  const inventory: Fixture[] = [
+    { id: firstId, name, binding: 'picker-first', source: render, studio: false, record: {
+      wrapperProgramId: firstId,
+      wrapperOutcome: { applied: ['slow-mo'], skipped: { dreamy: { reason: 'array-budget', message: 'Fixture skip' } } },
+    } },
+    { id: secondId, name, binding: 'picker-second', source: render, studio: false, record: {
+      wrapperProgramId: secondId,
+      wrapperOutcome: { applied: ['dreamy'], skipped: {} },
+    } },
+    { id: showId, name: 'Fixture Show', binding: 'show:picker-show', source: render, studio: false, record: {
+      transforms: ['power-cap', 'hardware-brightness'],
+      wrapperProgramId: showId,
+      wrapperOutcome: { applied: ['slow-mo'], skipped: {} },
+    } },
+    { id: 'pxbPickNone00001', name: 'No saved receipt', binding: 'picker-none', source: render, studio: false, record: null },
+    { id: 'pxbPickOther0001', name: 'Other Pattern', binding: null, source: render, studio: false },
+  ]
+  const records = await seed(page, inventory, { ...profile, globalTransforms: [], patternBindings: [] })
+  await page.getByTestId('controller-pill').click()
+  const trigger = page.getByRole('button', { name: 'Saved Patterns', exact: true })
+  await expect(trigger).toBeEnabled()
+  await trigger.click()
+
+  const menu = page.getByRole('listbox', { name: 'Saved Patterns', exact: true })
+  const option = (id: string) => menu.getByRole('option').and(menu.locator(`[title$=" · ${id}"]`))
+  const first = option(firstId)
+  const second = option(secondId)
+  const show = option(showId)
+  const unrecorded = option('pxbPickNone00001')
+  const other = option('pxbPickOther0001')
+  await expect(menu.getByText('Saved PXLBLZ Patterns')).toBeVisible()
+  await expect(first).toHaveAccessibleDescription('slow-mo')
+  await expect(first).toHaveAccessibleName(name)
+  await expect(first.getByText('slow-mo', { exact: true })).toBeVisible()
+  await expect(first.getByText('dreamy', { exact: true })).toHaveCount(0)
+  await expect(first.getByRole('tooltip', { includeHidden: true })).toHaveCount(0)
+  await expect(second).toHaveAccessibleName(name)
+  await expect(second).toHaveAccessibleDescription('dreamy')
+  await expect(second.getByText('dreamy', { exact: true })).toBeVisible()
+  await expect(show).toHaveAccessibleName('Fixture Show')
+  await expect(show).toHaveAccessibleDescription('power bright')
+  await expect(show.getByText('power', { exact: true })).toBeVisible()
+  await expect(show.getByText('bright', { exact: true })).toBeVisible()
+  await expect(show.getByText('slow-mo', { exact: true })).toHaveCount(0)
+  await expect(unrecorded).toHaveText('No saved receipt')
+  await expect(other).toHaveText('Other Pattern')
+
+  const proofDir = process.env.PXLBLZ_UI_PROOF_DIR
+  if (proofDir) await mkdir(proofDir, { recursive: true })
+  const capture = (name: string) => page.screenshot({
+    path: proofDir ? `${proofDir}/${name}.png` : testInfo.outputPath(`${name}.png`),
+  })
+  await capture('1280-picker-wrapper-pills-1440')
+
+  await other.focus()
+  await page.keyboard.press('Home')
+  await expect(show).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(first).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(second).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(menu).toBeHidden()
+  await expect(trigger).toBeFocused()
+
+  const refreshed = {
+    ...records,
+    'picker-first': { ...records['picker-first'], wrapperOutcome: { applied: ['slow-mo', 'dreamy'], skipped: {} } },
+  }
+  const response = await page.context().request.put('/api/controller-metadata/controller-push-records', {
+    data: { value: { [ip]: refreshed } },
+  })
+  expect(response.ok()).toBe(true)
+  await trigger.press('Enter')
+  await expect(first).toHaveAccessibleDescription('slow-mo dreamy')
+  await expect(second).toHaveAccessibleDescription('dreamy')
+  await expect(second).toHaveAttribute('aria-selected', 'true')
+  await expect(second).toBeFocused()
+  await capture('1280-picker-wrapper-pills-1440-refreshed')
 })
