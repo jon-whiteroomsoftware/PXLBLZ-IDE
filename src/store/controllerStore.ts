@@ -1241,7 +1241,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 return false
               }
               if (delivery.activation === 'unconfirmed') rereadNeeded = true
-              else if (activate) assumeRendererPlaying(live.ip)
+              else if (activate) {
+                assumeRendererPlaying(live.ip)
+                useControllerPanelStore.getState().noteProgramActivated(delivery.programId, live.ip, {
+                  updateVisiblePanel: get().activeIp === live.ip,
+                })
+              }
               // Finish activation and publish the captured receipt before replanning an edit.
               if (deliveryInputs && !patternSourceIsCurrent(job)) {
                 get().scheduleControllerReconciliation(profileId, true)

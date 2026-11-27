@@ -748,8 +748,9 @@ indicator is observational; sequencer control remains in the Pixelblaze UI.
 The live-panel decks use the shared summary-row disclosure primitive.
 Wrappers and Controls start expanded. Pixelblaze, Power, and Variables start
 folded. `controllerPanelWrappers` separates the active program's Wrapper rows
-from its own Controls using the saved outcome and live config. Both groups
-write through the same volatile `setControl` path.
+from its own Controls using the saved outcome and live config. Re-activating
+a rewritten program in the same slot reseeds its Controls. Both groups write
+through the same volatile `setControl` path.
 [Controller Wrapper delivery](contracts/controller-wrappers.md#live-panel)
 
 The `controllerPanelView` readouts use the same values and unset-control semantics

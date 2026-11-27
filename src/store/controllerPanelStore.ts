@@ -149,7 +149,7 @@ interface ControllerPanelState {
   pixelCountPending: number | null
   /** The running pattern's live controls (name → value). Seeded from the device,
    *  then slider-owned until the active pattern changes (so a scrub never fights
-   *  the poll); reseeded when `activeProgramId` changes. */
+   *  the poll). Re-activating a saved slot can also replace its exports. */
   activeControls: Record<string, number>
   /** The running pattern's exported variables (name → value), read-only. Refreshed
    *  every poll. */
@@ -200,9 +200,9 @@ interface ControllerPanelState {
    *  live slice so the panel resolves the new name without waiting for a reseed. */
   noteProgramLabel: (programId: string, label: string) => void
   /** Publish a program activation already confirmed by the push protocol, including
-   *  the Controller that supplied that evidence. The next panel poll remains
-   *  authoritative and can replace it after an external switch. */
-  noteProgramActivated: (programId: string, controllerIp: string) => void
+   *  the Controller that supplied that evidence. Background activations can
+   *  invalidate a cached seed without changing the visible Controller. */
+  noteProgramActivated: (programId: string, controllerIp: string, options?: { updateVisiblePanel?: boolean }) => void
   /** Switch to a saved program and confirm it through an immediate poll. */
   activateProgram: (
     programId: string,
@@ -284,7 +284,10 @@ let activationInFlight: symbol | null = null
 // (#1268). Cleared by stop() so a reopened panel never waits on the old session.
 let pollInFlight: symbol | null = null
 const programRefreshVersions = new Map<string, number>()
-const panelSnapshots = new Map<string, ControllerPanelSnapshot>()
+const panelSnapshots = new Map<string, {
+  state: ControllerPanelSnapshot
+  controlsSeededFor: string | undefined
+}>()
 
 function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot {
   return {
@@ -304,21 +307,32 @@ function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot
 }
 
 function saveSeededSnapshot(state: ControllerPanelState): void {
-  if (seededForIp) panelSnapshots.set(seededForIp, snapshotFromState(state))
+  if (seededForIp) {
+    panelSnapshots.set(seededForIp, { state: snapshotFromState(state), controlsSeededFor })
+  }
+}
+
+function invalidateCachedControls(controllerIp: string, programId?: string): void {
+  const cached = panelSnapshots.get(controllerIp)
+  if (!cached || (programId !== undefined && cached.state.activeProgramId !== programId)) return
+  panelSnapshots.set(controllerIp, {
+    state: { ...cached.state, activeControls: {} },
+    controlsSeededFor: undefined,
+  })
 }
 
 function configPatch(
   state: ControllerPanelState,
   config: ControllerConfig,
-  sourceIp: string | null = seededForIp ?? null,
+  { reseedControls = false }: { reseedControls?: boolean } = {},
 ): Partial<ControllerPanelState> {
-  const reseed = config.activeProgramId !== controlsSeededFor
+  const reseed = reseedControls || config.activeProgramId !== controlsSeededFor
   if (reseed) controlsSeededFor = config.activeProgramId
   return {
     activeProgramId: config.activeProgramId,
     sequencerMode: config.sequencerMode ?? state.sequencerMode,
     runSequencer: config.runSequencer ?? state.runSequencer,
-    configSourceIp: sourceIp,
+    configSourceIp: seededForIp ?? null,
     brightness: state.brightness ?? config.brightness ?? null,
     pixelCount:
       state.pixelCountPending != null
@@ -427,9 +441,9 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       seededForIp = ip
       panelSession += 1
       const cached = ip ? panelSnapshots.get(ip) : undefined
-      controlsSeededFor = cached?.activeProgramId
+      controlsSeededFor = cached?.controlsSeededFor
       set({
-        ...(cached ?? controllerPanelInitialState),
+        ...(cached?.state ?? controllerPanelInitialState),
         programsByController: get().programsByController,
         activatingProgramId: get().activatingProgramId,
       })
@@ -512,7 +526,11 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   rereadAfterFailedWrite: async (controllerIp) => {
     const provider = getControllerProvider()
     await whenControllerDeviceWritesIdle(controllerIp)
-    if (seededForIp !== controllerIp || getControllerProvider() !== provider) return
+    if (seededForIp !== controllerIp) {
+      invalidateCachedControls(controllerIp)
+      return
+    }
+    if (getControllerProvider() !== provider) return
     // Advance the read generation, as a confirmed activation does, so a poll
     // reply requested before the failed write cannot overwrite this read.
     panelSession += 1
@@ -523,7 +541,9 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     const [listed] = await Promise.all([
       listing,
       provider.getConfig().then((config) => {
-        if (controllerSessionMatches(session, provider)) set((state) => configPatch(state, config))
+        if (controllerSessionMatches(session, provider)) {
+          set((state) => configPatch(state, config, { reseedControls: true }))
+        }
       }, () => {}),
     ])
     if (listed) return
@@ -621,8 +641,20 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     set((s) => ({ programLabels: { ...s.programLabels, [programId]: label } }))
   },
 
-  noteProgramActivated: (programId, controllerIp) => {
-    set({ activeProgramId: programId, configSourceIp: controllerIp })
+  noteProgramActivated: (programId, controllerIp, { updateVisiblePanel = true } = {}) => {
+    const { activeProgramId, configSourceIp } = get()
+    if (seededForIp !== controllerIp) {
+      invalidateCachedControls(controllerIp, programId)
+    } else if (configSourceIp === controllerIp && activeProgramId === programId) {
+      // A rewrite can change the live exports under the same ID. Drop the old
+      // controls and reject any poll that began before that activation.
+      panelSession += 1
+      controlsSeededFor = undefined
+      set({ activeProgramId: programId, configSourceIp: controllerIp, activeControls: {} })
+      void get().poll()
+      return
+    }
+    if (updateVisiblePanel) set({ activeProgramId: programId, configSourceIp: controllerIp })
   },
 
   activateProgram: async (programId, options = {}) => {

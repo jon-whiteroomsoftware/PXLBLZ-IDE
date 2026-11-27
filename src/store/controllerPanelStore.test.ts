@@ -176,6 +176,80 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().activeProgramId).toBe('doom-fire')
   })
 
+  it('re-reads live Controls after an in-place activation and discards the previous report', async () => {
+    const ip = '192.168.8.224'
+    const panel = useControllerPanelStore.getState()
+    const previous = {
+      activeProgramId: 'def',
+      activeControls: { sliderSlowMo: 0.375, sliderWash: 0.625, sliderDreamy: 0.5 },
+    }
+    provider.config = previous
+    panel.start(ip)
+    await flush()
+    expect(useControllerPanelStore.getState().activeControls).toEqual(previous.activeControls)
+
+    const oldReply = deferred<ControllerConfig>()
+    vi.spyOn(provider, 'getConfig').mockReturnValueOnce(oldReply.promise)
+    const oldPoll = panel.poll()
+    panel.noteProgramActivated('def', ip)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({})
+    oldReply.resolve(previous)
+    await oldPoll
+    expect(useControllerPanelStore.getState().activeControls).toEqual({})
+
+    provider.config = {
+      activeProgramId: 'def',
+      activeControls: { sliderSlowMo: 0.375, sliderWash: 0.625 },
+    }
+    await panel.poll()
+    expect(useControllerPanelStore.getState().activeControls).toEqual(provider.config.activeControls)
+  })
+
+  it('drops removed Controls if its panel was closed when the same slot was reactivated', async () => {
+    const ip = '192.168.8.224'
+    const panel = useControllerPanelStore.getState()
+    provider.config = { activeProgramId: 'def', activeControls: { sliderDreamy: 0.5 } }
+    panel.start(ip)
+    await flush()
+    panel.stop()
+
+    provider.config = { activeProgramId: 'def', activeControls: { sliderWash: 0.625 } }
+    panel.noteProgramActivated('def', ip)
+    expect(useControllerPanelStore.getState().activeControls).toEqual({})
+    await flush()
+    expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderWash: 0.625 })
+  })
+
+  it.each(['confirmed activation', 'uncertain write'] as const)(
+    'refreshes the previous Controller snapshot after a background %s',
+    async (write) => {
+      const target = '192.168.8.224'
+      const other = '192.168.8.225'
+      const panel = useControllerPanelStore.getState()
+      provider.config = { activeProgramId: 'def', activeControls: { sliderDreamy: 0.5 } }
+      panel.seed(target)
+      await flush()
+      provider.config = { activeProgramId: 'other', activeControls: { sliderHue: 0.3 } }
+      panel.seed(other)
+      await flush()
+
+      if (write === 'confirmed activation') {
+        panel.noteProgramActivated('def', target, { updateVisiblePanel: false })
+      } else {
+        await panel.rereadAfterFailedWrite(target)
+      }
+      expect(useControllerPanelStore.getState()).toMatchObject({
+        activeProgramId: 'other',
+        activeControls: { sliderHue: 0.3 },
+      })
+      provider.config = { activeProgramId: 'def', activeControls: { sliderWash: 0.625 } }
+      panel.seed(target)
+      expect(useControllerPanelStore.getState().activeControls).toEqual({})
+      await flush()
+      expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderWash: 0.625 })
+    },
+  )
+
   it('keeps the newest same-Controller program-list response when requests finish out of order', async () => {
     const first = deferred<ProgramListEntry[]>()
     const second = deferred<ProgramListEntry[]>()
@@ -1666,6 +1740,18 @@ describe('controllerPanelStore', () => {
       expect(state.activeProgramId).toBe('device-truth')
       expect(state.programs).toEqual([{ id: 'device-truth', name: 'On Controller' }])
       expect(state.programsByController[IP]).toEqual([{ id: 'device-truth', name: 'On Controller' }])
+    })
+
+    it('replaces the live Controls after an uncertain write to the same slot', async () => {
+      const panel = useControllerPanelStore.getState()
+      provider.config = { activeProgramId: 'def', activeControls: { sliderDreamy: 0.5 } }
+      panel.start(IP)
+      await flush()
+      expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderDreamy: 0.5 })
+
+      provider.config = { activeProgramId: 'def', activeControls: { sliderWash: 0.625 } }
+      await panel.rereadAfterFailedWrite(IP)
+      expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderWash: 0.625 })
     })
 
     // A loaded Controller can time out the re-read's list read; one retry after

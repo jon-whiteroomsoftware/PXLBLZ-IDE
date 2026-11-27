@@ -127,8 +127,15 @@ because that skip follows a successful name check. Name conflicts, structural
 refusals, and unevaluated exports keep the reported Control in the Pattern's own
 group when an outcome is present.
 
-Wrapper slider positions come from the live report. The panel displays an
-indeterminate slider until it has a usable position. Moving a slider sends a
-volatile Control write and leaves the rewrite queue untouched. The saved Show
-binding identifies Shows and the panel names only the profile's enabled
-Slow-mo and Dreamy Wrappers in its Show message.
+The panel seeds Controls from `getConfig().activeProgram.controls`. An
+in-place activation of the same saved program invalidates that Controller's
+old seed, including when its panel is closed or another Controller is selected.
+Recovery after an uncertain write also refreshes the seed from live config.
+On firmware 3.70, removing Dreamy omitted its export from the active report
+while `getControls(programId)` still held the stored value `0.5`.
+[Firmware 3.70 bench readback](http://Agent-Mini.local:8642/files/pxlblz-briefs/1274-always-on-rewrites/b2-bench-readback.json)
+
+The panel displays an indeterminate slider until it has a usable position.
+Moving a slider sends a volatile Control write and leaves the rewrite queue
+untouched. The saved Show binding identifies Shows and the panel names only
+the profile's enabled Slow-mo and Dreamy Wrappers in its Show message.

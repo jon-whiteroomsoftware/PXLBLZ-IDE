@@ -256,6 +256,12 @@ names the Controller reports. The Controller supplies the value in either
 case. A slider without a usable reported value shows a dash and can still be
 moved. Moving it sends a live Control update and leaves the saved code alone.
 
+The panel reads the active Control report from `getConfig()` and reseeds it
+after an in-place rewrite reactivates the same saved program. On firmware
+3.70, the active report omitted Dreamy after that Wrapper was turned off.
+The saved program's `getControls(id)` still held its previous Dreamy value.
+[Firmware 3.70 bench readback](http://Agent-Mini.local:8642/files/pxlblz-briefs/1274-always-on-rewrites/b2-bench-readback.json)
+
 A skipped Wrapper has neither a row nor a note (decision 27). A memory skip
 confirms the reserved name was free, so the panel hides a leftover value for
 that export. A reported reserved name stays in the Pattern's own Controls

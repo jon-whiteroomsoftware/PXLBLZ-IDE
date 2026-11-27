@@ -1413,6 +1413,20 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     expect(refresh).not.toHaveBeenCalled()
   })
 
+  it('notifies the panel when reconciliation reactivates the same saved program', async () => {
+    const fake = await fixture()
+    vi.spyOn(fake, 'getConfig').mockResolvedValue({ activeProgramId: 'MANAGED1' })
+    const notify = vi.fn()
+    const original = useControllerPanelStore.getState().noteProgramActivated
+    useControllerPanelStore.setState({ noteProgramActivated: notify })
+    onTestFinished(() => useControllerPanelStore.setState({ noteProgramActivated: original }))
+
+    await store().reconcileControllerProfile(profileId)
+
+    expect(fake.saved.map(({ opts }) => opts.id)).toEqual(['MANAGED2', 'MANAGED1'])
+    expect(notify).toHaveBeenCalledExactlyOnceWith('MANAGED1', ip, { updateVisiblePanel: true })
+  })
+
   it('consumes the automatic attempt on a profile outage, then clears for a removed profile', async () => {
     const fake = await fixture()
     vi.spyOn(fake, 'saveProgram').mockRejectedValueOnce(timeout())
