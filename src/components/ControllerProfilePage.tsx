@@ -370,12 +370,19 @@ function SmallButton({
         : sectionActionButtonClass}
       disabled={disabled}
       onClick={onClick}
+      onKeyDown={keepNativeButtonSpace}
       title={title ?? label}
     >
       {icon}
       {label}
     </Button>
   )
+}
+
+function keepNativeButtonSpace(event: React.KeyboardEvent<HTMLButtonElement>) {
+  // Studio's preview shortcut handles Space at document level. The button
+  // still needs its native Space click.
+  if (event.code === 'Space') event.stopPropagation()
 }
 
 function Switch({
@@ -1775,6 +1782,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
                       aria-label={`${skipped.length} skipped for ${name}`}
                       className="rounded-sm text-amber-400 underline decoration-amber-400/40 underline-offset-2 hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-live"
                       onClick={() => focusSkippedPrograms(type, skipped)}
+                      onKeyDown={keepNativeButtonSpace}
                     >
                       {skipped.length} skipped
                     </button>

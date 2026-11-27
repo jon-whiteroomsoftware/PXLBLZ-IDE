@@ -146,9 +146,9 @@ for (const width of [1440, 641]) {
     const row = (id: string) => pane.locator(`#${savedRowDomId(id)}`)
     const tag = (id: string, label: string) => row(id).getByText(label, { exact: true })
     const skippedTag = (id: string) => row(id).locator('[data-skipped-wrapper="slow-mo"]')
-    const capture = async (state: string) => {
-      const directory = process.env.PXLBLZ_1277B_UI_PROOF_DIR
-      if (directory) await page.screenshot({ path: `${directory}/1277b-${width}-${state}.png` })
+    const proofDir = process.env.PXLBLZ_1277B_UI_PROOF_DIR
+    const capture = async (state: string, captureWidth = width) => {
+      if (proofDir) await page.screenshot({ path: `${proofDir}/1277b-${captureWidth}-${state}.png` })
     }
     await expect(upToDate).toBeVisible()
     await expect.poll(runStarts).toBe(1)
@@ -225,6 +225,20 @@ for (const width of [1440, 641]) {
     for (const id of memoryIds) expect(await isFlashing(row(id))).toBe(true)
     expect(await isFlashing(row(unaffected.id))).toBe(false)
     await capture('skip-focus')
+    if (!desktop && proofDir) {
+      // The desktop flow has two memory skips. Keep the single-skip proof at both widths.
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await firstSkipped.blur()
+      await firstSkipped.hover()
+      await expect(tooltip).toHaveText(reason)
+      await capture('single-skip-hover', 1440)
+      await page.mouse.move(0, 0)
+      await count.click()
+      await expect(firstSkipped).toBeFocused()
+      await expect(tooltip).toHaveText(reason)
+      await capture('single-skip-focus', 1440)
+      await page.setViewportSize({ width, height: 1000 })
+    }
     await count.focus()
     await count.press('Enter')
     await expect(firstSkipped).toBeFocused()
@@ -248,7 +262,7 @@ for (const width of [1440, 641]) {
       expect(visited).toEqual(['wrappers', 'inputs', 'saved'])
     }
     for (const surface of [profilePage, pane]) {
-      expect(await surface.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
+      await expect.poll(() => surface.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
     }
     await expect(row(fit.id).getByRole('cell').nth(2).locator('[aria-label]')).toBeVisible()
     await row(fit.id).getByRole('button', { name: 'Run Aurora on the Controller' }).click({ trial: true })
@@ -305,9 +319,9 @@ for (const width of [1440, 641]) {
     await power.check()
     await expect(wrappers.getByRole('slider', { name: 'Power cap duty percent' })).toBeVisible()
     await expect(wrappers.getByText('25% fixed cap')).toBeVisible()
-    await capture('power')
     await expect(tag(fit.id, 'power')).toBeVisible()
     await expect(upToDate).toBeVisible()
+    await capture('power')
 
     await page.reload()
     await expect(unbind).toHaveCount(0)

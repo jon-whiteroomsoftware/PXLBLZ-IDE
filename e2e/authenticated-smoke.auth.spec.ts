@@ -1151,7 +1151,7 @@ test('edits and persists a Controller input use across responsive and keyboard f
   const profilePage = page.getByTestId('controller-profile-page')
   await expect(profilePage).toBeVisible()
   expect(await profilePage.getByRole('heading').allTextContents())
-    .toEqual(['Power', 'Inputs', 'Last generated artifact'])
+    .toEqual(['Wrappers', 'Inputs', 'Last generated artifact'])
 
   // The approved two-up trace is a rendered-geometry requirement. A class-name
   // assertion passed while the real Studio pane still stacked both inputs.
@@ -1178,6 +1178,7 @@ test('edits and persists a Controller input use across responsive and keyboard f
   await frontBrightness.focus()
   await expect(frontBrightness).toBeFocused()
   await frontBrightness.press('Space')
+  await expect(frontBrightness).toHaveAttribute('aria-expanded', 'true')
   const brightnessOption = page.getByRole('button', { name: 'Brightness', exact: true })
   await page.keyboard.press('Tab')
   await expect(brightnessOption).toBeFocused()
