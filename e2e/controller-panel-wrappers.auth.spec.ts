@@ -253,7 +253,14 @@ test('moving a Wrapper Control during an in-flight rewrite adds no queued pass (
   await connect(page)
   const inventory = page.getByTestId('controller-saved-programs-pane')
   await expect(inventory.getByText('1 of 1 up to date', { exact: true })).toBeVisible()
+  // An up-to-date receipt can render before the connection pass is even admitted.
+  await expect.poll(async () => (await observeRuns()).passes).toBeGreaterThan(0)
   await expect.poll(observeRuns).toMatchObject({ pending: 0 })
+  const initial = await observeRuns()
+  const observeRewrite = async () => {
+    const { starts, passes, pending } = await observeRuns()
+    return { starts: starts - initial.starts, passes: passes - initial.passes, pending }
+  }
 
   const relay = (action: 'holdSaves' | 'releaseSaves' | 'waitingSaveIds') => page.evaluate((name) => {
     const { __fakeControllerReconciliation: fake } = window as unknown as {
@@ -265,13 +272,17 @@ test('moving a Wrapper Control during an in-flight rewrite adds no queued pass (
   try {
     await page.getByRole('switch', { name: 'Power limit', exact: true }).check()
     await expect.poll(() => relay('waitingSaveIds')).toEqual([rewriteTarget.id])
-    const inFlight = await observeRuns()
-    expect(inFlight.pending).toBe(1)
+    const inFlight = { starts: 1, passes: 1, pending: 1 }
+    expect(await observeRewrite()).toEqual(inFlight)
     const panel = await openPanel(page)
+    await page.clock.install()
     await moveSlowMo(page, panel)
+    // Keep the Save held while any debounced request from the slider would reach the queue.
+    await page.clock.runFor(700)
+    expect(await observeRewrite()).toEqual(inFlight)
     await relay('releaseSaves')
     await expect(inventory.getByText('1 of 1 up to date', { exact: true })).toHaveCount(1)
-    await expect.poll(observeRuns).toEqual({ ...inFlight, pending: 0 })
+    await expect.poll(observeRewrite).toEqual({ ...inFlight, pending: 0 })
   } finally {
     await relay('releaseSaves')
   }
