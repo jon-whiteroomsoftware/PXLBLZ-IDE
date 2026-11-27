@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1278",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1278-fresh",
+  "operation": "Opened Use for a Wrapper on Tempo dial in a fresh profile. Brightness, Slow-mo and Dreamy are offered at 641 and 1440 px.",
+  "captures": [
+    ".wrsp/ui-proof/1278b-641-input-offer.png",
+    ".wrsp/ui-proof/1278b-1440-input-offer.png"
+  ],
+  "capturedAtCommit": "629d95337742582fabdec47765fb04215d50127f"
+}

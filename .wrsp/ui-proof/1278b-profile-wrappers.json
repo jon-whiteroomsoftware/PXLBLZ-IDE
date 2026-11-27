@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "issue": "1278",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "Opened Slow-mo’s Bind input picker and chose Tempo dial. At 641 and 1440 px the bound row shows IO33, Tempo dial, the Embers exception and Unbind.",
+  "captures": [
+    ".wrsp/ui-proof/1278b-641-wrapper-picker.png",
+    ".wrsp/ui-proof/1278b-641-bound-wrapper.png",
+    ".wrsp/ui-proof/1278b-1440-wrapper-picker.png",
+    ".wrsp/ui-proof/1278b-1440-bound-wrapper.png"
+  ],
+  "capturedAtCommit": "629d95337742582fabdec47765fb04215d50127f"
+}

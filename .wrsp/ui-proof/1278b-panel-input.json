@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1278",
+  "route": "/PXLBLZ-IDE/studio/controllers/rewrites-1274",
+  "operation": "Opened the Controller panel for Aurora after the transport double saved the bound Pattern. The Wrappers row shows Tempo dial in place of the Slow-mo slider at 641 and 1440 px.",
+  "captures": [
+    ".wrsp/ui-proof/1278b-641-panel-input.png",
+    ".wrsp/ui-proof/1278b-1440-panel-input.png"
+  ],
+  "capturedAtCommit": "629d95337742582fabdec47765fb04215d50127f"
+}
