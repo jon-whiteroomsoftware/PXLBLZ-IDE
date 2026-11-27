@@ -1,4 +1,6 @@
 import { bundle } from './bundle'
+import { prepareControllerArtifactDelivery } from './controllerArtifactDelivery'
+import type { ControllerProfile } from './controllerProfile'
 import { fx } from './fixedpoint'
 import { loadPattern } from './loadPattern'
 import { bundleWithPasses, type PassRecipe } from './passEngine'
@@ -206,10 +208,10 @@ describe('Wrapper input smoothing and fallback (E2 sequence, E4)', () => {
     })
   }
 
-  const stepped = [...Array(12).fill(0), ...Array(24).fill(0.5), ...Array(30).fill(0)]
+  const stepped = [...Array(12).fill(0), ...Array(24).fill(0.5), ...Array(30).fill(0), ...Array(12).fill(0.5)]
 
   for (const mode of modes) {
-    it.each(both)(`%s follows a stepped reading 0, 0.5, 0 with smoothing 0.2 (${mode})`, (type) => {
+    it.each(both)(`%s follows activation, release and reactivation with smoothing 0.2 (${mode})`, (type) => {
       smoothedAgainstSlider(type, sample(type === 'slow-mo' ? SLOW_PIN : DREAM_PIN, { smoothing: 0.2 }), stepped, mode)
     })
   }
@@ -251,4 +253,63 @@ describe('Wrapper input order (R1)', () => {
     runtime.read(SLOW_PIN, 1)
     for (const [red] of runtime.frame(16)) expect(red).toBeLessThanOrEqual(0.5)
   })
+})
+
+describe('Per-Pattern Wrapper opt-out frames (R2)', () => {
+  const source = 'var level = 0; export function sliderLevel(v) { level = v } export function render(i) { rgb(level, 0, 0) }'
+  const controlNames = { 'slow-mo': 'sliderSlowMo', dreamy: 'sliderDreamy' }
+  const pins = { 'slow-mo': SLOW_PIN, dreamy: DREAM_PIN }
+  const readings = [0, 0, 0, 0.75, 0.75, 0.75, 0.75, 0.75, 0, 0, 0, 0]
+
+  function bundleFor(profile: ControllerProfile) {
+    const { bundled } = prepareControllerArtifactDelivery({
+      source, profile, artifactId: 'pattern', pixelCount: points.length, mapDim: 1,
+    })
+    if (!bundled) throw new Error('Expected a wrapped Pattern')
+    return bundled
+  }
+
+  for (const mode of modes) {
+    it.each(both)(`keeps %s on its slider while the Pattern and the other Wrapper read their inputs (${mode})`, (optedOut) => {
+      const other = optedOut === 'slow-mo' ? 'dreamy' : 'slow-mo'
+      const profile: ControllerProfile = {
+        id: 'profile',
+        name: 'Profile',
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: both.map((type) => ({ id: type, name: type, signal: 'analog', ...sample(pins[type]) })),
+        globalTransforms: both.map((type) => ({ id: type, type, enabled: true, inputId: type })),
+        patternBindings: [{
+          id: 'own-input', patternId: 'pattern', inputId: optedOut,
+          target: { kind: 'call-exported-slider', name: 'sliderLevel' },
+        }],
+        updatedAt: 1,
+      }
+      const expectedProfile: ControllerProfile = {
+        ...profile,
+        globalTransforms: both.map((type) => ({ id: type, type, enabled: true })),
+      }
+      const actualBundle = bundleFor(profile)
+      expect(actualBundle.metadata.controls.map(({ exportName }) => exportName).sort())
+        .toEqual([controlNames[optedOut], 'sliderLevel'].sort())
+      const actual = frames(actualBundle, mode)
+      const reference = frames(bundleFor(expectedProfile), mode)
+      actual.set(controlNames[optedOut], 0.35)
+      reference.set(controlNames[optedOut], 0.35)
+      const rendered: number[] = []
+      readings.forEach((reading, index) => {
+        const otherReading = index < 4 ? 0.25 : 0.6
+        actual.read(pins[optedOut], reading)
+        reference.read(pins[optedOut], reading)
+        actual.read(pins[other], otherReading)
+        reference.set(controlNames[other], otherReading)
+        const delta = deltas[index % deltas.length]
+        const output = actual.frame(delta)
+        expect(output).toEqual(reference.frame(delta))
+        expect(actual.readCount(pins[other])).toBe(index + 1)
+        rendered.push(output[0][0])
+      })
+      expect(Math.min(...rendered)).toBe(0)
+      expect(Math.max(...rendered)).toBeGreaterThan(0)
+    })
+  }
 })

@@ -43,10 +43,11 @@ recipe, both signatures and the saved outcome read it.
   Validation refuses a record that breaks either rule, or that names a
   missing input. The server refuses the whole write, and the store rolls
   back to the durable profile. `bindGlobalInputUse` and the store's
-  `bindWrapperInput` keep the rule in one update: the input leaves its
-  other use, Brightness turns off, and the Wrapper's previous input is
-  released. A bound Wrapper turns on. Turning a Wrapper off, or deleting
-  its input, releases the input and leaves the slider.
+  `bindWrapperInput` keep the rule in one update. The input leaves its other
+  use and the target Wrapper releases its previous input. A bound Wrapper
+  turns on. Brightness turns off when its input moves. Turning a Wrapper
+  off releases its input. Deleting a driving input leaves its Wrapper on
+  with its slider.
 - **Analog only.** A digital input on a Wrapper is a storable
   `configuration` issue on the input. The Wrapper keeps its slider.
 - **Opt-out.** A Pattern that binds the same input to one of its own
@@ -59,8 +60,9 @@ recipe, both signatures and the saved outcome read it.
   never once per slowed frame. It matches the hardware-brightness sample:
   it starts at the input's fallback, applies invert, then smooths. A
   smoothed value below 0.03 counts as exactly off, so a resting knob
-  renders as an untouched slider. The skip decision ignores the binding.
-  Preview emission is unchanged.
+  renders as an untouched slider. When Dreamy becomes active, either source
+  of its value uses the same empty-history start. The skip decision ignores
+  the binding. Preview emission is unchanged.
 - **Evidence.** `wrapperOutcome.inputs` names each applied, input-driven
   Wrapper's input ID and its name at save time. The artifact signature
   gains `wrapperInputs` for those Wrappers: type, pin, signal, smoothing,

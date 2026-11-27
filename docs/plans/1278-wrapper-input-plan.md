@@ -118,3 +118,4 @@ Checked against local main `287b8a3b`. Landed names match the plan except as fol
 - `slowMoWrapperInputs.test.ts` compares Controller output to the matching slider in Fast and Precise, including a stepped input and the off threshold.
 - `controllerProfiles.test.ts` sends each invalid Wrapper binding with an unrelated rename through the authenticated PATCH handler, then reads the complete SQLite-backed row through GET.
 - The scheduling signature includes bound input IDs. Binding a different input with identical sampling settings schedules a saved-outcome refresh. The saved program bytes and artifact signature are identical.
+- On the landed #1283 base, bound Dreamy uses the slider's activation behavior through an internal function. Frame tests cover activation, release and reactivation, plus a stepped input on a Pattern's own Control while it keeps one Wrapper slider and the other Wrapper remains input-driven.
