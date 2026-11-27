@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { artifactHash, stripPxlblzBanner } from '../src/engine/artifactStamp'
 import type { ControllerProfile } from '../src/engine/controllerProfile'
 import type { ControllerPushRecords } from '../src/engine/controllerPushRecord'
 import { controllerProfileArtifactSignature, controllerProfilePassRecipe } from '../src/engine/controllerProfilePassRecipe'
-import { encodePbp } from '../src/engine/pbpEncode'
+import { formatWrapperSkipReason, savedRowDomId } from '../src/engine/controllerWrapperTags'
+import { decodePbp, encodePbp } from '../src/engine/pbpEncode'
 import { parseEpe } from '../src/engine/epeImport'
 import { bundleWithPasses } from '../src/engine/passEngine'
 import { expect, test } from './fixtures/authenticated'
@@ -67,7 +68,9 @@ async function seed(page: Page, seedProfile = profile, fixturePrograms = program
     savedProgramData: data, trackSavedPrograms: true,
   })
   expect((await request.post('/api/controllers', { data: seedProfile })).ok()).toBe(true)
-  for (const { binding, name, source } of fixturePrograms.slice(0, 2)) {
+  for (const { binding, name, source } of fixturePrograms.filter(({ binding, id }) =>
+    binding && !binding.startsWith('show:') && id !== programs[2].id,
+  )) {
     expect((await request.post('/api/patterns', {
       data: { id: binding, name, src: source, controls: {}, updatedAt: 1 },
     })).ok()).toBe(true)
@@ -83,6 +86,245 @@ async function seed(page: Page, seedProfile = profile, fixturePrograms = program
   }
   await page.goto(`studio/controllers/${seedProfile.id}`)
   await expect(page.getByTestId('controller-saved-programs-pane')).toBeVisible()
+}
+
+async function connectFixture(page: Page) {
+  await page.getByRole('button', { name: 'Connect a Controller', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Controller IP address' }).fill(ip)
+  await page.getByTestId('controller-go').click()
+  await expect(page.getByTestId('controller-pill')).toHaveAttribute('data-phase', 'live')
+}
+
+async function profileTestSource(page: Page, id: string) {
+  const bytes = (await relay(page, 'savedBytes'))[id]
+  const saved = bytes && decodePbp(Buffer.from(bytes, 'base64'))
+  if (!saved) throw new Error(`Could not open saved PBP ${id}`)
+  return stripPxlblzBanner(saved.sourceCode)
+}
+
+for (const width of [1440, 641]) {
+  test(`Profile Wrapper controls reconcile through the rendered page at ${width}px (#1277b)`, async ({ page }) => {
+    const desktop = width === 1440
+    const errors: string[] = []
+    if (desktop) {
+      page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
+      page.on('pageerror', (error) => errors.push(error.message))
+    }
+    const [fit, memory] = [
+      { ...managed[0], source: `export function sliderWash(v) {}\n${managed[0].source}` },
+      { ...managed[1], source: 'var heavy = array(10200)\nexport function render(i) { rgb(0, 0, heavy[0]) }' },
+    ]
+    const secondSkip = { ...memory, id: 'pxbManagedMemory2', binding: 'rewrite-memory-second', name: 'Another memory Pattern' }
+    const unaffected = { ...fit, id: 'pxbManagedNamesak', binding: 'rewrite-namesake', name: memory.name }
+    const show = { ...fit, id: 'pxbManagedShow123', binding: 'show:fixture-1277b', name: 'Fixture Show' }
+    const fixturePrograms = [fit, memory, unaffected, ...programs.slice(2), show]
+    if (desktop) fixturePrograms.push(secondSkip)
+    const seedProfile: ControllerProfile = {
+      ...profile,
+      lastKnownPixelCount: 64,
+      inputs: [{ id: 'knob', name: 'Wash knob', pin: 36, signal: 'analog', smoothing: 0.2, fallback: 0.5, invert: false }],
+      globalTransforms: [...profile.globalTransforms, {
+        id: 'hardware-brightness', type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness',
+        mode: 'multiply-output', enabled: false, inputId: '',
+      }],
+      patternBindings: [{ id: 'wash', inputId: 'knob', patternId: fit.binding!, target: { kind: 'call-exported-slider', name: 'sliderWash' } }],
+    }
+    await page.setViewportSize({ width, height: 1000 })
+    await seed(page, seedProfile, fixturePrograms)
+    const runStarts = await observeRunStarts(page)
+    await connectFixture(page)
+
+    const profilePage = page.getByTestId('controller-profile-page')
+    const pane = page.getByTestId('controller-saved-programs-pane')
+    const wrappers = profilePage.locator('section').filter({ has: page.getByRole('heading', { name: 'Wrappers', exact: true }) })
+    const slow = wrappers.getByRole('switch', { name: 'Slow-mo' })
+    const dreamy = wrappers.getByRole('switch', { name: 'Dreamy' })
+    const power = wrappers.getByRole('switch', { name: 'Power limit' })
+    const note = pane.getByText(/^Shows keep their own timing:/)
+    const upToDate = pane.getByText(desktop ? '4 of 4 up to date' : '3 of 3 up to date', { exact: true })
+    const unbind = wrappers.getByRole('button', { name: 'Unbind Brightness', exact: true })
+    const row = (id: string) => pane.locator(`#${savedRowDomId(id)}`)
+    const tag = (id: string, label: string) => row(id).getByText(label, { exact: true })
+    const skippedTag = (id: string) => row(id).locator('[data-skipped-wrapper="slow-mo"]')
+    const capture = async (state: string) => {
+      const directory = process.env.PXLBLZ_1277B_UI_PROOF_DIR
+      if (directory) await page.screenshot({ path: `${directory}/1277b-${width}-${state}.png` })
+    }
+    await expect(upToDate).toBeVisible()
+    await expect.poll(runStarts).toBe(1)
+    await expect(slow).not.toBeChecked()
+    await expect(dreamy).not.toBeChecked()
+    await expect(power).not.toBeChecked()
+    await expect(note).toHaveCount(0)
+    await expect(unbind).toHaveCount(0)
+    await capture('rest')
+    const baseline = await relay(page, 'savedBytes')
+
+    await relay(page, 'holdSaves')
+    await slow.check()
+    await expect(note).toHaveText('Shows keep their own timing: no Slow-mo.')
+    await expect.poll(() => relay(page, 'waitingSaveIds')).toEqual([fit.id])
+    await expect(pane.getByText(/Updating \d+ of [34]/)).toBeVisible()
+    expect(await relay(page, 'savedBytes')).toEqual(baseline)
+    await expect(tag(fit.id, 'slow-mo')).toHaveCount(0)
+    await capture('updating')
+    await dreamy.check()
+    await expect(note).toHaveText('Shows keep their own timing: no Slow-mo or Dreamy.')
+    await expect(pane.getByText(/Updating .* · restarted/)).toBeVisible()
+    expect(await relay(page, 'waitingSaveIds')).toEqual([fit.id])
+    if (desktop) await capture('folded')
+    await relay(page, 'acknowledgeSave')
+    await expect.poll(async () => (await relay(page, 'waitingSaveIds')).length).toBe(1)
+    await relay(page, 'releaseSaves')
+    await expect(upToDate).toBeVisible()
+    expect(await runStarts()).toBe(2)
+    for (const id of [fit.id, unaffected.id]) {
+      const source = await profileTestSource(page, id)
+      expect(source).toContain('export function sliderSlowMo')
+      expect(source).toContain('export function sliderDreamy')
+      await expect(tag(id, 'slow-mo')).toBeVisible()
+      await expect(tag(id, 'dreamy')).toBeVisible()
+    }
+    const memoryIds = desktop ? [memory.id, secondSkip.id] : [memory.id]
+    for (const id of memoryIds) {
+      expect((await relay(page, 'savedBytes'))[id]).toBe(baseline[id])
+      await expect(skippedTag(id)).toBeVisible()
+    }
+    await expect(row(show.id).locator('[data-skipped-wrapper]')).toHaveCount(0)
+    await expect(tag(show.id, 'slow-mo')).toHaveCount(0)
+    await expect(tag(show.id, 'dreamy')).toHaveCount(0)
+    expect((await relay(page, 'savedBytes'))[programs[3].id]).toBe(baseline[programs[3].id])
+
+    await dreamy.uncheck()
+    await expect(note).toHaveText('Shows keep their own timing: no Slow-mo.')
+    await expect(tag(fit.id, 'dreamy')).toHaveCount(0)
+    const count = wrappers.getByRole('button', { name: `${memoryIds.length} skipped for Slow-mo` })
+    const firstSkipped = skippedTag(desktop ? secondSkip.id : memory.id)
+    const skippedBinding = desktop ? secondSkip.binding : memory.binding
+    const tooltip = firstSkipped.getByRole('tooltip', { includeHidden: true })
+    const receipt = await page.context().request.get('/api/controller-metadata/controller-push-records')
+    expect(receipt.ok()).toBe(true)
+    const { value } = await receipt.json() as { value: ControllerPushRecords }
+    const reason = formatWrapperSkipReason(value[ip][skippedBinding!].wrapperOutcome!.skipped['slow-mo']!)
+    await expect(firstSkipped).toHaveAccessibleDescription(reason)
+    await expect(tooltip).toBeHidden()
+    await firstSkipped.hover()
+    await expect(tooltip).toHaveText(reason)
+    const paneBounds = (await pane.boundingBox())!
+    const tipBounds = (await tooltip.boundingBox())!
+    expect(tipBounds.x).toBeGreaterThanOrEqual(paneBounds.x)
+    expect(tipBounds.x + tipBounds.width).toBeLessThanOrEqual(paneBounds.x + paneBounds.width)
+    await capture('skip-hover')
+    await page.mouse.move(0, 0)
+    await count.click()
+    await expect(firstSkipped).toBeFocused()
+    await expect(tooltip).toBeVisible()
+    const isFlashing = (target: Locator) => target.evaluate((node) => node.getAnimations().some(
+      (animation) => animation.playState === 'running',
+    ))
+    for (const id of memoryIds) expect(await isFlashing(row(id))).toBe(true)
+    expect(await isFlashing(row(unaffected.id))).toBe(false)
+    await capture('skip-focus')
+    await count.focus()
+    await count.press('Enter')
+    await expect(firstSkipped).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(tooltip).toBeHidden()
+    await expect(firstSkipped).toBeFocused()
+
+    if (desktop) {
+      await slow.focus()
+      const visited: string[] = []
+      for (let index = 0; index < 45 && !visited.includes('saved'); index += 1) {
+        const section = await page.evaluate(() => {
+          const active = document.activeElement
+          if (active?.closest('[data-testid="controller-saved-programs-pane"] tbody tr')) return 'saved'
+          const heading = active?.closest('section')?.querySelector('h2')
+          return heading?.textContent === 'Wrappers' ? 'wrappers' : heading?.textContent === 'Inputs' ? 'inputs' : ''
+        })
+        if (section && visited.at(-1) !== section) visited.push(section)
+        await page.keyboard.press('Tab')
+      }
+      expect(visited).toEqual(['wrappers', 'inputs', 'saved'])
+    }
+    for (const surface of [profilePage, pane]) {
+      expect(await surface.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
+    }
+    await expect(row(fit.id).getByRole('cell').nth(2).locator('[aria-label]')).toBeVisible()
+    await row(fit.id).getByRole('button', { name: 'Run Aurora on the Controller' }).click({ trial: true })
+    await row(fit.id).getByRole('button', { name: 'Delete Aurora from the Controller' }).click({ trial: true })
+
+    await slow.uncheck()
+    await expect(note).toHaveCount(0)
+    await expect(count).toHaveCount(0)
+    await expect(tag(fit.id, 'slow-mo')).toHaveCount(0)
+    await expect(upToDate).toBeVisible()
+
+    const unboundSource = await profileTestSource(page, fit.id)
+    const trigger = profilePage.getByRole('button', { name: 'Use Wash knob for a Wrapper' })
+    await trigger.click()
+    const picker = profilePage.getByRole('group', { name: 'Wrapper for Wash knob' })
+    await expect(picker.getByRole('button')).toHaveText(['Brightness', 'Cancel'])
+    await picker.getByRole('button', { name: 'Cancel' }).click()
+    await expect(trigger).toBeFocused()
+    await expect(unbind).toHaveCount(0)
+    await trigger.click()
+    await picker.getByRole('button', { name: 'Brightness' }).click()
+    await expect(unbind).toBeVisible()
+    await expect(wrappers.getByRole('switch')).toHaveCount(3)
+    await expect(tag(unaffected.id, 'bright')).toBeVisible()
+    await expect(tag(fit.id, 'bright')).toHaveCount(0)
+    expect(await profileTestSource(page, unaffected.id)).toContain('__px_hardwareBrightnessRgb')
+    expect(await profileTestSource(page, fit.id)).toBe(unboundSource)
+    await expect(tag(fit.id, 'IO36 → sliderWash')).toBeVisible()
+    await wrappers.scrollIntoViewIfNeeded()
+    await capture('brightness')
+    await unbind.click()
+    await expect(unbind).toHaveCount(0)
+    await expect(tag(unaffected.id, 'bright')).toHaveCount(0)
+    await expect(upToDate).toBeVisible()
+    expect(await profileTestSource(page, unaffected.id)).not.toContain('__px_hardwareBrightnessRgb')
+    expect(await profileTestSource(page, fit.id)).toBe(unboundSource)
+    await capture('unbound')
+
+    await relay(page, 'disconnect')
+    await expect(pane.getByText(/Nothing to show while offline/)).toBeVisible()
+    const beforeOffline = await relay(page, 'savedBytes')
+    await dreamy.check()
+    await expect(pane.getByText(new RegExp(`waiting for ${profile.name}`))).toBeVisible()
+    expect(await relay(page, 'savedBytes')).toEqual(beforeOffline)
+    expect(await relay(page, 'waitingSaveIds')).toEqual([])
+    await relay(page, 'reconnect')
+    await expect(note).toHaveText('Shows keep their own timing: no Dreamy.')
+    await expect(tag(fit.id, 'dreamy')).toBeVisible()
+    await expect(upToDate).toBeVisible()
+    expect(await profileTestSource(page, fit.id)).toContain('export function sliderDreamy')
+    await dreamy.uncheck()
+    await expect(note).toHaveCount(0)
+    await expect(tag(fit.id, 'dreamy')).toHaveCount(0)
+    await power.check()
+    await expect(wrappers.getByRole('slider', { name: 'Power cap duty percent' })).toBeVisible()
+    await expect(wrappers.getByText('25% fixed cap')).toBeVisible()
+    await capture('power')
+    await expect(tag(fit.id, 'power')).toBeVisible()
+    await expect(upToDate).toBeVisible()
+
+    await page.reload()
+    await expect(unbind).toHaveCount(0)
+    await expect(trigger).toBeVisible()
+    const stored = await page.context().request.get('/api/controllers')
+    expect(stored.ok()).toBe(true)
+    const { controllers } = await stored.json() as { controllers: ControllerProfile[] }
+    const durable = controllers.find(({ id }) => id === profile.id)!
+    expect(durable.patternBindings).toEqual(seedProfile.patternBindings)
+    expect(durable.globalTransforms.find(({ type }) => type === 'hardware-brightness'))
+      .toMatchObject({ enabled: false, inputId: '' })
+    const patternResponse = await page.context().request.get('/api/patterns')
+    expect(patternResponse.ok()).toBe(true)
+    const { patterns } = await patternResponse.json() as { patterns: Array<{ id: string; src: string }> }
+    expect(patterns.find(({ id }) => id === fit.binding)?.src).toBe(fit.source)
+    expect(errors).toEqual([])
+  })
 }
 
 test('Wrapper profile reconciliation writes only effective changes at the Controller transport (#1279)', async ({ page }) => {
@@ -135,6 +377,7 @@ test('Wrapper profile reconciliation writes only effective changes at the Contro
   const baseline = await readSources()
   await setWrappers(true, true)
   await reconcile()
+  await expect(page.getByText(/^Shows keep their own timing:/)).toHaveCount(0)
   const [wrapped, ...unwrapped] = await readSources()
   expect(wrapped).toContain('export function sliderSlowMo')
   expect(wrapped).toContain('export function sliderDreamy')
@@ -300,7 +543,7 @@ for (const [viewport, width] of [['desktop', 1440], ['narrow', 768]] as const) {
     await expect.poll(runStarts).toBe(1)
     await capture('rest', '2 of 2 up to date')
     expect(await relay(page, 'savedBytes')).toEqual(savedProgramData)
-    const cap = page.getByRole('checkbox', { name: 'Limit power', exact: true })
+    const cap = page.getByRole('switch', { name: 'Power limit', exact: true })
     const duty = page.getByRole('slider', { name: 'Power cap duty percent' })
     await relay(page, 'holdSaves')
     await cap.check()

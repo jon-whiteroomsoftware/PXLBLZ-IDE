@@ -1,5 +1,5 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
-import type { BindingStore } from './controllerBinding'
+import type { BindingStore, ControllerBindings } from './controllerBinding'
 import { savedControllerWrapperOutcome, type ControllerPushRecord, type ControllerPushRecords } from './controllerPushRecord'
 import type { ArtifactShowOutputContract } from './artifactStamp'
 import {
@@ -210,6 +210,14 @@ export function installedControllerPatternChoices(input: {
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 }
 
+export function savedBindingKeysByProgramId(bindings: ControllerBindings): Map<string, string> {
+  const bindingByProgramId = new Map<string, string>()
+  for (const [bindingKey, programId] of Object.entries(bindings)) {
+    if (!bindingByProgramId.has(programId)) bindingByProgramId.set(programId, bindingKey)
+  }
+  return bindingByProgramId
+}
+
 export function describeControllerSavedPrograms(input: {
   controllerId: string
   programs: readonly ProgramListEntry[]
@@ -221,10 +229,7 @@ export function describeControllerSavedPrograms(input: {
   /** False while the live map or metadata evidence is being refreshed. */
   profileSignatureReady?: boolean
 }): ControllerSavedProgramsView {
-  const bindingByProgramId = new Map<string, string>()
-  for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
-    if (!bindingByProgramId.has(programId)) bindingByProgramId.set(programId, bindingKey)
-  }
+  const bindingByProgramId = savedBindingKeysByProgramId(input.bindings[input.controllerId] ?? {})
   const studioByBindingKey = new Map(
     input.studioPatterns.map((pattern) => [pattern.bindingKey, pattern]),
   )

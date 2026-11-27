@@ -1174,12 +1174,15 @@ test('edits and persists a Controller input use across responsive and keyboard f
   await expect(page.getByText('Nothing yet').first()).toBeVisible()
 
   // Assigning brightness from the keyboard writes the real transform.
-  const frontBrightness = page.getByRole('checkbox', { name: 'Front pot controls brightness' })
+  const frontBrightness = page.getByRole('button', { name: 'Use Front pot for a Wrapper' })
   await frontBrightness.focus()
   await expect(frontBrightness).toBeFocused()
   await frontBrightness.press('Space')
-  await expect(frontBrightness).toBeChecked()
-  await expect(page.getByText('Brightness', { exact: true })).toBeVisible()
+  const brightnessOption = page.getByRole('button', { name: 'Brightness', exact: true })
+  await page.keyboard.press('Tab')
+  await expect(brightnessOption).toBeFocused()
+  await brightnessOption.press('Enter')
+  await expect(page.getByRole('button', { name: 'Unbind Brightness', exact: true })).toBeVisible()
   await expect(page.getByText('every Pattern', { exact: true })).toBeVisible()
 
   const brightnessTransform = async () => {
@@ -1210,13 +1213,14 @@ test('edits and persists a Controller input use across responsive and keyboard f
     .toBe(true)
 
   await page.reload()
-  await expect(page.getByRole('checkbox', { name: 'Front pot controls brightness' })).toBeChecked()
+  await expect(page.getByRole('button', { name: 'Unbind Brightness from Front pot' })).toBeVisible()
 
   // Exactly one hardware-brightness transform exists, so moving brightness to a
   // digital input is inherently exclusive - and now an error on that input, with
   // the correction offered where the fault is.
-  await page.getByRole('checkbox', { name: 'Panel button controls brightness' }).check()
-  await expect(page.getByRole('checkbox', { name: 'Front pot controls brightness' })).not.toBeChecked()
+  await page.getByRole('button', { name: 'Use Panel button for a Wrapper' }).click()
+  await brightnessOption.click()
+  await expect(page.getByRole('button', { name: 'Unbind Brightness from Front pot' })).toHaveCount(0)
   await expect(page.getByText('Nothing yet', { exact: true })).toBeVisible()
   await expect(page.getByText(/needs an analog signal/)).toBeVisible()
 
@@ -1229,7 +1233,7 @@ test('edits and persists a Controller input use across responsive and keyboard f
     .toBe('analog')
 
   await page.reload()
-  await expect(page.getByRole('checkbox', { name: 'Panel button controls brightness' })).toBeChecked()
+  await expect(page.getByRole('button', { name: 'Unbind Brightness from Panel button' })).toBeVisible()
   await expect(page.getByText(/needs an analog signal/)).toHaveCount(0)
 
   // The browser stays wide while the authoring pane narrows, matching a user
@@ -1262,7 +1266,7 @@ test('edits and persists a Controller input use across responsive and keyboard f
     () => profilePage.evaluate((node) => node.scrollWidth - node.clientWidth),
     'Controller Profile content should fit its center pane at 390px',
   ).toBeLessThanOrEqual(1)
-  const limitPower = page.getByRole('checkbox', { name: 'Limit power' })
+  const limitPower = page.getByRole('switch', { name: 'Power limit' })
   await limitPower.scrollIntoViewIfNeeded()
   await expect(limitPower).toBeInViewport({ ratio: 1 })
   const adjustFrontPot = page.getByRole('button', { name: 'Adjust Front pot' })
@@ -1373,7 +1377,7 @@ test('saved Pattern freshness follows the full profile through a real managed ov
   await expect(page.getByRole('table', { name: 'Patterns', exact: true })).toBeVisible()
   await expect(page.getByLabel(/^Current:/)).toBeVisible()
 
-  await page.getByRole('checkbox', { name: 'Limit power' }).check()
+  await page.getByRole('switch', { name: 'Power limit' }).check()
   const pushAgain = page.getByLabel(/^Push again:/)
   await expect(pushAgain).toBeVisible()
   const badgeGeometry = await pushAgain.evaluate((badge) => {

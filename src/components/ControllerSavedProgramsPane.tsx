@@ -57,7 +57,7 @@ import {
   type ControllerSavedProgramRow,
   type ControllerSavedProgramsView,
 } from '@/engine/controllerSavedPrograms'
-import { describeWrapperTags, savedRowDomId, type WrapperTagModel } from '@/engine/controllerWrapperTags'
+import { describeWrapperTags, savedRowDomId, showsTimingLine, type WrapperTagModel } from '@/engine/controllerWrapperTags'
 import { artifactHash } from '@/engine/artifactStamp'
 import {
   createSavedProgramPatternRecord,
@@ -682,6 +682,7 @@ function SavedProgramsInventory({
   status,
   programs,
   managedProgress,
+  profile,
   tagsByProgramId,
   statuses,
   hasSnapshot,
@@ -708,6 +709,7 @@ function SavedProgramsInventory({
   status: SavedProgramsReadStatus
   programs: ControllerSavedProgramsView
   managedProgress: ReactNode
+  profile: ControllerProfile
   /** Tags per owned program id, read from its stored push record (#1277). */
   tagsByProgramId: Readonly<Record<string, readonly WrapperTagModel[]>>
   /** Effective status per program id, shared with the aggregate summary (#874). */
@@ -791,11 +793,13 @@ function SavedProgramsInventory({
   const ownedGroup = (sourceKind: ControllerSavedProgramRow['sourceKind']) => {
     const rows = presentedPrograms.owned.filter((program) => program.sourceKind === sourceKind)
     const label = sourceKind === 'pattern' ? 'Pattern' : 'Show'
+    const timingLine = sourceKind === 'show' ? showsTimingLine(profile, rows.length) : null
     return (
       <section className="mt-3">
         <h3 className="mb-1.5 font-mono text-xs font-medium text-zinc-300">
           {label}s <span className="text-zinc-500">({rows.length})</span>
         </h3>
+        {timingLine && <p className="mb-2 text-xs text-zinc-500">{timingLine}</p>}
         {rows.length > 0 && <table className={tableClass} aria-label={`${label}s`}>
           <colgroup>
             {selectingSaved && <col className="w-7" />}
@@ -1588,6 +1592,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       <SavedProgramsInventory
         status={readStatus}
         programs={programs}
+        profile={profile}
         managedProgress={(
           <ManagedPatternReconciliation
             profile={profile}

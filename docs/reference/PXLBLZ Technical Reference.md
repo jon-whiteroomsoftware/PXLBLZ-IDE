@@ -824,6 +824,15 @@ defines order, refusal, signatures and saved evidence. Each entry may name an
 analog input that drives the Wrapper in place of its slider, one to one with
 Brightness and the other Wrapper (#1278).
 
+The profile's **Wrappers** section writes timing switches through
+`setWrapperEnabled` and Power limit through `editPower`. The profile update
+drives the existing reconciliation queue. Enabled timing rows show the count
+of skipped tags in the current saved inventory. The count and the tags use
+the same connection snapshot and program-id receipt guard. Activating the
+count focuses the first affected tag in the saved table and highlights its
+rows. The Shows group names the enabled timing Wrappers when it contains
+saved Shows.
+
 **Inputs and effective uses.** Input records carry pin, signal, smoothing,
 fallback, and inversion; bindings target an exported slider, function, or
 variable with optional range/quantize. `controllerInputUses.ts` is the pure
@@ -845,7 +854,9 @@ to a free analog pin when needed. Brightness assignment writes the single
 seeded `hardware-brightness` transform's `enabled`/`inputId`, so exclusivity
 across inputs is inherent. When a Pattern binding and hardware brightness name
 the same input, the recipe emits only the binding for that Pattern; the
-brightness row states that scope once (`every Pattern except Caustics`).
+input's use states that scope (`every Pattern except Caustics`). An input's
+**Use for a Wrapper** picker offers Brightness. The Wrappers section shows
+Brightness while the transform names an existing input and offers Unbind.
 
 `ControllerInput.role` was removed in #772: all its values were inert.
 `normalizeControllerInputs` strips the stray key on read so edits cannot write

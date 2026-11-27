@@ -5,9 +5,13 @@ import type { ControllerPushRecord } from './controllerPushRecord'
 import {
   appliedWrapperTags,
   bindingTags,
+  brightnessRowInput,
   describeWrapperTags,
   formatWrapperSkipReason,
   savedRowDomId,
+  showsTimingLine,
+  skippedProgramIdsByWrapper,
+  type WrapperTagEvidence,
   type WrapperSkip,
 } from './controllerWrapperTags'
 
@@ -37,6 +41,66 @@ function record(overrides: Partial<ControllerPushRecord> = {}): ControllerPushRe
 const withOutcome = (wrapperOutcome: ControllerPushRecord['wrapperOutcome'], extra: Partial<ControllerPushRecord> = {}) =>
   record({ wrapperOutcome, wrapperProgramId: PROGRAM, ...extra })
 const pattern = (r: ControllerPushRecord | undefined) => describeWrapperTags({ record: r, programId: PROGRAM, kind: 'pattern' })
+
+const withTiming = (slowMo: boolean, dreamy: boolean): ControllerProfile => ({
+  ...profile,
+  globalTransforms: [
+    { id: 'slow', type: 'slow-mo', enabled: slowMo },
+    { id: 'dream', type: 'dreamy', enabled: dreamy },
+  ],
+})
+
+describe('Controller profile Wrapper rows (#1277b)', () => {
+  it('counts distinct saved Pattern ids whose matching receipt renders a skipped tag', () => {
+    const skip = withOutcome({ applied: [], skipped: { 'slow-mo': memory(2340, 512), dreamy: nameTaken } })
+    const anotherId = 'pxbSameName00002'
+    const rows: WrapperTagEvidence[] = [
+      { programId: PROGRAM, kind: 'pattern', record: skip },
+      { programId: anotherId, kind: 'pattern', record: { ...skip, wrapperProgramId: anotherId } },
+      { programId: 'stray', kind: 'pattern', record: skip },
+      { programId: 'absent', kind: 'pattern', record: undefined },
+      { programId: 'show', kind: 'show', record: { ...skip, wrapperProgramId: 'show' } },
+      { programId: 'applied', kind: 'pattern', record: withOutcome(
+        { applied: ['slow-mo'], skipped: { 'slow-mo': nameTaken } },
+        { wrapperProgramId: 'applied' },
+      ) },
+    ]
+    expect(skippedProgramIdsByWrapper(rows, withTiming(true, true))).toEqual({
+      'slow-mo': [PROGRAM, anotherId], dreamy: [PROGRAM, anotherId],
+    })
+    expect(skippedProgramIdsByWrapper(rows.slice(0, 1), withTiming(true, false))).toEqual({
+      'slow-mo': [PROGRAM], dreamy: [],
+    })
+    expect(skippedProgramIdsByWrapper(rows, profile)).toEqual({ 'slow-mo': [], dreamy: [] })
+    expect(skippedProgramIdsByWrapper([], withTiming(true, true))).toEqual({ 'slow-mo': [], dreamy: [] })
+  })
+
+  it.each([
+    [false, false, null],
+    [true, false, 'Shows keep their own timing: no Slow-mo.'],
+    [false, true, 'Shows keep their own timing: no Dreamy.'],
+    [true, true, 'Shows keep their own timing: no Slow-mo or Dreamy.'],
+  ] as const)('Shows timing line for Slow-mo=%s and Dreamy=%s', (slowMo, dreamy, expected) => {
+    expect(showsTimingLine(withTiming(slowMo, dreamy), 1)).toBe(expected)
+    expect(showsTimingLine(withTiming(slowMo, dreamy), 0)).toBeNull()
+  })
+
+  it.each([
+    [true, 'knob', profile.inputs[0]],
+    [true, 'removed', null],
+    [false, 'knob', null],
+    [true, '', null],
+  ] as const)('Brightness row for enabled=%s and input=%s', (enabled, inputId, expected) => {
+    expect(brightnessRowInput(profile)).toBeNull()
+    expect(brightnessRowInput({
+      ...profile,
+      globalTransforms: [{
+        id: 'brightness', type: 'hardware-brightness', mixinId: 'builtin:hardware-brightness',
+        mode: 'multiply-output', enabled, inputId,
+      }],
+    })).toBe(expected)
+  })
+})
 
 describe('describeWrapperTags provenance (#1277 I1)', () => {
   it.each([

@@ -1,4 +1,9 @@
-import type { ControllerWrapperOutcome, ControllerWrapperType } from './controllerProfile'
+import type {
+  ControllerInput,
+  ControllerProfile,
+  ControllerWrapperOutcome,
+  ControllerWrapperType,
+} from './controllerProfile'
 import { readStoredArtifactSignature } from './controllerProfilePassRecipe'
 import { savedControllerWrapperOutcome, type ControllerPushRecord } from './controllerPushRecord'
 
@@ -121,4 +126,50 @@ export function savedRowDomId(programId: string): string {
     /[A-Za-z0-9-]/.test(char) ? char : `_${char.codePointAt(0)!.toString(16)}_`
   )).join('')
   return `saved-program-${escaped}`
+}
+
+export const TIMING_WRAPPER_NAMES: Record<ControllerWrapperType, string> = {
+  'slow-mo': 'Slow-mo',
+  dreamy: 'Dreamy',
+}
+
+export function wrapperEnabled(profile: ControllerProfile, type: ControllerWrapperType): boolean {
+  return profile.globalTransforms.some((transform) => transform.type === type && transform.enabled)
+}
+
+export function brightnessRowInput(profile: ControllerProfile): ControllerInput | null {
+  const brightness = profile.globalTransforms.find(
+    (transform) => transform.type === 'hardware-brightness' && transform.enabled,
+  )
+  if (brightness?.type !== 'hardware-brightness') return null
+  return profile.inputs.find((input) => input.id === brightness.inputId) ?? null
+}
+
+export function skippedProgramIdsByWrapper(
+  rows: readonly WrapperTagEvidence[],
+  profile: ControllerProfile,
+): Record<ControllerWrapperType, string[]> {
+  const result: Record<ControllerWrapperType, string[]> = { 'slow-mo': [], dreamy: [] }
+  const enabled = TIMING_ORDER.filter((wrapper) => wrapperEnabled(profile, wrapper))
+  if (enabled.length === 0) return result
+
+  for (const row of rows) {
+    if (row.kind !== 'pattern') continue
+    const outcome = savedControllerWrapperOutcome(row.record, row.programId)
+    if (!outcome) continue
+    for (const wrapper of enabled) {
+      if (outcome.skipped[wrapper] && !outcome.applied.includes(wrapper)) {
+        result[wrapper].push(row.programId)
+      }
+    }
+  }
+  return result
+}
+
+export function showsTimingLine(profile: ControllerProfile, showCount: number): string | null {
+  if (showCount === 0) return null
+  const names = TIMING_ORDER
+    .filter((type) => wrapperEnabled(profile, type))
+    .map((type) => TIMING_WRAPPER_NAMES[type])
+  return names.length ? `Shows keep their own timing: no ${names.join(' or ')}.` : null
 }

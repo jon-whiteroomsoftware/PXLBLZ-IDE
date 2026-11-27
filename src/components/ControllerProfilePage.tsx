@@ -12,9 +12,19 @@ import {
   type ControllerInput,
   type ControllerInputSignal,
   type ControllerProfile,
+  type ControllerWrapperType,
   type PowerCapTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
+import { savedBindingKeysByProgramId } from '@/engine/controllerSavedPrograms'
+import {
+  brightnessRowInput,
+  savedRowDomId,
+  skippedProgramIdsByWrapper,
+  TIMING_WRAPPER_NAMES,
+  wrapperEnabled,
+  type WrapperTagEvidence,
+} from '@/engine/controllerWrapperTags'
 import {
   describeControllerInputUses,
   type ControllerInputPresentation,
@@ -48,6 +58,7 @@ import {
   controllerProfileLiveReadKey,
   useControllerProfileLiveStore,
 } from '@/store/controllerProfileLiveStore'
+import { useControllerSavedProgramsLiveStore } from '@/store/controllerSavedProgramsLiveStore'
 import { useMapStore } from '@/store/mapStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import {
@@ -332,6 +343,8 @@ function SmallButton({
   title,
   ariaLabel,
   icon,
+  buttonRef,
+  expanded,
   danger = false,
 }: {
   label: string
@@ -340,14 +353,18 @@ function SmallButton({
   title?: string
   ariaLabel?: string
   icon?: React.ReactNode
+  buttonRef?: React.Ref<HTMLButtonElement>
+  expanded?: boolean
   danger?: boolean
 }) {
   return (
     <Button
       type="button"
+      ref={buttonRef}
       size="xs"
       variant="ghost"
       aria-label={ariaLabel}
+      aria-expanded={expanded}
       className={danger
         ? 'border border-zinc-700 bg-zinc-900/70 text-xs text-zinc-300 hover:border-red-400/55 hover:bg-red-950/25 hover:text-red-300 disabled:opacity-35'
         : sectionActionButtonClass}
@@ -365,19 +382,18 @@ function Switch({
   checked,
   onChange,
   ariaLabel,
-  label,
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   ariaLabel: string
-  label: string
 }) {
   return (
-    <label className="relative inline-flex cursor-pointer select-none items-center gap-2">
+    <label className="relative inline-flex cursor-pointer select-none items-center">
       {/* The real checkbox covers the whole switch, so the click, focus, and
           keyboard all land on the control itself rather than on decoration. */}
       <input
         type="checkbox"
+        role="switch"
         className="peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none opacity-0"
         aria-label={ariaLabel}
         checked={checked}
@@ -387,13 +403,44 @@ function Switch({
         aria-hidden
         className="relative h-3.5 w-[26px] shrink-0 rounded-full bg-zinc-800 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-2.5 after:w-2.5 after:rounded-full after:bg-zinc-500 after:transition-transform after:content-[''] peer-checked:bg-live/25 peer-checked:after:translate-x-3 peer-checked:after:bg-live peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-live"
       />
-      <span
-        className={`font-mono text-[10px] uppercase tracking-[0.1em] ${checked ? 'text-live' : 'text-zinc-500'}`}
-      >
-        {label}
-      </span>
     </label>
   )
+}
+
+function WrapperRow({ name, toggle, source, action }: {
+  name: string
+  toggle?: React.ReactNode
+  source?: React.ReactNode
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="grid grid-cols-[26px_minmax(0,1fr)] items-center gap-x-3 border-t border-seam/70 py-2">
+      <span className="flex">{toggle}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="min-w-20 text-sm font-medium text-zinc-200">{name}</span>
+        <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11.5px] text-zinc-400">
+          {source}
+        </span>
+        {action && <span className="ml-auto">{action}</span>}
+      </div>
+    </div>
+  )
+}
+
+function focusSkippedPrograms(wrapper: ControllerWrapperType, programIds: readonly string[]) {
+  const tags: HTMLElement[] = []
+  for (const programId of programIds) {
+    const row = document.getElementById(savedRowDomId(programId))
+    const tag = row?.querySelector<HTMLElement>(`[data-skipped-wrapper="${wrapper}"]`)
+    if (!row || !tag) continue
+    tags.push(tag)
+    row.animate?.(
+      [{ backgroundColor: 'rgb(245 158 11 / 0.22)' }, { backgroundColor: 'rgb(245 158 11 / 0)' }],
+      { duration: 1600, easing: 'ease-out' },
+    )
+  }
+  tags.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)
+  tags[0]?.focus()
 }
 
 function ProfileStatus({
@@ -592,14 +639,11 @@ function UnitToggle({
   )
 }
 
-/** The Power section carries the whole installation power policy behind two
- * upfront gates (#786): a plain-language "Limit power" switch, then a cap-source
- * segment — Fixed cap or From load and budget. Only the chosen branch renders.
+/** Power limit keeps the installation power policy under its Wrapper row.
+ * The cap source selects Fixed cap or From load and budget.
  * Both branches share the full-white load block, so a fixed cap can still say
  * what it holds the installation to, and est. draw telemetry always has a model.
- * `power-cap` lives here rather than in a separate transform list — it never
- * touches an input (#772). Off collapses to a summary: nothing renders
- * dimmed-but-editable. */
+ * When Power limit is off the settings collapse to the saved cap summary. */
 function PowerSection({
   profile,
   onEdit,
@@ -666,56 +710,52 @@ function PowerSection({
       ? 'Enter the supply voltage so the budget and full-white load are comparable.'
       : undefined
 
-  const summaryDuty = capMode === 'derived' ? derivedDuty : fixedDuty
+  const summaryDuty = capMode === 'derived' ? derivedDuty : draftDuty ?? fixedDuty
   const summaryLabel = summaryDuty != null
     ? `${formatDutyCapPercent(summaryDuty)} ${capMode === 'derived' ? 'from the load and budget' : 'fixed cap'}`
     : 'cap from the load and budget'
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-center gap-x-7 gap-y-3">
-        <Switch
-          ariaLabel="Limit power"
-          checked={capEnabled}
-          label={capEnabled ? 'limit power on' : 'limit power off'}
-          onChange={(enabled) => onEdit({ type: 'set-cap-enabled', enabled })}
-        />
-        {capEnabled && (
-          <SegmentedControl
-            ariaLabel="Duty cap source"
-            value={capMode === 'derived' ? 'derived' : 'fixed'}
-            options={[
-              { value: 'fixed', label: 'Fixed cap' },
-              {
-                value: 'derived',
-                label: 'From load and budget',
-                disabled: derivedUnavailableReason != null,
-                disabledReason: derivedUnavailableReason,
-              },
-            ]}
-            onSelect={(source) => {
-              if (source === 'fixed') {
-                onEdit({ type: 'set-cap-mode', mode: 'direct' })
-              } else {
-                // A pending slider commit would force direct mode after the
-                // fact; the drag belonged to the branch being left.
-                cancelPendingDuty()
-                if (!electricalProfile) onEdit({ type: 'configure-model' })
-                onEdit({ type: 'set-cap-mode', mode: 'derived' })
-              }
-            }}
+      <WrapperRow
+        name="Power limit"
+        source={summaryLabel}
+        toggle={(
+          <Switch
+            ariaLabel="Power limit"
+            checked={capEnabled}
+            onChange={(enabled) => onEdit({ type: 'set-cap-enabled', enabled })}
           />
         )}
-      </div>
-
-      {!capEnabled ? (
-        <p className="text-xs text-zinc-500">
-          Power is not limited —{' '}
-          <span className="font-mono text-zinc-400">{summaryLabel}</span>{' '}
-          kept for when you switch it back on. Generated Patterns are unchanged.
-        </p>
-      ) : (
-        <>
+      />
+      {capEnabled && (
+        <div className="pb-3 pl-[38px] pt-2">
+          <div className="mb-5">
+            <SegmentedControl
+              ariaLabel="Duty cap source"
+              value={capMode === 'derived' ? 'derived' : 'fixed'}
+              options={[
+                { value: 'fixed', label: 'Fixed cap' },
+                {
+                  value: 'derived',
+                  label: 'From load and budget',
+                  disabled: derivedUnavailableReason != null,
+                  disabledReason: derivedUnavailableReason,
+                },
+              ]}
+              onSelect={(source) => {
+                if (source === 'fixed') {
+                  onEdit({ type: 'set-cap-mode', mode: 'direct' })
+                } else {
+                  // A pending slider commit would force direct mode after the
+                  // fact; the drag belonged to the branch being left.
+                  cancelPendingDuty()
+                  if (!electricalProfile) onEdit({ type: 'configure-model' })
+                  onEdit({ type: 'set-cap-mode', mode: 'derived' })
+                }
+              }}
+            />
+          </div>
           <PowerLoadBlock
             electricalProfile={electricalProfile}
             pixelCount={pixelCount}
@@ -737,7 +777,7 @@ function PowerSection({
               />
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   )
@@ -1199,6 +1239,9 @@ function InputCard({
 }) {
   const [adjusting, setAdjusting] = useState(false)
   const [draftOpen, setDraftOpen] = useState(false)
+  const [wrapperPickerOpen, setWrapperPickerOpen] = useState(false)
+  const wrapperPickerTrigger = useRef<HTMLButtonElement>(null)
+  const patternUseTrigger = useRef<HTMLButtonElement>(null)
   const [editingBindingId, setEditingBindingId] = useState<string | null>(null)
   const pinOptions: SelectOption<number>[] = [0, 25, 26, 33, 34, 35, 36, 39].map((pin) => ({
     value: pin,
@@ -1214,8 +1257,6 @@ function InputCard({
       ? 'text-live'
       : 'text-zinc-500'
   const rowCount = presentation.uses.length
-  const showBrightnessAddAction = !presentation.brightnessAssigned
-    && presentation.uses[0]?.kind !== 'none'
 
   return (
     <article
@@ -1333,7 +1374,6 @@ function InputCard({
             onAssignBrightness={onAssignBrightness}
             onUpdateBinding={onUpdateBinding}
             onRemoveBinding={onRemoveBinding}
-            inputId={presentation.inputId}
           />
         ))}
 
@@ -1401,19 +1441,42 @@ function InputCard({
           <div className="mt-2 grid gap-x-4 [grid-template-columns:var(--gut)_minmax(0,1fr)]">
             <span />
             <div className="flex flex-wrap items-center gap-2">
-              {showBrightnessAddAction && (
+              {!presentation.brightnessAssigned && (
                 <SmallButton
-                  label="Use for brightness"
-                  ariaLabel={`Use ${input.name} for brightness`}
+                  label="Use for a Wrapper"
+                  ariaLabel={`Use ${input.name} for a Wrapper`}
                   icon={<Plus {...controlIcon} aria-hidden />}
-                  onClick={() => onAssignBrightness(presentation.inputId)}
+                  buttonRef={wrapperPickerTrigger}
+                  expanded={wrapperPickerOpen}
+                  onClick={() => setWrapperPickerOpen((open) => !open)}
                 />
+              )}
+              {!presentation.brightnessAssigned && wrapperPickerOpen && (
+                <div
+                  role="group"
+                  aria-label={`Wrapper for ${input.name}`}
+                  className="flex flex-wrap items-center gap-2"
+                >
+                  <SmallButton label="Brightness" onClick={() => {
+                    setWrapperPickerOpen(false)
+                    patternUseTrigger.current?.focus()
+                    onAssignBrightness(presentation.inputId)
+                  }} />
+                  <SmallButton label="Cancel" onClick={() => {
+                    setWrapperPickerOpen(false)
+                    wrapperPickerTrigger.current?.focus()
+                  }} />
+                </div>
               )}
               <SmallButton
                 label="Use for one Pattern"
                 ariaLabel={`Use ${input.name} for one Pattern`}
                 icon={<Plus {...controlIcon} aria-hidden />}
-                onClick={() => setDraftOpen(true)}
+                buttonRef={patternUseTrigger}
+                onClick={() => {
+                  setWrapperPickerOpen(false)
+                  setDraftOpen(true)
+                }}
               />
             </div>
           </div>
@@ -1432,7 +1495,6 @@ function UseBlock({
   use,
   index,
   count,
-  inputId,
   inputName,
   inputState,
   profile,
@@ -1447,7 +1509,6 @@ function UseBlock({
   use: ControllerInputUse
   index: number
   count: number
-  inputId: string
   inputName: string
   inputState: ControllerInputPresentation['state']
   profile: ControllerProfile
@@ -1465,14 +1526,6 @@ function UseBlock({
         index={index}
         count={count}
         traceColor={traceColorFor(inputState, false)}
-        right={(
-          <Switch
-            ariaLabel={`${inputName} controls brightness`}
-            checked={false}
-            label="brightness"
-            onChange={() => onAssignBrightness(inputId)}
-          />
-        )}
       >
         <div className="text-[13.5px] text-zinc-400">{use.label}</div>
         <div className="mt-px font-mono text-[11.5px] text-zinc-500">{use.detail}</div>
@@ -1487,11 +1540,10 @@ function UseBlock({
         count={count}
         traceColor={traceColorFor(inputState, use.state === 'live')}
         right={(
-          <Switch
-            ariaLabel={`${inputName} controls brightness`}
-            checked
-            label="on"
-            onChange={() => onAssignBrightness(null)}
+          <SmallButton
+            ariaLabel={`Unbind Brightness from ${inputName}`}
+            label="Unbind"
+            onClick={() => onAssignBrightness(null)}
           />
         )}
       >
@@ -1568,6 +1620,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const updatePatternBinding = useControllerProfileStore((state) => state.updatePatternBinding)
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
   const editPower = useControllerProfileStore((state) => state.editPower)
+  const setWrapperEnabled = useControllerProfileStore((state) => state.setWrapperEnabled)
   const controllers = useControllerStore((state) => state.controllers)
   const transformArtifacts = useControllerStore((state) => state.lastTransformArtifacts)
   const userPatterns = usePatternStore((state) => state.userPatterns)
@@ -1588,6 +1641,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const liveProfileRead = useControllerProfileLiveStore((state) => (
     profileRefreshId ? state.readsByProfile[profileRefreshId] : undefined
   ))
+  const savedProgramsRead = useControllerSavedProgramsLiveStore((state) => state.readsByProfile[profileId])
 
   useEffect(() => {
     if (profileRefreshId && liveIp) {
@@ -1655,6 +1709,23 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
 
   const usesView = describeControllerInputUses(profile, { patternNames })
   const presentationById = new Map(usesView.inputs.map((entry) => [entry.inputId, entry]))
+  const brightness = brightnessRowInput(profile)
+  const savedWrapperRows: WrapperTagEvidence[] = []
+  if (liveIp && savedProgramsRead?.hasSnapshot
+    && savedProgramsRead.controllerId === liveIp && savedProgramsRead.liveEpoch === liveEpoch) {
+    const bindingByProgramId = savedBindingKeysByProgramId(savedProgramsRead.bindings[liveIp] ?? {})
+    const records = savedProgramsRead.pushRecords[liveIp]
+    for (const { id } of savedProgramsRead.programs) {
+      const bindingKey = bindingByProgramId.get(id)
+      if (!bindingKey) continue
+      savedWrapperRows.push({
+        programId: id,
+        kind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
+        record: records?.[bindingKey],
+      })
+    }
+  }
+  const skippedByWrapper = skippedProgramIdsByWrapper(savedWrapperRows, profile)
 
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
@@ -1677,9 +1748,42 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         </div>
       )}
       <Section
-        title="Power"
-        lede="The Controller estimates draw live from the duty cycle of the running Pattern."
+        title="Wrappers"
+        lede="Added to every Pattern PXLBLZ saves on this Controller."
       >
+        {(['slow-mo', 'dreamy'] as const).map((type) => {
+          const enabled = wrapperEnabled(profile, type)
+          const name = TIMING_WRAPPER_NAMES[type]
+          const skipped = skippedByWrapper[type]
+          return (
+            <WrapperRow
+              key={type}
+              name={name}
+              toggle={(
+                <Switch
+                  ariaLabel={name}
+                  checked={enabled}
+                  onChange={(next) => void setWrapperEnabled(profile.id, type, next)}
+                />
+              )}
+              source={enabled && (
+                <>
+                  <span>slider, set per Pattern</span>
+                  {skipped.length > 0 && (
+                    <button
+                      type="button"
+                      aria-label={`${skipped.length} skipped for ${name}`}
+                      className="rounded-sm text-amber-400 underline decoration-amber-400/40 underline-offset-2 hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-live"
+                      onClick={() => focusSkippedPrograms(type, skipped)}
+                    >
+                      {skipped.length} skipped
+                    </button>
+                  )}
+                </>
+              )}
+            />
+          )
+        })}
         {/* Keyed by profile so a pending slider commit (draft + flush-on-unmount)
             can never cross into another profile after rapid navigation. */}
         <PowerSection
@@ -1687,15 +1791,17 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           profile={profile}
           onEdit={(edit) => void editPower(profile.id, edit)}
         />
+        {brightness && (
+          <WrapperRow
+            name="Brightness"
+            source={<><span>IO{brightness.pin}</span><span className="[overflow-wrap:anywhere]">{brightness.name}</span></>}
+            action={<SmallButton label="Unbind" ariaLabel="Unbind Brightness" onClick={() => void assignHardwareBrightness(profile.id, null)} />}
+          />
+        )}
       </Section>
       <Section
         title="Inputs"
-        lede={(
-          <>
-            One entry per physical control wired to the board, with everything it drives.{' '}
-            <span className="text-zinc-400">Changes reach the hardware when a Pattern is pushed.</span>
-          </>
-        )}
+        lede="One entry per physical control wired to the board."
         action={
           <SmallButton
             label="Add input"

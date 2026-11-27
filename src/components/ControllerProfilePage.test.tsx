@@ -1411,7 +1411,7 @@ describe('ControllerProfilePage', () => {
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
     // Brightness states its own scope; there is no Pattern exception yet.
-    expect(screen.getByText('Brightness')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Unbind Brightness' })).toBeInTheDocument()
     expect(screen.getByText('every Pattern')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Use Green pot for one Pattern' }))
@@ -1558,22 +1558,38 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('Nothing yet')).toBeInTheDocument()
     expect(screen.getByText('no Pattern reads it yet')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Front pot controls brightness' }))
+    const wrappers = within(screen.getByRole('heading', { name: 'Wrappers' }).closest('section')!)
+    const trigger = screen.getByRole('button', { name: 'Use Front pot for a Wrapper' })
+    expect(wrappers.queryByText('Brightness')).not.toBeInTheDocument()
+    fireEvent.click(trigger)
+    const picker = screen.getByRole('group', { name: 'Wrapper for Front pot' })
+    expect(within(picker).getAllByRole('button').map((button) => button.textContent)).toEqual(['Brightness', 'Cancel'])
+    fireEvent.click(within(picker).getByRole('button', { name: 'Cancel' }))
+    expect(picker).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(wrappers.queryByText('Brightness')).not.toBeInTheDocument()
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: /^Brightness$/ }))
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
         .find((transform) => transform.type === 'hardware-brightness'))
         .toMatchObject({ enabled: true, inputId: 'pot0' })
     })
-    expect(await screen.findByText('Brightness')).toBeInTheDocument()
+    expect(wrappers.getByText('Brightness')).toBeInTheDocument()
+    expect(wrappers.getByText('IO33')).toBeInTheDocument()
+    expect(wrappers.getByText('Front pot')).toBeInTheDocument()
+    expect(wrappers.getAllByRole('switch').map((control) => control.getAttribute('aria-label')))
+      .toEqual(['Slow-mo', 'Dreamy', 'Power limit'])
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Front pot controls brightness' }))
+    fireEvent.click(wrappers.getByRole('button', { name: 'Unbind Brightness' }))
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
         .find((transform) => transform.type === 'hardware-brightness'))
         .toMatchObject({ enabled: false, inputId: '' })
     })
+    expect(wrappers.queryByText('Brightness')).not.toBeInTheDocument()
   })
 
   it('keeps brightness reachable on an input that already drives a Pattern (#772)', async () => {
@@ -1601,12 +1617,10 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    // With a Pattern use present there is no "Nothing yet" row to carry the
-    // switch, so the add row has to offer brightness instead.
     expect(screen.queryByText('Nothing yet')).not.toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: 'Front pot controls brightness' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Use Front pot for brightness' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use Front pot for a Wrapper' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Brightness$/ }))
 
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
@@ -1614,7 +1628,10 @@ describe('ControllerProfilePage', () => {
         .toMatchObject({ enabled: true, inputId: 'pot0' })
     })
     expect(await screen.findByText('every Pattern except pat-line')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Use Front pot for brightness' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Use Front pot for a Wrapper' })).not.toBeInTheDocument()
+    expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([
+      { id: 'b1', patternId: 'pat-line', inputId: 'pot0', target: { kind: 'call-function', name: 'triggerBurst' } },
+    ])
   })
 
   it('reports brightness on a digital input on that input with a direct correction (#772)', async () => {
@@ -1823,11 +1840,12 @@ describe('ControllerProfilePage', () => {
 
     // The browser flow proves native Space activation. This lighter component
     // oracle checks the semantic control, accessible name, focus, and action.
-    const brightness = screen.getByRole('checkbox', { name: 'Front pot controls brightness' })
+    const brightness = screen.getByRole('button', { name: 'Use Front pot for a Wrapper' })
     expect(brightness).not.toHaveAttribute('tabindex', '-1')
     brightness.focus()
     expect(brightness).toHaveFocus()
     fireEvent.click(brightness)
+    fireEvent.click(screen.getByRole('button', { name: /^Brightness$/ }))
     await waitFor(() => {
       expect(useControllerProfileStore.getState().profiles[0].globalTransforms
         .find((transform) => transform.type === 'hardware-brightness'))
@@ -1870,7 +1888,7 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    const powerSection = screen.getByRole('heading', { name: 'Power' }).closest('section')
+    const powerSection = screen.getByRole('heading', { name: 'Wrappers' }).closest('section')
     expect(powerSection).not.toBeNull()
     expect(screen.queryByRole('heading', { name: 'Electrical' })).not.toBeInTheDocument()
     // One terse readout chain carries the preset assumption exactly once (#772).
@@ -2884,7 +2902,7 @@ describe('ControllerProfilePage', () => {
 
     // The cap already changes every generated Pattern, so it has to be visible
     // and reversible without first configuring an unrelated power model (#772).
-    const limitPower = screen.getByRole('checkbox', { name: 'Limit power' })
+    const limitPower = screen.getByRole('switch', { name: 'Power limit' })
     expect(limitPower).toBeChecked()
     const slider = screen.getByRole('slider', { name: 'Power cap duty percent' })
     expect(screen.getByText('40%')).toBeInTheDocument()
@@ -2911,8 +2929,8 @@ describe('ControllerProfilePage', () => {
         .find((transform) => transform.type === 'power-cap'))
         .toMatchObject({ enabled: false, maxDuty: 0.15 })
     })
-    // Off means off: the section collapses to a summary instead of dimming (#786).
-    expect(screen.getByText(/Power is not limited/)).toBeInTheDocument()
+    // The authored cap stays visible when the settings collapse (#786).
+    expect(limitPower).not.toBeChecked()
     expect(screen.getByText('15% fixed cap')).toBeInTheDocument()
     expect(screen.queryByRole('slider', { name: 'Power cap duty percent' })).not.toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Fixed cap' })).not.toBeInTheDocument()
@@ -2930,7 +2948,7 @@ describe('ControllerProfilePage', () => {
     })
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Limit power' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Power limit' }))
     // Choosing the derived side configures the default model on the way (#786).
     fireEvent.click(await screen.findByRole('radio', { name: 'From load and budget' }))
     await screen.findByRole('textbox', { name: 'Continuous LED supply budget' })
@@ -3264,8 +3282,7 @@ describe('ControllerProfilePage', () => {
 
     render(<ControllerProfilePage profileId="ctrl-1" />)
 
-    expect(screen.getByRole('checkbox', { name: 'Limit power' })).not.toBeChecked()
-    expect(screen.getByText(/Power is not limited/)).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Power limit' })).not.toBeChecked()
     expect(screen.getByText('25% fixed cap')).toBeInTheDocument()
     // Off means off: no gates, fields, or dimmed-but-editable controls (#786).
     expect(screen.queryByRole('radio', { name: 'Fixed cap' })).not.toBeInTheDocument()

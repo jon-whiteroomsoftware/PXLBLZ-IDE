@@ -11,10 +11,14 @@ export function WrapperTag({ tag }: { tag: WrapperTagModel }) {
   }
   const label = WRAPPER_TAG_LABELS[tag.wrapper]
   if (tag.state === 'applied') return <span className={`${tagClass} whitespace-nowrap`}>{label}</span>
-  return <SkippedWrapperTag label={label} reason={tag.reason} />
+  return <SkippedWrapperTag wrapper={tag.wrapper} label={label} reason={tag.reason} />
 }
 
-function SkippedWrapperTag({ label, reason }: { label: string; reason: string }) {
+function SkippedWrapperTag({ wrapper, label, reason }: {
+  wrapper: Extract<WrapperTagModel, { state: 'skipped' }>['wrapper']
+  label: string
+  reason: string
+}) {
   const tipId = useId()
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
@@ -44,6 +48,7 @@ function SkippedWrapperTag({ label, reason }: { label: string; reason: string })
   return (
     <span
       tabIndex={0}
+      data-skipped-wrapper={wrapper}
       aria-describedby={tipId}
       className={`${tagClass} relative cursor-help whitespace-nowrap border-dashed text-zinc-600 hover:border-zinc-500 hover:text-zinc-400 focus:border-zinc-500 focus:text-zinc-400 focus:outline-none focus-visible:ring-1 focus-visible:ring-live/70`}
       onMouseEnter={() => { setHovered(true); setDismissed(false) }}

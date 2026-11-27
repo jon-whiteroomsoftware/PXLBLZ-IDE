@@ -323,21 +323,18 @@ device id and editable even offline. It shows the MAC address alongside IP
 and firmware, so identically named Controllers can be told apart. It is where
 hardware knowledge lives:
 
+- **Wrappers.** Switch Slow-mo, Dreamy, or Power limit on the Controller
+  profile. A timing Wrapper adds a native Pixelblaze slider to each saved
+  Pattern it fits. Select the skipped count next to a Wrapper to reach the
+  affected Patterns. Set Power limit from a fixed value or derive it from your
+  supply budget and full-white load. When an input drives Brightness, its
+  Wrappers row shows the input and offers **Unbind**. Studio Patterns and
+  exports keep their authored source.
 - **Inputs.** Describe a potentiometer or button once (pin, signal,
-  smoothing) and route it to hardware brightness or to any Pattern's
-  exported control. No Pattern editing required; the routing is compiled into
-  what you push. Validation flags problems on the input that owns them, with
-  one-click fixes.
-- **Power.** Set a duty cap from a fixed value, or derive it from your supply
-  budget and full-white load (chipset presets, or your own measured amps or
-  watts). Every Pattern or Show sent through the profile respects the cap.
-  PXLBLZ does not pretend to be an ammeter; plan the physical power system
-  for real.
-- **Wrappers.** A Controller profile can apply Slow-mo and Dreamy to saved
-  Patterns. Each applied Wrapper adds a native Pixelblaze slider. A Pattern
-  that cannot take a Wrapper is still saved with the Wrappers that fit.
-  Shows keep their own timing and continue to receive Power limit and
-  hardware brightness. Studio Patterns and exports keep their authored source.
+  smoothing). Open **Use for a Wrapper** and select **Brightness**, or route
+  the input to a Pattern's exported Control. A Pattern binding on the same
+  input takes precedence for that Pattern. Validation flags problems on the
+  input that owns them, with one-click fixes.
 - **Saved by PXLBLZ.** The profile counts saved Patterns and Shows in one
   heading, with one update line above the **Patterns** and **Shows** groups.
   **Other Patterns** lists the remaining programs. The running row has a green
@@ -348,7 +345,8 @@ hardware knowledge lives:
   Wrapper that was skipped for that Pattern shows as a greyed tag; hover or
   keyboard focus shows why, for example "Skipped: not enough memory. Needs
   2,340 array words, 512 free." or "Skipped: this Pattern's code can't take
-  a Wrapper." Shows never carry a slow-mo or dreamy tag. **Run**
+  a Wrapper." The Shows group names any enabled timing Wrappers that Shows
+  bypass. Shows can carry Power limit and Brightness tags. **Run**
   runs the saved Pattern now without changing the startup Pattern or opening
   anything in Studio. **Delete**
   removes a saved Pattern that is not running, after a confirmation; deleting
