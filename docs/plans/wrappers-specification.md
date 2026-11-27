@@ -128,9 +128,12 @@ independent switches and allocates only the buffers the enabled set needs: six
 for Slow-mo, three for Dreamy, nine for both. Active Dreamy uses the output of
 Slow-mo when both Wrappers are applied.
 
-**Wrapper Controls.** Each applied Wrapper exports one slider. Slow-mo uses
-`sliderSlowMo` (“Slow Mo”) and Dreamy uses `sliderDreamy` (“Dreamy”), the two
-names verified in both Controller panels. [#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
+**Wrapper Controls.** An applied Wrapper with a bound analog input samples
+that input and omits its slider export unless the Pattern binds the same
+input to one of its own Controls. Every other applied Wrapper keeps its
+slider. Slow-mo uses `sliderSlowMo` (“Slow Mo”) and Dreamy uses `sliderDreamy`
+(“Dreamy”), the two names verified in both Controller panels.
+[#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
 
 Both Wrapper Controls read as amounts (decision 30). The left end is off, and
 moving right gives more Slow-mo or more Dreamy. Dreamy already works this way.
