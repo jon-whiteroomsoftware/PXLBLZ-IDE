@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "issue": "1286",
+  "route": "/PXLBLZ-IDE/studio/controllers/saved-pane-layout-1286",
+  "operation": "Opened the Controller profile on the managed issue runtime using repository Playwright, the synthetic local session and the fake Controller helper. Captured the saved Pattern with stored Slow-mo and Dreamy and the saved Show with Power and Brightness at 1440 and 641 CSS px.",
+  "captures": [
+    ".wrsp/ui-proof/1286-after-1440.png",
+    ".wrsp/ui-proof/1286-after-641.png"
+  ],
+  "capturedAtCommit": "b64a7f915be9a781da22d91c8cd060c2b6e0265c"
+}
