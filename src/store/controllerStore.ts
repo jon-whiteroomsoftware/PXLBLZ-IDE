@@ -549,6 +549,8 @@ function rememberSaveOutcome(target: ReconciliationTarget, delivery: PushPattern
 }
 
 type ReconciliationOutcome = Parameters<typeof stallAfterReconciliation>[2]
+type ReconciliationPassOutcome = ReconciliationOutcome | 'replan'
+type ReconciliationPlanStatus = 'current' | 'interrupted' | 'replan'
 class ReconciliationWriteCancelled extends Error {}
 class ReconciliationPlanInvalidated extends Error {}
 
@@ -842,7 +844,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         protectedBindings: ReadonlySet<string>
         recheckPatternSources: boolean
         reportPhase: (phase: 'pending' | 'current' | 'attention') => void
-      }): Promise<ReconciliationOutcome> => {
+      }): Promise<ReconciliationPassOutcome> => {
         const profileId = profile.id
 
         const programs = await provider.listPrograms()
@@ -1034,13 +1036,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
         }))
         const reconciliationSignature = controllerProfileReconciliationSignature(profile)
         const mayStartJob = () => isCurrentSession() && !get().controllerReconciliations[profileId]?.paused
-        const planIsCurrent = async () => {
-          if (!mayStartJob()) return false
+        const checkPlan = async (): Promise<ReconciliationPlanStatus> => {
+          if (!mayStartJob()) return 'interrupted'
           const latestProfiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
           const latest = latestProfiles.find((candidate) => candidate.id === profileId)
           const latestLive = latest ? controllerForProfile(latest, get().controllers) : null
-          return Boolean(latest && mayStartJob() && latestLive?.ip === live.ip
-            && controllerProfileReconciliationSignature(latest) === reconciliationSignature)
+          if (!latest || !mayStartJob() || latestLive?.ip !== live.ip) return 'interrupted'
+          if (controllerProfileReconciliationSignature(latest) === reconciliationSignature) return 'current'
+          return wrappersEnabled || enabledControllerWrappers(latest).length ? 'replan' : 'interrupted'
         }
         const patternSourceIsCurrent = ({ bindingKey, source }: ReconciliationArtifact) =>
           (bindingKey.startsWith('demo:')
@@ -1061,15 +1064,17 @@ export const useControllerStore = create<ControllerConnectionState>()(
           return [{ artifact, record, wrapperOutcome, wrapperPixelCount }]
         })
         if (outcomeUpdates.length) {
-          await queueControllerDeviceWrite(live.ip, async () => {
-            if (!await planIsCurrent()) return
+          const updateStatus = await queueControllerDeviceWrite(live.ip, async (): Promise<ReconciliationPlanStatus> => {
+            const status = await checkPlan()
+            if (status !== 'current') return status
             if (wrappersEnabled && (await provider.getConfig()).pixelCount !== pixelCount) {
-              if (isCurrentSession()) get().scheduleControllerReconciliation(profileId, true)
-              return
+              return mayStartJob() ? 'replan' : 'interrupted'
             }
             const currentBindings = await getControllerBindings()
+            let validated = false
             await updatePushRecords((records) => {
               if (!mayStartJob()) return records
+              validated = true
               let next = records
               for (const { artifact, record, wrapperOutcome, wrapperPixelCount } of outcomeUpdates) {
                 const current = records[live.ip]?.[artifact.bindingKey]
@@ -1092,13 +1097,19 @@ export const useControllerStore = create<ControllerConnectionState>()(
               }
               return next
             })
+            return validated ? 'current' : 'interrupted'
           })
+          if (updateStatus !== 'current') {
+            reportPhase('pending')
+            return updateStatus
+          }
         }
         if (plan.jobs.length === 0) {
           reportPhase('current')
           return 'finished'
         }
         let rereadNeeded = false
+        let replanRequired = false
         const rememberPatternSource = (job: ControllerReconciliationJob) => {
           if (patternSources.has(job.bindingKey)) patternSources.set(job.bindingKey, job.source)
         }
@@ -1115,7 +1126,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
         const result = await executeControllerReconciliation({
           jobs: plan.jobs,
           activeProgramId: config?.activeProgramId,
-          shouldContinue: planIsCurrent,
+          shouldContinue: async () => {
+            const status = await checkPlan()
+            replanRequired = status === 'replan'
+            return status === 'current'
+          },
           onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
           onJobComplete: (job) => {
             rememberPatternSource(job)
@@ -1177,7 +1192,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               const delivery = await queueControllerDeviceWrite(live.ip, async () => {
                 if (deliveryInputs) {
                   const currentConfig = await provider.getConfig()
-                  if (currentConfig.pixelCount !== pixelCount || !await planIsCurrent()) {
+                  const status = await checkPlan()
+                  if (status === 'interrupted') {
+                    forgetSaveAttempt(attempt)
+                    return false as const
+                  }
+                  if (status === 'replan' || currentConfig.pixelCount !== pixelCount) {
                     throw new ReconciliationPlanInvalidated()
                   }
                 }
@@ -1215,7 +1235,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 if (result.save !== 'unconfirmed') forgetSaveAttempt(attempt)
                 return result
               })
-              if (!isCurrentSession()) return false
+              if (!delivery || !isCurrentSession()) return false
               if (delivery.save === 'unconfirmed') {
                 rereadNeeded = true
                 return false
@@ -1231,7 +1251,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               if (!isCurrentSession()) return false
               if (error instanceof ReconciliationPlanInvalidated) {
                 // Stop this pass with the preceding source intact for the recheck.
-                get().scheduleControllerReconciliation(profileId, true)
+                replanRequired = true
                 return false
               }
               if (error instanceof ReconciliationWriteCancelled) {
@@ -1247,7 +1267,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         if (rereadNeeded) rereadController(live.ip)
         if (result.stopped) {
           reportPhase('pending')
-          return 'interrupted'
+          return replanRequired ? 'replan' : 'interrupted'
         }
 
         if (!rereadNeeded && get().activeIp === live.ip && isCurrentSession()) {
@@ -1330,6 +1350,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         reportPhase: (phase: 'pending' | 'current' | 'attention' | undefined) => void,
       ): Promise<void> {
         const scheduled = request.kind === 'automatic' ? request.scheduled : undefined
+        let retryOwner: ReconciliationStall | undefined = scheduled
         const clearStall = () => {
           updateStall(profileId, undefined)
           setReconciliationPhase(profileId, 'pending')
@@ -1338,7 +1359,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
         if (request.kind === 'manual' && initialStall) clearStall()
 
         for (;;) {
-          if (scheduled && reconciliationStalls.get(profileId) !== scheduled) return
+          if (retryOwner && reconciliationStalls.get(profileId) !== retryOwner) return
           if (get().controllerReconciliations[profileId]?.paused) {
             if (scheduled) settleReconciliation(profileId, scheduled.target, true, 'interrupted')
             return
@@ -1389,10 +1410,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
             return current?.phase === 'live' && current.liveEpoch === live.liveEpoch
               && sameReconciliationTarget(current, live) && reconciliationProvider(live.ip) === provider
           }
-          let outcome: ReconciliationOutcome = 'interrupted'
+          let outcome: ReconciliationPassOutcome = 'interrupted'
           try {
-            if (scheduled) {
-              updateStall(profileId, { target: scheduled.target, stage: 'retrying' })
+            if (scheduled && retryOwner === scheduled) {
+              retryOwner = { target: scheduled.target, stage: 'retrying' }
+              updateStall(profileId, retryOwner)
               setReconciliationPhase(profileId, 'running')
             }
             outcome = await runReconciliationPass({
@@ -1409,9 +1431,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
             if (!isReconciliationTimeout(error)) throw error
             if (isCurrentSession()) outcome = 'timeout'
           } finally {
-            settleReconciliation(profileId, live, Boolean(scheduled), outcome)
+            if (outcome !== 'replan') settleReconciliation(profileId, live, Boolean(scheduled), outcome)
           }
-          return
+          if (outcome !== 'replan') return
+          // Keep the same retry and lease while a healthy Controller needs a fresh plan.
+          setReconciliation(profileId, (state) => state.phase === 'running' ? { ...state, restarted: true } : state)
+          followUp = true
         }
       }
 

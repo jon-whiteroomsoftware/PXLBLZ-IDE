@@ -1189,6 +1189,74 @@ describe('managed Controller reconciliation ownership (#1268)', () => {
     },
   )
 
+  it.each(['fresh plan succeeds', 'fresh plan times out'] as const)(
+    'replans an invalidated Wrapper pass within its automatic retry (%s)', async (result) => {
+      const fake = await fixture()
+      enableSlowMo(fake)
+      fake.programs.splice(1)
+      await store().reconcileControllerProfile(profileId)
+      const savedV1 = await getPushRecords()
+      vi.spyOn(fake, 'listPrograms').mockRejectedValueOnce(timeout())
+      await store().reconcileControllerProfile(profileId)
+      expect(state()).toMatchObject({ phase: 'not-responding', retryAt: Date.now() + retryDelay })
+      author(21, 12)
+
+      const getConfig = fake.getConfig.bind(fake)
+      const config = vi.spyOn(fake, 'getConfig')
+        .mockImplementationOnce(getConfig)
+        .mockImplementationOnce(() => {
+          fake.pixelCount = 65
+          return getConfig()
+        })
+      if (result === 'fresh plan times out') config.mockRejectedValueOnce(timeout())
+      await vi.advanceTimersByTimeAsync(retryDelay)
+
+      if (result === 'fresh plan times out') {
+        expect(config).toHaveBeenCalledTimes(3)
+        expect(state()).toMatchObject({ phase: 'not-responding', retryAt: undefined })
+        expect(await getPushRecords()).toEqual(savedV1)
+        await vi.advanceTimersByTimeAsync(retryDelay)
+        expect(config).toHaveBeenCalledTimes(3)
+      } else {
+        expect(state()).toMatchObject({ phase: 'current', completedCount: 1 })
+        expect(writesFor(fake, 'MANAGED1')).toEqual([
+          expect.stringContaining('index * 11'), expect.stringContaining('index * 21'),
+        ])
+        expect((await getPushRecords())[ip]['pat-1']).toMatchObject({
+          sourceHash: artifactHash(source(21)), wrapperProgramId: 'MANAGED1', wrapperPixelCount: 65,
+        })
+      }
+    },
+  )
+
+  it('keeps an aborted Wrapper metadata-only pass pending', async () => {
+    const fake = await fixture()
+    enableSlowMo(fake)
+    fake.programs.splice(1)
+    await store().reconcileControllerProfile(profileId)
+    const confirmed = (await getPushRecords())[ip]['pat-1']
+    const metadataBefore = { ...confirmed, wrapperPixelCount: 63 }
+    await setPushRecords({ [ip]: { 'pat-1': metadataBefore } })
+
+    const release = deferred<void>()
+    const blocked = queueControllerDeviceWrite(ip, () => release.promise)
+    const recheck = store().reconcileControllerProfile(profileId)
+    await vi.advanceTimersByTimeAsync(0)
+    store().pauseControllerReconciliation(profileId)
+    release.resolve()
+    await Promise.all([recheck, blocked])
+
+    expect(state()).toMatchObject({ phase: 'pending', paused: true })
+    expect((await getPushRecords())[ip]['pat-1']).toEqual(metadataBefore)
+    expect(fake.saved).toHaveLength(1)
+
+    store().resumeControllerReconciliation(profileId)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(state()).toMatchObject({ phase: 'current', paused: false })
+    expect((await getPushRecords())[ip]['pat-1']).toEqual(confirmed)
+    expect(fake.saved).toHaveLength(1)
+  })
+
   it('retries an unconfirmed source-only reconciliation Save after the stall has cleared', async () => {
     const fake = await fixture()
     await stallThenEditFirstPattern(fake)

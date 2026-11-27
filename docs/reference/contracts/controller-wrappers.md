@@ -45,6 +45,8 @@ available to detect edits the pass left unwritten. Once a device mutation
 starts, an intervening source edit waits for Save confirmation, activation
 when required, and receipt publication before replanning. An overlapping
 foreground Save retains precedence over its job.
+An obsolete plan can be replaced within the same automatic retry. A no-write
+metadata update that loses its live plan leaves reconciliation pending.
 
 The durable artifact signature records the applied Wrappers when the set is
 nonempty. Skip reasons and slider values are absent from the signature. The
