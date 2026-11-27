@@ -1920,18 +1920,28 @@ may jump otherwise. Clock-of-day builtins are unchanged. Preview tests do
 not establish firmware conversion parity, total memory use, LED appearance,
 or device FPS; those still require hardware proof.
 
-The #1273 Controller bench measured the combined Slow-mo and Dreamy wrapper
-with both Controls off at 14.4–73.9% of unwrapped FPS across six Patterns at
-256 pixels. Jon accepted that cost for the prior emitter at 12:43 -07:00 on
-2026-11-26. The target for the follow-up is 90%.
-[#1273](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1273)
-
-Native Dreamy now starts with empty history on each activation and seeds it
+Native Dreamy starts with empty history on each activation and seeds it
 from the first eligible active render. With Dreamy at zero, a Pattern with
 both Wrappers uses the Slow-mo-only clock and output. Entering Slow-mo from
-full bypass at 0 ms displays the refreshed Slow-mo frame. The prior emitter
-held the RGB it had captured while bypassed. Controller FPS for the cold
-bypass awaits a bench measurement.
+full bypass at 0 ms displays the refreshed Slow-mo frame.
+
+The #1283 bench measured firmware-reported FPS on Proto 3 (`pb32`, firmware
+3.70) with a 16×16, 256-pixel map. Both Wrappers were enabled and their
+Controls were untouched in both wrapped runs. Each run settled for two
+seconds before a ten-second sample.
+
+| Pattern | Unwrapped FPS | Wrapped FPS at `3b72c727` | Wrapped FPS at `89c380ac` | Share of unwrapped at `89c380ac` |
+| --- | ---: | ---: | ---: | ---: |
+| WavyBands | 123.59 | 33.30 | 97.62 | 78.99% |
+| LineDancer2D | 124.70 | 33.89 | 102.12 | 81.89% |
+| VoronoiMix2D | 39.58 | 21.16 | 36.51 | 92.25% |
+| IridescentFibers | 22.55 | 16.65 | 21.52 | 95.44% |
+
+WavyBands and LineDancer2D reach about 79% and 82% of unwrapped FPS,
+respectively, below the 90% target. Jon accepted the measured rates in the
+eng-lead chat on 2026-11-26 at 19:16 -07:00. The source audit counted eight
+Wrapper operations per pixel on the bypass path, plus one phase write per
+frame. The per-frame dispatch option is parked in #1283.
 [#1283](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/1283)
 
 ## 32. Evidence and further reading
