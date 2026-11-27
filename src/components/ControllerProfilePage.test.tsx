@@ -1666,6 +1666,90 @@ describe('ControllerProfilePage', () => {
     await settleProfileAsync()
   })
 
+  describe('Wrapper picker eligibility (#1278)', () => {
+    beforeEach(() => {
+      const profile = seedProfile()
+      useControllerProfileStore.setState({
+        profiles: [{
+          ...profile,
+          inputs: [{
+            id: 'pot0',
+            name: 'Front pot',
+            pin: 33,
+            signal: 'analog',
+            smoothing: 0.2,
+            fallback: 0.5,
+            invert: false,
+          }],
+        }],
+      })
+      render(<ControllerProfilePage profileId="ctrl-1" />)
+    })
+
+    it('keeps the Wrapper row picker closed after binding from the input card and unbinding', async () => {
+      const trigger = screen.getByRole('button', { name: 'Bind input to Slow-mo' })
+      const rowPicker = () => screen.queryByRole('group', { name: 'Input for Slow-mo' })
+      fireEvent.click(trigger)
+      expect(rowPicker()).toBeVisible()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Use Front pot for a Wrapper' }))
+      const cardPicker = within(screen.getByRole('group', { name: 'Wrapper for Front pot' }))
+      await act(async () => {
+        fireEvent.click(cardPicker.getByRole('button', { name: 'Slow-mo' }))
+      })
+      expect(rowPicker()).not.toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Unbind Slow-mo' }))
+      })
+      expect(rowPicker()).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Bind input to Slow-mo' }))
+        .toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('keeps the input card picker closed after binding from the Wrapper row and unbinding', async () => {
+      const triggerName = 'Use Front pot for a Wrapper'
+      const cardPicker = () => screen.queryByRole('group', { name: 'Wrapper for Front pot' })
+      fireEvent.click(screen.getByRole('button', { name: triggerName }))
+      expect(cardPicker()).toBeVisible()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Bind input to Slow-mo' }))
+      const rowPicker = within(screen.getByRole('group', { name: 'Input for Slow-mo' }))
+      await act(async () => {
+        fireEvent.click(rowPicker.getByRole('button', { name: 'IO33 Front pot' }))
+      })
+      expect(cardPicker()).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: triggerName })).not.toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Unbind Slow-mo' }))
+      })
+      expect(cardPicker()).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: triggerName }))
+        .toHaveAttribute('aria-expanded', 'false')
+    })
+
+    it('keeps the Wrapper row picker closed when an analog input is added after the last one was removed', async () => {
+      const trigger = screen.getByRole('button', { name: 'Bind input to Slow-mo' })
+      const rowPicker = () => screen.queryByRole('group', { name: 'Input for Slow-mo' })
+      fireEvent.click(trigger)
+      expect(rowPicker()).toBeVisible()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Remove Front pot' }))
+      })
+      expect(trigger).toBeDisabled()
+      expect(rowPicker()).not.toBeInTheDocument()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Add input' }))
+      })
+      expect(trigger).toBeEnabled()
+      expect(rowPicker()).not.toBeInTheDocument()
+      expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    })
+  })
+
   it('keeps brightness reachable on an input that already drives a Pattern (#772)', async () => {
     const base = seedProfile()
     useControllerProfileStore.setState({

@@ -454,7 +454,9 @@ function TimingWrapperRow({ profile, type, source, skipped, onToggle, onBind }: 
   const enabled = wrapperEnabled(profile, type)
   const name = TIMING_WRAPPER_NAMES[type]
   const choices = wrapperBindingChoices(profile, type)
-  const expanded = pickerOpen && !source && choices.length > 0
+  const canBind = !source && choices.length > 0
+  if (pickerOpen && !canBind) setPickerOpen(false)
+  const expanded = pickerOpen && canBind
   const closePicker = () => {
     setPickerOpen(false)
     trigger.current?.focus()
@@ -1362,6 +1364,7 @@ function InputCard({
     ? [timingUse, ...presentation.uses.filter((use) => use.kind !== 'none')]
     : presentation.uses
   const canAssignWrapper = !presentation.brightnessAssigned && !timingUse
+  if (wrapperPickerOpen && !canAssignWrapper) setWrapperPickerOpen(false)
   const wrapperOptions: readonly GlobalInputUse[] = input.signal === 'analog'
     ? ['hardware-brightness', ...CONTROLLER_WRAPPER_TYPES]
     : ['hardware-brightness']
